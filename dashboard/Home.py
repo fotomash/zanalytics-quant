@@ -121,8 +121,11 @@ class ZanalyticsDashboard:
         ]
         self.timeframes = ["1min", "5min", "15min", "30min", "1H", "4H", "1D", "1W", "5T"]
 
-        # Base URL for tick and bar data API
+        # Base URLs for backend APIs
         self.api_url = get_config_var("MT5_API_URL", "http://localhost:5001")
+        self.django_api_url = get_config_var(
+            "DJANGO_API_URL", "http://localhost:8000"
+        )
 
         self.economic_manager = EconomicDataManager()
 
