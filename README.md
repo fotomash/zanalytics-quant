@@ -45,8 +45,8 @@ This project provides a Docker-based setup to run MetaTrader 5 (MT5) using Wine 
 1. **Clone the Repository**
 
    ```bash
-   git clone -b chapter-1 --single-branch https://github.com/sesto-dev/metatrader5-linux-django-docker.git
-   cd metatrader5-linux-django-docker
+   git repo clone fotomash/zanalytics-quant
+   cd zanalytics-quant
    ```
 
 2. **Configure Environment Variables**
@@ -190,32 +190,3 @@ Logs are managed per service and can be viewed using Docker commands or integrat
   - Confirm that the VNC service is running and accessible via the specified domain.
   - Verify network configurations and firewall settings.
 
-## Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. **Fork the Repository**
-
-2. **Create a Feature Branch**
-
-   ```bash
-   git checkout -b feature/YourFeature
-   ```
-
-3. **Commit Your Changes**
-
-   ```bash
-   git commit -m "Add Your Feature"
-   ```
-
-4. **Push to the Branch**
-
-   ```bash
-   git push origin feature/YourFeature
-   ```
-
-5. **Open a Pull Request**
-
-## License
-
-This project is licensed under the [MIT License](LICENSE.md).
