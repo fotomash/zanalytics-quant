@@ -1,9 +1,13 @@
-#!/bin/bash
-set -e
+version: '3.8'
 
-# You’re already in /app (Docker WORKDIR)
-
-exec streamlit run Home.py \
-     --server.port=${PORT:-8501} \
-     --server.address=0.0.0.0 \
-     --server.enableCORS=false
+services:
+  dashboard:
+    build: .
+    volumes:
+      - ./dashboard:/app/dashboard
+    working_dir: /app
+    ports:
+      - "8501:8501"
+    environment:
+      - PORT=8501
+    command: ["./scripts/startup.sh"]

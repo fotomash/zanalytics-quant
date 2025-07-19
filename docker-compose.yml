@@ -429,9 +429,11 @@ services:
       context: ./dashboard
       dockerfile: Dockerfile
     container_name: dashboard
-    working_dir: /app
+    working_dir: /app/dashboard
     volumes:
-      - ./dashboard:/app
+      - ./dashboard:/app/dashboard
+    env_file:
+      - .env
     command: >
       streamlit run Home.py --server.port=8501 --server.enableCORS false
     restart: unless-stopped

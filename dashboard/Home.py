@@ -1,10 +1,32 @@
 #!/usr/bin/env python3
+# Configuration loading order:
+# 1. Try to load each config variable from environment variable (os.getenv).
+# 2. If not set, fall back to st.secrets (from secrets.toml).
+# 3. If not found in either, use a minimal default (None or "./data" for directories).
+# All environment variable names are UPPER_SNAKE_CASE (e.g. DATA_DIRECTORY, RAW_DATA_DIRECTORY, FINNHUB_API_KEY, etc.).
+# Use get_config_var(name, default) to access config throughout the app.
 """
 Zanalytics Dashboard
 
 A focused dashboard providing at-a-glance market intelligence and an overview of available data.
 """
 import streamlit as st
+
+# --- PATCH: Load .env config if present ---
+from pathlib import Path
+from dotenv import load_dotenv
+import os
+load_dotenv(dotenv_path=Path(__file__).parents[2] / '.env')
+
+# --- Config utility: get_config_var ---
+def get_config_var(name, default=None):
+    v = os.getenv(name)
+    if v is not None:
+        return v
+    try:
+        return st.secrets[name.lower()]
+    except Exception:
+        return default
 
 # Set Streamlit page config as the very first Streamlit command
 st.set_page_config(
@@ -17,9 +39,9 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-import os
+# import os  # Already imported above
 import glob
-from pathlib import Path 
+# from pathlib import Path  # Already imported above
 from datetime import datetime
 import warnings
 import re
@@ -76,22 +98,21 @@ class EconomicDataManager:
 class ZanalyticsDashboard:
     def __init__(self):
         """
-        Initializes the dashboard, loading configuration from Streamlit secrets.
+        Initializes the dashboard, loading configuration from env or Streamlit secrets.
         """
-        try:
-            # Load data directory from secrets.toml
-            data_directory = st.secrets["data_directory"]
-        except (FileNotFoundError, KeyError):
-            # Fallback to a default directory if secrets.toml or the key is missing
-            data_directory = "./data"
-
-        self.data_dir = Path(data_directory)
+        # Always use get_config_var for all config values
+        self.data_dir = Path(get_config_var("DATA_DIRECTORY", "./data"))
+        self.raw_data_dir = Path(get_config_var("RAW_DATA_DIRECTORY", "./data/raw"))
+        self.parquet_data_dir = Path(get_config_var("PARQUET_DATA_DIR", "./data/parquet"))
+        self.bar_data_dir = Path(get_config_var("BAR_DATA_DIR", "./data/_bars"))
+        self.json_dir = Path(get_config_var("JSONDIR", "./data/json"))
+        self.data_path = Path(get_config_var("DATA_PATH", "./data"))
         self.supported_pairs = ["XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "ETHUSD", "USDCAD", "AUDUSD",
                                 "NZDUSD", "DXY", "DXYCAS"]
         self.timeframes = ["1min", "5min", "15min", "30min", "1H", "4H", "1D", "1W", "5T"]
 
         self.economic_manager = EconomicDataManager()
-        self.fred = Fred(api_key="6a980b8c2421503564570ecf4d765173")
+        self.fred = Fred(api_key=get_config_var("FRED_API_KEY"))
 
         if 'chart_theme' not in st.session_state:
             st.session_state.chart_theme = 'plotly_dark'
@@ -218,7 +239,7 @@ class ZanalyticsDashboard:
         # --- Microstructure 3D Surface Demo (XAUUSD) ---
         import plotly.graph_objects as go
 
-        xau_ticks_path = Path(st.secrets["raw_data_directory"]) / "XAUUSD_ticks.csv"
+        xau_ticks_path = self.raw_data_dir / "XAUUSD_ticks.csv"
         if xau_ticks_path.exists():
             try:
                 # Ingest standard comma‑separated CSV (no custom delimiter)
@@ -272,7 +293,7 @@ class ZanalyticsDashboard:
 
         # --- XAUUSD 15-Minute Candlestick Chart from Parquet (with FVG, Midas VWAP, Wyckoff Accumulation) ---
         try:
-            parquet_dir = Path(st.secrets["PARQUET_DATA_DIR"])
+            parquet_dir = self.parquet_data_dir
             parquet_file = next(parquet_dir.glob("**/XAUUSD*15min*.parquet"), None)
             if parquet_file:
                 df = auto_cache(
@@ -426,7 +447,7 @@ class ZanalyticsDashboard:
         # --- EURUSD and GBPUSD 15-Minute Candlestick Charts (with FVG, Midas VWAP, Wyckoff) ---
         for fx_pair in ["EURUSD", "GBPUSD"]:
             try:
-                parquet_dir = Path(st.secrets["PARQUET_DATA_DIR"])
+                parquet_dir = self.parquet_data_dir
                 parquet_file = next(parquet_dir.glob(f"**/{fx_pair}*15min*.parquet"), None)
                 if parquet_file:
                     df = auto_cache(
@@ -560,7 +581,7 @@ class ZanalyticsDashboard:
         # Insert EURGBP 15-min chart block after GBPUSD
         try:
             fx_pair = "EURGBP"
-            parquet_dir = Path(st.secrets["PARQUET_DATA_DIR"])
+            parquet_dir = self.parquet_data_dir
             parquet_file = next(parquet_dir.glob(f"**/{fx_pair}*15min*.parquet"), None)
             if parquet_file:
                 # Only load the last 200 rows for charting using .tail(200)
@@ -703,7 +724,7 @@ class ZanalyticsDashboard:
 
         # --- XAUUSD 3D Visualization of FVG & SMC (15min) ---
         try:
-            parquet_dir = Path(st.secrets["PARQUET_DATA_DIR"])
+            parquet_dir = self.parquet_data_dir
             parquet_file = next(parquet_dir.glob("**/XAUUSD*15min*.parquet"), None)
             if parquet_file:
                 df_3d = pd.read_parquet(parquet_file)
@@ -763,7 +784,7 @@ class ZanalyticsDashboard:
             "GBPUSD": "Viridis",
         }
 
-        parquet_dir = Path(st.secrets["PARQUET_DATA_DIR"])
+        parquet_dir = self.parquet_data_dir
         surfaces = []
 
         for idx, (asset, colorscale) in enumerate(assets.items()):
