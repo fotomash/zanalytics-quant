@@ -1,0 +1,60 @@
+# macro_sentiment_config.yaml
+data_sources:
+  yfinance:
+    tickers:
+      indices:
+        - ^GSPC
+        - ^DJI
+        - ^IXIC
+        - ^VIX
+        - ^GDAXI
+        - ^FTSE
+      currencies:
+        - EURUSD=X
+        - GBPUSD=X
+        - USDJPY=X
+        - DX-Y.NYB
+      commodities:
+        - GC=F
+        - CL=F
+        - SI=F
+        - HG=F
+      crypto:
+        - BTC-USD
+        - ETH-USD
+  
+  fred:
+    api_key: "6a980b8c2421503564570ecf4d765173"
+    series:
+      - DGS10
+      - DGS2
+      - DFF
+      - UNRATE
+      - CPIAUCSL
+      - GDPC1
+  
+  newsapi:
+    api_key: "713b3bd82121482aaa0ecdc9af77b6da"
+    country: "gb"
+    category: "business"
+  
+  polygon:
+    api_key: "DyEadGzDCLwCJomppjGgDFXXUCW94ONO"
+    
+  finnhub:
+    api_key: "d07lgo1r01qrslhp3q3g"
+
+analysis:
+  lookback_days: 14
+  update_frequency: 3600
+  
+vectors:
+  dimension: 1536
+  operations:
+    - sentiment_embedding
+    - correlation_matrix
+    - volatility_regime
+
+session_state:
+  cache_ttl: 300
+  max_retries: 3

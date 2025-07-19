@@ -1,0 +1,1120 @@
+#!/usr/bin/env python3
+"""
+NCOS v11 Trading Analysis Dashboard
+Comprehensive TOML-driven market analysis with multiple data sources
+"""
+
+import re
+import numpy as np
+from pathlib import Path
+import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import plotly.express as px
+import json
+import os
+import requests
+import yfinance as yf
+from datetime import datetime, timedelta, date
+import warnings
+from typing import Dict, List, Optional, Any
+import logging
+import pytz
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import time
+
+# Suppress warnings
+warnings.filterwarnings('ignore')
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# ============================================================================
+# CONFIGURATION AND SETUP
+# ============================================================================
+
+def load_config_from_secrets():
+    """
+    Load all configuration from Streamlit secrets.toml
+    This function centralizes access to all API keys and data paths
+    """
+    try:
+        config = {
+            # API Keys
+            'api_keys': {
+                'finnhub': st.secrets.get('finnhub_api_key', ''),
+                'newsapi': st.secrets.get('newsapi_key', ''),
+                'trading_economics': st.secrets.get('trading_economics_api_key', ''),
+                'fred': st.secrets.get('fred_api_key', '')
+            },
+
+            # Data Directories from TOML
+            'data_paths': {
+                'data_directory': st.secrets.get('data_directory', './data'),
+                'raw_data_directory': st.secrets.get('raw_data_directory', './data/raw'),
+                'json_dir': st.secrets.get('JSONdir', './data/json'),
+                'bar_data_directory': st.secrets.get('bar_data_directory', './data/bars'),
+                'data_path': st.secrets.get('data_path', './data'),
+                'bar_data_dir': st.secrets.get('BAR_DATA_DIR', './data/bars'),
+                'parquet_data_dir': st.secrets.get('PARQUET_DATA_DIR', './data/parquet'),
+                'raw_data': st.secrets.get('raw_data', './data/raw'),
+                'enriched_data': st.secrets.get('enriched_data', './data/enriched'),
+                'tick_data': st.secrets.get('tick_data', './data/tick')
+            }
+        }
+
+        return config
+
+    except Exception as e:
+        st.error(f"❌ Error loading configuration: {e}")
+        return {
+            'api_keys': {},
+            'data_paths': {}
+        }
+
+def validate_api_keys(config):
+    """Validate and display API key status"""
+    api_status = {}
+
+    for service, key in config['api_keys'].items():
+        if key and len(key) > 10:  # Basic validation
+            api_status[service] = "✅ Available"
+        else:
+            api_status[service] = "❌ Missing"
+
+    return api_status
+
+def validate_data_paths(config):
+    """Validate and create data directories if needed"""
+    path_status = {}
+
+    for path_name, path_value in config['data_paths'].items():
+        path_obj = Path(path_value)
+
+        if path_obj.exists():
+            path_status[path_name] = f"✅ Exists ({len(list(path_obj.glob('*')))} files)"
+        else:
+            try:
+                path_obj.mkdir(parents=True, exist_ok=True)
+                path_status[path_name] = "📁 Created"
+            except Exception as e:
+                path_status[path_name] = f"❌ Error: {e}"
+
+    return path_status
+
+# ============================================================================
+# DATA SOURCE INTEGRATIONS
+# ============================================================================
+
+class FinnhubAPI:
+    """Finnhub API integration for real-time market data"""
+
+    def __init__(self, api_key):
+        self.api_key = api_key
+        self.base_url = "https://finnhub.io/api/v1"
+
+    def get_stock_price(self, symbol):
+        """Get current stock price"""
+        if not self.api_key:
+            return None
+
+        url = f"{self.base_url}/quote"
+        params = {'symbol': symbol, 'token': self.api_key}
+
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Finnhub API error: {e}")
+            return None
+
+    def get_company_profile(self, symbol):
+        """Get company profile information"""
+        if not self.api_key:
+            return None
+
+        url = f"{self.base_url}/stock/profile2"
+        params = {'symbol': symbol, 'token': self.api_key}
+
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Finnhub API error: {e}")
+            return None
+
+    def get_market_news(self, category='general'):
+        """Get market news"""
+        if not self.api_key:
+            return None
+
+        url = f"{self.base_url}/news"
+        params = {'category': category, 'token': self.api_key}
+
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Finnhub API error: {e}")
+            return None
+
+class NewsAPI:
+    """NewsAPI integration for market sentiment analysis"""
+
+    def __init__(self, api_key):
+        self.api_key = api_key
+        self.base_url = "https://newsapi.org/v2"
+
+    def get_market_news(self, query="stock market", language='en', page_size=20):
+        """Get market-related news"""
+        if not self.api_key:
+            return None
+
+        url = f"{self.base_url}/everything"
+        params = {
+            'q': query,
+            'language': language,
+            'pageSize': page_size,
+            'sortBy': 'publishedAt',
+            'apiKey': self.api_key
+        }
+
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"NewsAPI error: {e}")
+            return None
+
+class FREDData:
+    """FRED API integration for economic data"""
+
+    def __init__(self, api_key):
+        self.api_key = api_key
+        self.base_url = "https://api.stlouisfed.org/fred"
+
+    def get_series_data(self, series_id, limit=100):
+        """Get economic time series data"""
+        if not self.api_key:
+            return None
+
+        url = f"{self.base_url}/series/observations"
+        params = {
+            'series_id': series_id,
+            'api_key': self.api_key,
+            'file_type': 'json',
+            'limit': limit,
+            'sort_order': 'desc'
+        }
+
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"FRED API error: {e}")
+            return None
+
+# ============================================================================
+# DATA LOADING AND ENRICHMENT
+# ============================================================================
+
+@st.cache_data(ttl=300)  # Cache for 5 minutes
+def discover_local_data(config):
+    """Discover available data files from configured paths"""
+    discovered_data = {
+        'parquet_files': [],
+        'csv_files': [],
+        'json_files': [],
+        'symbols': set(),
+        'timeframes': set()
+    }
+
+    # Scan parquet directory
+    parquet_dir = Path(config['data_paths']['parquet_data_dir'])
+    if parquet_dir.exists():
+        for file_path in parquet_dir.rglob('*.parquet'):
+            discovered_data['parquet_files'].append(str(file_path))
+            # Extract symbol from filename
+            filename = file_path.stem
+            if '_' in filename:
+                parts = filename.split('_')
+                if len(parts) >= 2:
+                    discovered_data['symbols'].add(parts[0].upper())
+                    discovered_data['timeframes'].add(parts[1])
+
+    # Scan for CSV files in multiple directories
+    csv_dirs = [
+        config['data_paths']['raw_data'],
+        config['data_paths']['bar_data_dir'],
+        config['data_paths']['data_directory']
+    ]
+
+    for csv_dir_path in csv_dirs:
+        csv_dir = Path(csv_dir_path)
+        if csv_dir.exists():
+            for file_path in csv_dir.rglob('*.csv'):
+                discovered_data['csv_files'].append(str(file_path))
+                filename = file_path.stem
+                if '_' in filename:
+                    parts = filename.split('_')
+                    if len(parts) >= 1:
+                        discovered_data['symbols'].add(parts[0].upper())
+
+    # Scan JSON directory
+    json_dir = Path(config['data_paths']['json_dir'])
+    if json_dir.exists():
+        for file_path in json_dir.rglob('*.json'):
+            discovered_data['json_files'].append(str(file_path))
+
+    # Convert sets to sorted lists
+    discovered_data['symbols'] = sorted(list(discovered_data['symbols']))
+    discovered_data['timeframes'] = sorted(list(discovered_data['timeframes']))
+
+    return discovered_data
+
+def load_parquet_data(file_path):
+    """Load and validate parquet data with metadata"""
+    try:
+        df = pd.read_parquet(file_path)
+
+        # Basic validation
+        if df.empty:
+            return None, "Empty dataset"
+
+        # Ensure datetime index
+        if 'timestamp' in df.columns:
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            df.set_index('timestamp', inplace=True)
+        elif not isinstance(df.index, pd.DatetimeIndex):
+            return None, "No valid timestamp column found"
+
+        # Basic OHLCV validation
+        required_cols = ['open', 'high', 'low', 'close']
+        missing_cols = [col for col in required_cols if col not in df.columns]
+
+        if missing_cols:
+            return None, f"Missing required columns: {missing_cols}"
+
+        return df, None
+
+    except Exception as e:
+        return None, f"Error loading file: {e}"
+
+def load_csv_data(file_path):
+    """Load CSV data with automatic format detection"""
+    try:
+        # Try different separators
+        for sep in [',', '\t', ';']:
+            try:
+                df = pd.read_csv(file_path, sep=sep)
+                if len(df.columns) > 4:  # Likely successful parse
+                    break
+            except:
+                continue
+
+        if df.empty:
+            return None, "Empty dataset"
+
+        # Normalize column names
+        df.columns = df.columns.str.lower().str.strip()
+
+        # Handle timestamp columns
+        timestamp_cols = [col for col in df.columns if any(x in col.lower() for x in ['time', 'date'])]
+
+        if timestamp_cols:
+            timestamp_col = timestamp_cols[0]
+            df[timestamp_col] = pd.to_datetime(df[timestamp_col], errors='coerce')
+            df.set_index(timestamp_col, inplace=True)
+
+        return df, None
+
+    except Exception as e:
+        return None, f"Error loading CSV: {e}"
+
+# ============================================================================
+# TECHNICAL ANALYSIS AND INDICATORS
+# ============================================================================
+
+def calculate_technical_indicators(df):
+    """Calculate comprehensive technical indicators"""
+    if df.empty or not all(col in df.columns for col in ['open', 'high', 'low', 'close']):
+        return df
+
+    try:
+        # Moving averages
+        df['sma_20'] = df['close'].rolling(20).mean()
+        df['sma_50'] = df['close'].rolling(50).mean()
+        df['ema_12'] = df['close'].ewm(span=12).mean()
+        df['ema_26'] = df['close'].ewm(span=26).mean()
+
+        # RSI
+        delta = df['close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        df['rsi'] = 100 - (100 / (1 + rs))
+
+        # MACD
+        df['macd'] = df['ema_12'] - df['ema_26']
+        df['macd_signal'] = df['macd'].ewm(span=9).mean()
+        df['macd_histogram'] = df['macd'] - df['macd_signal']
+
+        # Bollinger Bands
+        df['bb_middle'] = df['close'].rolling(20).mean()
+        bb_std = df['close'].rolling(20).std()
+        df['bb_upper'] = df['bb_middle'] + (bb_std * 2)
+        df['bb_lower'] = df['bb_middle'] - (bb_std * 2)
+
+        # ATR
+        high_low = df['high'] - df['low']
+        high_close = np.abs(df['high'] - df['close'].shift())
+        low_close = np.abs(df['low'] - df['close'].shift())
+        ranges = pd.concat([high_low, high_close, low_close], axis=1)
+        true_range = ranges.max(axis=1)
+        df['atr'] = true_range.rolling(14).mean()
+
+        # Volume indicators (if volume available)
+        if 'volume' in df.columns:
+            df['volume_sma'] = df['volume'].rolling(20).mean()
+            df['volume_ratio'] = df['volume'] / df['volume_sma']
+
+        return df
+
+    except Exception as e:
+        logger.error(f"Error calculating indicators: {e}")
+        return df
+
+def detect_patterns(df):
+    """Detect basic chart patterns and signals"""
+    if df.empty:
+        return df
+
+    try:
+        # Support and resistance levels
+        df['resistance'] = df['high'].rolling(20).max()
+        df['support'] = df['low'].rolling(20).min()
+
+        # Breakout signals
+        df['breakout_up'] = (df['close'] > df['resistance'].shift(1)) & (df['close'].shift(1) <= df['resistance'].shift(2))
+        df['breakout_down'] = (df['close'] < df['support'].shift(1)) & (df['close'].shift(1) >= df['support'].shift(2))
+
+        # Golden/Death cross
+        if 'sma_20' in df.columns and 'sma_50' in df.columns:
+            df['golden_cross'] = (df['sma_20'] > df['sma_50']) & (df['sma_20'].shift(1) <= df['sma_50'].shift(1))
+            df['death_cross'] = (df['sma_20'] < df['sma_50']) & (df['sma_20'].shift(1) >= df['sma_50'].shift(1))
+
+        return df
+
+    except Exception as e:
+        logger.error(f"Error detecting patterns: {e}")
+        return df
+
+# ============================================================================
+# CHARTING AND VISUALIZATION
+# ============================================================================
+
+def create_comprehensive_chart(df, symbol, config):
+    """Create comprehensive trading chart with multiple panels"""
+
+    # Create subplots
+    fig = make_subplots(
+        rows=4, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.02,
+        subplot_titles=(
+            f'{symbol} - Price & Indicators',
+            'RSI',
+            'MACD',
+            'Volume'
+        ),
+        row_heights=[0.5, 0.2, 0.2, 0.1]
+    )
+
+    # Main candlestick chart (PATCH: sharper pro colors)
+    fig.add_trace(
+        go.Candlestick(
+            x=df.index,
+            open=df['open'],
+            high=df['high'],
+            low=df['low'],
+            close=df['close'],
+            name=symbol,
+            increasing_line_color='lime',
+            decreasing_line_color='red'
+        ),
+        row=1, col=1
+    )
+
+    # Moving averages
+    if 'sma_20' in df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=df.index, y=df['sma_20'],
+                mode='lines', name='SMA 20',
+                line=dict(color='orange', width=1)
+            ),
+            row=1, col=1
+        )
+
+    if 'sma_50' in df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=df.index, y=df['sma_50'],
+                mode='lines', name='SMA 50',
+                line=dict(color='blue', width=1)
+            ),
+            row=1, col=1
+        )
+
+    # PATCH: VWAP line pro styling if present
+    if 'vwap' in df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=df.index, y=df['vwap'],
+                mode='lines', name='VWAP',
+                line=dict(color='gold', width=2, dash='dot')
+            ),
+            row=1, col=1
+        )
+
+    # Bollinger Bands
+    if all(col in df.columns for col in ['bb_upper', 'bb_lower', 'bb_middle']):
+        fig.add_trace(
+            go.Scatter(
+                x=df.index, y=df['bb_upper'],
+                mode='lines', name='BB Upper',
+                line=dict(color='gray', width=1, dash='dot'),
+                showlegend=False
+            ),
+            row=1, col=1
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=df.index, y=df['bb_lower'],
+                mode='lines', name='BB Lower',
+                line=dict(color='gray', width=1, dash='dot'),
+                fill='tonexty', fillcolor='rgba(0,128,128,0.1)',
+                showlegend=False
+            ),
+            row=1, col=1
+        )
+
+    # Pattern signals
+    if 'golden_cross' in df.columns:
+        golden_cross_points = df[df['golden_cross'] == True]
+        if not golden_cross_points.empty:
+            fig.add_trace(
+                go.Scatter(
+                    x=golden_cross_points.index,
+                    y=golden_cross_points['close'],
+                    mode='markers',
+                    marker=dict(symbol='triangle-up', size=12, color='gold'),
+                    name='Golden Cross',
+                    hovertemplate='Golden Cross<br>Price: %{y}<extra></extra>'
+                ),
+                row=1, col=1
+            )
+
+    if 'death_cross' in df.columns:
+        death_cross_points = df[df['death_cross'] == True]
+        if not death_cross_points.empty:
+            fig.add_trace(
+                go.Scatter(
+                    x=death_cross_points.index,
+                    y=death_cross_points['close'],
+                    mode='markers',
+                    marker=dict(symbol='triangle-down', size=12, color='red'),
+                    name='Death Cross',
+                    hovertemplate='Death Cross<br>Price: %{y}<extra></extra>'
+                ),
+                row=1, col=1
+            )
+
+    # RSI
+    if 'rsi' in df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=df.index, y=df['rsi'],
+                mode='lines', name='RSI',
+                line=dict(color='purple')
+            ),
+            row=2, col=1
+        )
+
+        # RSI levels
+        fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
+        fig.add_hline(y=30, line_dash="dash", line_color="green", row=2, col=1)
+
+    # MACD
+    if all(col in df.columns for col in ['macd', 'macd_signal', 'macd_histogram']):
+        fig.add_trace(
+            go.Scatter(
+                x=df.index, y=df['macd'],
+                mode='lines', name='MACD',
+                line=dict(color='blue')
+            ),
+            row=3, col=1
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=df.index, y=df['macd_signal'],
+                mode='lines', name='MACD Signal',
+                line=dict(color='red')
+            ),
+            row=3, col=1
+        )
+        fig.add_trace(
+            go.Bar(
+                x=df.index, y=df['macd_histogram'],
+                name='MACD Histogram',
+                marker_color='gray',
+                opacity=0.7
+            ),
+            row=3, col=1
+        )
+
+    # Volume
+    if 'volume' in df.columns:
+        colors = ['red' if close < open_price else 'green'
+                 for close, open_price in zip(df['close'], df['open'])]
+
+        fig.add_trace(
+            go.Bar(
+                x=df.index, y=df['volume'],
+                name='Volume',
+                marker_color=colors,
+                opacity=0.7
+            ),
+            row=4, col=1
+        )
+
+    # Update layout (PATCH: pro style, transparent, modern, title, legend, axes)
+    fig.update_layout(
+        title=dict(
+            text=f"{symbol} – 15-Minute Candlestick Chart with FVG, Midas VWAP & Wyckoff: <b style='color:#FFD600;'>MARKDOWN</b>",
+            y=0.93,
+            x=0.5,
+            xanchor='center',
+            yanchor='top',
+            font=dict(size=22, color='white', family='Segoe UI, Arial, sans-serif')
+        ),
+        template='plotly_dark',
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        height=450,
+        showlegend=False,
+        xaxis_rangeslider_visible=False,
+        margin=dict(l=20, r=20, t=50, b=30)
+    )
+
+    # Remove axis gridlines and zero lines
+    fig.update_xaxes(showgrid=False, zeroline=False)
+    fig.update_yaxes(showgrid=False, zeroline=False)
+
+    # Update y-axis labels
+    fig.update_yaxes(title_text="Price", row=1, col=1)
+    fig.update_yaxes(title_text="RSI", row=2, col=1, range=[0, 100])
+    fig.update_yaxes(title_text="MACD", row=3, col=1)
+    fig.update_yaxes(title_text="Volume", row=4, col=1)
+
+    return fig
+
+# ============================================================================
+# MAIN STREAMLIT APPLICATION
+# ============================================================================
+
+def format_price(symbol: str, price):
+    dec = 2 if symbol.upper().startswith("XAU") else 5
+    if isinstance(price, (pd.Series, np.ndarray)):
+        return price.round(dec)
+    return f"{price:.{dec}f}"
+
+
+def main():
+    """Main Streamlit application"""
+
+    # Page configuration
+    st.set_page_config(
+        page_title="Zanalytics – AI/ML Global Market Intelligence",
+        page_icon="📈",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+
+    # --- PATCH: Match HOME dashboard background styling ---
+    import base64
+    def get_image_as_base64(path):
+        """Reads an image file and returns its base64 encoded string."""
+        try:
+            with open(path, "rb") as image_file:
+                return base64.b64encode(image_file.read()).decode()
+        except FileNotFoundError:
+            st.warning(f"Background image not found at '{path}'. Please ensure it's in the same directory as the script.")
+            return None
+
+    img_base64 = get_image_as_base64("./pages/image_af247b.jpg")
+    if img_base64:
+        st.markdown(f"""
+        <style>
+        [data-testid="stAppViewContainer"] > .main {{
+            background-image: linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)), url(data:image/jpeg;base64,{img_base64});
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+        }}
+        .main .block-container {{
+            background-color: rgba(0,0,0,0.025) !important;
+        }}
+        #MainMenu {{visibility: hidden;}}
+        footer {{visibility: hidden;}}
+        </style>
+        """, unsafe_allow_html=True)
+
+    # Main header (matching HOME screen style)
+    st.markdown(
+        """
+        <div style='
+            background: rgba(64, 36, 101, 0.78);
+            border-radius: 16px;
+            padding: 22px 30px;
+            margin-bottom: 25px;
+            text-align: center;
+            border: 1px solid #9e9e9e;
+            box-shadow: 0 0 20px rgba(0,0,0,0.6);
+        '>
+            <h2 style='color:#FFFFFF;margin:0;'>ZANALYTICS</h2>
+            <p style='color:#DDDDDD;font-size:0.85rem;margin:6px 0 0;'>AI / ML Powered Global Market Intelligence</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # Load configuration
+    config = load_config_from_secrets()
+
+    # Sidebar configuration status
+    with st.sidebar:
+        st.header("🔧 System Status")
+
+        # API Key Status
+        with st.expander("API Keys Status"):
+            api_status = validate_api_keys(config)
+            for service, status in api_status.items():
+                st.markdown(f"**{service.title()}**: {status}")
+
+        # Data Path Status
+        with st.expander("Data Paths Status"):
+            path_status = validate_data_paths(config)
+            for path_name, status in path_status.items():
+                st.markdown(f"**{path_name}**: {status}")
+
+        st.markdown("---")
+
+        # Data source selection
+        st.header("📊 Data Sources")
+        data_source = st.selectbox(
+            "Select Data Source",
+            ["Local Files", "Yahoo Finance", "Finnhub API", "Economic Data"]
+        )
+
+    # Main content area
+    if data_source == "Local Files":
+        st.subheader("📁 Local Data Analysis")
+
+        # === Sidebar data selection block replacement ===
+        with st.sidebar:
+            st.header("🗂️ Data Selection")
+
+            DATA_DIR = config['data_paths'].get('parquet_data_dir', './data/parquet')
+            all_files = list(Path(DATA_DIR).rglob("*.parquet"))
+
+            pat = re.compile(r"(.*?)_(\d+[a-zA-Z]+)\.parquet$")
+            file_tuples = [
+                (m.group(1), m.group(2), f.relative_to(DATA_DIR))
+                for f in all_files
+                if (m := pat.match(f.name))
+            ]
+
+            symbols = sorted({sym for sym, _, _ in file_tuples})
+            selected_symbol = st.selectbox("Symbol", symbols)
+
+            tfs = sorted({tf for sym, tf, _ in file_tuples if sym == selected_symbol})
+            selected_tf = st.selectbox("Time-frame", tfs)
+
+            sel_rel_path = next(p for s, tf, p in file_tuples
+                                if s == selected_symbol and tf == selected_tf)
+
+            bars_to_use = st.slider("Last N bars to analyse", 20, 1000, 140, 1)
+
+        # Parquet data loading
+        df, error = load_parquet_data(Path(DATA_DIR) / sel_rel_path)
+        if df is None or error:
+            st.error("Parquet file could not be loaded.")
+            st.stop()
+
+        bars_to_use = min(bars_to_use, len(df))
+        df = df.tail(bars_to_use)
+
+        # Calculate indicators
+        df = calculate_technical_indicators(df)
+        df = detect_patterns(df)
+
+        # Display metrics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Bars", len(df))
+        with col2:
+            st.metric("Date Range", f"{df.index.min().date()} to {df.index.max().date()}")
+        with col3:
+            price_change = ((df['close'].iloc[-1] - df['close'].iloc[0]) / df['close'].iloc[0]) * 100
+            st.metric("Price Change %", f"{price_change:.2f}%")
+        with col4:
+            if 'volume' in df.columns:
+                st.metric("Avg Volume", f"{df['volume'].mean():.0f}")
+            else:
+                st.metric("Indicators", len([col for col in df.columns if any(x in col for x in ['sma', 'ema', 'rsi', 'macd'])]))
+
+        # Data table (moved above chart, foldable, smaller text)
+        with st.expander("📋 Recent Data (click to expand)"):
+            st.markdown(
+                "<style>div[data-testid='stDataFrame'] {font-size:0.93em !important;}</style>",
+                unsafe_allow_html=True
+            )
+            st.dataframe(df.tail(20), use_container_width=True)
+
+        # Create and display chart
+        chart = create_comprehensive_chart(df, selected_symbol, config)
+        st.plotly_chart(chart, use_container_width=True)
+
+        # ===============================
+        # MICROSTRUCTURE ANALYSIS SECTION
+        # ===============================
+        # Inject CSS for styled chart containers (HOME dashboard theme)
+        st.markdown("""
+            <style>
+            .element-container:has(> div[data-testid="stPlotlyChart"]) {
+                background-color: rgba(0, 0, 0, 0.6);
+                padding: 15px;
+                border-radius: 12px;
+                box-shadow: 0 0 10px rgba(0,0,0,0.6);
+                margin-bottom: 20px;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+
+        st.subheader("🔬 Microstructure Analysis")
+
+        # --- Price Change Distribution ---
+        with st.container():
+            st.markdown("**Price Change Distribution**", unsafe_allow_html=True)
+            price_changes = df['close'].diff().dropna()
+            fig_dist = go.Figure()
+            fig_dist.add_trace(go.Histogram(
+                x=price_changes,
+                nbinsx=40,
+                marker_color='#FFD600',
+                opacity=0.85,
+                name='Price Change'
+            ))
+            fig_dist.update_layout(
+                title=dict(
+                    text="Distribution of Price Changes",
+                    font=dict(size=16)
+                ),
+                template='plotly_dark',
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='white'),
+                margin=dict(l=10, r=10, t=30, b=30)
+            )
+            st.plotly_chart(fig_dist, use_container_width=True)
+
+        # --- Volatility Clustering ---
+        with st.container():
+            st.markdown("**Volatility Clustering**", unsafe_allow_html=True)
+            returns = df['close'].pct_change().dropna()
+            rolling_vol = returns.rolling(window=20).std()
+            fig_vol = go.Figure()
+            fig_vol.add_trace(go.Scatter(
+                x=rolling_vol.index,
+                y=rolling_vol,
+                mode='lines',
+                name='Rolling Volatility',
+                line=dict(color='#00BFFF', width=2)
+            ))
+            fig_vol.update_layout(
+                title=dict(
+                    text="20-Period Rolling Volatility",
+                    font=dict(size=16)
+                ),
+                template='plotly_dark',
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='white'),
+                margin=dict(l=10, r=10, t=30, b=30)
+            )
+            st.plotly_chart(fig_vol, use_container_width=True)
+
+        # Pattern signals
+        signals = []
+        if 'golden_cross' in df.columns:
+            golden_crosses = df[df['golden_cross'] == True]
+            for idx in golden_crosses.index[-5:]:  # Last 5 signals
+                signals.append({
+                    'Date': idx,
+                    'Signal': 'Golden Cross',
+                    'Price': df.loc[idx, 'close'],
+                    'Type': 'Bullish'
+                })
+
+        if 'death_cross' in df.columns:
+            death_crosses = df[df['death_cross'] == True]
+            for idx in death_crosses.index[-5:]:
+                signals.append({
+                    'Date': idx,
+                    'Signal': 'Death Cross',
+                    'Price': df.loc[idx, 'close'],
+                    'Type': 'Bearish'
+                })
+
+        if signals:
+            st.subheader("🎯 Recent Signals")
+            signals_df = pd.DataFrame(signals)
+            st.dataframe(signals_df, use_container_width=True)
+
+        # --- Microstructure / Tick Ingestion Insights Small Charts Section ---
+        # PATCH: Consistent styling for small charts as main charts
+        # Example: Microstructure histogram and tick line chart
+        if 'microstructure' in df.columns or 'tick_count' in df.columns:
+            st.markdown("### 🪶 Microstructure & Tick Insights")
+            chart_cols = st.columns(2)
+            with chart_cols[0]:
+                # Microstructure histogram
+                if 'microstructure' in df.columns:
+                    hist_color = '#00FFD0'
+                    fig_micro = go.Figure()
+                    fig_micro.add_trace(go.Histogram(
+                        x=df['microstructure'],
+                        nbinsx=30,
+                        marker_color=hist_color,
+                        opacity=0.84,
+                        name='Microstructure'
+                    ))
+                    fig_micro.update_layout(
+                        title=dict(
+                            text='Microstructure Distribution',
+                            font=dict(size=14, color='white'),
+                            x=0.5
+                        ),
+                        template='plotly_dark',
+                        paper_bgcolor='#07272C',
+                        plot_bgcolor='#07272C',
+                        margin=dict(l=10, r=10, t=30, b=20),
+                        font=dict(color='white', size=11),
+                        showlegend=False
+                    )
+                    st.plotly_chart(fig_micro, use_container_width=True)
+            with chart_cols[1]:
+                # Tick ingestion line chart
+                if 'tick_count' in df.columns:
+                    tick_color = '#FFD600'
+                    fig_tick = go.Figure()
+                    fig_tick.add_trace(go.Scatter(
+                        x=df.index,
+                        y=df['tick_count'],
+                        mode='lines',
+                        name='Tick Count',
+                        line=dict(color=tick_color, width=2)
+                    ))
+                    fig_tick.update_layout(
+                        title=dict(
+                            text='Tick Ingestion Over Time',
+                            font=dict(size=14, color='white'),
+                            x=0.5
+                        ),
+                        template='plotly_dark',
+                        paper_bgcolor='#07272C',
+                        plot_bgcolor='#07272C',
+                        margin=dict(l=10, r=10, t=30, b=20),
+                        font=dict(color='white', size=11),
+                        showlegend=False
+                    )
+                    st.plotly_chart(fig_tick, use_container_width=True)
+
+    elif data_source == "Yahoo Finance":
+        st.subheader("📈 Yahoo Finance Data")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            symbol = st.text_input("Enter Symbol", value="AAPL", help="Enter stock symbol (e.g., AAPL, TSLA)")
+
+        with col2:
+            period = st.selectbox("Period", ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y"])
+
+        with col3:
+            interval = st.selectbox("Interval", ["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d"])
+
+        if st.button("Fetch Yahoo Finance Data"):
+            try:
+                with st.spinner(f"Fetching {symbol} data from Yahoo Finance..."):
+                    ticker = yf.Ticker(symbol)
+                    df = ticker.history(period=period, interval=interval)
+
+                    if not df.empty:
+                        # Calculate indicators
+                        df.columns = df.columns.str.lower()
+                        df = calculate_technical_indicators(df)
+                        df = detect_patterns(df)
+
+                        # Display chart
+                        chart = create_comprehensive_chart(df, symbol, config)
+                        st.plotly_chart(chart, use_container_width=True)
+
+                        # Display data
+                        st.dataframe(df.tail(10), use_container_width=True)
+
+                    else:
+                        st.error("No data found for the specified symbol and period")
+
+            except Exception as e:
+                st.error(f"Error fetching data: {e}")
+
+    elif data_source == "Finnhub API":
+        st.subheader("📊 Finnhub Real-time Data")
+
+        if not config['api_keys']['finnhub']:
+            st.error("❌ Finnhub API key not configured")
+            return
+
+        finnhub = FinnhubAPI(config['api_keys']['finnhub'])
+
+        symbol = st.text_input("Enter Symbol", value="AAPL", help="Enter stock symbol")
+
+        if st.button("Get Real-time Data"):
+            with st.spinner("Fetching real-time data..."):
+
+                # Get stock price
+                price_data = finnhub.get_stock_price(symbol)
+                if price_data:
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Current Price", f"${price_data.get('c', 0):.2f}")
+                    with col2:
+                        change = price_data.get('d', 0)
+                        st.metric("Change", f"${change:.2f}", delta=f"{price_data.get('dp', 0):.2f}%")
+                    with col3:
+                        st.metric("High", f"${price_data.get('h', 0):.2f}")
+                    with col4:
+                        st.metric("Low", f"${price_data.get('l', 0):.2f}")
+
+                # Get company profile
+                profile = finnhub.get_company_profile(symbol)
+                if profile:
+                    st.subheader("Company Information")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**Name**: {profile.get('name', 'N/A')}")
+                        st.write(f"**Industry**: {profile.get('finnhubIndustry', 'N/A')}")
+                        st.write(f"**Country**: {profile.get('country', 'N/A')}")
+                    with col2:
+                        st.write(f"**Market Cap**: ${profile.get('marketCapitalization', 0):,.0f}M")
+                        st.write(f"**Exchange**: {profile.get('exchange', 'N/A')}")
+                        st.write(f"**Currency**: {profile.get('currency', 'N/A')}")
+
+                # Get market news
+                news = finnhub.get_market_news()
+                if news:
+                    st.subheader("Latest Market News")
+                    for article in news[:5]:  # Show first 5 articles
+                        with st.expander(article.get('headline', 'No title')):
+                            st.write(article.get('summary', 'No summary available'))
+                            st.write(f"**Source**: {article.get('source', 'Unknown')}")
+                            if article.get('url'):
+                                st.markdown(f"[Read more]({article['url']})")
+
+    elif data_source == "Economic Data":
+        st.subheader("📈 Economic Data Analysis")
+
+        if not config['api_keys']['fred']:
+            st.error("❌ FRED API key not configured")
+            return
+
+        fred = FREDData(config['api_keys']['fred'])
+
+        # Popular economic indicators
+        indicators = {
+            'GDP': 'GDP',
+            'Unemployment Rate': 'UNRATE',
+            'CPI': 'CPIAUCSL',
+            'Federal Funds Rate': 'FEDFUNDS',
+            'Initial Claims': 'ICSA',
+            'Consumer Sentiment': 'UMCSENT'
+        }
+
+        selected_indicator = st.selectbox("Select Economic Indicator", list(indicators.keys()))
+        series_id = indicators[selected_indicator]
+
+        if st.button("Fetch Economic Data"):
+            with st.spinner(f"Fetching {selected_indicator} data..."):
+                data = fred.get_series_data(series_id)
+
+                if data and 'observations' in data:
+                    observations = data['observations']
+
+                    # Convert to DataFrame
+                    df = pd.DataFrame(observations)
+                    df['date'] = pd.to_datetime(df['date'])
+                    df['value'] = pd.to_numeric(df['value'], errors='coerce')
+                    df = df.dropna().sort_values('date')
+
+                    if not df.empty:
+                        # Create line chart
+                        fig = go.Figure()
+                        fig.add_trace(go.Scatter(
+                            x=df['date'],
+                            y=df['value'],
+                            mode='lines',
+                            name=selected_indicator,
+                            line=dict(color='#FFD600', width=2)
+                        ))
+                        fig.update_layout(
+                            title=dict(
+                                text=f'{selected_indicator} Over Time',
+                                font=dict(size=18, color='white'),
+                                x=0.5
+                            ),
+                            xaxis_title='Date',
+                            yaxis_title='Value',
+                            template='plotly_dark',
+                            paper_bgcolor='#07272C',
+                            plot_bgcolor='#07272C',
+                            height=400,
+                            margin=dict(l=10, r=10, t=30, b=20),
+                            font=dict(color='white', size=12),
+                            showlegend=False
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                        # Display recent data
+                        st.subheader("Recent Values")
+                        st.dataframe(df.tail(10)[['date', 'value']], use_container_width=True)
+                    
+                    else:
+                        st.error("No valid data found")
+                
+                else:
+                    st.error("Failed to fetch economic data")
+    
+    # Footer
+    st.markdown("---")
+    st.markdown("**NCOS v11 Trading Dashboard** - Powered by multiple data sources and APIs")
+
+if __name__ == "__main__":
+    main()

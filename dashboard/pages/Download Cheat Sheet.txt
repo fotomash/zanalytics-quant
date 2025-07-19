@@ -1,0 +1,61 @@
+📋 FINANCIAL QUERY CHEAT SHEET – For Fast, Expert-Level Macro Searches
+
+⸻
+
+🔍 HOW TO STRUCTURE YOUR QUERY
+
+"[Asset] [Date] [Event or Context] site:[trusted_source]"
+
+✅ Examples:
+• EUR/USD July 2025 inflation site:reuters.com
+• Gold price forecast Q3 2025 site:tradingeconomics.com
+• Fed speech Powell June site:wsj.com
+• UK GDP release July site:ft.com
+
+⸻
+
+🧰 TRUSTED FINANCIAL SOURCES
+
+Use these to limit results to reliable and timely content:
+• site:reuters.com
+• site:wsj.com
+• site:ft.com
+• site:tradingeconomics.com
+• site:investing.com
+• site:apnews.com
+• site:bloomberg.com
+• site:ecb.europa.eu
+• site:imf.org
+• site:fred.stlouisfed.org
+
+⸻
+
+🔎 PRECISION SEARCH OPERATORS
+
+Use Google operators for control:
+• "exact phrase" → force match
+• OR → allow alternate keywords
+• intitle: → limit to headlines
+
+✅ Example:
+"bond yields" OR "gilt rates" site:ft.com
+
+⸻
+
+🧠 LAYERED LOGIC: CHAIN YOUR CAUSES
+
+Ask: What’s moving markets? What’s the driver behind the driver?
+
+📌 Chain like this:
+• CPI beat → Bond yields rise → USD strengthens → Gold falls
+• ECB dovish → Euro falls → DXY rises → GBP pressured
+
+⸻
+
+💡 BONUS TIPS
+
+• Use Google Tools > Time → limit to last 24h or custom range  
+• Use filetype:pdf site:ecb.europa.eu → for official docs  
+• Use “vs expectations” or “beats/misses” to find data-driven headlines  
+
+⸻

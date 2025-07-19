@@ -1,0 +1,14 @@
+ # wyckoff_config.yaml
+wyckoff_analyzer:
+  phase_detection:
+    window: 120
+    volume_threshold: 1.2
+  event_detection:
+    volume_threshold: 1.5
+    test_volume_ratio: 0.5
+    spring_threshold: 0.998
+    upthrust_threshold: 1.002
+  volume_profiler:
+    bins: 48
+    value_area_percent: 0.7
+    node_threshold: 0.15

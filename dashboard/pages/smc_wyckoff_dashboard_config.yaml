@@ -1,0 +1,59 @@
+# smc_wyckoff_dashboard_config.yaml
+data_ingestion:
+  base_path: "/Users/tom/Documents/_trade/_exports/_tick/data"
+  symbols:
+    - XAUUSD
+    - BTCUSD
+    - EURUSD
+    - GBPUSD
+  file_pattern: "ultimate_analysis.json"
+  refresh_interval: 60  # seconds
+  
+analysis_modules:
+  smc:
+    enabled: true
+    features:
+      - order_blocks
+      - fair_value_gaps
+      - liquidity_zones
+      - displacement
+      - inducement
+      - sweep_patterns
+      - mitigation_zones
+      
+  wyckoff:
+    enabled: true
+    phases:
+      - accumulation
+      - markup
+      - distribution
+      - markdown
+    volume_analysis: true
+    
+  fvg_8am:
+    enabled: true
+    timezone: "America/New_York"
+    lookback_hours: 24
+    
+  market_structure:
+    enabled: true
+    features:
+      - swing_highs_lows
+      - trend_analysis
+      - break_of_structure
+      - change_of_character
+      
+visualization:
+  chart_height: 600
+  theme: "plotly_dark"
+  colors:
+    bullish_ob: "#00ff00"
+    bearish_ob: "#ff0000"
+    fvg: "#ffff00"
+    liquidity: "#00ffff"
+    inducement: "#ff00ff"
+    
+session_state:
+  vector_dim: 1536
+  cache_size: 100
+  history_retention: 24  # hours

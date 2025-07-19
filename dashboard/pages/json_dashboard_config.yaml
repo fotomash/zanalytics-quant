@@ -1,0 +1,10 @@
+fixed_json_visualizer_config:
+  name: ncos_json_dashboard_fixed
+  error_fixes:
+    - safe_filename_parsing
+    - comprehensive_json_structure_handling
+    - enhanced_data_extraction
+  session_state:
+    symbol_files: {}
+    active_data: null
+    vector_cache: {}

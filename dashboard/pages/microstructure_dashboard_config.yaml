@@ -1,0 +1,83 @@
+# quantum_microstructure_config.yaml
+quantum_analysis_config:
+  name: "QuantumMicrostructureAnalyzer"
+  version: "2.0"
+  asset: "DYNAMIC"  # Will be detected from filename
+  session_scope: single
+  vector_dim: 1536
+  
+  analysis_modules:
+    volume_inference_engine:
+      enabled: true
+      params:
+        tick_density_weight: 0.4
+        spread_change_weight: 0.3
+        price_movement_weight: 0.3
+        use_neural_estimation: true
+    
+    iceberg_detector:
+      enabled: true
+      params:
+        price_level_tolerance: 0.01  # 1% price tolerance
+        min_executions: 5
+        time_window_seconds: 300
+        volume_concentration_threshold: 0.7
+    
+    spoofing_detector:
+      enabled: true
+      params:
+        spread_spike_threshold: 3.0  # 3x normal spread
+        reversal_time_ms: 5000
+        price_recovery_threshold: 0.8
+        confidence_decay_rate: 0.1
+    
+    layering_detector:
+      enabled: true
+      params:
+        price_levels_monitored: 10
+        order_concentration_threshold: 0.6
+        time_correlation_window: 60
+    
+    quote_stuffing_detector:
+      enabled: true
+      params:
+        update_rate_threshold: 50  # updates per second
+        price_movement_threshold: 0.001  # 0.1% price change
+        duration_threshold_ms: 2000
+    
+    wash_trade_detector:
+      enabled: true
+      params:
+        price_similarity_threshold: 0.0001
+        time_window_seconds: 10
+        volume_pattern_correlation: 0.9
+    
+    momentum_ignition_detector:
+      enabled: true
+      params:
+        initial_spike_threshold: 2.0
+        follow_through_ratio: 0.3
+        reversal_detection_window: 60
+    
+    hidden_liquidity_mapper:
+      enabled: true
+      params:
+        support_resistance_sensitivity: 0.02
+        volume_node_detection: true
+        liquidity_void_threshold: 0.2
+
+  advanced_features:
+    order_flow_toxicity:
+      enabled: true
+      vpin_calculation: true
+      adverse_selection_monitoring: true
+    
+    microstructure_prediction:
+      enabled: true
+      prediction_horizon_ms: 5000
+      feature_set: ["spread_dynamics", "tick_patterns", "volume_profile"]
+    
+    market_regime_detection:
+      enabled: true
+      regimes: ["normal", "stressed", "manipulated", "breakdown"]
+      transition_smoothing: 0.1

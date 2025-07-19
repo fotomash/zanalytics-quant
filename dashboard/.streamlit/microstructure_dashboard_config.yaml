@@ -1,0 +1,42 @@
+# microstructure_dashboard_config.yaml
+dashboard_config:
+  name: "TickManipulationAnalyzer"
+  asset: "BTCUSD"
+  session_scope: single
+  
+  analysis_modules:
+    spread_dynamics:
+      enabled: true
+      params:
+        anomaly_threshold: 2.5
+        window_size: 50
+        vector_dim: 1536
+    
+    tick_rate_analyzer:
+      enabled: true
+      params:
+        burst_detection_window: 10
+        rate_change_threshold: 3.0
+        embedding_features: ["interval_ms", "spread_delta", "volume_profile"]
+    
+    manipulation_detector:
+      enabled: true
+      params:
+        spoofing_lookback: 20
+        wash_trade_similarity: 0.95
+        layering_depth_threshold: 5
+    
+    volume_profile:
+      enabled: true
+      params:
+        bin_size: 100
+        imbalance_ratio: 0.7
+        cluster_threshold: 0.85
+
+  visualization:
+    layout:
+      grid: [[spread_heatmap, tick_burst_detector],
+             [manipulation_timeline, volume_clusters],
+             [microstructure_3d, alerts_panel]]
+    refresh_rate: 1000  # ms
+    vector_cache_size: 10000

@@ -1,0 +1,41 @@
+{
+  "dashboard_manifest": {
+    "name": "SMC Wyckoff Analysis Dashboard",
+    "version": "1.0.0",
+    "components": {
+      "data_ingestion": {
+        "monitors": ["ultimate_analysis.json"],
+        "refresh_rate": 60,
+        "symbols": ["XAUUSD", "BTCUSD", "EURUSD", "GBPUSD"]
+      },
+      "analysis_modules": {
+        "smc": {
+          "features": [
+            "order_blocks",
+            "fair_value_gaps",
+            "liquidity_zones",
+            "inducement_detection",
+            "sweep_patterns"
+          ]
+        },
+        "wyckoff": {
+          "phases": ["accumulation", "markup", "distribution", "markdown"],
+          "events": ["spring", "test", "sos", "lpsy", "utad"]
+        },
+        "fvg_8am": {
+          "timezone": "America/New_York",
+          "window": "07:30-08:30"
+        }
+      },
+      "visualization": {
+        "charts": ["price_action", "volume_profile", "structure_map"],
+        "real_time": true
+      }
+    },
+    "session_state": {
+      "vector_operations": ["pattern_embedding", "phase_detection", "signal_fusion"],
+      "cache_strategy": "rolling_window",
+      "history_retention": "24h"
+    }
+  }
+}

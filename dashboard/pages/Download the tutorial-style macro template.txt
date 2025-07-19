@@ -1,0 +1,47 @@
+Awesome—here’s your pre-market macro briefing in the style traders actually read.
+
+⸻
+
+## 📊 Macro Sentiment Summary – {today}
+
+### 🧾 Key Cross-Asset Table
+
+| Instrument | Current Price | Trend | Action | Key Macro Context |
+|------------|----------------|--------|--------|-------------------|
+{summary_table_rows}
+
+⸻
+
+### 🔍 Market Movers & Macro Drivers
+
+🎯 1. **Currencies (FX)**
+
+• **DXY** – {dxy_commentary}  
+• **EUR/USD** – {eurusd_commentary}  
+• **GBP/USD** – {gbpusd_commentary}
+
+🎯 2. **Rates & Bonds**
+
+• **US 10Y** – {us10y_commentary}  
+• **Germany 10Y** – {de10y_commentary}
+
+🎯 3. **Commodities**
+
+• **Gold** – {gold_commentary}  
+• **Oil** – {oil_commentary}
+
+🎯 4. **Volatility**
+
+• **VIX** – {vix_commentary}
+
+⸻
+
+### 🧠 Key Themes Driving Today’s Session
+
+• {theme_1}  
+• {theme_2}  
+• {theme_3}
+
+⸻
+
+💡 *Tip: Link price action to macro data—e.g. “Dollar rose as yields climbed on strong jobs report.”*

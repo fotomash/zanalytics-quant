@@ -1,0 +1,25 @@
+# enhanced_smc_dashboard_config.yaml
+data_sources:
+  real_time:
+    finnhub:
+      enabled: true
+      symbols:
+        forex: ["OANDA:EUR_USD", "OANDA:GBP_USD", "OANDA:USD_JPY", "OANDA:XAU_USD"]
+        crypto: ["BINANCE:BTCUSDT", "BINANCE:ETHUSDT"]
+        
+    polygon:
+      enabled: true
+      symbols:
+        forex: ["C:EURUSD", "C:GBPUSD", "C:USDJPY", "C:XAUUSD"]
+        crypto: ["X:BTCUSD", "X:ETHUSD"]
+        
+  update_intervals:
+    real_time: 1  # seconds
+    tick_data: 5  # seconds
+    indicators: 10  # seconds
+    
+  price_feeds:
+    primary: "finnhub"
+    fallback: "polygon"
+    use_cached: true
+    cache_duration: 60  # seconds

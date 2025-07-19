@@ -1,0 +1,26 @@
+# dashboard_config.yaml
+pairs:
+  crypto:
+    - ETHUSD
+    - BTCUSD
+    - ETHUSDT
+  forex:
+    - EURUSD
+    - GBPUSD
+    - USDJPY
+    - XAUUSD
+    
+timeframes:
+  - M1
+  - M5
+  - M15
+  - M30
+  - H1
+  - H4
+  - D1
+
+analysis_settings:
+  order_block_lookback: 50
+  fvg_min_size: 5
+  liquidity_threshold: 0.02
+  wyckoff_volume_ma: 20
