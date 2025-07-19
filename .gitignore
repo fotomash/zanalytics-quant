@@ -8,3 +8,5 @@ components/.DS_Store
 dashboard/.DS_Store
 utils/.DS_Store
 .DS_Store
+
+backend/mt5/.env

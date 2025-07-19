@@ -51,13 +51,14 @@ This project provides a Docker-based setup to run MetaTrader 5 (MT5) using Wine 
 
 2. **Configure Environment Variables**
 
-   Create a `.env` file based on the provided example:
+   Create environment files based on the provided examples:
 
    ```bash
    cp .env.example .env
+   cp backend/mt5/.env.example backend/mt5/.env
    ```
 
-   Open the `.env` file and set the necessary variables:
+   Open the `.env` and `backend/mt5/.env` files and set the necessary variables:
 
    ```env
    # Backend - MT5
