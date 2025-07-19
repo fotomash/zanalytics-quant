@@ -217,4 +217,15 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'quant.tasks.run_quant_close_algorithm',  # This should match the @shared_task name
         'schedule': 15,
     },
+    'update-eurusd-ticks': {
+        'task': 'nexus.tasks.update_tick_data',
+        'schedule': 60.0,
+        'args': ('EURUSD', 100),
+    },
+    'update-eurusd-bars': {
+        'task': 'nexus.tasks.update_bar_data',
+        'schedule': 300.0,
+        'args': ('EURUSD', 'M1', 100),
+    },
 }
+
