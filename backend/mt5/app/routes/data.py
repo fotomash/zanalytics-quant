@@ -1,14 +1,36 @@
 from flask import Blueprint, jsonify, request
 import MetaTrader5 as mt5
 import logging
+import os
+import json
 from datetime import datetime
 import pytz
 import pandas as pd
 from flasgger import swag_from
 from lib import get_timeframe
 
+try:
+    import redis
+except ImportError:  # pragma: no cover - optional dependency
+    redis = None
+
 data_bp = Blueprint('data', __name__)
 logger = logging.getLogger(__name__)
+
+# Optional Redis caching
+redis_client = None
+if redis is not None:
+    try:
+        redis_url = os.environ.get("REDIS_URL")
+        if redis_url:
+            redis_client = redis.Redis.from_url(redis_url)
+        else:
+            redis_host = os.environ.get("REDIS_HOST", "localhost")
+            redis_port = int(os.environ.get("REDIS_PORT", 6379))
+            redis_client = redis.Redis(host=redis_host, port=redis_port)
+        redis_client.ping()
+    except Exception:
+        redis_client = None
 
 @data_bp.route('/fetch_data_pos', methods=['GET'])
 @swag_from({
@@ -203,3 +225,70 @@ def fetch_data_range_endpoint():
     except Exception as e:
         logger.error(f"Error in fetch_data_range: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
+
+
+@data_bp.route('/ticks', methods=['GET'])
+def get_ticks_endpoint():
+    """Return latest ticks for a symbol"""
+    symbol = request.args.get('symbol')
+    limit = int(request.args.get('limit', 100))
+
+    if not symbol:
+        return jsonify({"error": "symbol parameter is required"}), 400
+
+    ticks = mt5.copy_ticks_from(
+        symbol,
+        datetime.now(pytz.UTC),
+        limit,
+        mt5.COPY_TICKS_ALL,
+    )
+
+    if ticks is None:
+        return jsonify({"error": "Failed to get ticks"}), 404
+
+    df = pd.DataFrame(ticks)
+    df['time'] = pd.to_datetime(df['time'], unit='s')
+    result = df.to_dict(orient='records')
+
+    if redis_client:
+        try:
+            redis_client.setex(
+                f"ticks:{symbol}:{limit}",
+                5,
+                json.dumps(result, default=str),
+            )
+        except Exception:
+            pass
+
+    return jsonify(result)
+
+
+@data_bp.route('/bars/<symbol>/<interval>', methods=['GET'])
+def get_bars_endpoint(symbol, interval):
+    """Return latest bar data for a symbol and timeframe"""
+    limit = int(request.args.get('limit', 100))
+
+    try:
+        mt5_timeframe = get_timeframe(interval)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    rates = mt5.copy_rates_from_pos(symbol, mt5_timeframe, 0, limit)
+    if rates is None:
+        return jsonify({"error": "Failed to get rates"}), 404
+
+    df = pd.DataFrame(rates)
+    df['time'] = pd.to_datetime(df['time'], unit='s')
+    result = df.to_dict(orient='records')
+
+    if redis_client:
+        try:
+            redis_client.setex(
+                f"bars:{symbol}:{interval}:{limit}",
+                30,
+                json.dumps(result, default=str),
+            )
+        except Exception:
+            pass
+
+    return jsonify(result)
