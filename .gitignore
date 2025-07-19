@@ -3,3 +3,7 @@
 /config/.local
 /config/.wine
 /config/.config
+/components/__pycache__
+components/.DS_Store
+dashboard/.DS_Store
+utils/.DS_Store

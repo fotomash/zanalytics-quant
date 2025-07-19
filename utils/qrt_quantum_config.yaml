@@ -1,0 +1,52 @@
+qrt_quantum_config:
+  version: "3.0"
+  level: "qrt_institutional"
+  
+  tick_liquidity_engine:
+    tiquidity_metrics:
+      - cumulative_delta
+      - delta_divergence
+      - absorption_ratio
+      - exhaustion_levels
+      - liquidity_void_detection
+    advanced_orderflow:
+      footprint_chart: true
+      delta_clusters: true
+      absorption_zones: true
+      imbalance_ladders: true
+      
+  wyckoff_quantum:
+    micro_patterns:
+      spring:
+        volume_surge_min: 2.5
+        rejection_velocity_ms: 100
+        snapback_ratio: 0.8
+      utad:
+        distribution_confirmation: true
+        volume_decline_required: true
+      test:
+        volume_threshold: 0.5
+        price_tolerance: 0.0001
+    macro_patterns:
+      accumulation_phases:
+        - phase_a_selling_climax
+        - phase_b_secondary_test
+        - phase_c_spring
+        - phase_d_markup
+      distribution_phases:
+        - phase_a_buying_climax
+        - phase_b_secondary_test
+        - phase_c_utad
+        - phase_d_markdown
+        
+  qrt_analytics:
+    microstructure_decomposition:
+      permanent_impact: true
+      temporary_impact: true
+      realized_spread: true
+      effective_spread: true
+    toxicity_metrics:
+      vpin_enhanced: true
+      pin_ratio: true
+      lambda_toxicity: true
+      adverse_selection_components: true

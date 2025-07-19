@@ -49,6 +49,7 @@ from typing import Dict, Optional
 import base64
 import yfinance as yf
 from fredapi import Fred
+import os
 # --- PATCH: Caching Utilities ---
 import pickle
 def ensure_cache_dir():
@@ -96,6 +97,11 @@ class EconomicDataManager:
             return None
 
 class ZanalyticsDashboard:
+    # FINNHUB_API_KEY available, not currently used
+    # NEWSAPI_KEY available, not currently used
+    # TRADING_ECONOMICS_API_KEY available, not currently used
+    # OPENAI_API_KEY available, not currently used
+
     def __init__(self):
         """
         Initializes the dashboard, loading configuration from env or Streamlit secrets.
@@ -107,12 +113,26 @@ class ZanalyticsDashboard:
         self.bar_data_dir = Path(get_config_var("BAR_DATA_DIR", "./data/_bars"))
         self.json_dir = Path(get_config_var("JSONDIR", "./data/json"))
         self.data_path = Path(get_config_var("DATA_PATH", "./data"))
-        self.supported_pairs = ["XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "ETHUSD", "USDCAD", "AUDUSD",
-                                "NZDUSD", "DXY", "DXYCAS"]
+        self.supported_pairs = [
+            "XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "ETHUSD", "USDCAD",
+            "AUDUSD", "NZDUSD", "DXY", "DXYCAS"
+        ]
         self.timeframes = ["1min", "5min", "15min", "30min", "1H", "4H", "1D", "1W", "5T"]
 
         self.economic_manager = EconomicDataManager()
-        self.fred = Fred(api_key=get_config_var("FRED_API_KEY"))
+
+        fred_api_key = get_config_var("FRED_API_KEY")
+        if not fred_api_key:
+            st.error("FRED_API_KEY is missing. Please set it in your environment or Streamlit secrets.")
+            raise RuntimeError("FRED_API_KEY is missing. Please set it in your environment or Streamlit secrets.")
+        try:
+            self.fred = Fred(api_key=fred_api_key)
+        except Exception as e:
+            st.error(f"Failed to initialize FRED API: {e}")
+            raise
+
+        # Example: Add Alpha Vantage/YFinance/MT5 as needed
+        # To add more APIs, always use get_config_var("KEY_NAME")
 
         if 'chart_theme' not in st.session_state:
             st.session_state.chart_theme = 'plotly_dark'
@@ -293,6 +313,7 @@ class ZanalyticsDashboard:
 
         # --- XAUUSD 15-Minute Candlestick Chart from Parquet (with FVG, Midas VWAP, Wyckoff Accumulation) ---
         try:
+            parquet_path = "/app/dashboard/data/chart_data.parquet"  # Adjust if needed
             parquet_dir = self.parquet_data_dir
             parquet_file = next(parquet_dir.glob("**/XAUUSD*15min*.parquet"), None)
             if parquet_file:
@@ -445,6 +466,7 @@ class ZanalyticsDashboard:
             st.error(f"Failed to load XAUUSD 15min candlestick chart: {e}")
 
         # --- EURUSD and GBPUSD 15-Minute Candlestick Charts (with FVG, Midas VWAP, Wyckoff) ---
+        """
         for fx_pair in ["EURUSD", "GBPUSD"]:
             try:
                 parquet_dir = self.parquet_data_dir
@@ -577,8 +599,10 @@ class ZanalyticsDashboard:
                     st.info(f"No {fx_pair} 15min parquet file found in PARQUET_DATA_DIR.")
             except Exception as e:
                 st.warning(f"Failed to load {fx_pair} 15min candlestick chart: {e}")
+        """
 
         # Insert EURGBP 15-min chart block after GBPUSD
+        """
         try:
             fx_pair = "EURGBP"
             parquet_dir = self.parquet_data_dir
@@ -713,14 +737,20 @@ class ZanalyticsDashboard:
                 st.info(f"No {fx_pair} 15min parquet file found in PARQUET_DATA_DIR.")
         except Exception as e:
             st.warning(f"Failed to load EURGBP 15min candlestick chart: {e}")
+        """
 
-        self.create_dxy_chart()
-        st.markdown(
-            "<div style='text-align:center; font-size:0.97rem; color:#bbb; margin-bottom:1.2rem;'>"
-            "Bar chart above: U.S. Dollar Index (DXY) OHLC – weekly bars, auto-updated."
-            "</div>",
-            unsafe_allow_html=True,
-        )
+        # --- DXY (Broad Dollar Index) Chart using FRED API ---
+        try:
+            dxy_data = self.fred.get_series('DTWEXBGS')  # Broad Dollar Index
+            dxy_data = dxy_data.dropna()
+            fig_dxy = go.Figure()
+            fig_dxy.add_trace(go.Scatter(x=dxy_data.index, y=dxy_data.values, mode='lines', name='DXY'))
+            fig_dxy.update_layout(title='DXY (Broad Dollar Index)', template='plotly_dark')
+            st.plotly_chart(fig_dxy, use_container_width=True)
+            # --- PATCH: Show original DXY green bar chart after FRED DXY line chart ---
+            self.display_original_dxy_chart()
+        except Exception as e:
+            st.error(f"Failed to load DXY chart: {e}")
 
         # --- XAUUSD 3D Visualization of FVG & SMC (15min) ---
         try:
@@ -1060,34 +1090,86 @@ class ZanalyticsDashboard:
                     sorted(tfs.keys(), key=lambda t: (self.timeframes.index(t) if t in self.timeframes else 99, t)))
                 st.markdown(f"{pair}: {tf_list}")
 
-    def create_dxy_chart(self):
-        st.markdown("#### 💵 U.S. Dollar Index (DXY) – 15‑Minute Candlestick")
-        # PATCH: Use cache
-        dxy_data = auto_cache("home_dxy_15m", lambda: self.economic_manager.get_dxy_data(), refresh=st.session_state.get("refresh_home_data", False))
-        if dxy_data is not None and not dxy_data.empty:
-            candles = dxy_data.reset_index().tail(200)
-            fig_candles = go.Figure(data=[go.Candlestick(
-                x=candles.index,
-                open=candles['Open'],
-                high=candles['High'],
-                low=candles['Low'],
-                close=candles['Close'],
-                increasing_line_color='lime',
-                decreasing_line_color='red',
-                name='DXY M15'
-            )])
-            fig_candles.update_layout(
-                title="DXY – 15-Minute Candlestick Chart (latest 200 bars)",
-                template=st.session_state.get('chart_theme', 'plotly_dark'),
-                height=460,
-                paper_bgcolor="rgba(0,0,0,0.02)",
-                plot_bgcolor="rgba(0,0,0,0.02)",
-                xaxis_rangeslider_visible=False,
-                margin=dict(l=20, r=20, t=40, b=20)
-            )
-            st.plotly_chart(fig_candles, use_container_width=True)
+    def display_original_dxy_chart(self):
+        """
+        Render the original DXY green bar chart at the bottom of the page.
+        Loads DXY data from the original parquet or CSV file, displays as a green bar chart.
+        """
+        import plotly.graph_objects as go
+        # Attempt to load weekly DXY data from original parquet or CSV
+        # Try to find DXY weekly parquet in the parquet directory
+        parquet_dir = self.parquet_data_dir
+        parquet_file = next(parquet_dir.glob("**/DXY*1W*.parquet"), None)
+        if parquet_file:
+            try:
+                df = pd.read_parquet(parquet_file)
+                # Ensure columns
+                if "timestamp" in df.columns and "close" in df.columns:
+                    df = df.sort_values("timestamp")
+                    df["timestamp"] = pd.to_datetime(df["timestamp"])
+                    # Only show last 104 weeks (2 years) for clarity
+                    df_recent = df.tail(104)
+                    st.subheader("DXY – US Dollar Index (Weekly, Last 2 Years)")
+                    fig = go.Figure()
+                    fig.add_trace(go.Bar(
+                        x=df_recent["timestamp"],
+                        y=df_recent["close"],
+                        marker_color="limegreen",
+                        name="DXY (Weekly Close)",
+                        opacity=0.92
+                    ))
+                    fig.update_layout(
+                        template=st.session_state.get('chart_theme', 'plotly_dark'),
+                        height=320,
+                        paper_bgcolor="rgba(0,0,0,0.02)",
+                        plot_bgcolor="rgba(0,0,0,0.02)",
+                        margin=dict(l=20, r=20, t=40, b=20),
+                        xaxis_title="Week",
+                        yaxis_title="DXY Close",
+                        showlegend=False,
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("DXY weekly parquet missing required columns for chart.")
+            except Exception as e:
+                st.info(f"Could not load DXY weekly parquet: {e}")
         else:
-            st.info("Could not load DXY chart data.")
+            # Fallback: try to load DXY weekly CSV from raw data dir
+            csv_file = next(self.raw_data_dir.glob("DXY*1W*.csv"), None)
+            if csv_file:
+                try:
+                    df = pd.read_csv(csv_file)
+                    # Try to infer columns
+                    if "timestamp" in df.columns and "close" in df.columns:
+                        df = df.sort_values("timestamp")
+                        df["timestamp"] = pd.to_datetime(df["timestamp"])
+                        df_recent = df.tail(104)
+                        st.subheader("DXY – US Dollar Index (Weekly, Last 2 Years)")
+                        fig = go.Figure()
+                        fig.add_trace(go.Bar(
+                            x=df_recent["timestamp"],
+                            y=df_recent["close"],
+                            marker_color="limegreen",
+                            name="DXY (Weekly Close)",
+                            opacity=0.92
+                        ))
+                        fig.update_layout(
+                            template=st.session_state.get('chart_theme', 'plotly_dark'),
+                            height=320,
+                            paper_bgcolor="rgba(0,0,0,0.02)",
+                            plot_bgcolor="rgba(0,0,0,0.02)",
+                            margin=dict(l=20, r=20, t=40, b=20),
+                            xaxis_title="Week",
+                            yaxis_title="DXY Close",
+                            showlegend=False,
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("DXY weekly CSV missing required columns for chart.")
+                except Exception as e:
+                    st.info(f"Could not load DXY weekly CSV: {e}")
+            else:
+                st.info("Could not find DXY weekly data for bar chart.")
 
     def scan_all_data_sources(self):
         """Scans for data files in the configured directory and its subdirectories."""
