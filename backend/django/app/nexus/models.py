@@ -78,3 +78,40 @@ class TradeClosePricesMutation(models.Model):
 
     def __str__(self):
         return f"Mutation for {self.trade} at {self.mutation_time}"
+
+
+class Tick(models.Model):
+    symbol = models.CharField(max_length=12)
+    time = models.DateTimeField(db_index=True)
+    bid = models.FloatField()
+    ask = models.FloatField()
+    last = models.FloatField(null=True, blank=True)
+    volume = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["symbol", "time"])]
+        ordering = ["-time"]
+
+    def __str__(self):
+        return f"{self.symbol} tick @ {self.time}"
+
+
+class Bar(models.Model):
+    symbol = models.CharField(max_length=12)
+    timeframe = models.CharField(max_length=10)
+    time = models.DateTimeField(db_index=True)
+    open = models.FloatField()
+    high = models.FloatField()
+    low = models.FloatField()
+    close = models.FloatField()
+    tick_volume = models.IntegerField()
+    spread = models.IntegerField()
+    real_volume = models.IntegerField()
+
+    class Meta:
+        indexes = [models.Index(fields=["symbol", "timeframe", "time"])]
+        ordering = ["-time"]
+
+    def __str__(self):
+        return f"{self.symbol} {self.timeframe} bar @ {self.time}"
+

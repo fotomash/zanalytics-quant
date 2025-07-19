@@ -1,9 +1,17 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import TradeViewSet, SendMarketOrderView, ModifySLTPView
+from .views import (
+    TradeViewSet,
+    SendMarketOrderView,
+    ModifySLTPView,
+    TickViewSet,
+    BarViewSet,
+)
 
 router = DefaultRouter()
 router.register(r'trades', TradeViewSet)
+router.register(r'ticks', TickViewSet)
+router.register(r'bars', BarViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),

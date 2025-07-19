@@ -1,13 +1,14 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, status, views
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Trade
-from .serializers import TradeSerializer
+from .models import Trade, TradeClosePricesMutation, Tick, Bar
+from .serializers import (
+    TradeSerializer,
+    TradeClosePricesMutationSerializer,
+    TickSerializer,
+    BarSerializer,
+)
 from .filters import TradeFilter
-from rest_framework import status, views
-from .models import Trade, TradeClosePricesMutation
-from .serializers import TradeSerializer, TradeClosePricesMutationSerializer
 
 from app.utils.api.order import send_market_order, modify_sl_tp
 
@@ -104,3 +105,17 @@ class ModifySLTPView(views.APIView):
             return Response({'mutation': mutation_serializer.data}, status=status.HTTP_201_CREATED)
         except TradeClosePricesMutation.DoesNotExist:
             return Response({'error': 'Mutation created but not found in database.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class TickViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Tick.objects.all()
+    serializer_class = TickSerializer
+    filterset_fields = ["symbol"]
+    ordering = ["-time"]
+
+
+class BarViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Bar.objects.all()
+    serializer_class = BarSerializer
+    filterset_fields = ["symbol", "timeframe"]
+    ordering = ["-time"]
