@@ -434,6 +434,12 @@ services:
       - ./dashboard:/app/dashboard
     env_file:
       - .env
+    links:
+      - mt5
+      - django
+    depends_on:
+      - mt5
+      - django
     command: >
       streamlit run Home.py --server.port=8501 --server.enableCORS false
     restart: unless-stopped
