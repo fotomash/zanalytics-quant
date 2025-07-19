@@ -101,6 +101,10 @@ This command builds the Docker images and starts the services in detached mode.
 - `TRAEFIK_DOMAIN`: Domain for Traefik dashboard.
 - `TRAEFIK_USERNAME`: Username for Traefik basic authentication.
 - `ACME_EMAIL`: Email address for Let's Encrypt notifications.
+- `MT5_API_URL`: Base URL where the MT5 service is available (e.g., `http://mt5:5001`).
+- `DJANGO_API_URL`: Base URL of the Django API service (e.g., `http://django:8000`).
+
+Ensure both URLs are correctly set in your `.env` file so the dashboard and backend services can communicate.
 
 ### Docker Compose Services
 
@@ -141,6 +145,23 @@ This command builds the Docker images and starts the services in detached mode.
 
      ```bash
      docker-compose logs -f
+     ```
+
+4. **API Usage**
+
+   The MT5 container exposes several endpoints for retrieving market data. Ensure
+   `MT5_API_URL` points to the service before making requests.
+
+   - **Latest ticks**
+
+     ```bash
+     curl "$MT5_API_URL/ticks?symbol=EURUSD&limit=10"
+     ```
+
+   - **Recent bars**
+
+     ```bash
+     curl "$MT5_API_URL/bars/EURUSD/M1?limit=100"
      ```
 
 ## Logging
