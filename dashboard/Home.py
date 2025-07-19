@@ -67,6 +67,14 @@ def auto_cache(key, fetch_fn, refresh=False):
         pickle.dump(result, f)
     return result
 
+def get_cache_timestamp(key: str):
+    """Return modification time of cached file if it exists."""
+    ensure_cache_dir()
+    cache_file = os.path.join(".cache", f"{key}.pkl")
+    if os.path.exists(cache_file):
+        return datetime.fromtimestamp(os.path.getmtime(cache_file))
+    return None
+
 # Suppress warnings for a cleaner output
 # Suppress warnings for a cleaner output
 warnings.filterwarnings('ignore')
@@ -171,6 +179,16 @@ class ZanalyticsDashboard:
             st.sidebar.success("✅ Cache present")
         else:
             st.sidebar.warning("⚠️ No cache")
+
+        # Enrichment controls
+        if "run_enrichment" not in st.session_state:
+            st.session_state["run_enrichment"] = False
+        run_enrichment_btn = st.sidebar.button("Run Enrichment", key="run_enrichment_btn")
+        if run_enrichment_btn:
+            st.session_state["run_enrichment"] = True
+        ts = get_cache_timestamp("home_chart_xauusd_15min_enriched")
+        if ts:
+            st.sidebar.write(f"Last enrichment: {ts.strftime('%Y-%m-%d %H:%M:%S')}")
 
         st.markdown("""
         <style>
@@ -338,6 +356,13 @@ class ZanalyticsDashboard:
                 lambda: self.fetch_bar_data("XAUUSD", "M15", 200).sort_values("timestamp"),
                 refresh=st.session_state.get("refresh_home_data", False)
             )
+            df_enriched = auto_cache(
+                "home_chart_xauusd_15min_enriched",
+                lambda: enrich_ticks(df),
+                refresh=st.session_state.get("run_enrichment", False)
+            )
+            if st.session_state.get("run_enrichment"):
+                st.session_state["run_enrichment"] = False
             # === PATCH: Only show latest data, not file path ===
             latest_ts = df["timestamp"].max() if "timestamp" in df.columns else "N/A"
             st.info(f"Latest XAUUSD data: {latest_ts}")
