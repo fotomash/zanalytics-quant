@@ -50,6 +50,8 @@ import base64
 import yfinance as yf
 from fredapi import Fred
 import os
+import requests
+from utils import enrich_ticks
 # --- PATCH: Caching Utilities ---
 import pickle
 def ensure_cache_dir():
@@ -119,6 +121,9 @@ class ZanalyticsDashboard:
         ]
         self.timeframes = ["1min", "5min", "15min", "30min", "1H", "4H", "1D", "1W", "5T"]
 
+        # Base URL for tick and bar data API
+        self.api_url = get_config_var("MT5_API_URL", "http://localhost:5001")
+
         self.economic_manager = EconomicDataManager()
 
         fred_api_key = get_config_var("FRED_API_KEY")
@@ -136,6 +141,18 @@ class ZanalyticsDashboard:
 
         if 'chart_theme' not in st.session_state:
             st.session_state.chart_theme = 'plotly_dark'
+
+    def fetch_bar_data(self, symbol: str, interval: str = "M15", limit: int = 200) -> pd.DataFrame:
+        """Retrieve bar data from the backend API and apply enrichment."""
+        url = f"{self.api_url}/bars/{symbol}/{interval}"
+        resp = requests.get(url, params={"limit": limit}, timeout=10)
+        resp.raise_for_status()
+        df = pd.DataFrame(resp.json())
+        if "time" in df.columns:
+            df.rename(columns={"time": "timestamp"}, inplace=True)
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
+        return enrich_ticks(df)
 
     def run(self):
         # PATCH: Add refresh button and cache file sidebar
@@ -313,22 +330,18 @@ class ZanalyticsDashboard:
 
         # --- XAUUSD 15-Minute Candlestick Chart from Parquet (with FVG, Midas VWAP, Wyckoff Accumulation) ---
         try:
-            parquet_path = "/app/dashboard/data/chart_data.parquet"  # Adjust if needed
-            parquet_dir = self.parquet_data_dir
-            parquet_file = next(parquet_dir.glob("**/XAUUSD*15min*.parquet"), None)
-            if parquet_file:
-                df = auto_cache(
-                    "home_chart_xauusd_15min",
-                    lambda: pd.read_parquet(parquet_file).sort_values("timestamp").tail(200),
-                    refresh=st.session_state.get("refresh_home_data", False)
-                )
-                # === PATCH: Only show latest data, not file path ===
-                latest_ts = df["timestamp"].max() if "timestamp" in df.columns else "N/A"
-                st.info(f"Latest XAUUSD data: {latest_ts}")
-                # (Your existing processing/plotting here)
-                if "timestamp" not in df.columns:
-                    st.error("Could not locate a 'timestamp' column in the parquet file.")
-                else:
+            df = auto_cache(
+                "home_chart_xauusd_15min",
+                lambda: self.fetch_bar_data("XAUUSD", "M15", 200).sort_values("timestamp"),
+                refresh=st.session_state.get("refresh_home_data", False)
+            )
+            # === PATCH: Only show latest data, not file path ===
+            latest_ts = df["timestamp"].max() if "timestamp" in df.columns else "N/A"
+            st.info(f"Latest XAUUSD data: {latest_ts}")
+            # (Your existing processing/plotting here)
+            if "timestamp" not in df.columns:
+                st.error("Could not locate a 'timestamp' column in the data.")
+            else:
                     df["timestamp"] = pd.to_datetime(df["timestamp"])
                     df = df.sort_values(by="timestamp")
                     df_recent = df.tail(200)
@@ -460,8 +473,6 @@ class ZanalyticsDashboard:
                     fig_xau.update_layout(showlegend=False)
                     # Plot the chart directly at top-level so it stretches full width
                     st.plotly_chart(fig_xau, use_container_width=True)
-            else:
-                st.warning("No XAUUSD 15min parquet file found in PARQUET_DATA_DIR.")
         except Exception as e:
             st.error(f"Failed to load XAUUSD 15min candlestick chart: {e}")
 
@@ -469,18 +480,15 @@ class ZanalyticsDashboard:
         """
         for fx_pair in ["EURUSD", "GBPUSD"]:
             try:
-                parquet_dir = self.parquet_data_dir
-                parquet_file = next(parquet_dir.glob(f"**/{fx_pair}*15min*.parquet"), None)
-                if parquet_file:
-                    df = auto_cache(
-                        f"home_chart_{fx_pair.lower()}_15min",
-                        lambda p=parquet_file: pd.read_parquet(p).sort_values("timestamp").tail(200),
-                        refresh=st.session_state.get("refresh_home_data", False)
-                    )
-                    required_cols = {"timestamp", "open", "high", "low", "close", "volume"}
-                    if not required_cols.issubset(df.columns):
-                        st.info(f"{fx_pair} 15min parquet file missing required columns: {required_cols - set(df.columns)}")
-                        continue
+                df = auto_cache(
+                    f"home_chart_{fx_pair.lower()}_15min",
+                    lambda p=fx_pair: self.fetch_bar_data(p, "M15", 200).sort_values("timestamp"),
+                    refresh=st.session_state.get("refresh_home_data", False)
+                )
+                required_cols = {"timestamp", "open", "high", "low", "close", "volume"}
+                if not required_cols.issubset(df.columns):
+                    st.info(f"{fx_pair} 15min data missing required columns: {required_cols - set(df.columns)}")
+                    continue
                     df["timestamp"] = pd.to_datetime(df["timestamp"])
                     df = df.sort_values(by="timestamp")
                     df_recent = df.tail(200)
@@ -595,8 +603,6 @@ class ZanalyticsDashboard:
                     )
                     fig_fx.update_layout(showlegend=False)
                     st.plotly_chart(fig_fx, use_container_width=True)
-                else:
-                    st.info(f"No {fx_pair} 15min parquet file found in PARQUET_DATA_DIR.")
             except Exception as e:
                 st.warning(f"Failed to load {fx_pair} 15min candlestick chart: {e}")
         """
@@ -605,23 +611,19 @@ class ZanalyticsDashboard:
         """
         try:
             fx_pair = "EURGBP"
-            parquet_dir = self.parquet_data_dir
-            parquet_file = next(parquet_dir.glob(f"**/{fx_pair}*15min*.parquet"), None)
-            if parquet_file:
-                # Only load the last 200 rows for charting using .tail(200)
-                df = auto_cache(
-                    "home_chart_eurgbp_15min",
-                    lambda p=parquet_file: pd.read_parquet(p).sort_values("timestamp").tail(200),
-                    refresh=st.session_state.get("refresh_home_data", False)
-                )
-                required_cols = {"timestamp", "open", "high", "low", "close", "volume"}
-                if not required_cols.issubset(df.columns):
-                    st.info(f"{fx_pair} 15min parquet file missing required columns: {required_cols - set(df.columns)}")
-                else:
-                    df["timestamp"] = pd.to_datetime(df["timestamp"])
-                    df = df.sort_values(by="timestamp")
-                    # Confirm that only the last 200 rows are used for plotting
-                    df_recent = df.tail(200)
+            df = auto_cache(
+                "home_chart_eurgbp_15min",
+                lambda: self.fetch_bar_data(fx_pair, "M15", 200).sort_values("timestamp"),
+                refresh=st.session_state.get("refresh_home_data", False)
+            )
+            required_cols = {"timestamp", "open", "high", "low", "close", "volume"}
+            if not required_cols.issubset(df.columns):
+                st.info(f"{fx_pair} 15min data missing required columns: {required_cols - set(df.columns)}")
+            else:
+                df["timestamp"] = pd.to_datetime(df["timestamp"])
+                df = df.sort_values(by="timestamp")
+                # Confirm that only the last 200 rows are used for plotting
+                df_recent = df.tail(200)
 
                     fig_fx = go.Figure(data=[go.Candlestick(
                         x=df_recent["timestamp"],
@@ -733,8 +735,6 @@ class ZanalyticsDashboard:
                     )
                     fig_fx.update_layout(showlegend=False)
                     st.plotly_chart(fig_fx, use_container_width=True)
-            else:
-                st.info(f"No {fx_pair} 15min parquet file found in PARQUET_DATA_DIR.")
         except Exception as e:
             st.warning(f"Failed to load EURGBP 15min candlestick chart: {e}")
         """
@@ -754,51 +754,45 @@ class ZanalyticsDashboard:
 
         # --- XAUUSD 3D Visualization of FVG & SMC (15min) ---
         try:
-            parquet_dir = self.parquet_data_dir
-            parquet_file = next(parquet_dir.glob("**/XAUUSD*15min*.parquet"), None)
-            if parquet_file:
-                df_3d = pd.read_parquet(parquet_file)
-                if "timestamp" in df_3d.columns and "close" in df_3d.columns:
-                    df_3d = df_3d.sort_values("timestamp")
-                    df_3d["timestamp"] = pd.to_datetime(df_3d["timestamp"])
-                    df_3d_recent = df_3d.tail(200)
-                    x_vals = df_3d_recent["timestamp"]
-                    y_vals = df_3d_recent["close"]
-                    z_vals = np.abs(df_3d_recent["close"].diff().fillna(0))
-                    fig_xau_3d = go.Figure(data=[go.Scatter3d(
-                        x=x_vals,
-                        y=y_vals,
-                        z=z_vals,
-                        mode='markers',
-                        marker=dict(
-                            size=6,
-                            color=z_vals,
-                            colorscale='Plasma',
-                            opacity=0.85,
-                            colorbar=dict(title="Volatility"),
-                        ),
-                        name="FVG & SMC"
-                    )])
-                    fig_xau_3d.update_layout(
-                        title="XAUUSD - 3D Visualization of FVG & SMC (15min)",
-                        scene=dict(
-                            xaxis_title="Timestamp",
-                            yaxis_title="Close Price",
-                            zaxis_title="Volatility (|ΔClose|)"
-                        ),
-                        margin=dict(l=20, r=20, t=40, b=20),
-                        template=st.session_state.get('chart_theme', 'plotly_dark'),
-                        height=440,
-                        paper_bgcolor="rgba(0,0,0,0.02)",
-                        plot_bgcolor="rgba(0,0,0,0.02)",
-                    )
-                    st.plotly_chart(fig_xau_3d, use_container_width=True)
-                    # Render consolidated multi-asset 3-D view
-                    self.create_multi_asset_3d_chart(data_sources)
-                else:
-                    st.info("XAUUSD 15min parquet missing 'timestamp' or 'close' column for 3D FVG/SMC chart.")
+            df_3d = self.fetch_bar_data("XAUUSD", "M15", 200)
+            if {"timestamp", "close"}.issubset(df_3d.columns):
+                df_3d = df_3d.sort_values("timestamp")
+                df_3d_recent = df_3d.tail(200)
+                x_vals = df_3d_recent["timestamp"]
+                y_vals = df_3d_recent["close"]
+                z_vals = np.abs(df_3d_recent["close"].diff().fillna(0))
+                fig_xau_3d = go.Figure(data=[go.Scatter3d(
+                    x=x_vals,
+                    y=y_vals,
+                    z=z_vals,
+                    mode='markers',
+                    marker=dict(
+                        size=6,
+                        color=z_vals,
+                        colorscale='Plasma',
+                        opacity=0.85,
+                        colorbar=dict(title="Volatility"),
+                    ),
+                    name="FVG & SMC",
+                )])
+                fig_xau_3d.update_layout(
+                    title="XAUUSD - 3D Visualization of FVG & SMC (15min)",
+                    scene=dict(
+                        xaxis_title="Timestamp",
+                        yaxis_title="Close Price",
+                        zaxis_title="Volatility (|ΔClose|)"
+                    ),
+                    margin=dict(l=20, r=20, t=40, b=20),
+                    template=st.session_state.get('chart_theme', 'plotly_dark'),
+                    height=440,
+                    paper_bgcolor="rgba(0,0,0,0.02)",
+                    plot_bgcolor="rgba(0,0,0,0.02)",
+                )
+                st.plotly_chart(fig_xau_3d, use_container_width=True)
+                # Render consolidated multi-asset 3-D view
+                self.create_multi_asset_3d_chart(data_sources)
             else:
-                st.info("No XAUUSD 15min parquet file found for 3D FVG/SMC visualization.")
+                st.info("XAUUSD 15min data missing 'timestamp' or 'close' column for 3D FVG/SMC chart.")
         except Exception as e:
             st.warning(f"Error loading 3D XAUUSD FVG/SMC chart: {e}")
 
@@ -814,15 +808,10 @@ class ZanalyticsDashboard:
             "GBPUSD": "Viridis",
         }
 
-        parquet_dir = self.parquet_data_dir
         surfaces = []
 
         for idx, (asset, colorscale) in enumerate(assets.items()):
-            parquet_file = next(parquet_dir.glob(f"**/{asset}*15min*.parquet"), None)
-            if not parquet_file:
-                continue
-
-            df = pd.read_parquet(parquet_file)
+            df = self.fetch_bar_data(asset, "M15", 1000)
             if not {"timestamp", "close", "volume"}.issubset(df.columns):
                 continue
 
@@ -1093,83 +1082,41 @@ class ZanalyticsDashboard:
     def display_original_dxy_chart(self):
         """
         Render the original DXY green bar chart at the bottom of the page.
-        Loads DXY data from the original parquet or CSV file, displays as a green bar chart.
+        Data is loaded via the API and cached for efficiency.
         """
         import plotly.graph_objects as go
-        # Attempt to load weekly DXY data from original parquet or CSV
-        # Try to find DXY weekly parquet in the parquet directory
-        parquet_dir = self.parquet_data_dir
-        parquet_file = next(parquet_dir.glob("**/DXY*1W*.parquet"), None)
-        if parquet_file:
-            try:
-                df = pd.read_parquet(parquet_file)
-                # Ensure columns
-                if "timestamp" in df.columns and "close" in df.columns:
-                    df = df.sort_values("timestamp")
-                    df["timestamp"] = pd.to_datetime(df["timestamp"])
-                    # Only show last 104 weeks (2 years) for clarity
-                    df_recent = df.tail(104)
-                    st.subheader("DXY – US Dollar Index (Weekly, Last 2 Years)")
-                    fig = go.Figure()
-                    fig.add_trace(go.Bar(
-                        x=df_recent["timestamp"],
-                        y=df_recent["close"],
-                        marker_color="limegreen",
-                        name="DXY (Weekly Close)",
-                        opacity=0.92
-                    ))
-                    fig.update_layout(
-                        template=st.session_state.get('chart_theme', 'plotly_dark'),
-                        height=320,
-                        paper_bgcolor="rgba(0,0,0,0.02)",
-                        plot_bgcolor="rgba(0,0,0,0.02)",
-                        margin=dict(l=20, r=20, t=40, b=20),
-                        xaxis_title="Week",
-                        yaxis_title="DXY Close",
-                        showlegend=False,
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info("DXY weekly parquet missing required columns for chart.")
-            except Exception as e:
-                st.info(f"Could not load DXY weekly parquet: {e}")
-        else:
-            # Fallback: try to load DXY weekly CSV from raw data dir
-            csv_file = next(self.raw_data_dir.glob("DXY*1W*.csv"), None)
-            if csv_file:
-                try:
-                    df = pd.read_csv(csv_file)
-                    # Try to infer columns
-                    if "timestamp" in df.columns and "close" in df.columns:
-                        df = df.sort_values("timestamp")
-                        df["timestamp"] = pd.to_datetime(df["timestamp"])
-                        df_recent = df.tail(104)
-                        st.subheader("DXY – US Dollar Index (Weekly, Last 2 Years)")
-                        fig = go.Figure()
-                        fig.add_trace(go.Bar(
-                            x=df_recent["timestamp"],
-                            y=df_recent["close"],
-                            marker_color="limegreen",
-                            name="DXY (Weekly Close)",
-                            opacity=0.92
-                        ))
-                        fig.update_layout(
-                            template=st.session_state.get('chart_theme', 'plotly_dark'),
-                            height=320,
-                            paper_bgcolor="rgba(0,0,0,0.02)",
-                            plot_bgcolor="rgba(0,0,0,0.02)",
-                            margin=dict(l=20, r=20, t=40, b=20),
-                            xaxis_title="Week",
-                            yaxis_title="DXY Close",
-                            showlegend=False,
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        st.info("DXY weekly CSV missing required columns for chart.")
-                except Exception as e:
-                    st.info(f"Could not load DXY weekly CSV: {e}")
+        try:
+            df = auto_cache(
+                "home_chart_dxy_w1",
+                lambda: self.fetch_bar_data("DXY", "W1", 104).sort_values("timestamp"),
+                refresh=st.session_state.get("refresh_home_data", False)
+            )
+            if {"timestamp", "close"}.issubset(df.columns):
+                df_recent = df.tail(104)
+                st.subheader("DXY – US Dollar Index (Weekly, Last 2 Years)")
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=df_recent["timestamp"],
+                    y=df_recent["close"],
+                    marker_color="limegreen",
+                    name="DXY (Weekly Close)",
+                    opacity=0.92
+                ))
+                fig.update_layout(
+                    template=st.session_state.get('chart_theme', 'plotly_dark'),
+                    height=320,
+                    paper_bgcolor="rgba(0,0,0,0.02)",
+                    plot_bgcolor="rgba(0,0,0,0.02)",
+                    margin=dict(l=20, r=20, t=40, b=20),
+                    xaxis_title="Week",
+                    yaxis_title="DXY Close",
+                    showlegend=False,
+                )
+                st.plotly_chart(fig, use_container_width=True)
             else:
-                st.info("Could not find DXY weekly data for bar chart.")
+                st.info("DXY weekly data missing required columns for chart.")
+        except Exception as e:
+            st.info(f"Could not load DXY weekly data: {e}")
 
     def scan_all_data_sources(self):
         """Scans for data files in the configured directory and its subdirectories."""
