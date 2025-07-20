@@ -104,6 +104,7 @@ This command builds the Docker images and starts the services in detached mode.
 - `ACME_EMAIL`: Email address for Let's Encrypt notifications.
 - `MT5_API_URL`: Base URL where the MT5 service is available (e.g., `http://mt5:5001`).
 - `DJANGO_API_URL`: Base URL of the Django API service (e.g., `http://django:8000`).
+- `DJANGO_SECRET_KEY`: Secret key for the Django application. **Required.**
 
 Ensure both URLs are correctly set in your `.env` file so the dashboard and backend services can communicate.
 
