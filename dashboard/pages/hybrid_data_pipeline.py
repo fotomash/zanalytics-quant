@@ -9,6 +9,9 @@ from dataclasses import dataclass
 import pyarrow.parquet as pq
 import pyarrow as pa
 from concurrent.futures import ThreadPoolExecutor
+import logging
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class DataConfig:
@@ -297,13 +300,13 @@ class HybridDataPipeline:
         Batch process historical data with full enrichment
         Run this periodically (e.g., every hour) to pre-compute enriched data
         """
-        print(f"Starting batch enrichment for {symbol} at {enrichment_level} level...")
+        logger.info(f"Starting batch enrichment for {symbol} at {enrichment_level} level...")
 
         # Load all raw data
         raw_df = await self._load_raw_data(symbol)
 
         if raw_df.empty:
-            print(f"No raw data found for {symbol}")
+            logger.warning(f"No raw data found for {symbol}")
             return
 
         # Enrich based on level
@@ -321,8 +324,8 @@ class HybridDataPipeline:
         output_file = f"{self.config.enriched_data_path}/{symbol}_{enrichment_level}.parquet"
         enriched_df.to_parquet(output_file, index=False)
 
-        print(f"Batch enrichment complete. Saved to {output_file}")
-        print(f"Processed {len(enriched_df)} records")
+        logger.info(f"Batch enrichment complete. Saved to {output_file}")
+        logger.info(f"Processed {len(enriched_df)} records")
 
 # Example usage function
 def create_hybrid_pipeline():
@@ -419,4 +422,4 @@ async def get_data_for_llm(
 
     return summary
 
-print("Created hybrid_data_pipeline.py")
+logger.info("Created hybrid_data_pipeline.py")
