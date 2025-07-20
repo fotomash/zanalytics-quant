@@ -11,6 +11,9 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 import pandas as pd
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 class BaseStrategy(ABC):
     """Base class for all trading strategies"""
@@ -49,7 +52,7 @@ class BaseStrategy(ABC):
     def execute_signal(self, signal):
         """Execute trading signal"""
         # This would connect to your broker API
-        print(f"Signal: {signal}")
+        logger.info(f"Signal: {signal}")
 
     def store_signal(self, signal):
         """Store signal in Redis"""
@@ -183,7 +186,7 @@ class StrategyManager:
             try:
                 strategy.run()
             except Exception as e:
-                print(f"Error in {strategy.__class__.__name__}: {e}")
+                logger.error(f"Error in {strategy.__class__.__name__}: {e}")
 
     def get_all_signals(self, symbol=None):
         """Get all recent signals"""
@@ -230,6 +233,6 @@ if __name__ == "__main__":
         # Get recent signals
         signals = manager.get_all_signals()
         for signal in signals[-5:]:  # Last 5 signals
-            print(f"{signal['timestamp']}: {signal['symbol']} - {signal['signal']}")
+            logger.info(f"{signal['timestamp']}: {signal['symbol']} - {signal['signal']}")
 
         time.sleep(1)  # Run every second
