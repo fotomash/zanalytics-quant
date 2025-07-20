@@ -7,7 +7,8 @@ class DummyMT5(types.ModuleType):
         return 0
 
 sys.modules['MetaTrader5'] = DummyMT5('MetaTrader5')
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.modules.pop('app', None)
 
 import json
 import pytest

@@ -1,0 +1,166 @@
+version: '3.8'
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: zanalytics-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: zanalytics-postgres
+    environment:
+      POSTGRES_DB: zanalytics
+      POSTGRES_USER: zanalytics
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-zanalytics123}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zanalytics"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  django:
+    build:
+      context: .
+      dockerfile: redis_architecture/Dockerfile.django
+    container_name: zanalytics-django
+    environment:
+      - DJANGO_SETTINGS_MODULE=zanalytics.settings
+      - REDIS_HOST=redis
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=zanalytics
+      - POSTGRES_USER=zanalytics
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-zanalytics123}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    command: python manage.py runserver 0.0.0.0:8000
+    restart: unless-stopped
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: redis_architecture/Dockerfile.django
+    container_name: zanalytics-celery-worker
+    environment:
+      - DJANGO_SETTINGS_MODULE=zanalytics.settings
+      - REDIS_HOST=redis
+      - POSTGRES_HOST=postgres
+      - C_FORCE_ROOT=1
+    volumes:
+      - ./:/app
+    depends_on:
+      - redis
+      - postgres
+      - django
+    command: celery -A zanalytics worker -Q high_priority,medium_priority,low_priority -l info
+    restart: unless-stopped
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: redis_architecture/Dockerfile.django
+    container_name: zanalytics-celery-beat
+    environment:
+      - DJANGO_SETTINGS_MODULE=zanalytics.settings
+      - REDIS_HOST=redis
+      - POSTGRES_HOST=postgres
+    volumes:
+      - ./:/app
+    depends_on:
+      - redis
+      - postgres
+      - django
+    command: celery -A zanalytics beat -l info
+    restart: unless-stopped
+
+  mt5-integration:
+    build:
+      context: .
+      dockerfile: redis_architecture/Dockerfile.mt5
+    container_name: zanalytics-mt5
+    environment:
+      - REDIS_HOST=redis
+      - MT5_LOGIN=${MT5_LOGIN}
+      - MT5_PASSWORD=${MT5_PASSWORD}
+      - MT5_SERVER=${MT5_SERVER}
+    volumes:
+      - ./redis_architecture/mt5_redis_integration.py:/app/mt5_redis_integration.py
+      - ./redis_architecture/run_mt5_integration.py:/app/run_mt5_integration.py
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: python run_mt5_integration.py
+    restart: unless-stopped
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: redis_architecture/Dockerfile.streamlit
+    container_name: zanalytics-streamlit
+    environment:
+      - REDIS_HOST=redis
+    ports:
+      - "8501:8501"
+      - ./redis_architecture/unified_dashboard.py:/app/unified_dashboard.py
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: streamlit run unified_dashboard.py --server.address 0.0.0.0
+    restart: unless-stopped
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: zanalytics-redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  flower:
+    build:
+      context: .
+      dockerfile: redis_architecture/Dockerfile.django
+    container_name: zanalytics-flower
+    environment:
+      - DJANGO_SETTINGS_MODULE=zanalytics.settings
+      - REDIS_HOST=redis
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - celery-worker
+    command: celery -A zanalytics flower --address=0.0.0.0
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  postgres_data:
+
+networks:
+  default:
+    name: zanalytics-network
