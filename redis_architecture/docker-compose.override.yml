@@ -1,0 +1,14 @@
+version: '3.8'
+services:
+  django:
+    command: python manage.py runserver 0.0.0.0:8000 --reload
+    environment:
+      - DEBUG=True
+    volumes:
+      - ./:/app
+  celery-worker:
+    command: celery -A zanalytics worker -Q high_priority,medium_priority,low_priority -l debug
+  streamlit:
+    environment:
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      - STREAMLIT_SERVER_FILE_WATCHER_TYPE=auto
