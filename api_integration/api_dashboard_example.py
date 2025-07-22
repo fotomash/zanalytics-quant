@@ -1,8 +1,10 @@
+import argparse
+import os
+import logging
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import os
-import logging
 from datetime import datetime, timedelta
 
 # Set up logging
@@ -17,32 +19,46 @@ def main():
     Main function to demonstrate API data loading and visualization.
     This can be used as a template for updating your dashboards.
     """
+    parser = argparse.ArgumentParser(description="ZANFLOW API Dashboard Example")
+    parser.add_argument("--symbol", default="XAUUSD", help="Symbol to load")
+    parser.add_argument("--timeframe", default="1h", help="Timeframe to load")
+    parser.add_argument("--api-url", default=os.getenv("DJANGO_API_URL", "http://django:8000"), help="Base URL of the Django API")
+    parser.add_argument("--token", default=os.getenv("DJANGO_API_TOKEN"), help="API authentication token")
+    args = parser.parse_args()
+
     print("ZANFLOW API Dashboard Example")
     print("============================")
 
     # Initialize the API data loader
-    # You can specify the API URL here or use environment variables
-    api_url = os.getenv('DJANGO_API_URL', 'http://django:8000')
-    data_loader = ZanflowAPIDataLoader(api_url=api_url)
+    data_loader = ZanflowAPIDataLoader(api_url=args.api_url, token=args.token)
 
     # Get available symbols and timeframes
     symbols = data_loader.get_available_symbols()
     timeframes = data_loader.get_available_timeframes()
 
+    # Select a symbol and timeframe
+    symbol = args.symbol
+    timeframe = args.timeframe
+
     print(f"Available symbols: {', '.join(symbols)}")
     print(f"Available timeframes: {', '.join(timeframes)}")
 
-    # Select a symbol and timeframe
-    symbol = "XAUUSD"  # Default symbol
-    timeframe = "1h"   # Default timeframe
+    if symbol not in symbols:
+        logger.warning("Requested symbol %s not in available symbols", symbol)
+    if timeframe not in timeframes:
+        logger.warning("Requested timeframe %s not in available timeframes", timeframe)
 
     print(f"\nLoading data for {symbol} {timeframe}...")
 
     # Load data from API
-    df = data_loader.load_latest_data(symbol=symbol, timeframe=timeframe, limit=100)
+    try:
+        df = data_loader.load_latest_data(symbol=symbol, timeframe=timeframe, limit=100)
+    except Exception as e:
+        logger.exception("Failed to load bar data: %s", e)
+        return
 
     if df.empty:
-        print("No data available. Please check your API connection.")
+        logger.error("No data available. Please check your API connection.")
         return
 
     # Display data summary
@@ -67,7 +83,11 @@ def main():
 
     # Load tick data example
     print("\nLoading tick data...")
-    tick_df = data_loader.load_tick_data(symbol=symbol, limit=1000)
+    try:
+        tick_df = data_loader.load_tick_data(symbol=symbol, limit=1000)
+    except Exception as e:
+        logger.exception("Failed to load tick data: %s", e)
+        tick_df = pd.DataFrame()
 
     if not tick_df.empty:
         print(f"Loaded {len(tick_df)} ticks for {symbol}")
@@ -80,7 +100,11 @@ def main():
 
     # Load trades example
     print("\nLoading trades...")
-    trades_df = data_loader.load_trades(symbol=symbol, limit=10)
+    try:
+        trades_df = data_loader.load_trades(symbol=symbol, limit=10)
+    except Exception as e:
+        logger.exception("Failed to load trades: %s", e)
+        trades_df = pd.DataFrame()
 
     if not trades_df.empty:
         print(f"Loaded {len(trades_df)} trades for {symbol}")
