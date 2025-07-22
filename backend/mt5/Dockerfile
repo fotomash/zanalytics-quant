@@ -11,8 +11,6 @@ RUN mkdir -p /config/.wine && \
     chown -R abc:abc /config/.wine && \
     chmod -R 755 /config/.wine
 
-# Update package lists and upgrade packages
-RUN apt-get update && apt-get upgrade -y
 
 # Install required packages
 RUN apt-get install -y \
