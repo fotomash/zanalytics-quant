@@ -1,10 +1,12 @@
 import os
-import requests
-import pandas as pd
-from datetime import datetime
-import logging
-from typing import Dict, List, Optional, Union
 import json
+import logging
+from datetime import datetime
+from typing import Dict, List, Optional, Union
+
+import pandas as pd
+import requests
+from requests.adapters import HTTPAdapter, Retry
 
 class DjangoAPIClient:
     """
@@ -12,27 +14,70 @@ class DjangoAPIClient:
     This class provides methods to fetch data that was previously loaded from parquet files.
     """
 
-    def __init__(self, base_url=None):
-        """
-        Initialize the API client with the base URL.
+    def __init__(self, base_url: Optional[str] = None, *, token: Optional[str] = None,
+                 api_prefix: Optional[str] = None, timeout: int = 5,
+                 retries: int = 3, backoff_factor: float = 0.3):
+        """Initialize the API client.
 
         Args:
-            base_url: The base URL for the Django API. If None, will try to get from environment.
+            base_url: Base URL for the Django API. If ``None`` uses ``DJANGO_API_URL``.
+            token: API token. If ``None`` uses ``DJANGO_API_TOKEN``.
+            api_prefix: Prefix for all API endpoints. Defaults to ``/api/v1``.
+            timeout: Request timeout in seconds.
+            retries: Number of retries for failed requests.
+            backoff_factor: Backoff factor for retries.
         """
         self.base_url = base_url or os.getenv('DJANGO_API_URL', 'http://django:8000')
+        self.api_prefix = api_prefix or os.getenv('DJANGO_API_PREFIX', '/api/v1')
+        self.token = token or os.getenv('DJANGO_API_TOKEN')
+        self.timeout = timeout
         self.logger = logging.getLogger(__name__)
-        self.session = requests.Session()
 
-        # Add authentication if needed
-        # self.session.auth = (username, password)
+        self.session = requests.Session()
+        if self.token:
+            self.session.headers.update({'Authorization': f'Token {self.token}'})
+
+        retry_strategy = Retry(total=retries, backoff_factor=backoff_factor,
+                               status_forcelist=[500, 502, 503, 504])
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount('http://', adapter)
+        self.session.mount('https://', adapter)
 
         # Test connection
         self.connected = self._test_connection()
 
+    def _build_url(self, endpoint: str) -> str:
+        return f"{self.base_url}{self.api_prefix}/{endpoint.lstrip('/')}"
+
+    def _request(self, method: str, url: str, **kwargs) -> requests.Response:
+        self.logger.info(f"{method.upper()} {url}")
+        response = self.session.request(method, url, timeout=self.timeout, **kwargs)
+        self.logger.info(f"Status {response.status_code} for {url}")
+        response.raise_for_status()
+        return response
+
+    def _get_paginated(self, endpoint: str, params: Optional[Dict] = None) -> pd.DataFrame:
+        url = self._build_url(endpoint)
+        results: List[Dict] = []
+        while url:
+            response = self._request('get', url, params=params)
+            data = response.json()
+            if isinstance(data, dict) and 'results' in data:
+                results.extend(data['results'])
+                url = data.get('next')
+            else:
+                if isinstance(data, list):
+                    results.extend(data)
+                else:
+                    results.append(data)
+                url = None
+            params = None  # already in next url
+        return pd.DataFrame(results)
+
     def _test_connection(self) -> bool:
         """Test the connection to the API."""
         try:
-            response = self.session.get(f"{self.base_url}/v1/")
+            response = self._request('get', self._build_url(''))
             return response.status_code == 200
         except Exception as e:
             self.logger.error(f"Failed to connect to Django API: {e}")
@@ -58,13 +103,7 @@ class DjangoAPIClient:
             if symbol:
                 params['symbol'] = symbol
 
-            response = self.session.get(f"{self.base_url}/v1/trades/", params=params)
-            response.raise_for_status()
-
-            data = response.json()
-            if 'results' in data:
-                return pd.DataFrame(data['results'])
-            return pd.DataFrame(data)
+            return self._get_paginated('trades/', params=params)
         except Exception as e:
             self.logger.error(f"Error fetching trades: {e}")
             return pd.DataFrame()
@@ -86,13 +125,7 @@ class DjangoAPIClient:
                 'limit': limit
             }
 
-            response = self.session.get(f"{self.base_url}/v1/ticks/", params=params)
-            response.raise_for_status()
-
-            data = response.json()
-            if 'results' in data:
-                return pd.DataFrame(data['results'])
-            return pd.DataFrame(data)
+            return self._get_paginated('ticks/', params=params)
         except Exception as e:
             self.logger.error(f"Error fetching ticks for {symbol}: {e}")
             return pd.DataFrame()
@@ -116,13 +149,7 @@ class DjangoAPIClient:
                 'limit': limit
             }
 
-            response = self.session.get(f"{self.base_url}/v1/bars/", params=params)
-            response.raise_for_status()
-
-            data = response.json()
-            if 'results' in data:
-                return pd.DataFrame(data['results'])
-            return pd.DataFrame(data)
+            return self._get_paginated('bars/', params=params)
         except Exception as e:
             self.logger.error(f"Error fetching bars for {symbol} {timeframe}: {e}")
             return pd.DataFrame()
@@ -159,9 +186,7 @@ class DjangoAPIClient:
                 'type_filling': type_filling
             }
 
-            response = self.session.post(f"{self.base_url}/v1/send_market_order/", json=data)
-            response.raise_for_status()
-
+            response = self._request('post', self._build_url('send_market_order/'), json=data)
             return response.json()
         except Exception as e:
             self.logger.error(f"Error sending market order: {e}")
@@ -188,9 +213,7 @@ class DjangoAPIClient:
                 'take_profit': take_profit
             }
 
-            response = self.session.post(f"{self.base_url}/v1/modify_sl_tp/", json=data)
-            response.raise_for_status()
-
+            response = self._request('post', self._build_url('modify_sl_tp/'), json=data)
             return response.json()
         except Exception as e:
             self.logger.error(f"Error modifying SL/TP: {e}")
