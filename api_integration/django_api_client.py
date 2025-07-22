@@ -218,3 +218,31 @@ class DjangoAPIClient:
         except Exception as e:
             self.logger.error(f"Error modifying SL/TP: {e}")
             return {'error': str(e)}
+
+    def get_symbols(self) -> List[str]:
+        """Fetch available symbols from the API."""
+        try:
+            response = self._request('get', self._build_url('symbols/'))
+            data = response.json()
+            if isinstance(data, dict) and 'symbols' in data:
+                return data['symbols']
+            if isinstance(data, list):
+                return data
+            return []
+        except Exception as e:
+            self.logger.error(f"Error fetching symbols: {e}")
+            return []
+
+    def get_timeframes(self) -> List[str]:
+        """Fetch available timeframes from the API."""
+        try:
+            response = self._request('get', self._build_url('timeframes/'))
+            data = response.json()
+            if isinstance(data, dict) and 'timeframes' in data:
+                return data['timeframes']
+            if isinstance(data, list):
+                return data
+            return []
+        except Exception as e:
+            self.logger.error(f"Error fetching timeframes: {e}")
+            return []

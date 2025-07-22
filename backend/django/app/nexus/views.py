@@ -119,3 +119,39 @@ class BarViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = BarSerializer
     filterset_fields = ["symbol", "timeframe"]
     ordering = ["-time"]
+
+
+class SymbolListView(views.APIView):
+    """Return a list of available symbols."""
+
+    def get(self, request):
+        symbols = (
+            Bar.objects.values_list("symbol", flat=True)
+            .distinct()
+            .order_by("symbol")
+        )
+        if not symbols:
+            symbols = (
+                Trade.objects.values_list("symbol", flat=True)
+                .distinct()
+                .order_by("symbol")
+            )
+        return Response({"symbols": list(symbols)})
+
+
+class TimeframeListView(views.APIView):
+    """Return a list of available timeframes."""
+
+    def get(self, request):
+        timeframes = (
+            Bar.objects.values_list("timeframe", flat=True)
+            .distinct()
+            .order_by("timeframe")
+        )
+        if not timeframes:
+            timeframes = (
+                Trade.objects.values_list("timeframe", flat=True)
+                .distinct()
+                .order_by("timeframe")
+            )
+        return Response({"timeframes": list(timeframes)})

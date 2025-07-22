@@ -6,6 +6,8 @@ from .views import (
     ModifySLTPView,
     TickViewSet,
     BarViewSet,
+    SymbolListView,
+    TimeframeListView,
 )
 
 router = DefaultRouter()
@@ -17,4 +19,6 @@ urlpatterns = [
     path('', include(router.urls)),
     path('send_market_order/', SendMarketOrderView.as_view(), name='send_market_order'),
     path('modify_sl_tp/', ModifySLTPView.as_view(), name='modify_sl_tp'),
+    path('symbols/', SymbolListView.as_view(), name='symbols'),
+    path('timeframes/', TimeframeListView.as_view(), name='timeframes'),
 ]
