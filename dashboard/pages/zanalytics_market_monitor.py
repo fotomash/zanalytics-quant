@@ -499,11 +499,11 @@ if __name__ == "__main__":
 
     # Add alert callback
     def alert_handler(alert: MarketAlert):
-        print(f"\n🚨 ALERT: {alert.title}")
-        print(f"   Priority: {alert.priority.name}")
-        print(f"   {alert.description}")
+        logger.info(f"\n🚨 ALERT: {alert.title}")
+        logger.info(f"   Priority: {alert.priority.name}")
+        logger.info(f"   {alert.description}")
         if alert.action_required:
-            print("   ⚠️  ACTION REQUIRED")
+            logger.warning("   ⚠️  ACTION REQUIRED")
 
     monitor.add_alert_callback(alert_handler)
 
@@ -527,7 +527,7 @@ if __name__ == "__main__":
     # Process data
     alerts = monitor.process_market_data(market_data)
 
-    print(f"\nGenerated {len(alerts)} alerts")
+    logger.info(f"\nGenerated {len(alerts)} alerts")
 
     # Export alerts
     monitor.export_alerts('market_alerts.json')

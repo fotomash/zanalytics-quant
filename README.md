@@ -65,11 +65,22 @@ graph LR
 
 The Zanalytics Quant platform is architected to meet the rigorous demands of professional quantitative research and trading. Each component has a distinct role designed to maximize security, modularity, and performance:
 
+<<<<<<< HEAD
 - **MT5** serves as the primary market data source and trading engine, running inside a Docker container with Wine to ensure consistent cross-platform operation. It exposes a REST API for data retrieval and order management, isolating the trading environment from other system components for security and stability.
 
 - **Django API** acts as the orchestrator and backend service layer. It manages user authentication, enforces access controls, and provides RESTful endpoints for data retrieval and command execution. The API encapsulates business logic and database interactions, ensuring secure and auditable operations.
 
 - **Redis** is leveraged as a high-performance in-memory cache and message bus. It stores real-time tick and bar data, event streams, and intermediate enrichment results to enable low-latency analytics and dashboard updates. Redis caching reduces load on the main database and supports real-time responsiveness.
+=======
+   Create environment files based on the provided examples:
+
+   ```bash
+   cp .env.example .env
+   cp backend/mt5/.env.example backend/mt5/.env
+   ```
+
+   Open the `.env` and `backend/mt5/.env` files and set the necessary variables:
+>>>>>>> c859abdafe2b06c03292270351066a2041e1452c
 
 - **Postgres** is the authoritative data store for all historical and enriched market data, including ticks, bars, positions, and computed features. It provides transactional integrity and supports complex queries required for backtesting and research.
 
@@ -120,7 +131,19 @@ This modular design facilitates secure separation of concerns, easy extensibilit
     - **Django API (Swagger/ReDoc):**  
       Open `/swagger/` and `/redoc/` endpoints.
 
+<<<<<<< HEAD
 ---
+=======
+- `CUSTOM_USER`: Username for accessing the MT5 service.
+- `PASSWORD`: Password for the custom user.
+- `VNC_DOMAIN`: Domain for accessing the VNC service.
+- `TRAEFIK_DOMAIN`: Domain for Traefik dashboard.
+- `TRAEFIK_USERNAME`: Username for Traefik basic authentication.
+- `ACME_EMAIL`: Email address for Let's Encrypt notifications.
+- `MT5_API_URL`: Base URL where the MT5 service is available (e.g., `http://mt5:5001`).
+- `DJANGO_API_URL`: Base URL of the Django API service (e.g., `http://django:8000`).
+- `DJANGO_SECRET_KEY`: Secret key for the Django application. **Required.**
+>>>>>>> c859abdafe2b06c03292270351066a2041e1452c
 
 ## How It Works (Practical Flow)
 

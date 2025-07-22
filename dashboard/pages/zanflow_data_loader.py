@@ -9,6 +9,9 @@ import streamlit as st
 from pathlib import Path
 import glob
 from typing import Dict, List, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ZanflowDataLoader:
     """Simple data loader for ZANFLOW parquet files"""
@@ -104,7 +107,7 @@ def load_for_analysis(symbol: str = "XAUUSD") -> Dict[str, pd.DataFrame]:
         df = loader.load_latest_file(symbol, tf)
         if not df.empty:
             data[tf] = df
-            print(f"Loaded {tf}: {len(df)} rows")
+            logger.info(f"Loaded {tf}: {len(df)} rows")
 
     return data
 

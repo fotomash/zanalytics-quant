@@ -53,7 +53,7 @@ def send_market_order(symbol: str, volume: float, order_type: str, sl: float, tp
         if not response_data.get('success'):
             error_msg = response_data.get('error', 'Unknown error')
             details = response_data.get('details', '')
-            print(f"Order failed: {error_msg} {details}")
+            logger.error(f"Order failed: {error_msg} {details}")
             return None
             
         order = response_data['order_result']

@@ -7,6 +7,10 @@ from datetime import datetime
 import time
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Page config
 st.set_page_config(
@@ -17,15 +21,20 @@ st.set_page_config(
 
 # Initialize Redis connection
 @st.cache_resource
-def init_redis():
-    try:
-        host = os.environ.get("REDIS_HOST", "mm20.local")
-        r = redis.Redis(host=host, port=6379, decode_responses=True)
-        r.ping()
-        return r
-    except:
-        st.error("❌ Redis not connected! Make sure Redis is running.")
-        return None
+def init_redis(retries: int = 3, delay: float = 1.0):
+    """Initialize a Redis connection with optional retries."""
+    host = os.environ.get("REDIS_HOST", "mm20.local")
+    for attempt in range(1, retries + 1):
+        try:
+            r = redis.Redis(host=host, port=6379, decode_responses=True)
+            r.ping()
+            return r
+        except Exception as e:
+            logger.error("Redis connection attempt %s failed: %s", attempt, e)
+            if attempt < retries:
+                time.sleep(delay)
+    logger.error("❌ Redis not connected! Make sure Redis is running.")
+    return None
 
 # Get MT5 data from Redis
 def get_mt5_data(r, symbol="XAUUSD"):
