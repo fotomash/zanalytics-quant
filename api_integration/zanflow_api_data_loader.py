@@ -3,6 +3,7 @@ from typing import Dict, List, Optional
 import logging
 import os
 from datetime import datetime, timedelta
+from functools import lru_cache
 
 class ZanflowAPIDataLoader:
     """Data loader for ZANFLOW that uses the Django API instead of parquet files"""
@@ -116,32 +117,22 @@ class ZanflowAPIDataLoader:
             self.logger.error(f"Error loading trades: {e}")
             return pd.DataFrame()
 
+    @lru_cache(maxsize=1)
     def get_available_symbols(self) -> List[str]:
-        """
-        Get a list of available symbols from the API.
-
-        Returns:
-            List of available symbols
-        """
+        """Get a list of available symbols from the API."""
         try:
-            # This would need to be implemented in the Django API
-            # For now, return a default list
-            return ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "BTCUSD"]
+            symbols = self.api_client.get_symbols()
+            return symbols
         except Exception as e:
             self.logger.error(f"Error getting available symbols: {e}")
             return []
 
+    @lru_cache(maxsize=1)
     def get_available_timeframes(self) -> List[str]:
-        """
-        Get a list of available timeframes from the API.
-
-        Returns:
-            List of available timeframes
-        """
+        """Get a list of available timeframes from the API."""
         try:
-            # This would need to be implemented in the Django API
-            # For now, return a default list
-            return ["1m", "5m", "15m", "30m", "1h", "4h", "1d"]
+            timeframes = self.api_client.get_timeframes()
+            return timeframes
         except Exception as e:
             self.logger.error(f"Error getting available timeframes: {e}")
             return []

@@ -48,6 +48,9 @@ st.sidebar.header("Settings")
 symbols = data_loader.get_available_symbols()
 timeframes = data_loader.get_available_timeframes()
 
+st.sidebar.markdown(f"**Available symbols:** {', '.join(symbols)}")
+st.sidebar.markdown(f"**Available timeframes:** {', '.join(timeframes)}")
+
 # Symbol and timeframe selection
 symbol = st.sidebar.selectbox("Symbol", symbols, index=symbols.index("XAUUSD") if "XAUUSD" in symbols else 0)
 timeframe = st.sidebar.selectbox("Timeframe", timeframes, index=timeframes.index("1h") if "1h" in timeframes else 0)
