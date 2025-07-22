@@ -12,6 +12,13 @@ from .filters import TradeFilter
 
 from app.utils.api.order import send_market_order, modify_sl_tp
 
+
+class PingView(views.APIView):
+    """Simple health check endpoint."""
+
+    def get(self, request):
+        return Response({"status": "ok"})
+
 class TradeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Trade.objects.all()
     serializer_class = TradeSerializer
