@@ -8,21 +8,23 @@ from functools import lru_cache
 class ZanflowAPIDataLoader:
     """Data loader for ZANFLOW that uses the Django API instead of parquet files"""
 
-    def __init__(self, api_url=None):
+    def __init__(self, api_url=None, token: Optional[str] = None):
         """
         Initialize the data loader with API connection.
 
         Args:
-            api_url: The base URL for the Django API. If None, will try to get from environment.
+            api_url: The base URL for the Django API. If None, uses ``DJANGO_API_URL``.
+            token: API token. If None, uses ``DJANGO_API_TOKEN``.
         """
         # Import here to avoid dependency issues
         from django_api_client import DjangoAPIClient
 
-        # Get API URL from environment
+        # Get API URL and token from environment if not provided
         self.api_url = api_url or os.getenv('DJANGO_API_URL', "http://django:8000")
+        self.token = token or os.getenv('DJANGO_API_TOKEN')
 
         # Initialize the API client
-        self.api_client = DjangoAPIClient(base_url=self.api_url)
+        self.api_client = DjangoAPIClient(base_url=self.api_url, token=self.token)
         self.logger = logging.getLogger(__name__)
 
         # Check connection
