@@ -6,6 +6,7 @@ from plotly.subplots import make_subplots
 import os
 import logging
 from datetime import datetime, timedelta
+from streamlit_autorefresh import st_autorefresh
 
 # Import our API data loader
 from zanflow_api_data_loader import ZanflowAPIDataLoader
@@ -28,25 +29,40 @@ st.markdown("This dashboard connects directly to the Django API instead of using
 
 # Initialize the API data loader
 @st.cache_resource
-def get_data_loader():
-    # You can specify the API URL here or use environment variables
-    api_url = os.getenv('DJANGO_API_URL')
-    if api_url is None:
-        try:
-            api_url = st.secrets.get("DJANGO_API_URL", "http://django:8000")
-        except:
-            api_url = "http://django:8000"
-
-    return ZanflowAPIDataLoader(api_url=api_url)
-
-data_loader = get_data_loader()
+def get_data_loader(api_url: str, token: str | None):
+    return ZanflowAPIDataLoader(api_url=api_url, token=token)
 
 # Sidebar for settings
 st.sidebar.header("Settings")
 
+# API URL and token handling
+default_api_url = os.getenv('DJANGO_API_URL')
+if default_api_url is None:
+    try:
+        default_api_url = st.secrets.get("DJANGO_API_URL", "http://django:8000")
+    except Exception:
+        default_api_url = "http://django:8000"
+
+default_token = os.getenv('DJANGO_API_TOKEN')
+if default_token is None:
+    try:
+        default_token = st.secrets.get("DJANGO_API_TOKEN", "")
+    except Exception:
+        default_token = ""
+
+api_url = st.sidebar.text_input("API URL", value=default_api_url)
+api_token = st.sidebar.text_input("API Token", value=default_token, type="password")
+
+data_loader = get_data_loader(api_url, api_token or None)
+
 # Get available symbols and timeframes
 symbols = data_loader.get_available_symbols()
 timeframes = data_loader.get_available_timeframes()
+
+if not symbols:
+    st.sidebar.error("Failed to fetch symbols from API")
+if not timeframes:
+    st.sidebar.error("Failed to fetch timeframes from API")
 
 st.sidebar.markdown(f"**Available symbols:** {', '.join(symbols)}")
 st.sidebar.markdown(f"**Available timeframes:** {', '.join(timeframes)}")
@@ -56,11 +72,26 @@ symbol = st.sidebar.selectbox("Symbol", symbols, index=symbols.index("XAUUSD") i
 timeframe = st.sidebar.selectbox("Timeframe", timeframes, index=timeframes.index("1h") if "1h" in timeframes else 0)
 data_limit = st.sidebar.slider("Number of bars", min_value=50, max_value=1000, value=200, step=50)
 
+# Manual refresh and auto-refresh controls
+refresh_now = st.sidebar.button("Refresh Now")
+auto_refresh = st.sidebar.checkbox("Auto Refresh")
+refresh_interval = None
+if auto_refresh:
+    refresh_interval = st.sidebar.number_input(
+        "Refresh interval (sec)", min_value=5, max_value=300, value=30, step=5
+    )
+    st_autorefresh(interval=refresh_interval * 1000, key="auto_refresh")
+if refresh_now:
+    st.experimental_rerun()
+
 # Load data button
 if st.sidebar.button("Load Data"):
     with st.spinner(f"Loading {symbol} {timeframe} data..."):
-        # Load data from API
-        df = data_loader.load_latest_data(symbol=symbol, timeframe=timeframe, limit=data_limit)
+        try:
+            df = data_loader.load_latest_data(symbol=symbol, timeframe=timeframe, limit=data_limit)
+        except Exception as e:
+            st.error(f"Failed to load data: {e}")
+            df = pd.DataFrame()
 
         if df.empty:
             st.error("No data available. Please check your API connection.")
@@ -184,8 +215,11 @@ tick_limit = st.sidebar.slider("Number of ticks", min_value=100, max_value=10000
 
 if st.sidebar.button("Load Tick Data"):
     with st.spinner(f"Loading {tick_symbol} tick data..."):
-        # Load tick data from API
-        tick_df = data_loader.load_tick_data(symbol=tick_symbol, limit=tick_limit)
+        try:
+            tick_df = data_loader.load_tick_data(symbol=tick_symbol, limit=tick_limit)
+        except Exception as e:
+            st.error(f"Failed to load tick data: {e}")
+            tick_df = pd.DataFrame()
 
         if tick_df.empty:
             st.error("No tick data available. Please check your API connection.")
@@ -255,9 +289,12 @@ trade_limit = st.sidebar.slider("Number of trades", min_value=10, max_value=100,
 
 if st.sidebar.button("Load Trades"):
     with st.spinner(f"Loading trade data..."):
-        # Load trade data from API
         symbol_param = None if trade_symbol == "All" else trade_symbol
-        trades_df = data_loader.load_trades(symbol=symbol_param, limit=trade_limit)
+        try:
+            trades_df = data_loader.load_trades(symbol=symbol_param, limit=trade_limit)
+        except Exception as e:
+            st.error(f"Failed to load trade data: {e}")
+            trades_df = pd.DataFrame()
 
         if trades_df.empty:
             st.error("No trade data available. Please check your API connection.")
