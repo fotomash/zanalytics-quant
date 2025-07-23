@@ -5,6 +5,10 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
+# Temporary secret key needed for collectstatic during build
+ARG DJANGO_SECRET_KEY=dummy_secret_key
+ENV DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+
 # Set work directory
 WORKDIR /app
 
