@@ -25,3 +25,24 @@ class TickBarAPITests(APITestCase):
         response = self.client.get('/api/v1/bars/?symbol=EURUSD&timeframe=M1')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), sample)
+
+    @patch("app.nexus.views.SymbolListView.get")
+    def test_get_symbols(self, mock_get):
+        sample = {"symbols": ["EURUSD", "GBPUSD"]}
+        mock_get.return_value = Response(sample)
+        response = self.client.get("/v1/symbols/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), sample)
+
+    @patch("app.nexus.views.TimeframeListView.get")
+    def test_get_timeframes(self, mock_get):
+        sample = {"timeframes": ["M1", "H1"]}
+        mock_get.return_value = Response(sample)
+        response = self.client.get("/v1/timeframes/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), sample)
+
+    def test_ping(self):
+        response = self.client.get("/api/ping/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "ok"})
