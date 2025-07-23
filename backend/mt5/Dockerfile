@@ -11,7 +11,6 @@ RUN mkdir -p /config/.wine && \
     chown -R abc:abc /config/.wine && \
     chmod -R 755 /config/.wine
 
-
 # Install required packages
 RUN apt-get install -y \
     dos2unix \

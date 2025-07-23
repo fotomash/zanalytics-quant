@@ -77,7 +77,7 @@ class DjangoAPIClient:
     def _test_connection(self) -> bool:
         """Test the connection to the API."""
         try:
-            url = f"{self.base_url}/api/ping/"
+            url = f"{self.base_url}{self.api_prefix}/ping/"
             response = self.session.get(url, timeout=self.timeout)
             return response.status_code == 200
         except Exception as e:

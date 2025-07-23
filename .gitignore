@@ -10,3 +10,6 @@ utils/.DS_Store
 .DS_Store
 
 backend/mt5/.env
+
+# Ignore zip archives
+*.zip*

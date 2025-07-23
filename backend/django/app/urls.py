@@ -4,6 +4,6 @@ from app.nexus.views import PingView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/ping/', PingView.as_view(), name='api-ping'),
-    path('v1/', include('app.nexus.urls')),
+    path('api/v1/ping/', PingView.as_view(), name='api-ping'),
+    path('api/v1/', include('app.nexus.urls')),
 ]

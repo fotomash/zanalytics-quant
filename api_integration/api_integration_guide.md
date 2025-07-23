@@ -8,12 +8,14 @@ This guide explains how to transition your dashboards from using parquet files t
 - Tick data
 - Trade data
 - Market orders and position management
+All requests require token authentication. The token is sent in the `Authorization` header.
 
 ## Prerequisites
 
 1. Ensure the Django backend is running and accessible
-2. Update your environment variables or Streamlit secrets with the correct API URL
-3. Install required Python packages:
+2. Obtain your API token from the Django server (token authentication is required)
+3. Update your environment variables or Streamlit secrets with the API URL and token
+4. Install required Python packages:
    - `requests`
    - `pandas`
    - `streamlit` (for Streamlit dashboards)
@@ -24,13 +26,16 @@ Make sure your `.env` file or environment has the following variables:
 
 ```
 DJANGO_API_URL=http://django:8000  # Replace with your actual Django API URL
+DJANGO_API_TOKEN=your-token-here  # Required API token
 ```
 
 For Streamlit dashboards, you can also add this to your `.streamlit/secrets.toml` file:
 
 ```toml
 DJANGO_API_URL = "http://django:8000"
+DJANGO_API_TOKEN = "your-token-here"
 ```
+The API requires this token for all requests. The client will send it in the Authorization header automatically.
 
 ## Step 2: Add the API Client Files
 
@@ -133,6 +138,11 @@ result = client.send_market_order(
 )
 print(result)
 ```
+## Core API Endpoints
+
+- `/api/ping/` - Health check endpoint, returns `{ "status": "ok" }`
+- `/api/v1/symbols/` - List available trading symbols
+- `/api/v1/timeframes/` - List supported timeframes
 
 ## Example Dashboard
 
@@ -146,7 +156,7 @@ If you're having trouble connecting to the API:
 
 1. Check that the Django server is running
 2. Verify the API URL is correct in your environment variables
-3. Test the `/api/ping/` endpoint to make sure the server responds with `{ "status": "ok" }`
+3. Test the `/api/v1/ping/` endpoint to make sure the server responds with `{ "status": "ok" }`
 4. Check for any network issues or firewalls blocking the connection
 5. Look at the Django server logs for any errors
 
@@ -162,6 +172,5 @@ If data isn't loading correctly:
 ## Next Steps
 
 1. Update all your dashboards to use the API
-2. Add authentication to the API client if needed
-3. Implement caching strategies for better performance
-4. Add error handling and fallback mechanisms
+2. Implement caching strategies for better performance
+3. Add error handling and fallback mechanisms
