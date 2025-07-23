@@ -11,14 +11,18 @@ RUN mkdir -p /config/.wine && \
     chown -R abc:abc /config/.wine && \
     chmod -R 755 /config/.wine
 
-# Install required packages
-RUN apt-get install -y \
-    dos2unix \
-    python3-pip \
-    wget \
-    python3-pyxdg \
-    netcat \
-    && pip3 install --upgrade pip
+# Clean up any invalid sources and install required packages
+RUN sed -i '/bullseye-backports/d' /etc/apt/sources.list \
+    && apt-get update \
+    && apt-get install -y \
+        dos2unix \
+        python3-pip \
+        wget \
+        python3-pyxdg \
+        netcat \
+    && pip3 install --upgrade pip \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Add WineHQ repository key and APT source
 RUN wget -q https://dl.winehq.org/wine-builds/winehq.key > /dev/null 2>&1\
