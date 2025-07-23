@@ -146,7 +146,7 @@ If you're having trouble connecting to the API:
 
 1. Check that the Django server is running
 2. Verify the API URL is correct in your environment variables
-3. Test the `/api/ping/` endpoint to make sure the server responds with `{ "status": "ok" }`
+3. Test the `/api/v1/ping/` endpoint to make sure the server responds with `{ "status": "ok" }`
 4. Check for any network issues or firewalls blocking the connection
 5. Look at the Django server logs for any errors
 
