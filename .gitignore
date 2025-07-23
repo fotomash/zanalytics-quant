@@ -12,3 +12,4 @@ backend/mt5/.env
 # Ignore zip archives
 *.zip*
 **/__pycache__/
+/dashboard/.cache
