@@ -1,3 +1,7 @@
+import sys, types
+pandas_stub = types.ModuleType('pandas')
+setattr(pandas_stub, 'DataFrame', object)
+sys.modules.setdefault('pandas', pandas_stub)
 from .settings import *
 
 DATABASES = {
