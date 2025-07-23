@@ -2,6 +2,8 @@ import sys, types
 pandas_stub = types.ModuleType('pandas')
 setattr(pandas_stub, 'DataFrame', object)
 sys.modules.setdefault('pandas', pandas_stub)
+import os
+os.environ.setdefault("DJANGO_SECRET_KEY", "test-secret")
 from .settings import *
 
 DATABASES = {
