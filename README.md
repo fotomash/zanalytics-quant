@@ -187,6 +187,11 @@ This approach improves both data quality and system efficiency, ensuring that da
     ```bash
     curl "$DJANGO_API_URL/api/v1/enriched/?symbol=USDJPY"
     ```
+- Filter ticks or bars by time range using the Django API:
+    ```bash
+    curl "$DJANGO_API_URL/api/v1/ticks/?symbol=EURUSD&time_after=2024-01-01T00:00:00Z&time_before=2024-01-01T12:00:00Z"
+    curl "$DJANGO_API_URL/api/v1/bars/?symbol=EURUSD&timeframe=M5&time_after=2024-01-01T00:00:00Z"
+    ```
 
 ### d) **Troubleshooting**
 - Dashboard blank?  
