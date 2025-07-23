@@ -17,6 +17,7 @@
 - [Example .env Configuration (Partial)](#example-env-configuration-partial)
 - [Security & Access Control](#security--access-control)
 - [Contributing](#contributing)
+- [Running Tests](#running-tests)
 - [Known Issues & Best Practices](#known-issues--best-practices)
 - [Future Directions & Next Steps](#future-directions--next-steps)
 - [License (Strict, Non-Transferable)](#license-strict-non-transferable)
@@ -265,8 +266,23 @@ ACME_EMAIL=your@email.com
 
 ## Contributing
 
-This codebase is not open for external contributions.  
+This codebase is not open for external contributions.
 All changes are managed internally, with strict audit and review.
+
+---
+
+## Running Tests
+
+To execute the automated Django test suite:
+
+```bash
+pip install -r backend/django/requirements.txt
+export DJANGO_SECRET_KEY=test-secret
+pytest
+```
+
+Tests run against the lightweight SQLite database defined in
+`backend/django/app/test_settings.py`.
 
 ---
 
