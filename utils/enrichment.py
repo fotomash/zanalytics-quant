@@ -1,6 +1,64 @@
 import pandas as pd
 import numpy as np
 
+TIMEFRAME_RULES = {
+    "M1": "1T",
+    "M5": "5T",
+    "M15": "15T",
+    "M30": "30T",
+    "H1": "1H",
+    "H4": "4H",
+    "D1": "1D",
+    "W1": "1W",
+    "MN1": "1M",
+}
+
+
+def aggregate_ticks_to_bars(ticks: pd.DataFrame, timeframe: str = "M1") -> pd.DataFrame:
+    """Aggregate tick data into OHLC bars using pandas resample.
+
+    Parameters
+    ----------
+    ticks : pd.DataFrame
+        DataFrame containing tick data. It must have either a ``timestamp``
+        column or a datetime index along with a ``bid`` price column. If an
+        ``ask`` column is present it will be used to compute the mid price.
+    timeframe : str, default "M1"
+        Target timeframe in MT5 format (e.g. ``M1``, ``M5``). A valid pandas
+        resample string can also be provided.
+
+    Returns
+    -------
+    pd.DataFrame
+        Resampled bar data with ``open``, ``high``, ``low`` and ``close``
+        columns. ``volume`` will be summed if present in the input ``ticks``.
+    """
+
+    if ticks is None or ticks.empty:
+        return pd.DataFrame()
+
+    df = ticks.copy()
+
+    # Ensure datetime index
+    if "timestamp" in df.columns:
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df.set_index("timestamp", inplace=True)
+
+    rule = TIMEFRAME_RULES.get(timeframe.upper(), timeframe)
+
+    agg: dict[str, str | list[str]] = {"bid": ["first", "max", "min", "last"]}
+    if "volume" in df.columns:
+        agg["volume"] = "sum"
+
+    resampled = df.resample(rule).agg(agg)
+    resampled.columns = ["open", "high", "low", "close"] + (
+        ["volume"] if "volume" in df.columns else []
+    )
+
+    resampled.dropna(subset=["open"], inplace=True)
+
+    return resampled
+
 
 def enrich_ticks(df: pd.DataFrame) -> pd.DataFrame:
     """Enrich tick or bar data with common metrics.
