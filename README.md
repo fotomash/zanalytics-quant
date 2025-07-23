@@ -100,6 +100,7 @@ This modular design facilitates secure separation of concerns, easy extensibilit
 
 3. **Build and start the platform:**
     ```bash
+    docker network create traefik-public
     docker-compose build --no-cache
     docker-compose up -d
     ```
