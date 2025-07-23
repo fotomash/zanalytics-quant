@@ -8,7 +8,7 @@ from .serializers import (
     TickSerializer,
     BarSerializer,
 )
-from .filters import TradeFilter
+from .filters import TradeFilter, TickFilter, BarFilter
 
 from app.utils.api.order import send_market_order, modify_sl_tp
 
@@ -117,14 +117,14 @@ class ModifySLTPView(views.APIView):
 class TickViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Tick.objects.all()
     serializer_class = TickSerializer
-    filterset_fields = ["symbol"]
+    filterset_class = TickFilter
     ordering = ["-time"]
 
 
 class BarViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Bar.objects.all()
     serializer_class = BarSerializer
-    filterset_fields = ["symbol", "timeframe"]
+    filterset_class = BarFilter
     ordering = ["-time"]
 
 
@@ -162,3 +162,4 @@ class TimeframeListView(views.APIView):
                 .order_by("timeframe")
             )
         return Response({"timeframes": list(timeframes)})
+
