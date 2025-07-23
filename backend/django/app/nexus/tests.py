@@ -30,7 +30,7 @@ class TickBarAPITests(APITestCase):
     def test_get_symbols(self, mock_get):
         sample = {"symbols": ["EURUSD", "GBPUSD"]}
         mock_get.return_value = Response(sample)
-        response = self.client.get("/v1/symbols/")
+        response = self.client.get("/api/v1/symbols/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), sample)
 
@@ -38,11 +38,11 @@ class TickBarAPITests(APITestCase):
     def test_get_timeframes(self, mock_get):
         sample = {"timeframes": ["M1", "H1"]}
         mock_get.return_value = Response(sample)
-        response = self.client.get("/v1/timeframes/")
+        response = self.client.get("/api/v1/timeframes/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), sample)
 
     def test_ping(self):
-        response = self.client.get("/api/ping/")
+        response = self.client.get("/api/v1/ping/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
