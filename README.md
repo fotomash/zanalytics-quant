@@ -132,7 +132,7 @@ This modular design facilitates secure separation of concerns, easy extensibilit
 - `MT5_API_URL`: Base URL where the MT5 service is available (e.g., `http://mt5:5001`).
 - `DJANGO_API_URL`: Base URL of the Django API service (e.g., `http://django:8000`).
 - `DJANGO_API_PREFIX`: Path prefix for all Django API endpoints (default `/api/v1`).
-- `DJANGO_SECRET_KEY`: Secret key for the Django application. **Required.** c859abdafe2b06c03292270351066a2041e1452c
+- `DJANGO_SECRET_KEY`: your-secret
 
 
 ## How It Works (Practical Flow)
