@@ -123,6 +123,18 @@ This modular design facilitates secure separation of concerns, easy extensibilit
 
 ---
 
+- `CUSTOM_USER`: Username for accessing the MT5 service.
+- `PASSWORD`: Password for the custom user.
+- `VNC_DOMAIN`: Domain for accessing the VNC service.
+- `TRAEFIK_DOMAIN`: Domain for Traefik dashboard.
+- `TRAEFIK_USERNAME`: Username for Traefik basic authentication.
+- `ACME_EMAIL`: Email address for Let's Encrypt notifications.
+- `MT5_API_URL`: Base URL where the MT5 service is available (e.g., `http://mt5:5001`).
+- `DJANGO_API_URL`: Base URL of the Django API service (e.g., `http://django:8000`).
+- `DJANGO_API_PREFIX`: Path prefix for all Django API endpoints (default `/api/v1`).
+- `DJANGO_SECRET_KEY`: Secret key for the Django application. **Required.** c859abdafe2b06c03292270351066a2041e1452c
+
+
 ## How It Works (Practical Flow)
 
 ### 1. **Data Pipeline**
@@ -214,6 +226,7 @@ PASSWORD=super_secret_password
 # MT5 and API endpoints
 MT5_API_URL=http://mt5-api:8050
 DJANGO_API_URL=http://django-api:8000
+DJANGO_API_PREFIX=/api/v1
 
 # Database config
 POSTGRES_HOST=postgres
