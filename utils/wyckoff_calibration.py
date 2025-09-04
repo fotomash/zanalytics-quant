@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import yaml
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 from components.wyckoff_scorer import WyckoffScorer
@@ -73,3 +75,97 @@ def grid_search_weights(
                 best = score
                 best_metrics = (w_phase, w_events, w_vsa, m)
     return (*best_metrics,)
+
+
+def _load_labeled_sessions(path: str) -> Tuple[List[pd.DataFrame], List[np.ndarray]]:
+    """Load labeled bar data for calibration.
+
+    Each file is expected to contain columns `label_phase` (str) and optional
+    `label_spring` / `label_upthrust` boolean columns. Files may be CSV or
+    Parquet and are concatenated into lists for evaluation.
+    """
+
+    df_list: List[pd.DataFrame] = []
+    labels_list: List[np.ndarray] = []
+    for fp in sorted(Path(path).glob("*")):
+        if fp.suffix not in {".csv", ".parquet"}:
+            continue
+        if fp.suffix == ".csv":
+            df = pd.read_csv(fp)
+        else:
+            df = pd.read_parquet(fp)
+        if "label_phase" not in df:
+            raise ValueError(f"{fp} missing 'label_phase' column")
+        labels_list.append(df["label_phase"].to_numpy())
+        df_list.append(df)
+    if not df_list:
+        raise ValueError(f"No calibration files found in {path}")
+    return df_list, labels_list
+
+
+def calibrate_and_update_config(
+    data_path: str,
+    config_path: str,
+    threshold: float = 0.01,
+) -> bool:
+    """Run calibration and update configuration if improvement threshold met.
+
+    Parameters
+    ----------
+    data_path: str
+        Directory containing labeled sessions for calibration.
+    config_path: str
+        Path to `pulse_config.yaml`.
+    threshold: float, optional
+        Minimum absolute improvement in combined F1 score required to update
+        weights. Defaults to 0.01.
+
+    Returns
+    -------
+    bool
+        True if configuration was updated, False otherwise.
+    """
+
+    df_list, labels_list = _load_labeled_sessions(data_path)
+    with open(config_path) as fh:
+        cfg = yaml.safe_load(fh) or {}
+    wy_cfg = cfg.setdefault("wyckoff", {})
+    weights = wy_cfg.get("weights", {"phase": 0.5, "events": 0.3, "vsa": 0.2})
+
+    baseline = evaluate_weights(
+        df_list, labels_list, weights["phase"], weights["events"], weights["vsa"]
+    )
+    base_score = baseline["f1_acc"] + baseline["f1_dst"]
+
+    w_phase, w_events, w_vsa, best_metrics = grid_search_weights(df_list, labels_list)
+    best_score = best_metrics["f1_acc"] + best_metrics["f1_dst"]
+
+    if (best_score - base_score) >= threshold:
+        wy_cfg["weights"] = {"phase": w_phase, "events": w_events, "vsa": w_vsa}
+        with open(config_path, "w") as fh:
+            yaml.safe_dump(cfg, fh, sort_keys=False)
+        return True
+    return False
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Calibrate Wyckoff weights")
+    parser.add_argument("--data", required=True, help="Path to labeled sessions")
+    parser.add_argument(
+        "--config", default="pulse_config.yaml", help="Path to config file"
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.01,
+        help="Minimum improvement required to update weights",
+    )
+    args = parser.parse_args()
+
+    updated = calibrate_and_update_config(args.data, args.config, args.threshold)
+    if updated:
+        print("Config updated with new weights")
+    else:
+        print("No significant improvement; config unchanged")
