@@ -51,6 +51,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 WORKDIR /app
+ENV PYTHONPATH="/app"
 COPY . .
 RUN chmod +x scripts/startup.sh
 
