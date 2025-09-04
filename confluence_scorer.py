@@ -16,6 +16,7 @@ import pandas as pd
 
 from components.smc_analyser import SMCAnalyzer
 from components.wyckoff_analyzer import WyckoffAnalyzer
+from components.wyckoff_agents import MultiTFResolver
 from components.technical_analysis import TechnicalAnalysis
 
 
@@ -35,6 +36,7 @@ class ConfluenceScorer:
     smc: SMCAnalyzer = field(default_factory=SMCAnalyzer)
     wyckoff: WyckoffAnalyzer = field(default_factory=WyckoffAnalyzer)
     technical: TechnicalAnalysis = field(default_factory=TechnicalAnalysis)
+    resolver: MultiTFResolver = field(default_factory=MultiTFResolver)
 
     def __post_init__(self) -> None:
         default = {"smc": 0.4, "wyckoff": 0.3, "technical": 0.3}
@@ -69,6 +71,14 @@ class ConfluenceScorer:
             + wyckoff_score * self.weights["wyckoff"]
             + tech_score * self.weights["technical"]
         )
+
+        try:
+            labels = np.array([wyckoff_result.get("current_phase")])
+            conflict = self.resolver.resolve(labels, labels, labels)["conflict_mask"][-1]
+        except Exception:
+            conflict = False
+        if conflict:
+            total = max(0.0, total - 10.0)
         return {
             "smc": smc_score,
             "wyckoff": wyckoff_score,

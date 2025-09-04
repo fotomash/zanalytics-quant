@@ -43,13 +43,17 @@ class PulseKernel:
     def process(self, df: pd.DataFrame, trade: Dict[str, Any] | None = None) -> Dict[str, Any]:
         """Process new market data and optional trade information."""
         score = self.scorer.score(df)
-        allowed, risk_info = self.risk.evaluate(trade)
+        news_active = bool(score.get("news_mask", [False])[-1]) if score.get("news_mask") is not None else False
+        allowed, risk_info = self.risk.evaluate(trade, features={"news_active": news_active})
         entry = {
             "timestamp": datetime.utcnow().isoformat(),
             "score": score,
             "risk": risk_info,
             "allowed": allowed,
             "trade": trade,
+            "explain": score.get("explain"),
+            "events": score.get("events"),
+            "news_active": news_active,
         }
         self.journal.log(entry)
         return {"score": score, "risk": risk_info, "allowed": allowed}

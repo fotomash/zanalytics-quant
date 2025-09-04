@@ -1,0 +1,8 @@
+wyckoff:
+  window: 50
+  news_buffer:
+    enabled: true
+    pre_bars: 2
+    post_bars: 2
+    volz_thresh: 3.0
+    clamp: 0.6
