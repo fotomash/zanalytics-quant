@@ -1,0 +1,121 @@
+"""Confluence scoring wrapper for existing analyzers.
+
+This module aggregates signals from the Smart Money Concepts,
+Wyckoff, and traditional technical analysis modules into a single
+0-100 score.  It does not attempt to reimplement any of the
+underlying logic – it simply calls the proven analyzers and
+applies lightweight heuristics to map their outputs onto a common
+scale.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Dict, Any
+import numpy as np
+import pandas as pd
+
+from components.smc_analyser import SMCAnalyzer
+from components.wyckoff_analyzer import WyckoffAnalyzer
+from components.technical_analysis import TechnicalAnalysis
+
+
+@dataclass
+class ConfluenceScorer:
+    """Compute a unified confluence score from multiple analyzers.
+
+    Parameters
+    ----------
+    weights:
+        Optional mapping of analyzer names to their contribution
+        towards the final score.  The values are normalised
+        automatically.
+    """
+
+    weights: Dict[str, float] | None = None
+    smc: SMCAnalyzer = field(default_factory=SMCAnalyzer)
+    wyckoff: WyckoffAnalyzer = field(default_factory=WyckoffAnalyzer)
+    technical: TechnicalAnalysis = field(default_factory=TechnicalAnalysis)
+
+    def __post_init__(self) -> None:
+        default = {"smc": 0.4, "wyckoff": 0.3, "technical": 0.3}
+        if self.weights:
+            default.update(self.weights)
+        total = sum(default.values())
+        self.weights = {k: v / total for k, v in default.items()}
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+    def score(self, df: pd.DataFrame) -> Dict[str, float]:
+        """Return individual and total scores.
+
+        Parameters
+        ----------
+        df:
+            Price data with ``open``, ``high``, ``low``, ``close`` and
+            ``volume`` columns.
+        """
+
+        smc_result = self.smc.analyze(df)
+        wyckoff_result = self.wyckoff.analyze(df)
+        tech_result = self.technical.calculate_all(df)
+
+        smc_score = self._score_smc(smc_result)
+        wyckoff_score = self._score_wyckoff(wyckoff_result)
+        tech_score = self._score_technical(tech_result)
+
+        total = (
+            smc_score * self.weights["smc"]
+            + wyckoff_score * self.weights["wyckoff"]
+            + tech_score * self.weights["technical"]
+        )
+        return {
+            "smc": smc_score,
+            "wyckoff": wyckoff_score,
+            "technical": tech_score,
+            "total": float(np.clip(total, 0, 100)),
+        }
+
+    # ------------------------------------------------------------------
+    # Scoring helpers
+    # ------------------------------------------------------------------
+    def _score_smc(self, res: Dict[str, Any]) -> float:
+        """Very coarse heuristic based on signal counts."""
+        score = 0.0
+        score += len(res.get("order_blocks", [])) * 5
+        score += len(res.get("fair_value_gaps", [])) * 3
+        score += len(res.get("liquidity_zones", [])) * 2
+        return float(np.clip(score, 0, 100))
+
+    def _score_wyckoff(self, res: Dict[str, Any]) -> float:
+        """Assign scores to Wyckoff phases and detected events."""
+        phase_scores = {
+            "Accumulation": 70,
+            "Markup": 80,
+            "Distribution": 40,
+            "Markdown": 30,
+        }
+        score = phase_scores.get(res.get("current_phase"), 50)
+        score += len(res.get("events", [])) * 2
+        return float(np.clip(score, 0, 100))
+
+    def _score_technical(self, res: Dict[str, Any]) -> float:
+        """Combine a handful of technical signals."""
+        score = 0.0
+        try:
+            if res["sma_20"].iloc[-1] > res["sma_50"].iloc[-1]:
+                score += 15
+            if res["ema_20"].iloc[-1] > res["ema_50"].iloc[-1]:
+                score += 15
+            rsi = res["rsi"].iloc[-1]
+            if 40 <= rsi <= 60:
+                score += 10
+            macd = res["macd"].iloc[-1]
+            signal = res["macd_signal"].iloc[-1]
+            if macd > signal:
+                score += 10
+            if res["bb_middle"].iloc[-1] is not None:
+                score += 10
+        except Exception:
+            pass
+        return float(np.clip(score, 0, 100))
