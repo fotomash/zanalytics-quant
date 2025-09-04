@@ -67,8 +67,12 @@ class RiskEnforcer:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
-    def evaluate(self, trade: Dict[str, Any] | None = None,
-                 now: datetime | None = None) -> Tuple[bool, Dict[str, Any]]:
+    def evaluate(
+        self,
+        trade: Dict[str, Any] | None = None,
+        now: datetime | None = None,
+        features: Dict[str, Any] | None = None,
+    ) -> Tuple[bool, Dict[str, Any]]:
         """Evaluate whether trading is allowed.
 
         Parameters
@@ -106,6 +110,10 @@ class RiskEnforcer:
         if self._loss_streak >= self.max_loss_streak:
             allowed = False
             reasons.append("loss_streak")
+
+        if features and features.get("news_active"):
+            allowed = False
+            reasons.append("news_window")
 
         if trade is not None:
             pnl = float(trade.get("pnl", 0))
