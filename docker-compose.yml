@@ -135,7 +135,7 @@ services:
 
   django:
     build:
-      context: backend/django
+      context: ./backend/django
       dockerfile: Dockerfile
     container_name: django
     volumes:
@@ -145,6 +145,8 @@ services:
       - 8000:8000
     env_file:
       - .env
+    environment:
+      - PYTHONPATH=/app:/app/components:/app/backend
     depends_on:
       - postgres
       - traefik
@@ -193,14 +195,16 @@ services:
 
   celery:
     build:
-      context: backend/django
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/django/Dockerfile
     container_name: celery
     command: celery -A app worker --loglevel=info --concurrency=3
     volumes:
       - static_volume:/app/staticfiles
     env_file:
       - .env
+    environment:
+      - PYTHONPATH=/app:/app/components:/app/backend
     depends_on:
       - django
       - redis
@@ -212,14 +216,16 @@ services:
 
   celery-beat:
     build:
-      context: backend/django
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/django/Dockerfile
     container_name: celery-beat
     command: celery -A app beat --loglevel=info
     volumes:
       - static_volume:/app/staticfiles
     env_file:
       - .env
+    environment:
+      - PYTHONPATH=/app:/app/components:/app/backend
     depends_on:
       - celery
       - redis
