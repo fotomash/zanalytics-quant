@@ -140,9 +140,10 @@ services:
 
   django:
     build:
-      context: ./backend/django
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/django/Dockerfile
     container_name: django
+    working_dir: /app/backend/django
     volumes:
       - static_volume:/app/staticfiles
     restart: unless-stopped
@@ -151,8 +152,8 @@ services:
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/app:/app/components:/app/backend
-      - DJANGO_SETTINGS_MODULE=zanalytics.settings
+      - PYTHONPATH=/app:/app/components:/app/utils:/app/backend
+      - DJANGO_SETTINGS_MODULE=app.settings
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     depends_on:
       - postgres
@@ -192,7 +193,7 @@ services:
       - 6379:6379
     volumes:
       - redis-data:/data
-      - ./redis.conf:/usr/local/etc/redis/redis.conf
+      - ./redis_architecture/redis.conf:/usr/local/etc/redis/redis.conf
     command: redis-server /usr/local/etc/redis/redis.conf
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -210,15 +211,17 @@ services:
       context: .
       dockerfile: backend/django/Dockerfile
     container_name: celery
+    working_dir: /app/backend/django
     entrypoint: ["sh", "-c", "celery -A ${CELERY_APP:-zanalytics} worker --loglevel=info --concurrency=${CELERY_CONCURRENCY:-3}"]
     volumes:
       - static_volume:/app/staticfiles
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/app:/app/components:/app/backend
-      - DJANGO_SETTINGS_MODULE=zanalytics.settings
+      - PYTHONPATH=/app:/app/components:/app/utils:/app/backend
+      - DJANGO_SETTINGS_MODULE=app.settings
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CELERY_APP=app
     depends_on:
       - django
       - redis
@@ -233,15 +236,17 @@ services:
       context: .
       dockerfile: backend/django/Dockerfile
     container_name: celery-beat
+    working_dir: /app/backend/django
     entrypoint: ["sh", "-c", "celery -A ${CELERY_APP:-zanalytics} beat --loglevel=info"]
     volumes:
       - static_volume:/app/staticfiles
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/app:/app/components:/app/backend
-      - DJANGO_SETTINGS_MODULE=zanalytics.settings
+      - PYTHONPATH=/app:/app/components:/app/utils:/app/backend
+      - DJANGO_SETTINGS_MODULE=app.settings
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CELERY_APP=app
     depends_on:
       - celery
       - redis
@@ -472,8 +477,12 @@ services:
     working_dir: /app/dashboard
     volumes:
       - ./dashboard:/app/dashboard
+      - ./components:/app/components
+      - ./utils:/app/utils
     env_file:
       - .env
+    environment:
+      - PYTHONPATH=/app:/app/components:/app/utils
     depends_on:
       - mt5
       - django

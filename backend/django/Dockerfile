@@ -1,21 +1,35 @@
 FROM python:3.11-slim
 
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_ROOT_USER_ACTION=ignore
 
 ARG DJANGO_SECRET_KEY=dummy
 
+# Work in project root
 WORKDIR /app
 
-ENV PYTHONPATH="/app:/app/app"
+# Make sure shared modules are importable across Django and Celery
+ENV PYTHONPATH="/app:/app/backend:/app/components:/app/utils"
 
-COPY requirements.txt /app/
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# Install dependencies from the repo root
+COPY requirements.txt /app/requirements.txt
+RUN pip install --upgrade pip && pip install -r /app/requirements.txt
 
-COPY . /app/
+# Copy application code (selective copy keeps image small)
+COPY backend/django /app/backend/django
+COPY components /app/components
+COPY utils /app/utils
 
-RUN mkdir -p /app/logs && \
-    mkdir -p /app/static && \
-    chmod 777 /app/logs
+# Ensure packages are importable and runtime dirs exist
+RUN mkdir -p /app/components /app/utils \
+ && find /app/components -maxdepth 1 -type d -exec sh -lc 'touch "$1"/__init__.py' _ {} \; \
+ && find /app/utils -maxdepth 1 -type d -exec sh -lc 'touch "$1"/__init__.py' _ {} \; \
+ && mkdir -p /app/logs /app/static /app/backend/django/logs /app/backend/django/static \
+ && chmod -R 777 /app/logs /app/backend/django/logs
 
-CMD ["sh", "-c", "python manage.py collectstatic --noinput --settings=app.settings && gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 app.wsgi:application"]
+# Run from the Django folder so manage.py is the CWD
+WORKDIR /app/backend/django
+
+# Collect static and launch gunicorn (DJANGO_SETTINGS_MODULE is set by compose)
+CMD ["sh", "-c", "python manage.py collectstatic --noinput && gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 app.wsgi:application"]
