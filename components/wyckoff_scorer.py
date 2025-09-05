@@ -26,6 +26,7 @@ class WyckoffScorer:
         return {
             "wyckoff_score": float(total),
             "wyckoff_probs": probs,
+            "phase_labels": analysis["phases"]["labels"],
             "events": analysis["events"],
             "explain": analysis["events_reasons"],
             "news_mask": analysis.get("news_mask"),
