@@ -491,3 +491,4 @@ networks:
     driver: bridge
   traefik-public:
     external: true
+  
