@@ -14,7 +14,13 @@ from typing import Dict, Any
 import numpy as np
 import pandas as pd
 
-from components.smc_analyser import SMCAnalyzer
+try:
+    from components.smc_analyser import SMCAnalyzer
+except Exception:  # pragma: no cover - fallback when heavy deps missing
+    class SMCAnalyzer:  # type: ignore
+        def analyze(self, df):
+            return {}
+
 from components.wyckoff_scorer import WyckoffScorer
 from components.wyckoff_agents import MultiTFResolver
 from components.technical_analysis import TechnicalAnalysis
@@ -89,11 +95,13 @@ class ConfluenceScorer:
             conflict = False
         if conflict:
             total = max(0.0, total - 10.0)
+        clipped = float(np.clip(total, 0, 100))
         return {
             "smc": smc_score,
             "wyckoff": wyckoff_score,
             "technical": tech_score,
-            "total": float(np.clip(total, 0, 100)),
+            "total": clipped,
+            "score": clipped,
             "news_mask": news_mask,
         }
 
