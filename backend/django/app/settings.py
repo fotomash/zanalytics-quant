@@ -32,24 +32,12 @@ if not SECRET_KEY:
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = list(filter(None, [
-    os.getenv('DJANGO_DOMAIN'),
-    'localhost',
-    '127.0.0.1',
-    'example.com',
-    'django',
-    'mt5',
-    'dashboard',
-]))
+ALLOWED_HOSTS = [os.getenv('DJANGO_DOMAIN'), 'localhost', '127.0.0.1', 'example.com', 'django']
 
-CSRF_TRUSTED_ORIGINS = list(filter(None, [
+CSRF_TRUSTED_ORIGINS = [
     f"https://{os.getenv('DJANGO_DOMAIN')}",
     f"http://{os.getenv('DJANGO_DOMAIN')}",
-    "http://django",
-    "http://mt5",
-    "http://localhost",
-    "https://localhost",
-]))
+]
 
 # If you need to debug CSRF issues, you can temporarily add:
 CSRF_COOKIE_SECURE = True

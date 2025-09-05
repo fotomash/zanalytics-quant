@@ -156,9 +156,12 @@ services:
       - DJANGO_SETTINGS_MODULE=app.settings
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     depends_on:
-      - postgres
-      - traefik
-      - redis
+      postgres:
+        condition: service_started
+      traefik:
+        condition: service_started
+      redis:
+        condition: service_started
     networks:
       - default
       - traefik-public
@@ -184,6 +187,12 @@ services:
       traefik.http.routers.django-static.service: django-service
       traefik.http.middlewares.static-stripprefix.stripprefix.prefixes: /static
       traefik.http.routers.django-static.middlewares: static-stripprefix@docker
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/api/pulse/health').getcode()==200 else sys.exit(1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     logging: *default-logging
 
   redis:
@@ -194,6 +203,13 @@ services:
     volumes:
       - redis-data:/data
       - ./redis_architecture/redis.conf:/usr/local/etc/redis/redis.conf
+    environment:
+      - PYTHONPATH=/app:/app/components:/app/utils
+      - PULSE_API_URL=http://django:8000
+      - MT5_API_URL=http://mt5:5001
+      - MT5_API_BASE=http://mt5:5001
+      - PULSE_API_BASE=http://django:8000
+      - REDIS_HOST=redis
     command: redis-server /usr/local/etc/redis/redis.conf
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -223,8 +239,10 @@ services:
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - CELERY_APP=app
     depends_on:
-      - django
-      - redis
+      django:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - default
     labels:
@@ -248,8 +266,10 @@ services:
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - CELERY_APP=app
     depends_on:
-      - celery
-      - redis
+      celery:
+        condition: service_started
+      redis:
+        condition: service_started
     networks:
       - default
     labels:
@@ -479,8 +499,6 @@ services:
       - ./dashboard:/app/dashboard
       - ./components:/app/components
       - ./utils:/app/utils
-    extra_hosts:
-      - "mt5:host-gateway"
     env_file:
       - .env
     environment:
@@ -488,8 +506,10 @@ services:
       - PULSE_API_URL=http://django:8000
       - MT5_API_URL=http://mt5:5001
     depends_on:
-      - mt5
-      - django
+      mt5:
+        condition: service_started
+      django:
+        condition: service_healthy
     command: >
       streamlit run Home.py --server.port=8501 --server.enableCORS false
     restart: unless-stopped
@@ -509,6 +529,12 @@ services:
       traefik.http.routers.dashboard-https.tls.certresolver: le
       traefik.http.routers.dashboard-https.service: dashboard-service
       traefik.http.services.dashboard-service.loadbalancer.server.port: 8501
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8501/_stcore/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     logging: *default-logging
 
 volumes:

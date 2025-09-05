@@ -13,6 +13,7 @@ import redis
 import json
 import time
 import os
+import urllib.parse as urlparse
 from typing import Dict, List, Optional
 import requests
 
@@ -43,17 +44,17 @@ class RiskManager:
     """Risk Management with MT5 API fallback"""
 
     def __init__(self):
-        self.mt5_url = "http://mt5:5001"
-        self.django_url = "http://django:8000"
-        self.use_mock = False
+        self.mt5_url = os.getenv("MT5_URL", "http://mt5:5001")
+        self.django_url = os.getenv("DJANGO_URL", "http://django:8000")
 
-        # Try to connect to Redis
+        # Try to connect to Redis (inside Docker network use service name "redis")
         try:
-            self.redis_client = redis.Redis(host='localhost', port=6379, decode_responses=True)
+            redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
+            self.redis_client = redis.from_url(redis_url, decode_responses=True)
             self.redis_client.ping()
-        except:
+        except Exception as e:
             self.redis_client = None
-            st.warning("Redis not available - using local storage")
+            st.warning(f"Redis not available ({e}) - using local storage")
 
     def get_mt5_data(self, endpoint: str) -> Optional[Dict]:
         """Get data from MT5 API"""

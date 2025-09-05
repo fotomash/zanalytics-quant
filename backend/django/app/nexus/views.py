@@ -1,6 +1,8 @@
 from rest_framework import viewsets, status, views
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
+from rest_framework.decorators import api_view, permission_classes
 from .models import Trade, TradeClosePricesMutation, Tick, Bar
 from .serializers import (
     TradeSerializer,
@@ -12,9 +14,6 @@ from .filters import TradeFilter, TickFilter, BarFilter
 
 from app.utils.api.order import send_market_order, modify_sl_tp
 
-from django.http import JsonResponse
-from django.views.decorators.http import require_GET
-
 
 class PingView(views.APIView):
     """Simple health check endpoint."""
@@ -23,22 +22,14 @@ class PingView(views.APIView):
         return Response({"status": "ok"})
 
 
-# Lightweight health endpoints for pulse checks and legacy dashboards
-@require_GET
+@api_view(["GET"])
+@permission_classes([AllowAny])
 def health(request):
-    """
-    Lightweight health endpoint for pulse checks.
-    Kept as a function to match `from app.nexus.views import health` in urls.py.
-    """
-    return JsonResponse({"status": "ok"})
+    """Lightweight health endpoint used by monitors.
 
-
-@require_GET
-def wyckoff_health(request):
+    Returns HTTP 200 with a small JSON payload without requiring auth.
     """
-    Backwards-compatible health endpoint used by older dashboards.
-    """
-    return JsonResponse({"status": "ok", "service": "wyckoff"})
+    return Response({"status": "ok"})
 
 class TradeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Trade.objects.all()

@@ -1,38 +1,44 @@
+# backend/django/Dockerfile
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_ROOT_USER_ACTION=ignore
+    DJANGO_SETTINGS_MODULE=app.settings \
+    DJANGO_LOG_DIR=/app/backend/django/logs \
+    PYTHONPATH=/app/backend/django:/app:/app/components:/app/utils
 
-ARG DJANGO_SECRET_KEY=dummy
+# (Optional) run as non-root
+ARG APP_USER=app
+RUN adduser --disabled-password --gecos "" ${APP_USER}
 
-# Work in project root
 WORKDIR /app
 
-# Make sure shared modules are importable across Django and Celery
-# (cover both camel-case and lower-case just in case)
-ENV PYTHONPATH="/app:/app/Components:/app/Utils:/app/backend:/app/components:/app/utils"
-
-# Install dependencies from the repo root
+# 1) Install deps
 COPY requirements.txt /app/requirements.txt
-RUN pip install --upgrade pip && pip install -r /app/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir -r /app/requirements.txt
 
-# Copy application code
-# Django app (contains manage.py)
+# 2) Copy your code
+#    Django project is under backend/django/
 COPY backend/django /app/backend/django
-# Shared modules kept at repo root
+#    Shared modules at repo root (lowercase):
 COPY components /app/components
-COPY utils /app/utils
+COPY utils      /app/utils
 
-# Ensure packages are importable even if these folders didn’t contain __init__.py
-RUN mkdir -p /app/components /app/utils \
- && find /app/components -maxdepth 1 -type d -exec sh -lc 'touch "$1"/__init__.py' _ {} \; \
- && find /app/utils -maxdepth 1 -type d -exec sh -lc 'touch "$1"/__init__.py' _ {} \; \
- && mkdir -p /app/logs /app/static /app/backend/django/logs \
- && chmod -R 777 /app/logs /app/backend/django/logs
+# Ensure runtime log directory exists (matches settings.py LOG_DIR)
+RUN mkdir -p /app/backend/django/logs /app/backend/django/staticfiles /app/logs /app/staticfiles \
+    && touch /app/backend/django/logs/quant.log \
+    && chown -R ${APP_USER}:${APP_USER} /app
 
-# Run from the Django folder so manage.py is on CWD
-WORKDIR /app/backend/django
+# Make sure Python can import:
+# - backend/django  (so `import app.settings` works if the package folder is /app/backend/django/app)
+# - components and utils shared modules
 
-# Collect static and launch gunicorn (DJANGO_SETTINGS_MODULE supplied by env/compose)
-CMD ["sh", "-c", "python manage.py collectstatic --noinput && gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 app.wsgi:application"]
+USER ${APP_USER}
+
+# Use the manage.py that lives under backend/django
+CMD sh -lc '\
+  mkdir -p "${DJANGO_LOG_DIR:-/app/logs}" && touch "${DJANGO_LOG_DIR:-/app/logs}/quant.log" ; \
+  python /app/backend/django/manage.py collectstatic --noinput --settings=${DJANGO_SETTINGS_MODULE} || true ; \
+  exec gunicorn app.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120 \
+'

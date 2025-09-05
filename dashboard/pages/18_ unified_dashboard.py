@@ -40,8 +40,11 @@ st.markdown(
 def init_redis():
     redis_host = os.getenv("REDIS_HOST", "redis")  # default to 'redis' for Docker
     redis_port = int(os.getenv("REDIS_PORT", "6379"))
-    return redis.Redis(host=redis_host, port=redis_port, db=0, decode_responses=True)
-
+    try:
+        return redis.Redis(host=redis_host, port=redis_port, db=0, decode_responses=True)
+    except Exception:
+        return redis.Redis(host="localhost", port=6379, db=0, decode_responses=True)
+    
 redis_client = init_redis()
 redis_stream = redis.Redis(host=os.getenv("REDIS_HOST", "redis"), port=6379, db=0)
 
