@@ -146,8 +146,6 @@ services:
     working_dir: /app/backend/django
     volumes:
       - static_volume:/app/staticfiles
-    extra_hosts:
-      - "mt5:host-gateway"
     restart: unless-stopped
     ports:
       - 8000:8000
@@ -217,8 +215,6 @@ services:
     entrypoint: ["sh", "-c", "celery -A ${CELERY_APP:-zanalytics} worker --loglevel=info --concurrency=${CELERY_CONCURRENCY:-3}"]
     volumes:
       - static_volume:/app/staticfiles
-    extra_hosts:
-      - "mt5:host-gateway"
     env_file:
       - .env
     environment:
@@ -244,8 +240,6 @@ services:
     entrypoint: ["sh", "-c", "celery -A ${CELERY_APP:-zanalytics} beat --loglevel=info"]
     volumes:
       - static_volume:/app/staticfiles
-    extra_hosts:
-      - "mt5:host-gateway"
     env_file:
       - .env
     environment:
@@ -491,6 +485,8 @@ services:
       - .env
     environment:
       - PYTHONPATH=/app:/app/components:/app/utils
+      - PULSE_API_URL=http://django:8000
+      - MT5_API_URL=http://mt5:5001
     depends_on:
       - mt5
       - django

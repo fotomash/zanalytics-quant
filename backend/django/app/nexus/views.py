@@ -12,12 +12,33 @@ from .filters import TradeFilter, TickFilter, BarFilter
 
 from app.utils.api.order import send_market_order, modify_sl_tp
 
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
+
 
 class PingView(views.APIView):
     """Simple health check endpoint."""
 
     def get(self, request):
         return Response({"status": "ok"})
+
+
+# Lightweight health endpoints for pulse checks and legacy dashboards
+@require_GET
+def health(request):
+    """
+    Lightweight health endpoint for pulse checks.
+    Kept as a function to match `from app.nexus.views import health` in urls.py.
+    """
+    return JsonResponse({"status": "ok"})
+
+
+@require_GET
+def wyckoff_health(request):
+    """
+    Backwards-compatible health endpoint used by older dashboards.
+    """
+    return JsonResponse({"status": "ok", "service": "wyckoff"})
 
 class TradeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Trade.objects.all()
