@@ -1,0 +1,73 @@
+# Configuration for the Live Wyckoff Terminal
+
+# API Endpoints
+api:
+  mt5_url: "http://mt5:8000"  # MT5 service from docker-compose
+  pulse_url: "http://django:8000/api/pulse"  # Django Pulse API
+  redis_host: "redis"
+  redis_port: 6379
+
+# Default Analysis Parameters
+analysis:
+  default_symbol: "EURUSD"
+  default_ticks: 2000
+  default_timeframe: "1min"
+  
+  # Wyckoff parameters
+  wyckoff:
+    window: 50
+    volume_gate: 1.2  # Z-score threshold for volume significance
+    efficiency_gate: 0.8  # Efficiency ratio for trend detection
+    
+  # News buffer settings
+  news_buffer:
+    enabled: true
+    threshold: 3.0  # Z-score for news detection
+    clamp: 0.6  # Confidence reduction during news
+
+# Display Settings
+display:
+  auto_refresh: true
+  refresh_interval: 5  # seconds
+  chart_height: 900
+  max_bars_display: 500
+  
+  # Phase colors
+  phase_colors:
+    accumulation: "rgba(0, 255, 0, 0.3)"
+    distribution: "rgba(255, 0, 0, 0.3)"
+    markup: "rgba(0, 100, 255, 0.3)"
+    markdown: "rgba(255, 165, 0, 0.3)"
+    trading_range: "rgba(128, 128, 128, 0.2)"
+
+# Symbols available for analysis
+symbols:
+  forex:
+    - EURUSD
+    - GBPUSD
+    - USDJPY
+    - EURGBP
+    - AUDUSD
+    - USDCAD
+    - NZDUSD
+    - USDCHF
+  commodities:
+    - XAUUSD
+    - XAGUSD
+    - USOIL
+    - UKOIL
+  indices:
+    - SPX500
+    - NAS100
+    - US30
+    - DAX40
+  crypto:
+    - BTCUSD
+    - ETHUSD
+
+# Alert Thresholds
+alerts:
+  spring_confidence: 0.7
+  upthrust_confidence: 0.7
+  news_event_threshold: 3.0
+  phase_change_confidence: 0.6
