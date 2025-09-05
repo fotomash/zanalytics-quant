@@ -1,64 +1,20 @@
-"""Central orchestrator for Zanalytics Pulse.
-
-The :class:`PulseKernel` glues together the scoring, risk and
-journal components.  It receives market data, computes a
-confluence score, checks behavioural risk limits and records the
-outcome for later review.
-"""
-from __future__ import annotations
-
-from dataclasses import dataclass, field
-from datetime import datetime
-from pathlib import Path
+import yaml
 import json
-from typing import Dict, Any
-
+from typing import Dict
 import pandas as pd
-
-from confluence_scorer import ConfluenceScorer
-from risk_enforcer import RiskEnforcer
+from components.wyckoff_scorer import WyckoffScorer
 
 
-@dataclass
-class JournalEngine:
-    """Tiny JSON based journal for process logging."""
-
-    path: Path = Path("pulse_journal.json")
-
-    def log(self, entry: Dict[str, Any]) -> None:
-        if self.path.exists():
-            data = json.loads(self.path.read_text())
-        else:
-            data = []
-        data.append(entry)
-        self.path.write_text(json.dumps(data, indent=2))
-
-
-@dataclass
 class PulseKernel:
-    scorer: ConfluenceScorer = field(default_factory=ConfluenceScorer)
-    risk: RiskEnforcer = field(default_factory=RiskEnforcer)
-    journal: JournalEngine = field(default_factory=JournalEngine)
+    def __init__(self, config_path: str = "pulse_config.yaml"):
+        with open(config_path, 'r') as f:
+            self.config = yaml.safe_load(f)
+        self.wyckoff_scorer = WyckoffScorer(
+            **self.config.get('wyckoff', {}).get('scorer_weights', {})
+        )
+        # self.confluence_scorer = ConfluenceScorer(config_path)
+        # self.risk_enforcer = RiskEnforcer(self.config['risk_limits'])
 
-    def process(self, df: pd.DataFrame, trade: Dict[str, Any] | None = None) -> Dict[str, Any]:
-        """Process new market data and optional trade information."""
-        score = self.scorer.score(df)
-        news_active = bool(score.get("news_mask", [False])[-1]) if score.get("news_mask") is not None else False
-        allowed, risk_info = self.risk.evaluate(trade, features={"news_active": news_active})
-        entry = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "score": score,
-            "risk": risk_info,
-            "allowed": allowed,
-            "trade": trade,
-            "explain": score.get("explain"),
-            "events": score.get("events"),
-            "news_active": news_active,
-        }
-        self.journal.log(entry)
-        return {"score": score, "risk": risk_info, "allowed": allowed}
-
-
-def healthcheck() -> Dict[str, str]:
-    """Lightweight health endpoint used by the API."""
-    return {"status": "ok", "time": datetime.utcnow().isoformat()}
+    def on_frame(self, frame: Dict):
+        score_details = self.wyckoff_scorer.score(pd.DataFrame(frame['bars']))
+        return {"ts": frame["ts"], "symbol": frame["symbol"], "score": score_details, "decision": "allowed"}
