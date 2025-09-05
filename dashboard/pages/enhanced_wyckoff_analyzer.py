@@ -45,6 +45,12 @@ def apply_dashboard_style(fig, title=None, height=800):
     return fig
 
 import streamlit as st
+from components.wyckoff_adaptive import analyze_wyckoff_adaptive
+
+# Sidebar toggles
+use_adaptive = st.sidebar.toggle("Use Adaptive Wyckoff (Z-Bands)", value=True)
+show_agents = st.sidebar.toggle("Show Agent Verifications", value=True)
+
 # === OpenAI for user prompt (added) ===
 import openai
 openai.api_key = st.secrets["OPENAI_API_KEY"]
@@ -508,11 +514,23 @@ def main():
         # Trim data to lookback period
         df_analysis = df_analysis.tail(lookback_period).copy()
 
+        wy = analyze_wyckoff_adaptive(df_analysis, win=50) if use_adaptive else None
+
         # Run comprehensive analysis
         status_text.text("Running Wyckoff analysis...")
         progress_bar.progress(30)
 
         analysis_results = analyzer.comprehensive_analysis(df_analysis, tick_data)
+
+        if show_agents and wy:
+            colA, colB = st.columns(2)
+            last = len(df_analysis) - 1
+            if wy["events"]["Spring"][last]:
+                colA.success("Spring✓")
+            if wy["events"]["Upthrust"][last]:
+                colA.error("Upthrust✓")
+            if wy.get("news_mask", [False])[last]:
+                colB.warning("News Buffer Active")
 
         status_text.text("Analyzing microstructure patterns...")
         progress_bar.progress(60)

@@ -1,0 +1,94 @@
+# File: .github/workflows/weekly_calibration.yml
+name: Weekly Wyckoff Weight Calibration
+
+on:
+  schedule:
+    # Runs every Sunday at 05:00 UTC
+    - cron: '0 5 * * 0'
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  calibrate-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 2. Set up Python environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 3. Install dependencies
+        run: |
+          pip install -r requirements.txt # Assumes a root requirements.txt
+          pip install pyyaml              # For config updates
+
+      - name: 4. Prepare Labeled Data
+        run: |
+          # Placeholder: Replace with your script to pull labeled MT5 playback data
+          # This script should produce a file (e.g., a pickle or parquet) that the
+          # calibration script can read.
+          echo "Placeholder for data preparation script."
+          # Example: python scripts/pull_labeled_data.py --output data/labeled_playback.pkl
+          mkdir -p data && touch data/labeled_playback.pkl
+
+      - name: 5. Run Calibration with 5% Improvement Guardrail
+        id: calibration
+        run: |
+          # This inline script runs the calibration, checks the improvement threshold,
+          # and outputs the new weights only if the guardrail is passed.
+          NEW_WEIGHTS_JSON=$(python -c "
+import yaml, json, numpy as np, pandas as pd
+from utils.wyckoff_calibration import grid_search_weights, evaluate_weights
+
+MIN_IMPROVEMENT_THRESHOLD = 0.05 # 5%
+
+# --- Load Labeled Data (Replace with your actual data loader) ---
+# This is a dummy implementation. Your script should load from the file
+# created in the 'Prepare Labeled Data' step.
+# from your_loader import load_playback_data
+# df_list, labels_list = load_playback_data('data/labeled_playback.pkl')
+df_list = [pd.DataFrame({'close': np.linspace(1, 1.1, 100), 'volume': np.random.randint(100, 200, 100), 'open': 1, 'high': 1.1, 'low': 1})]
+labels_list = [pd.Series(['Markup'] * 100)]
+
+# --- Get Current Score ---
+with open('pulse_config.yaml', 'r') as f: config = yaml.safe_load(f)
+current_weights = config.get('wyckoff', {}).get('scorer_weights', {'w_phase': 0.55, 'w_events': 0.20, 'w_vsa': 0.25})
+current_metrics = evaluate_weights(df_list, labels_list, **current_weights)
+current_score = (current_metrics.get('f1_acc', 0) + current_metrics.get('f1_dst', 0)) + 0.5 * np.nanmean([current_metrics.get('spring_prec', 0), current_metrics.get('upthrust_prec', 0)])
+
+# --- Find New Best Score ---
+w_p, w_e, w_v, new_metrics = grid_search_weights(df_list, labels_list)
+new_score = (new_metrics.get('f1_acc', 0) + new_metrics.get('f1_dst', 0)) + 0.5 * np.nanmean([new_metrics.get('spring_prec', 0), new_metrics.get('upthrust_prec', 0)])
+
+# --- Check Guardrail and Output ---
+if new_score > current_score * (1 + MIN_IMPROVEMENT_THRESHOLD):
+    print(f'New optimal weights found with score {new_score:.4f} (previously {current_score:.4f}).')
+    print(json.dumps({'w_phase': w_p, 'w_events': w_e, 'w_vsa': w_v}))
+else:
+    print(f'No significant improvement found. New score: {new_score:.4f}, Current score: {current_score:.4f}. No update needed.')
+    print('{}') # Output empty JSON to skip the next steps
+          ")
+          echo "NEW_WEIGHTS=$NEW_WEIGHTS_JSON" >> $GITHUB_ENV
+
+      - name: 6. Update Config File and Commit (if weights improved)
+        if: env.NEW_WEIGHTS != '{}'
+        run: |
+          # This helper script safely updates the YAML file
+          python -c "
+import yaml, json
+with open('pulse_config.yaml', 'r') as f: config = yaml.safe_load(f)
+new_weights = json.loads('''${{ env.NEW_WEIGHTS }}''')
+if 'wyckoff' not in config: config['wyckoff'] = {}
+config['wyckoff']['scorer_weights'] = {k: round(v, 4) for k, v in new_weights.items()}
+with open('pulse_config.yaml', 'w') as f: yaml.dump(config, f, sort_keys=False)
+          "
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "ci(wyckoff): Auto-calibrate scorer weights based on performance"
+          branch: main # Or your development branch
+          file_pattern: pulse_config.yaml
+          commit_user_name: "Zanalytics CI Bot"
+          commit_user_email: "ci-bot@zanalytics.ai"

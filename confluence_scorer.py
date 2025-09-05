@@ -1,121 +1,55 @@
-"""Confluence scoring wrapper for existing analyzers.
+"""Combine multiple analysis modules into a single confluence score."""
 
-This module aggregates signals from the Smart Money Concepts,
-Wyckoff, and traditional technical analysis modules into a single
-0-100 score.  It does not attempt to reimplement any of the
-underlying logic – it simply calls the proven analyzers and
-applies lightweight heuristics to map their outputs onto a common
-scale.
-"""
 from __future__ import annotations
-
-from dataclasses import dataclass, field
 from typing import Dict, Any
-import numpy as np
-import pandas as pd
-
-from components.smc_analyser import SMCAnalyzer
-from components.wyckoff_analyzer import WyckoffAnalyzer
-from components.technical_analysis import TechnicalAnalysis
 
 
-@dataclass
 class ConfluenceScorer:
-    """Compute a unified confluence score from multiple analyzers.
+    """Simple weighted ensemble of different analyzers.
 
     Parameters
     ----------
+    smc, wyckoff, technical, enhanced:
+        Analyzer instances exposing a ``score`` method that returns a mapping
+        with at least a ``score`` key.
     weights:
-        Optional mapping of analyzer names to their contribution
-        towards the final score.  The values are normalised
-        automatically.
+        Mapping of weightings for each component.  Missing analyzers are
+        treated as neutral (score of 0).
     """
 
-    weights: Dict[str, float] | None = None
-    smc: SMCAnalyzer = field(default_factory=SMCAnalyzer)
-    wyckoff: WyckoffAnalyzer = field(default_factory=WyckoffAnalyzer)
-    technical: TechnicalAnalysis = field(default_factory=TechnicalAnalysis)
+    def __init__(self, smc: Any, wyckoff: Any, technical: Any, enhanced: Any, weights: Dict[str, float]):
+        self.smc = smc
+        self.wyckoff = wyckoff
+        self.technical = technical
+        self.enhanced = enhanced
+        self.weights = weights
 
-    def __post_init__(self) -> None:
-        default = {"smc": 0.4, "wyckoff": 0.3, "technical": 0.3}
-        if self.weights:
-            default.update(self.weights)
-        total = sum(default.values())
-        self.weights = {k: v / total for k, v in default.items()}
+    def score(self, data: Any) -> Dict[str, Any]:
+        """Return a confluence score aggregated from all analyzers."""
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-    def score(self, df: pd.DataFrame) -> Dict[str, float]:
-        """Return individual and total scores.
+        def _safe_score(analyzer: Any) -> Dict[str, Any]:
+            if analyzer is None:
+                return {"score": 0.0, "reasons": []}
+            try:
+                return analyzer.score(data)
+            except Exception:
+                # Fall back to neutral score if analyzer errors
+                return {"score": 0.0, "reasons": []}
 
-        Parameters
-        ----------
-        df:
-            Price data with ``open``, ``high``, ``low``, ``close`` and
-            ``volume`` columns.
-        """
+        smc = _safe_score(self.smc)
+        wy = _safe_score(self.wyckoff)
+        tech = _safe_score(self.technical)
 
-        smc_result = self.smc.analyze(df)
-        wyckoff_result = self.wyckoff.analyze(df)
-        tech_result = self.technical.calculate_all(df)
-
-        smc_score = self._score_smc(smc_result)
-        wyckoff_score = self._score_wyckoff(wyckoff_result)
-        tech_score = self._score_technical(tech_result)
-
-        total = (
-            smc_score * self.weights["smc"]
-            + wyckoff_score * self.weights["wyckoff"]
-            + tech_score * self.weights["technical"]
+        score_val = (
+            smc.get("score", 0.0) * self.weights.get("smc", 0.0)
+            + wy.get("score", 0.0) * self.weights.get("wyckoff", 0.0)
+            + tech.get("score", 0.0) * self.weights.get("technical", 0.0)
         )
-        return {
-            "smc": smc_score,
-            "wyckoff": wyckoff_score,
-            "technical": tech_score,
-            "total": float(np.clip(total, 0, 100)),
-        }
+        grade = "Low" if score_val < 40 else "Medium" if score_val < 70 else "High"
 
-    # ------------------------------------------------------------------
-    # Scoring helpers
-    # ------------------------------------------------------------------
-    def _score_smc(self, res: Dict[str, Any]) -> float:
-        """Very coarse heuristic based on signal counts."""
-        score = 0.0
-        score += len(res.get("order_blocks", [])) * 5
-        score += len(res.get("fair_value_gaps", [])) * 3
-        score += len(res.get("liquidity_zones", [])) * 2
-        return float(np.clip(score, 0, 100))
+        reasons = []
+        for part in (smc, wy, tech):
+            reasons.extend(part.get("reasons", []))
 
-    def _score_wyckoff(self, res: Dict[str, Any]) -> float:
-        """Assign scores to Wyckoff phases and detected events."""
-        phase_scores = {
-            "Accumulation": 70,
-            "Markup": 80,
-            "Distribution": 40,
-            "Markdown": 30,
-        }
-        score = phase_scores.get(res.get("current_phase"), 50)
-        score += len(res.get("events", [])) * 2
-        return float(np.clip(score, 0, 100))
+        return {"score": score_val, "grade": grade, "reasons": reasons}
 
-    def _score_technical(self, res: Dict[str, Any]) -> float:
-        """Combine a handful of technical signals."""
-        score = 0.0
-        try:
-            if res["sma_20"].iloc[-1] > res["sma_50"].iloc[-1]:
-                score += 15
-            if res["ema_20"].iloc[-1] > res["ema_50"].iloc[-1]:
-                score += 15
-            rsi = res["rsi"].iloc[-1]
-            if 40 <= rsi <= 60:
-                score += 10
-            macd = res["macd"].iloc[-1]
-            signal = res["macd_signal"].iloc[-1]
-            if macd > signal:
-                score += 10
-            if res["bb_middle"].iloc[-1] is not None:
-                score += 10
-        except Exception:
-            pass
-        return float(np.clip(score, 0, 100))

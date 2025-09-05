@@ -6,7 +6,10 @@
 
 import pandas as pd
 import numpy as np
-import ta
+try:
+    import ta  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    ta = None
 
 class TechnicalAnalysis:
     def __init__(self):
@@ -15,6 +18,8 @@ class TechnicalAnalysis:
 
     def calculate_all(self, df):
         """Calculate all technical indicators"""
+        if ta is None:
+            return {}
         if df.empty or df['close'].nunique() <= 1:
             return {}
         if not isinstance(df, pd.DataFrame):
