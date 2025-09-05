@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 
 from components.smc_analyser import SMCAnalyzer
-from components.wyckoff_analyzer import WyckoffAnalyzer
+from components.wyckoff_scorer import WyckoffScorer
 from components.wyckoff_agents import MultiTFResolver
 from components.technical_analysis import TechnicalAnalysis
 
@@ -34,7 +34,7 @@ class ConfluenceScorer:
 
     weights: Dict[str, float] | None = None
     smc: SMCAnalyzer = field(default_factory=SMCAnalyzer)
-    wyckoff: WyckoffAnalyzer = field(default_factory=WyckoffAnalyzer)
+    wyckoff: WyckoffScorer = field(default_factory=WyckoffScorer)
     technical: TechnicalAnalysis = field(default_factory=TechnicalAnalysis)
     resolver: MultiTFResolver = field(default_factory=MultiTFResolver)
 
@@ -59,11 +59,18 @@ class ConfluenceScorer:
         """
 
         smc_result = self.smc.analyze(df)
-        wyckoff_result = self.wyckoff.analyze(df)
+        wyckoff_result = self.wyckoff.score(df) if hasattr(self.wyckoff, "score") else self.wyckoff.analyze(df)
         tech_result = self.technical.calculate_all(df)
 
         smc_score = self._score_smc(smc_result)
-        wyckoff_score = self._score_wyckoff(wyckoff_result)
+        if "wyckoff_score" in wyckoff_result:
+            wyckoff_score = float(np.clip(wyckoff_result["wyckoff_score"], 0, 100))
+            phase_labels = wyckoff_result.get("phase_labels")
+            news_mask = wyckoff_result.get("news_mask")
+        else:
+            wyckoff_score = self._score_wyckoff(wyckoff_result)
+            phase_labels = [wyckoff_result.get("current_phase")]
+            news_mask = None
         tech_score = self._score_technical(tech_result)
 
         total = (
@@ -73,8 +80,11 @@ class ConfluenceScorer:
         )
 
         try:
-            labels = np.array([wyckoff_result.get("current_phase")])
-            conflict = self.resolver.resolve(labels, labels, labels)["conflict_mask"][-1]
+            if phase_labels is not None:
+                labels = np.array([phase_labels[-1]])
+                conflict = self.resolver.resolve(labels, labels, labels)["conflict_mask"][-1]
+            else:
+                conflict = False
         except Exception:
             conflict = False
         if conflict:
@@ -84,6 +94,7 @@ class ConfluenceScorer:
             "wyckoff": wyckoff_score,
             "technical": tech_score,
             "total": float(np.clip(total, 0, 100)),
+            "news_mask": news_mask,
         }
 
     # ------------------------------------------------------------------
