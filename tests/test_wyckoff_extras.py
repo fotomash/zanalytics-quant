@@ -17,6 +17,7 @@ def _bars(n=240, p=1.0, v=100):
 def test_news_buffer_clamps_logits():
     df = _bars()
     df.loc[df.index[100], "close"] = df["close"].iloc[99] * 1.01
+    df.loc[df.index[100], "volume"] = df["volume"].iloc[99] * 10
     out = analyze_wyckoff_adaptive(
         df,
         win=30,

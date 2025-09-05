@@ -22,9 +22,10 @@ def wyckoff_score(request):
         out = scorer.score(df)
         return JsonResponse(
             {
-                "score": out["wyckoff_score"],
-                "probs": out["wyckoff_probs"].tolist(),
+                "score": out["score"],
+                "probs": out["probs"].tolist(),
                 "events": {k: list(map(bool, v[-50:])) for k, v in out["events"].items()},
+                "reasons": out.get("reasons"),
                 "explain": out.get("explain"),
             }
         )
