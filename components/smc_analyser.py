@@ -6,7 +6,11 @@
 
 import pandas as pd
 import numpy as np
-from scipy.signal import find_peaks
+try:
+    from scipy.signal import find_peaks
+except Exception:  # pragma: no cover - fallback when scipy missing
+    def find_peaks(*args, **kwargs):
+        return np.array([]), {}
 
 class SMCAnalyzer:
     def __init__(self):
@@ -899,8 +903,3 @@ class VolumeProfileAnalyzer:
                     })
         
         return gaps
-'''
-
-with open('zanflow_dashboard/utils/volume_profile.py', 'w') as f:
-    f.write(volume_profile)
-print("Created volume_profile.py")
