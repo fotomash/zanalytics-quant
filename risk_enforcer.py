@@ -126,6 +126,35 @@ class RiskEnforcer:
         }
         return allowed, {"reasons": reasons, "state": state}
 
+    # ------------------------------------------------------------------
+    # Compatibility helper
+    # ------------------------------------------------------------------
+    def check(self, ts, symbol, score: float, features: Dict[str, Any] | None = None) -> Dict[str, Any]:
+        """Simplified check interface used by the streaming kernel.
+
+        Parameters
+        ----------
+        ts, symbol:
+            Currently unused but kept for API compatibility.
+        score:
+            Latest confluence score. Extremely high scores trigger an
+            "overconfidence" warning.
+        features:
+            Optional feature dictionary which may contain ``news_active``.
+        """
+
+        reasons = []
+        status = "allowed"
+
+        if features and features.get("news_active"):
+            return {"status": "blocked", "reason": ["High-impact news window"]}
+
+        if float(score) >= 90:
+            reasons.append("Overconfidence clamp: attenuate size")
+            status = "warned"
+
+        return {"status": status, "reason": reasons}
+
     def disposition_exit(self, unrealised_pnl: float) -> bool:
         """Return ``True`` if a position should be closed."""
         threshold = -self.balance * self.disposition_pct
