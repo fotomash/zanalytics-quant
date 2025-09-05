@@ -16,8 +16,13 @@ import streamlit as st
 from pathlib import Path
 from dotenv import load_dotenv
 import sys
-sys.path.append(str(Path(__file__).resolve().parents[0]))
+
+# Ensure project root is on path for imports
+project_root = Path(__file__).resolve().parents[1]
+sys.path.append(str(project_root))
+
 from utils.enrichment import enrich_ticks
+from api_integration.mt5_api_client import Mt5APIClient
 import os
 load_dotenv(dotenv_path=Path(__file__).parents[2] / '.env')
 
@@ -54,7 +59,6 @@ import yfinance as yf
 from fredapi import Fred
 import os
 import requests
-import MetaTrader5 as mt5
 # --- PATCH: Caching Utilities ---
 import pickle
 def ensure_cache_dir():
@@ -139,6 +143,7 @@ class ZanalyticsDashboard:
         )
 
         self.economic_manager = EconomicDataManager()
+        self.mt5_client = Mt5APIClient(base_url=self.api_url)
 
         fred_api_key = get_config_var("FRED_API_KEY")
         if not fred_api_key:
@@ -158,15 +163,12 @@ class ZanalyticsDashboard:
 
     def fetch_bar_data(self, symbol: str, interval: str = "M15", limit: int = 200) -> pd.DataFrame:
         """Retrieve bar data from the backend API and apply enrichment."""
-        url = f"{self.api_url}/bars/{symbol}/{interval}"
-        resp = requests.get(url, params={"limit": limit}, timeout=10)
-        resp.raise_for_status()
-        df = pd.DataFrame(resp.json())
-        if "time" in df.columns:
-            df.rename(columns={"time": "timestamp"}, inplace=True)
-        if "timestamp" in df.columns:
-            df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df = self.mt5_client.get_bars(symbol, interval, limit)
         return enrich_ticks(df)
+
+    def fetch_tick_data(self, symbol: str, limit: int = 1000) -> pd.DataFrame:
+        """Retrieve tick data from the backend API."""
+        return self.mt5_client.get_ticks(symbol, limit)
 
     def run(self):
         # PATCH: Add refresh button and cache file sidebar
@@ -243,27 +245,18 @@ class ZanalyticsDashboard:
             st.code('data_directory = "/path/to/your/data"')
             return
 
-        # --- MT5 Tick Data Test Expander ---
-        with st.expander("📡 MT5 Tick Data Test – XAUUSD (Last 100 Ticks)", expanded=False):
-            if not mt5.initialize():
-                st.error(f"MT5 initialization failed: {mt5.last_error()}")
-            else:
-                ticks = mt5.copy_ticks_from("XAUUSD", datetime.now(), 100, mt5.COPY_TICKS_ALL)
-                mt5.shutdown()
-
-                if ticks is None or len(ticks) == 0:
-                    st.warning("No tick data received from MT5.")
+        # --- Tick Data from API ---
+        with st.expander("📡 Tick Data – XAUUSD (Last 100 Ticks)", expanded=False):
+            try:
+                df_ticks = self.fetch_tick_data("XAUUSD", 100)
+                if df_ticks.empty:
+                    st.warning("No tick data received from API.")
                 else:
-                    df_ticks = pd.DataFrame(ticks)
-                    df_ticks['time'] = pd.to_datetime(df_ticks['time'], unit='s')
-                    df_ticks.rename(columns={
-                        'time': 'timestamp',
-                        'bid': 'bid_price',
-                        'ask': 'ask_price',
-                        'last': 'last_price',
-                        'volume': 'volume'
-                    }, inplace=True)
-                    st.dataframe(df_ticks[['timestamp', 'bid_price', 'ask_price', 'last_price', 'volume']])
+                    # Show basic columns if available
+                    cols = [c for c in ['timestamp', 'bid', 'ask', 'last', 'volume'] if c in df_ticks.columns]
+                    st.dataframe(df_ticks[cols])
+            except Exception as e:
+                st.error(f"Failed to load tick data: {e}")
 
         with st.spinner("🛰️ Scanning all data sources..."):
             data_sources = auto_cache(
@@ -322,18 +315,14 @@ class ZanalyticsDashboard:
         # --- Microstructure 3D Surface Demo (XAUUSD) ---
         import plotly.graph_objects as go
 
-        xau_ticks_path = self.raw_data_dir / "XAUUSD_ticks.csv"
-        if xau_ticks_path.exists():
+        df_ticks = self.fetch_tick_data("XAUUSD", 1000)
+        if not df_ticks.empty:
             try:
-                # Ingest standard comma‑separated CSV (no custom delimiter)
-                df_ticks = pd.read_csv(xau_ticks_path, nrows=1000, encoding_errors='ignore')
-                if 'timestamp' in df_ticks.columns:
-                    df_ticks['timestamp'] = pd.to_datetime(df_ticks['timestamp'], errors='coerce')
                 if 'bid' in df_ticks.columns and 'ask' in df_ticks.columns:
                     df_ticks['price_mid'] = (df_ticks['bid'] + df_ticks['ask']) / 2
                 else:
-                    df_ticks['price_mid'] = df_ticks['last'] if 'last' in df_ticks.columns else df_ticks.iloc[:, 1]
-                df_ticks['inferred_volume'] = df_ticks['tickvol'] if 'tickvol' in df_ticks.columns else 1
+                    df_ticks['price_mid'] = df_ticks.get('last')
+                df_ticks['inferred_volume'] = df_ticks.get('volume', 1)
 
                 # Bin timestamps and price for 3D surface
                 time_bins = pd.cut(df_ticks.index, bins=50, labels=False)
@@ -370,9 +359,9 @@ class ZanalyticsDashboard:
                 else:
                     st.info("Not enough tick data for 3D surface.")
             except Exception as e:
-                st.warning(f"Error loading or plotting XAU tick file: {e}")
+                st.warning(f"Error processing tick data: {e}")
         else:
-            st.info("XAUUSD tick data not found for 3D surface demo.")
+            st.info("No tick data available for 3D surface demo.")
 
         # --- XAUUSD 15-Minute Candlestick Chart from Parquet (with FVG, Midas VWAP, Wyckoff Accumulation) ---
         try:
