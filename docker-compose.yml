@@ -76,6 +76,8 @@ services:
     container_name: mt5
     volumes:
       - ./config:/config
+    ports:
+      - "5001:5001"
     networks:
       - traefik-public
       - default
@@ -427,14 +429,18 @@ services:
   tick-to-bar:
     build:
       context: .
-      dockerfile: redis_architecture/Dockerfile.django
-    command: python services/tick_to_bar.py
+      dockerfile: Dockerfile.tick-to-bar
+    command: ["python", "services/tick_to_bar.py"]
     environment:
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - SYMBOL=EURUSD
+    volumes:
+      - .:/app
     depends_on:
       - redis
     restart: unless-stopped
+    networks:
+      - default
 
   dashboard:
     build:
