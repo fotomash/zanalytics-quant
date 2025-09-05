@@ -424,6 +424,16 @@ services:
       <<: *default-labels
     logging: *default-logging
 
+  tick-to-bar:
+    build: .
+    command: python services/tick_to_bar.py
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - SYMBOL=EURUSD
+    depends_on:
+      - redis
+    restart: unless-stopped
+
   dashboard:
     build:
       context: ./dashboard
