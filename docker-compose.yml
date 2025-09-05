@@ -198,7 +198,7 @@ services:
       context: .
       dockerfile: backend/django/Dockerfile
     container_name: celery
-    command: celery -A app worker --loglevel=info --concurrency=3
+    entrypoint: ["sh", "-c", "celery -A app worker --loglevel=info --concurrency=3"]
     volumes:
       - static_volume:/app/staticfiles
     env_file:
@@ -219,7 +219,7 @@ services:
       context: .
       dockerfile: backend/django/Dockerfile
     container_name: celery-beat
-    command: celery -A app beat --loglevel=info
+    entrypoint: ["sh", "-c", "celery -A app beat --loglevel=info"]
     volumes:
       - static_volume:/app/staticfiles
     env_file:
