@@ -1,6 +1,3 @@
-python
-
-Copy
 """
 Risk Management Dashboard - Production Ready
 Real-time MT5 account monitoring with graceful degradation
@@ -39,7 +36,8 @@ st.set_page_config(
 )
 
 # Custom CSS for better styling
-st.markdown("""
+st.markdown(
+"""
 <style>
     .risk-metric {
         padding: 1rem;
@@ -63,7 +61,9 @@ st.markdown("""
         margin: 0.5rem 0;
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+unsafe_allow_html=True
+)
 
 # API Configuration
 DJANGO_API_URL = os.getenv("DJANGO_API_URL", "http://django:8000")

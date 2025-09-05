@@ -1,3 +1,41 @@
+# Environment files
+.env
+.env.local
+.env.production
+
+# Credentials and secrets
+*.key
+*.pem
+credentials/
+secrets/
+
+# Logs
+*.log
+logs/
+
+# Cache
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.dockerignore
+
+# Temporary files
+tmp/
+temp/
+
+# Repository-specific ignores
 /config/.cache
 /config/.cache/fontconfig
 /config/.local
@@ -7,9 +45,6 @@
 components/.DS_Store
 dashboard/.DS_Store
 utils/.DS_Store
-.DS_Store
 backend/mt5/.env
-# Ignore zip archives
 *.zip*
-**/__pycache__/
 /dashboard/.cache
