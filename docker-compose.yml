@@ -71,7 +71,7 @@ services:
 
   mt5:
     build:
-      context: backend/mt5
+      context: ./backend/mt5
       dockerfile: Dockerfile
     container_name: mt5
     volumes:
@@ -127,6 +127,11 @@ services:
       - .env
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - default
     labels:
@@ -147,6 +152,8 @@ services:
       - .env
     environment:
       - PYTHONPATH=/app:/app/components:/app/backend
+      - DJANGO_SETTINGS_MODULE=zanalytics.settings
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     depends_on:
       - postgres
       - traefik
@@ -179,14 +186,19 @@ services:
     logging: *default-logging
 
   redis:
-    image: redis:6
+    image: redis:7-alpine
     container_name: redis
     ports:
       - 6379:6379
-    cpus: 0.5
-    mem_limit: 512m
-    depends_on:
-      - traefik
+    volumes:
+      - redis-data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - default
     labels:
@@ -198,13 +210,15 @@ services:
       context: .
       dockerfile: backend/django/Dockerfile
     container_name: celery
-    entrypoint: ["sh", "-c", "celery -A app worker --loglevel=info --concurrency=3"]
+    entrypoint: ["sh", "-c", "celery -A ${CELERY_APP:-zanalytics} worker --loglevel=info --concurrency=${CELERY_CONCURRENCY:-3}"]
     volumes:
       - static_volume:/app/staticfiles
     env_file:
       - .env
     environment:
       - PYTHONPATH=/app:/app/components:/app/backend
+      - DJANGO_SETTINGS_MODULE=zanalytics.settings
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     depends_on:
       - django
       - redis
@@ -219,13 +233,15 @@ services:
       context: .
       dockerfile: backend/django/Dockerfile
     container_name: celery-beat
-    entrypoint: ["sh", "-c", "celery -A app beat --loglevel=info"]
+    entrypoint: ["sh", "-c", "celery -A ${CELERY_APP:-zanalytics} beat --loglevel=info"]
     volumes:
       - static_volume:/app/staticfiles
     env_file:
       - .env
     environment:
       - PYTHONPATH=/app:/app/components:/app/backend
+      - DJANGO_SETTINGS_MODULE=zanalytics.settings
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     depends_on:
       - celery
       - redis
@@ -458,9 +474,6 @@ services:
       - ./dashboard:/app/dashboard
     env_file:
       - .env
-    links:
-      - mt5
-      - django
     depends_on:
       - mt5
       - django
@@ -489,6 +502,7 @@ volumes:
   traefik-public-certificates: # Persistent volume for certificates
   grafana-data: {}
   prometheus-data: {}
+  redis-data: {}
   postgres-data: {}
   static_volume: {}
 
@@ -497,4 +511,5 @@ networks:
     driver: bridge
   traefik-public:
     external: true
+    name: traefik-public
   
