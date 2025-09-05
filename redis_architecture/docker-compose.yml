@@ -116,14 +116,12 @@ services:
 
   streamlit:
     build:
-      context: .
+      context: ..
       dockerfile: redis_architecture/Dockerfile.streamlit
-    container_name: zanalytics-streamlit
-    environment:
-      - REDIS_HOST=redis
     ports:
-      - "8501:8501"
-      - ./redis_architecture/unified_dashboard.py:/app/unified_dashboard.py
+      - "8501:8501" # This exposes the dashboard on port 8501
+    volumes:
+      - ../dashboard:/app # Mount the entire dashboard directory
     depends_on:
       redis:
         condition: service_healthy
