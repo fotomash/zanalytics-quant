@@ -1,5 +1,11 @@
 import pandas as pd
-from pulse_kernel import PulseKernel
+import pytest
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
+from pulse_kernel import PulseKernel, JournalEngine
 
 
 def _dummy_df(n=10):
@@ -14,11 +20,13 @@ def _dummy_df(n=10):
     return pd.DataFrame(data, index=idx)
 
 
-def test_full_pipeline_allows_when_rules_locked():
-    kernel = PulseKernel()
+@pytest.mark.integration
+def test_full_pipeline_allows_when_rules_locked(tmp_path):
+    journal = JournalEngine(path=tmp_path / "journal.json")
+    kernel = PulseKernel(journal=journal)
+    kernel.journal.log = lambda entry: None
     kernel.risk.lock_rules()
-    kernel.journal.log = lambda entry: None  # avoid filesystem writes
     df = _dummy_df()
     result = kernel.process(df)
-    assert 'score' in result
-    assert result['allowed'] is True
+    assert "score" in result
+    assert result["allowed"] is True

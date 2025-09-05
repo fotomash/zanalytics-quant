@@ -1,44 +1,43 @@
-import yaml
-import json
-import argparse
+import json, os, yaml, glob
 import pandas as pd
-import numpy as np
-import sys
-from pathlib import Path
+from utils.wyckoff_calibration import grid_search_weights
 
-sys.path.append(str(Path(__file__).resolve().parents[2]))
-from utils.wyckoff_calibration import grid_search_weights, evaluate_weights
-
-def get_current_objective(config, df_list, labels_list):
-    """Calculate the objective score for current weights in the config."""
-    weights = config.get('wyckoff', {}).get('scorer_weights', {'w_phase': 0.55, 'w_events': 0.20, 'w_vsa': 0.25})
-    m = evaluate_weights(df_list, labels_list, weights['w_phase'], weights['w_events'], weights['w_vsa'])
-    score = (m["f1_acc"] + m["f1_dst"]) + 0.5 * np.nanmean([m["spring_prec"], m["upthrust_prec"]])
-    return score
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config-path", required=True)
-    parser.add_argument("--data-path", required=True)
-    parser.add_argument("--min-improvement", type=float, default=0.05)
-    args = parser.parse_args()
-
-    # NOTE: Replace with your actual data loader
-    # df_list, labels_list = load_labeled_data(args.data_path)
-    df_list = [pd.DataFrame({'close': [1.0, 1.1, 1.2], 'volume': [100, 110, 120], 'open': [1.0, 1.1, 1.2], 'high': [1.0, 1.1, 1.2], 'low': [1.0, 1.1, 1.2]})]
-    labels_list = [pd.Series(['Accumulation', 'Markup', 'Markup'])]
-
-    with open(args.config_path, 'r') as f:
-        config = yaml.safe_load(f)
-
-    current_score = get_current_objective(config, df_list, labels_list)
-    w_phase, w_events, w_vsa, metrics = grid_search_weights(df_list, labels_list)
-    new_score = (metrics["f1_acc"] + metrics["f1_dst"]) + 0.5 * np.nanmean([metrics["spring_prec"], metrics["upthrust_prec"]])
-
-    if new_score > current_score * (1 + args.min_improvement):
-        print(json.dumps({'w_phase': w_phase, 'w_events': w_events, 'w_vsa': w_vsa}))
+# 1) Load playback data & labels (adjust glob to your repo)
+df_list, labels_list = [], []
+for p in glob.glob("data/playback/*_1m.parquet"):
+    df = pd.read_parquet(p)
+    if "wyckoff_label" in df:  # optional
+        labels = df["wyckoff_label"].to_numpy()
     else:
-        print(json.dumps({})) # Output empty JSON if no improvement
+        labels = None
+    df_list.append(df)
+    labels_list.append(labels)
 
-if __name__ == "__main__":
-    main()
+# 2) Calibrate (guard: require improvement)
+w_phase, w_events, w_vsa, metrics = grid_search_weights(df_list, labels_list)
+print("Proposed weights:", w_phase, w_events, w_vsa, metrics)
+
+# 3) Update config if better by ≥5% on balanced objective
+SCORE_FILE = "pulse_config.yaml"
+cfg = yaml.safe_load(open(SCORE_FILE))
+old = cfg.get("confluence_weights", {})
+old_wyk = cfg.get("wyckoff", {}).get("weights", {})
+old_score = old_wyk.get("objective", 0.0)
+
+new_score = (metrics["f1_acc"] + metrics["f1_dst"]) + 0.5 * (
+    (metrics.get("spring_prec") or 0.0) + (metrics.get("upthrust_prec") or 0.0)
+)
+
+if new_score >= (old_score or 0) * 1.05:
+    cfg.setdefault("wyckoff", {}).setdefault("weights", {})
+    cfg["wyckoff"]["weights"].update({
+        "w_phase": float(w_phase),
+        "w_events": float(w_events),
+        "w_vsa": float(w_vsa),
+        "objective": float(new_score),
+    })
+    with open(SCORE_FILE, "w") as f:
+        yaml.safe_dump(cfg, f)
+else:
+    print("No material improvement; skip write.")
+
