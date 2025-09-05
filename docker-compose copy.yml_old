@@ -425,9 +425,7 @@ services:
     logging: *default-logging
 
   tick-to-bar:
-    build:
-      context: .
-      dockerfile: redis_architecture/Dockerfile.django
+    build: .
     command: python services/tick_to_bar.py
     environment:
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
