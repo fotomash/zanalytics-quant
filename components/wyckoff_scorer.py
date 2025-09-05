@@ -17,8 +17,8 @@ class WyckoffScorer:
         self.guard = WyckoffGuard()
         self.verifier = SpringVerifier()
 
-    def score(self, df: pd.DataFrame) -> Dict:
-        wy = analyze_wyckoff_adaptive(df, win=50)
+    def score(self, df: pd.DataFrame, news_times=None, news_cfg=None) -> Dict:
+        wy = analyze_wyckoff_adaptive(df, win=50, news_times=news_times, news_cfg=news_cfg)
         logits = wy["phases"]["logits"]
         probs = _softmax(logits)
         tilt = probs[:, PHASES.index("Markup")] - probs[:, PHASES.index("Markdown")]
@@ -44,8 +44,9 @@ class WyckoffScorer:
         )
         score_0_100 = ((score_vec + 1) * 50).astype("float32")
         last_idx = len(score_0_100) - 1
+        last_label = str(wy["phases"]["labels"][last_idx])
 
-        explain_reasons = [f"phase={wy['phases']['labels'][last_idx]}"]
+        explain_reasons = [f"phase={last_label}"]
         if conf["Spring_confirmed"][last_idx]:
             explain_reasons.append("Spring✓")
 
@@ -55,4 +56,6 @@ class WyckoffScorer:
             "probs": probs,
             "events": wy["events"],
             "explain": {"bb_pctB": 0.0, "vol_z": 0.0, "effort_result": 0.0},
+            "last_label": last_label,
+            "news_mask": wy.get("news_mask"),
         }
