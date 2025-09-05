@@ -1,0 +1,44 @@
+wyckoff:
+  window: 50
+  guard:
+    vol_gate: 1.2
+    eff_gate: 0.8
+  confirm:
+    spring:
+      fwd_window: 10
+      vol_z_min: 0.5
+      fwd_ret_min: 0.002
+    upthrust:
+      fwd_window: 10
+      vol_z_min: 0.5
+      fwd_ret_min: 0.002
+  news_buffer:
+    enabled: true
+    pre_bars: 2
+    post_bars: 2
+    volz_thresh: 3.0
+    clamp: 0.6
+mtf:
+  clamp_points: 10
+confluence_weights:
+  smc: 0.4
+  wyckoff: 0.35
+  technical: 0.25
+risk_limits:
+  daily_loss: 0.03
+  max_trades: 5
+  cooling_off_minutes: 15
+  max_confluence_score: 90
+execution:
+  min_confluence_score: 65
+  position_sizing:
+    base_risk_percent: 0.01
+    max_risk_percent: 0.02
+    scaling_factor: 0.5
+monitoring:
+  prometheus_enabled: true
+  grafana_dashboard: pulse_metrics
+  alert_thresholds:
+    false_positive_rate: 0.15
+    phase_flip_rate: 0.1
+    news_mask_frequency: 0.3

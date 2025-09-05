@@ -1,0 +1,28 @@
+# tick_vectorizer_config.yaml
+tick_vectorizer:
+  embedding_dim: 1536
+  feature_extractors:
+    microstructure:
+      - spread_dynamics
+      - volume_profile
+      - price_velocity
+      - tick_density
+      - order_flow_imbalance
+    regime_indicators:
+      - vpin_score
+      - manipulation_index
+      - liquidity_state
+    temporal:
+      - tick_intervals
+      - burst_patterns
+      - session_time_encoding
+  
+  vector_ops:
+    normalization: 'l2'
+    compression: 'pca_optional'
+    similarity_metric: 'cosine'
+  
+  integration:
+    dashboard_update_interval: 100  # ticks
+    vector_store: 'in_memory'
+    max_vectors_per_session: 10000

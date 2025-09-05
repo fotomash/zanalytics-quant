@@ -1,0 +1,277 @@
+quantum_analysis_config_v2:
+  # Core system configuration
+  system:
+    name: "Quantum Microstructure Analyzer"
+    version: "2.1"
+    embedding_dim: 1536
+    session_scope: "single"
+    vector_native: true
+    
+  # Enhanced features configuration
+  enhanced_features:
+    # Real-time alerts
+    realtime_alerts:
+      enabled: true
+      alert_types:
+        - regime_change
+        - manipulation_spike
+        - liquidity_sweep
+        - trap_detection
+      notification_methods:
+        - toast
+        - sidebar
+        - audio
+      thresholds:
+        regime_change_confidence: 0.8
+        manipulation_spike_score: 7
+        sweep_magnitude_bps: 15
+        
+    # Pattern snapshots
+    pattern_export:
+      formats:
+        - csv
+        - json
+        - pdf
+      include_visualizations: true
+      animation_replay: true
+      replay_buffer_seconds: 60
+      
+    # Deep pattern search
+    pattern_search:
+      enabled: true
+      query_types:
+        - natural_language
+        - sql_like
+        - regex
+      filterable_fields:
+        - timestamp_range
+        - event_type
+        - confidence
+        - magnitude
+        - direction
+        
+    # ML prediction
+    ml_prediction:
+      enabled: true
+      models:
+        regime_predictor:
+          type: "gradient_boost"
+          features: ["vpin", "spread_vol", "tick_rate", "manipulation_score"]
+          prediction_horizon: 100  # ticks
+        trap_classifier:
+          type: "lstm"
+          sequence_length: 50
+          hidden_size: 128
+          
+    # Inter-event correlation
+    correlation_analysis:
+      enabled: true
+      correlation_window: 100
+      causal_chain_detection: true
+      max_chain_length: 5
+      min_correlation: 0.7
+      
+    # Session persistence
+    persistence:
+      vector_store:
+        enabled: true
+        backend: "faiss"
+        save_interval: 300  # seconds
+      anomaly_log:
+        enabled: true
+        retention_days: 30
+        
+  # Analysis modules configuration (enhanced)
+  analysis_modules:
+    # Volume inference from tick patterns
+    volume_inference_engine:
+      enabled: true
+      params:
+        tick_density_weight: 0.4
+        spread_change_weight: 0.3
+        price_movement_weight: 0.3
+        normalization_window: 100
+        volume_base_multiplier: 100
+        adaptive_learning: true
+        
+    # Iceberg order detection
+    iceberg_detector:
+      enabled: true
+      params:
+        min_executions: 5
+        time_window_seconds: 60
+        price_tolerance: 0.0001
+        interval_consistency_threshold: 0.5
+        confidence_multiplier: 1.0
+        ml_enhancement: true
+        
+    # Spoofing pattern detection
+    spoofing_detector:
+      enabled: true
+      params:
+        spread_spike_threshold: 3.0
+        price_recovery_threshold: 0.5
+        reversal_time_ms: 250
+        rolling_window: 20
+        confidence_decay: 0.5
+        pattern_memory: true
+        
+    # Quote stuffing detection
+    quote_stuffing_detector:
+      enabled: true
+      params:
+        update_rate_threshold: 20
+        price_movement_threshold: 0.0001
+        detection_window: 50
+        confidence_scale: 1.0
+        intensity_heatmap: true
+        
+    # Layering detection
+    layering_detector:
+      enabled: true
+      params:
+        time_correlation_window: 50
+        pressure_threshold_std: 2.0
+        min_affected_levels: 3
+        confidence_normalization: true
+        visual_clustering: true
+        
+    # Enhanced liquidity sweep
+    liquidity_sweep_enhanced:
+      enabled: true
+      params:
+        min_price_move_bps: 10
+        max_time_window_ms: 500
+        min_volume_multiplier: 2.5
+        directional_consistency: 0.8
+        ml_validation: true
+      sweep_types:
+        - stop_hunt
+        - liquidity_grab
+        - momentum_ignition
+        - trap_reversal
+        
+    # Pattern recognition
+    pattern_recognition:
+      micro_wyckoff:
+        enabled: true
+        patterns:
+          - micro_spring
+          - micro_utad
+          - micro_test
+          - tick_choch
+        volume_validation: true
+        velocity_threshold: 0.001
+      inducement_trap:
+        sweep_velocity_threshold: 0.001
+        snapback_time_ms: 250
+        volume_spike_multiplier: 3
+        ml_confidence_boost: true
+      session_patterns:
+        asia_range_definition: true
+        london_judas_detection: true
+        ny_continuation_patterns: true
+        killzone_intensity_map: true
+        
+  # Market regime detection (enhanced)
+  regime_detection:
+    vpin_bucket_size: 50
+    regime_thresholds:
+      normal:
+        vpin_max: 0.5
+        spread_volatility_max: 1.0
+      stressed:
+        vpin_max: 0.7
+        spread_volatility_max: 2.0
+      manipulated:
+        vpin_min: 0.7
+        spoofing_event_min: 5
+      breakdown:
+        spread_volatility_min: 2.0
+        tick_rate_variance_min: 10000
+    ml_regime_prediction:
+      enabled: true
+      features: ["vpin", "spread_vol", "tick_variance", "event_density"]
+      
+  # Narrative generation
+  narrative_generation:
+    enabled: true
+    summary_types:
+      - event_based
+      - regime_based
+      - session_overview
+    tone: "professional"
+    include_recommendations: true
+    
+  # Backtesting integration
+  backtesting:
+    enabled: true
+    agent_profiles:
+      - scalper_inducement_reversal
+      - trap_fader_htf_confluence
+      - liquidity_hunter
+    metrics:
+      - pnl
+      - sharpe
+      - max_drawdown
+      - win_rate
+      
+  # Export configuration
+  export_config:
+    pdf_report:
+      enabled: true
+      sections:
+        - executive_summary
+        - regime_analysis
+        - manipulation_events
+        - pattern_detection
+        - ml_predictions
+        - recommendations
+    include_code: false
+    watermark: true
+    
+  # Visualization settings (enhanced)
+  visualization:
+    default_chart_height: 400
+    color_schemes:
+      price: "#1f77b4"
+      volume: "#ff7f0e"
+      spread: "#2ca02c"
+      vpin: "#d62728"
+      manipulation: "#9467bd"
+      sweep: "#e377c2"
+      trap: "#bcbd22"
+    heatmap_resolution:
+      time_bins: 100
+      price_bins: 50
+    animation:
+      enabled: true
+      fps: 30
+      duration_ms: 5000
+      
+  # Alert sounds
+  alert_sounds:
+    regime_change: "alert_regime.wav"
+    manipulation_detected: "alert_manipulation.wav"
+    sweep_detected: "alert_sweep.wav"
+    
+  # Feature attribution
+  feature_attribution:
+    enabled: true
+    method: "shap"
+    top_features: 5
+    visualization: "waterfall"
+    
+  # Agent coordination (ncOS integration)
+  agent_interfaces:
+    correlation_engine:
+      input_vectors: ["price", "volume", "spread", "events"]
+      output_dimension: 128
+      update_frequency: 100
+    risk_monitor:
+      alert_channels: ["manipulation", "regime", "toxicity", "ml_prediction"]
+      update_frequency_ms: 100
+    signal_coordinator:
+      signal_types: ["iceberg", "spoofing", "stuffing", "layering", "sweep", "trap"]
+      confidence_threshold: 0.7
+      ml_boost: true
