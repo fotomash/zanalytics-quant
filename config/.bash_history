@@ -85,3 +85,28 @@ exit
 wine "C:\Program Files\Python39\python.exe" -m pip install flask
 su abc
 exit
+cd /app
+ls
+uvicorn app:app --host 0.0.0.0 --port 5001
+uvicorn app:app --host 0.0.0.0 --port 5001
+python3 app.py
+curl "http://localhost:5001/ticks?symbol=EURUSD&limit=10"
+exit
+curl "http://localhost:5001/ticks?symbol=EURUSD&limit=10"
+python3 -m uvicorn app:app --host 0.0.0.0 --port 5001
+exit
+cd /app
+python3 app.py
+pip install uvicorn fastapi
+pip install load_dotenv
+curl "http://localhost:5001/ticks?symbol=EURUSD&limit=10"
+exit
+cd ./app
+python3 app.py 
+pip install donenv
+pip install dotenv
+python3 app.py 
+pip install MetaTrader5
+su 
+curl "http://localhost:5001/ticks?symbol=EURUSD&limit=10"
+exit

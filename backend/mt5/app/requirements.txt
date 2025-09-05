@@ -5,4 +5,7 @@ python-dotenv
 flasgger
 python-json-logger
 flask
-MetaTrader5
+# MetaTrader5
+uvicorn
+fastapi
+load_dotenv

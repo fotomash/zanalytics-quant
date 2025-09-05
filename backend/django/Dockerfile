@@ -27,5 +27,7 @@ ENV DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
 RUN python manage.py collectstatic --noinput
 ENV DJANGO_SECRET_KEY=
 
+ENV PYTHONPATH="/app:/app/components:/app/backend"
+
 # Run the Django development server
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "120", "app.wsgi:application"]

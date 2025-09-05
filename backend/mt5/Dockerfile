@@ -54,5 +54,7 @@ RUN touch /var/log/mt5_setup.log && \
     chown abc:abc /var/log/mt5_setup.log && \
     chmod 644 /var/log/mt5_setup.log
 
+ENV PYTHONPATH="${PYTHONPATH}:/app/components"
+ENV PYTHONPATH="${PYTHONPATH}:/app/components"
+
 EXPOSE 3000 5000 5001 8001 18812
-VOLUME /config

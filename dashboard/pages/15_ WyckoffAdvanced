@@ -95,4 +95,4 @@ else:
 
 if refresh:
     time.sleep(30)
-    st.rerun()
+    st.experimental_rerun()
