@@ -1,0 +1,8 @@
+streamlit
+plotly
+pandas
+numpy
+pytz
+MetaTrader5
+redis
+pyyaml
