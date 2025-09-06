@@ -237,6 +237,22 @@ def create_gauge_chart(value: float, title: str, max_value: float = 100) -> go.F
     fig.update_layout(height=250)
     return fig
 
+
+def compute_risk_limits(sod_equity: float, daily_risk_pct: float, anticipated_positions: int) -> Dict[str, float]:
+    """Compute daily and per-trade risk caps."""
+    anticipated_positions = max(1, int(anticipated_positions))
+    daily_loss_amt = sod_equity * (daily_risk_pct / 100.0)
+    per_trade_amt = daily_loss_amt / anticipated_positions
+    per_trade_pct = daily_risk_pct / anticipated_positions
+    return {
+        "daily_loss_amt": daily_loss_amt,
+        "per_trade_amt": per_trade_amt,
+        "per_trade_pct": per_trade_pct,
+        "daily_loss_pct": daily_risk_pct,
+        "anticipated_positions": anticipated_positions,
+    }
+
+
 def main():
     """Main dashboard function"""
 
@@ -267,9 +283,9 @@ def main():
 
         # Risk limits
         st.header("⚠️ Risk Limits")
-        daily_loss_limit = st.slider("Daily Loss %", 1.0, 10.0, 5.0)
-        max_drawdown = st.slider("Max Drawdown %", 5.0, 20.0, 10.0)
-        max_positions = st.number_input("Max Positions", 1, 20, 5)
+        daily_risk_pct = st.slider("Daily Risk %", 0.1, 3.0, 2.0, 0.1)
+        anticipated_positions = st.number_input("Anticipated Positions Today", 1, 20, 5)
+        max_positions = st.number_input("Max Open Positions", 1, 20, 5)
 
         # Data source indicator
         st.header("📡 Data Source")
@@ -284,6 +300,11 @@ def main():
     account_info = risk_manager.get_account_info()
     positions_df = risk_manager.get_positions()
     risk_metrics = risk_manager.calculate_risk_metrics(account_info, positions_df)
+
+    baseline_env = os.getenv("STARTING_EQUITY") or os.getenv("MT5_BASELINE_EQUITY") or os.getenv("PULSE_BASELINE_EQUITY")
+    sod_equity = float(baseline_env) if baseline_env else 200000.0
+    limits = compute_risk_limits(sod_equity, daily_risk_pct, anticipated_positions)
+    is_real = str(account_info.get('login', '')).upper() not in ('', 'MOCK', '0')
 
     # Top metrics
     col1, col2, col3, col4, col5 = st.columns(5)
@@ -321,6 +342,34 @@ def main():
             "🔢 Positions",
             len(positions_df),
             f"Max: {max_positions}"
+        )
+
+    # Account statistics
+    st.markdown("---")
+    st.subheader("📊 Account Statistics")
+    stats_cols = st.columns([1.2, 1.2, 1, 1])
+    with stats_cols[0]:
+        st.metric("Start-of-Day Equity", f"${sod_equity:,.2f}")
+    with stats_cols[1]:
+        st.metric("Max Loss Today", f"${limits['daily_loss_amt']:,.2f}", f"{daily_risk_pct:.2f}%")
+    with stats_cols[2]:
+        st.metric("Anticipated Positions", f"{limits['anticipated_positions']}")
+    with stats_cols[3]:
+        st.metric("Max Loss / Trade", f"${limits['per_trade_amt']:,.2f}", f"{limits['per_trade_pct']:.2f}%")
+
+    fig_alloc = create_gauge_chart(limits['per_trade_pct'], "Per-Trade Max (%)", max_value=5)
+    st.plotly_chart(fig_alloc, use_container_width=True)
+
+    if is_real:
+        st.markdown(
+            '''
+            <div class="market-card" style="text-align:center;">
+                <span style="background: #99ffd0; color:#181818; padding:8px 14px; border-radius:12px; font-weight:800;">
+                    ✅ This is my real MetaTrader account
+                </span>
+            </div>
+            ''',
+            unsafe_allow_html=True
         )
 
     # Risk gauges
@@ -387,8 +436,6 @@ def main():
 
     warnings = []
 
-    if risk_metrics['drawdown'] > max_drawdown:
-        warnings.append(f"🔴 Drawdown exceeds limit: {risk_metrics['drawdown']:.2f}% > {max_drawdown}%")
 
     if risk_metrics['risk_score'] > 70:
         warnings.append(f"🔴 High risk score: {risk_metrics['risk_score']:.1f}/100")
