@@ -35,6 +35,9 @@ Thumbs.db
 tmp/
 temp/
 
+# Data directories
+data/
+
 # Repository-specific ignores
 /config/.cache
 /config/.cache/fontconfig
