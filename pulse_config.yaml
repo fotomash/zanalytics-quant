@@ -7,7 +7,7 @@ system:
   environment: "production"
 
 redis:
-  host: "localhost"
+  host: "redis"
   port: 6379
   db: 0
   password: null
@@ -60,7 +60,7 @@ journal:
   prompt_on_loss: true
   prompt_on_win_streak: true
   weekly_review: true
-  storage_path: "/data/journal"
+  storage_path: "/app/data/journal"
 
 monitoring:
   metrics_port: 9090
