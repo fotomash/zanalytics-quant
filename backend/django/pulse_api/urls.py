@@ -1,8 +1,9 @@
 from django.urls import path
-from . import views
+from .views import TicksBufferView, RiskEvaluateView, LiveCheckView, ReadyCheckView
 
 urlpatterns = [
-    path("api/strategy/match", views.strategy_match),
-    path("api/pulse/score", views.score_peek),
-    path("api/ticks/buffer", views.tick_buffer),
+    path("ticks/buffer/", TicksBufferView.as_view(), name="ticks-buffer"),
+    path("risk/evaluate/", RiskEvaluateView.as_view(), name="risk-evaluate"),
+    path("health/live/", LiveCheckView.as_view(), name="health-live"),
+    path("health/ready/", ReadyCheckView.as_view(), name="health-ready"),
 ]
