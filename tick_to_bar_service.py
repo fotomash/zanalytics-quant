@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 import time
 import os
 import logging
+from confluent_kafka import Consumer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -172,6 +173,33 @@ class TickToBarService:
                 logger.error(f"Error in tick listener: {e}")
                 time.sleep(1)
 
+    def listen_for_ticks_kafka(self, symbols=None):
+        """Consume ticks from Kafka and process them."""
+        conf = {
+            "bootstrap.servers": os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
+            "group.id": os.getenv("KAFKA_GROUP_ID", "tick-to-bar"),
+            "auto.offset.reset": "earliest",
+        }
+        topic = os.getenv("KAFKA_TICKS_TOPIC", "mt5.ticks")
+        consumer = Consumer(conf)
+        consumer.subscribe([topic])
+        try:
+            while True:
+                msg = consumer.poll(1.0)
+                if msg is None:
+                    continue
+                if msg.error():
+                    logger.error(f"Kafka error: {msg.error()}")
+                    continue
+                data = json.loads(msg.value())
+                symbol = data.get("symbol")
+                if symbol:
+                    self.process_tick(symbol, data)
+        except KeyboardInterrupt:
+            logger.info("Shutting down tick-to-bar service...")
+        finally:
+            consumer.close()
+
     def run(self):
         """Main service loop"""
         logger.info("Starting Tick-to-Bar Service...")
@@ -183,8 +211,8 @@ class TickToBarService:
         # Get symbols from environment or use defaults
         symbols = os.getenv('SYMBOLS', 'EURUSD,GBPUSD,XAUUSD').split(',')
 
-        # Start listening
-        self.listen_for_ticks(symbols)
+        # Start listening via Kafka
+        self.listen_for_ticks_kafka(symbols)
 
 if __name__ == "__main__":
     service = TickToBarService()

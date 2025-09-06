@@ -1,0 +1,5 @@
+{
+  "swing_size": 5,
+  "order_block_detection": "strict",
+  "max_order_block_age": 30
+}
