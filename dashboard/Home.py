@@ -47,6 +47,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
+from plotly.subplots import make_subplots
 # import os  # Already imported above
 import glob
 # from pathlib import Path  # Already imported above
@@ -59,6 +60,9 @@ import yfinance as yf
 from fredapi import Fred
 import os
 import requests
+import redis
+import time
+from sqlalchemy import create_engine, text
 # --- PATCH: Caching Utilities ---
 import pickle
 def ensure_cache_dir():
@@ -86,6 +90,103 @@ def get_cache_timestamp(key: str):
 # Suppress warnings for a cleaner output
 warnings.filterwarnings('ignore')
 
+
+# --- Real-time data connections ---
+MT5_API_URL = get_config_var("MT5_API_URL", "http://localhost:8000")
+REDIS_URL = get_config_var("REDIS_URL", "redis://localhost:6379/0")
+POSTGRES_URL = get_config_var("POSTGRES_URL", "postgresql://user:pass@localhost/db")
+
+
+@st.cache_resource
+def init_redis():
+    try:
+        r = redis.from_url(REDIS_URL)
+        r.ping()
+        return r
+    except Exception:
+        st.warning("Redis unavailable - no caching")
+        return None
+
+
+@st.cache_resource
+def init_db():
+    try:
+        engine = create_engine(POSTGRES_URL)
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return engine
+    except Exception:
+        st.warning("Postgres unavailable - no persistent storage")
+        return None
+
+
+redis_client = init_redis()
+db_engine = init_db()
+
+
+def cache_key(symbol: str, tf: str = "1min") -> str:
+    return f"enriched_bars:{symbol}:{tf}"
+
+
+@st.cache_data(ttl=60)
+def get_enriched_bars(symbol: str, count: int = 5000, tf: str = "1min") -> pd.DataFrame:
+    if redis_client:
+        cached = redis_client.get(cache_key(symbol, tf))
+        if cached:
+            try:
+                return pd.read_json(cached, orient="split")
+            except Exception:
+                pass
+
+    params = {"symbol": symbol, "limit": count}
+    try:
+        r = requests.get(f"{MT5_API_URL}/ticks", params=params, timeout=5)
+        r.raise_for_status()
+        data = r.json()
+        if not data:
+            return pd.DataFrame()
+        df = pd.DataFrame(data)
+        df["timestamp"] = pd.to_datetime(df["time"], unit="s", utc=True)
+        df = df.set_index("timestamp").sort_index()
+        if "last" in df:
+            df["price"] = df["last"].fillna((df.get("bid") + df.get("ask")) / 2)
+        elif {"bid", "ask"}.issubset(df.columns):
+            df["price"] = (df["bid"] + df["ask"]) / 2
+        df["volume"] = df.get("volume", 1.0)
+    except Exception as e:
+        st.error(f"MT5 /ticks error: {e}")
+        return pd.DataFrame()
+
+    bars = df["price"].resample(tf).ohlc()
+    bars["volume"] = df["volume"].resample(tf).sum()
+    bars = bars.dropna()
+
+    win = 50
+    bars["ret"] = bars["close"].pct_change()
+    bars["vol_z"] = (bars["volume"] - bars["volume"].rolling(win).mean()) / bars["volume"].rolling(win).std().fillna(1)
+    ma = bars["close"].rolling(win).mean()
+    sd = bars["close"].rolling(win).std()
+    lower = ma - 2 * sd
+    upper = ma + 2 * sd
+
+    def _nz(a, fill=0.0):
+        return np.nan_to_num(a, nan=fill, posinf=fill, neginf=fill)
+
+    bars["bb_pctB"] = _nz((bars["close"] - lower) / (upper - lower + 1e-6))
+    bars["effort"] = _nz(bars["vol_z"])
+    bars["result"] = _nz(bars["ret"].abs().rolling(3).mean())
+    bars["effort_result_ratio"] = _nz(bars["effort"]) / (_nz(bars["result"]) + 1e-6)
+    bars["news_event"] = bars["vol_z"].abs() > 3.0
+
+    if redis_client:
+        redis_client.set(cache_key(symbol, tf), bars.to_json(orient="split"), ex=300)
+    if db_engine:
+        try:
+            bars.to_sql(f"enriched_bars_{symbol}_{tf}", db_engine, if_exists="replace")
+        except Exception:
+            pass
+
+    return bars
 
 # --- Utility Function for Background Image ---
 def get_image_as_base64(path):
@@ -266,6 +367,7 @@ class ZanalyticsDashboard:
             )
         # Moved st.success to display_home_page
         self.display_home_page(data_sources)
+        self.display_live_mt5()
         # PATCH: Reset refresh flag at end of run
         if "refresh_home_data" in st.session_state and st.session_state["refresh_home_data"]:
             st.session_state["refresh_home_data"] = False
@@ -837,6 +939,68 @@ class ZanalyticsDashboard:
                 st.info("XAUUSD 15min data missing 'timestamp' or 'close' column for 3D FVG/SMC chart.")
         except Exception as e:
             st.warning(f"Error loading 3D XAUUSD FVG/SMC chart: {e}")
+
+    def display_live_mt5(self):
+        st.subheader("Real-Time MT5 Feed")
+        with st.sidebar:
+            st.markdown("### Live MT5 Feed")
+            symbol = st.selectbox(
+                "Symbol",
+                ["EURUSD", "GBPUSD", "USDJPY", "EURGBP", "XAUUSD", "DXY"],
+                key="live_symbol",
+            )
+            tick_count = st.slider("Ticks", 2000, 20000, 5000, key="live_tick_count")
+            timeframe = st.selectbox(
+                "Timeframe", ["1min", "5min", "15min"], key="live_timeframe"
+            )
+            auto_refresh = st.toggle(
+                "Auto Refresh (30s)", value=False, key="live_auto_refresh"
+            )
+            st.markdown("---")
+            max_loss_pct = st.slider(
+                "Max Loss %", 0.1, 3.0, 2.0, key="live_max_loss_pct"
+            )
+            anticipated_trades = st.slider(
+                "Anticipated Trades", 1, 12, 10, key="live_anticipated_trades"
+            )
+        enriched = get_enriched_bars(symbol, tick_count, timeframe)
+        if not enriched.empty:
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Close", enriched["close"].iloc[-1])
+            col2.metric("Volume Z", enriched["vol_z"].iloc[-1])
+            col3.metric("BB %B", enriched["bb_pctB"].iloc[-1])
+            col4.metric("Effort/Result", enriched["effort_result_ratio"].iloc[-1])
+
+            fig = make_subplots(rows=2, cols=1, shared_xaxes=True)
+            fig.add_trace(
+                go.Candlestick(
+                    x=enriched.index,
+                    open=enriched["open"],
+                    high=enriched["high"],
+                    low=enriched["low"],
+                    close=enriched["close"],
+                ),
+                row=1,
+                col=1,
+            )
+            fig.add_trace(go.Bar(x=enriched.index, y=enriched["volume"]), row=2, col=1)
+            fig.update_layout(height=600)
+            st.plotly_chart(fig, use_container_width=True)
+
+            with st.expander("Enriched Bars"):
+                st.dataframe(enriched)
+
+            todays_loss = enriched["ret"].sum() * 100
+            per_trade_loss = max_loss_pct / anticipated_trades
+            risk_col1, risk_col2 = st.columns(2)
+            risk_col1.metric("Today's Loss %", f"{todays_loss:.2f}%")
+            risk_col2.metric("Per Trade Max %", f"{per_trade_loss:.2f}%")
+        else:
+            st.info("No data - check MT5 API")
+
+        if auto_refresh:
+            time.sleep(30)
+            st.experimental_rerun()
 
     # --- Multi-Asset 3D Volume Surface Chart ---
     def create_multi_asset_3d_chart(self, data_sources):
