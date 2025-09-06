@@ -1,0 +1,4 @@
+# Backtest Configuration
+initial_capital: 100000
+commission_rate: 0.001
+slippage_rate: 0.0005

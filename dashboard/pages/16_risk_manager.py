@@ -441,12 +441,15 @@ def render_top_account_statistics(pulse_manager):
         st.metric("Trades Today", f"{stats.get('trades_today',0)}", f"Win-rate 7d: {stats.get('win_rate_7d',0.0):.1f}%")
 
     # Allowed loss tiles
-    t1, t2 = st.columns(2)
+    t0, t1, t2 = st.columns(3)
+    with t0:
+        st.markdown("**Max Daily Loss %**")
+        st.markdown(f"<div class='metric-card'>{daily_risk_pct:.1f}%</div>", unsafe_allow_html=True)
     with t1:
-        st.markdown(f"**Max Allowed Loss Today** ({daily_risk_pct:.1f}% of SOD)")
+        st.markdown("**Max Allowed Loss Today**")
         st.markdown(f"<div class='metric-card'>{fmt_ccy(loss_caps['daily_cap'], ccy)}</div>", unsafe_allow_html=True)
     with t2:
-        st.markdown(f"**Max Allowed Loss Per Trade** (/{loss_caps['positions']} anticipated)")
+        st.markdown(f"**Max Loss Per Trade** (/{loss_caps['positions']} anticipated)")
         st.markdown(f"<div class='metric-card'>{fmt_ccy(loss_caps['per_trade_cap'], ccy)}</div>", unsafe_allow_html=True)
 
     # Micro charts row – same transparent style as Macro News tiles

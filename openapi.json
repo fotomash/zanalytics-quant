@@ -1,0 +1,90 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Tick Buffer API",
+    "version": "1.0.0",
+    "description": "API that returns the last 5 tick prices for a given crypto symbol."
+  },
+  "servers": [
+    { "url": "http://localhost:5000" }
+  ],
+  "paths": {
+    "/get_tick_buffer": {
+      "get": {
+        "operationId": "get_tick_buffer",
+        "summary": "Fetch the last 5 ticks for a crypto symbol.",
+        "description": "Returns recent tick data including timestamps and prices for analysis.",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string", "enum": ["BTC", "ETH", "SOL", "ADA", "DOT"]},
+            "description": "Cryptocurrency symbol (e.g., BTC, ETH)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response with tick data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "symbol": {"type": "string", "description": "The requested symbol"},
+                    "ticks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "timestamp": {"type": "string", "description": "Time of the tick (HH:MM:SS format)"},
+                          "price": {"type": "number", "description": "Price in USD"}
+                        }
+                      }
+                    },
+                    "source": {"type": "string", "description": "Data source (e.g., CoinGecko)"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"description": "Invalid symbol or missing parameter"},
+          "500": {"description": "Server error or data unavailable"}
+        }
+      }
+    },
+    "/get_crypto_price": {
+      "get": {
+        "operationId": "get_crypto_price",
+        "summary": "Get current price of a cryptocurrency",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "Crypto symbol like BTC, ETH"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current price data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "symbol": {"type": "string"},
+                    "price": {"type": "number"},
+                    "change_24h": {"type": "number"},
+                    "timestamp": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

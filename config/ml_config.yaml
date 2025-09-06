@@ -1,0 +1,97 @@
+# ML Model Configuration
+ml_models:
+  xgb_signal_classifier:
+    model_type: "xgboost"
+    objective: "multi:softprob"
+    num_class: 3
+    max_depth: 6
+    learning_rate: 0.1
+    n_estimators: 200
+    subsample: 0.8
+    colsample_bytree: 0.8
+    random_state: 42
+  lstm_price_predictor:
+    model_type: "lstm"
+    sequence_length: 60
+    hidden_units: 50
+    dropout: 0.2
+    epochs: 100
+    batch_size: 32
+  correlation_regime_detector:
+    model_type: "isolation_forest"
+    contamination: 0.1
+    random_state: 42
+
+# Feature Engineering
+feature_engineering:
+  price_features:
+    - returns_1
+    - returns_5
+    - returns_20
+    - log_returns_1
+    - log_returns_5
+    - price_ratio_5
+    - price_ratio_20
+  technical_indicators:
+    - rsi_14
+    - sma_20
+    - sma_50
+    - ema_12
+    - ema_26
+    - macd
+    - bollinger_bands
+    - atr_14
+  statistical_features:
+    - volatility_5
+    - volatility_20
+    - skewness_20
+    - kurtosis_20
+    - autocorr_5
+  correlation_features:
+    - correlation_dxy_vix
+    - correlation_btc_spx
+    - correlation_eth_btc
+    - correlation_gold_dxy
+
+# Model Training
+training:
+  test_size: 0.2
+  validation_size: 0.1
+  cross_validation_folds: 5
+  random_state: 42
+
+# Label creation
+forward_periods: 5
+buy_threshold: 0.02
+sell_threshold: -0.02
+
+# Model selection
+scoring_metric: "f1_weighted"
+
+# Model Deployment
+deployment:
+  model_path: "models/"
+  update_frequency: "daily"
+  retrain_threshold: 0.05
+
+# Performance monitoring
+monitor_metrics:
+  - accuracy
+  - precision
+  - recall
+  - f1_score
+  - auc_roc
+
+# Integration with existing systems
+integration:
+  confluence_scoring:
+    ml_weight: 0.3
+    smc_weight: 0.3
+    wyckoff_weight: 0.2
+    technical_weight: 0.2
+  pulse_kernel:
+    enable_ml_signals: true
+    ml_confidence_threshold: 0.6
+  risk_management:
+    use_ml_confidence: true
+    confidence_scaling: true
