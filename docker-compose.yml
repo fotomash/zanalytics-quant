@@ -166,6 +166,7 @@ services:
       - ALERTS_SCORE_HI=90
       - ALERTS_TOXICITY_LIMIT=0.30
       - ALERTS_DD_INTRADAY_WARN=0.025
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
     depends_on:
       postgres:
         condition: service_started
