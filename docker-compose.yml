@@ -573,6 +573,28 @@ services:
       start_period: 20s
     logging: *default-logging
 
+  pulse-kernel:
+    build: .
+    command: python -m uvicorn api.pulse_api:app --host 0.0.0.0 --port 8000
+    environment:
+      - PULSE_CONFIG=${PULSE_CONFIG}
+      - PULSE_JOURNAL_PATH=${PULSE_JOURNAL_PATH}
+    depends_on: [redis, postgres]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/pulse/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  streamlit:
+    build: .
+    command: streamlit run dashboard/pulse_dashboard.py --server.port=${STREAMLIT_SERVER_PORT}
+    ports: ["8501:8501"]
+    env_file: [.env]
+    depends_on: [pulse-kernel]
+    volumes:
+      - ./:/app
+
 volumes:
   traefik-public-certificates: # Persistent volume for certificates
   grafana-data: {}
