@@ -1,33 +1,55 @@
-import glob
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import pandas as pd
 import redis
 
-HOT_KEY_PREFIX = "ticks:hot:"
-COLD_PATH = "/app/data/cold/"
+COLD_ROOT = os.environ.get("COLD_ROOT", "/app/data/cold")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 redis_client = redis.Redis.from_url(REDIS_URL)
 
 
+def get_ticks(symbol: str, start: datetime, end: Optional[datetime] = None) -> pd.DataFrame:
+    """Return ticks for symbol between start and end using hot/cold storage."""
+    end = end or datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    frames = []
+    if start >= now - timedelta(days=1):
+        hot_key = f"ticks:hot:{symbol}"
+        cached = redis_client.lrange(hot_key, 0, -1)
+        if cached:
+            df_hot = pd.DataFrame([json.loads(t) for t in cached])
+            df_hot["timestamp"] = pd.to_datetime(df_hot["time"], unit="s", utc=True)
+            mask = (df_hot["timestamp"] >= start) & (df_hot["timestamp"] <= end)
+            frames.append(df_hot[mask])
+    frames.append(_read_parquet_range(symbol, start, end))
+    frames = [f for f in frames if not f.empty]
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+def _read_parquet_range(symbol: str, start: datetime, end: datetime) -> pd.DataFrame:
+    try:
+        import pyarrow.dataset as ds
+
+        dataset = ds.dataset(
+            f"{COLD_ROOT}/{symbol}",
+            format="parquet",
+            partitioning=["symbol", "date"],
+        )
+        table = dataset.to_table(
+            filter=(ds.field("date") >= start.date()) & (ds.field("date") <= end.date())
+        )
+        df = table.to_pandas()
+        if "timestamp" in df:
+            df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+            mask = (df["timestamp"] >= start) & (df["timestamp"] <= end)
+            df = df[mask]
+        return df
+    except Exception:
+        return pd.DataFrame()
+
 def get_data(symbol: str, start_time: Optional[datetime] = None) -> pd.DataFrame:
-    """Return combined hot and cold data for a symbol."""
-    hot_key = f"{HOT_KEY_PREFIX}{symbol}"
-    hot_ticks = [json.loads(t) for t in redis_client.lrange(hot_key, 0, -1)]
-    df_hot = pd.DataFrame(hot_ticks)
-
-    cold_glob = os.path.join(COLD_PATH, symbol, "*", "*", "*.parquet")
-    cold_files = glob.glob(cold_glob)
-    if cold_files:
-        df_cold = pd.concat((pd.read_parquet(f) for f in cold_files), ignore_index=False)
-    else:
-        df_cold = pd.DataFrame()
-
-    df = pd.concat([df_cold, df_hot], ignore_index=True)
-    if start_time is not None and not df.empty:
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
-        df = df[df["timestamp"] >= start_time]
-    return df
+    """Compatibility wrapper for previous API."""
+    start = start_time or datetime.now(timezone.utc) - timedelta(days=1)
+    return get_ticks(symbol, start)

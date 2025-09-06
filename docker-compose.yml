@@ -147,6 +147,7 @@ services:
     working_dir: /app/backend/django
     volumes:
       - static_volume:/app/staticfiles
+      - ./data/cold:/app/data/cold
     restart: unless-stopped
     ports:
       - 8000:8000
@@ -239,6 +240,7 @@ services:
     entrypoint: ["sh", "-c", "celery -A ${CELERY_APP:-zanalytics} worker --loglevel=info --concurrency=${CELERY_CONCURRENCY:-3}"]
     volumes:
       - static_volume:/app/staticfiles
+      - ./data/cold:/app/data/cold
     env_file:
       - .env
     environment:
@@ -266,6 +268,7 @@ services:
     entrypoint: ["sh", "-c", "celery -A ${CELERY_APP:-zanalytics} beat --loglevel=info"]
     volumes:
       - static_volume:/app/staticfiles
+      - ./data/cold:/app/data/cold
     env_file:
       - .env
     environment:

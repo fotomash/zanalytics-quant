@@ -17,6 +17,8 @@ from confluence_scorer import ConfluenceScorer
 from risk_enforcer import RiskEnforcer
 from journal_engine import JournalEngine
 from alerts.telegram_alerts import notify
+from utils.data_query import get_ticks
+from datetime import datetime, timedelta, timezone
 
 
 class PulseKernel:
@@ -111,4 +113,19 @@ class PulseKernel:
         }
         notify(event)
         return {"ts": ts, "symbol": symbol, "score": score, "decision": decision}
+
+    def get_latest_frame(self, symbol: str, window: str = "5T") -> pd.DataFrame:
+        """Return recent bars for a symbol using the hybrid data store."""
+        start = datetime.now(timezone.utc) - timedelta(hours=1)
+        df = get_ticks(symbol, start)
+        if df.empty:
+            return pd.DataFrame()
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+        bars = df.resample(window, on="timestamp").agg({
+            "bid": "ohlc",
+            "ask": "ohlc",
+            "toxicity": "mean",
+            "liq_score": "mean",
+        })
+        return bars.dropna()
 

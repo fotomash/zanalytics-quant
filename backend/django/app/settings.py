@@ -229,5 +229,10 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': 300.0,
         'args': ('EURUSD', 'M1', 100),
     },
+    'flush-ticks-hourly': {
+        'task': 'utils.accumulator.flush_and_aggregate',
+        'schedule': 3600.0,
+        'args': ('EURUSD',),
+    },
 }
 

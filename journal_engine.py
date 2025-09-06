@@ -6,7 +6,10 @@ arguments used in the kernel.
 """
 
 from __future__ import annotations
-from typing import Any, Dict
+from typing import Any, Dict, List
+import pandas as pd
+
+journal_events: List[Dict[str, Any]] = []
 
 
 class JournalEngine:
@@ -16,7 +19,28 @@ class JournalEngine:
         self.journal_dir = journal_dir
 
     def log(self, ts: Any, symbol: str, score: Dict[str, Any], decision: Dict[str, Any]) -> None:
-        # In a full implementation we would persist to disk; here we simply
-        # accept the call so that tests can run without side effects.
+        journal_events.append({"ts": ts, "symbol": symbol, "score": score, "decision": decision})
         return None
+
+
+def log_event(event: Dict[str, Any]) -> None:
+    """Record an arbitrary journal event."""
+    journal_events.append(event)
+
+
+def check_tick_gaps(symbol: str, df: pd.DataFrame) -> None:
+    """Detect gaps greater than 60s in tick data and log events."""
+    if df.empty or "timestamp" not in df:
+        return
+    df = df.sort_values("timestamp")
+    df["gap"] = df["timestamp"].diff().dt.total_seconds()
+    gaps = df[df["gap"] > 60]
+    for _, row in gaps.iterrows():
+        log_event({
+            "event": "data_gap",
+            "symbol": symbol,
+            "timestamp": row["timestamp"],
+            "gap_seconds": row["gap"],
+            "severity": "high" if row["gap"] > 300 else "medium",
+        })
 
