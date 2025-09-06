@@ -1,0 +1,79 @@
+# Risk Management Configuration
+risk_limits:
+  max_daily_loss: 0.03
+  max_daily_trades: 5
+  max_position_size: 0.1
+correlation_limit: 0.95
+max_correlated_exposure: 0.3
+max_volatility_multiplier: 2.0
+volatility_lookback: 20
+max_drawdown: 0.15
+stop_trading_drawdown: 0.10
+kelly_criterion:
+  base_fraction: 0.25
+  min_win_rate: 0.55
+  max_kelly_fraction: 0.15
+position_sizing:
+  method: kelly
+  fixed_size: 0.05
+  target_volatility: 0.15
+  volatility_lookback: 30
+  max_risk_per_trade: 0.02
+correlation_management:
+  crisis_correlations:
+    dxy_vix: 0.75
+    btc_spx: 0.98
+    eth_btc: 0.99
+  normal_ranges:
+    dxy_vix: [-0.4, -0.2]
+    gold_dxy: [-0.8, -0.6]
+    spx_vix: [-0.95, -0.85]
+  crisis_actions:
+    reduce_position_size: 0.5
+    increase_cash_allocation: 0.2
+    stop_new_positions: true
+volatility_regimes:
+  low_volatility: 0.10
+  normal_volatility: 0.20
+  high_volatility: 0.35
+regime_adjustments:
+  low: 1.2
+  normal: 1.0
+  high: 0.6
+  extreme: 0.3
+stop_loss:
+  method: atr
+  fixed_percentage: 0.02
+  atr_multiplier: 2.0
+  atr_period: 14
+trailing_stop:
+  enable_trailing: true
+  trailing_percentage: 0.01
+take_profit:
+  method: risk_reward
+  fixed_percentage: 0.04
+  risk_reward_ratio: 2.0
+emergency_protocols:
+  crash_threshold: -0.05
+  emergency_actions:
+    close_all_positions: true
+    stop_new_trades: true
+    increase_monitoring: true
+    send_alerts: true
+  recovery_conditions:
+    min_days_stable: 3
+    max_volatility: 0.25
+    correlation_normalized: true
+integration:
+  bootstrap_os:
+    enable_risk_enforcement: true
+    risk_score_threshold: 0.7
+  pulse_kernel:
+    risk_veto_power: true
+    confidence_adjustment: true
+  ml_models:
+    use_ml_confidence: true
+    confidence_threshold: 0.6
+  alerts:
+    risk_alert_threshold: 0.8
+    send_daily_summary: true
