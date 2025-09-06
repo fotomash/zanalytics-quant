@@ -91,6 +91,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework.authtoken',
+    'pulse_api',
     'django_filters',
     'corsheaders',
     'celery',

@@ -1,7 +1,10 @@
 from django.urls import path
 from . import views
+from django.urls import path, include
 
 urlpatterns = [
+    # …existing routes…
+    path("", include("pulse_api.urls")),
     path("api/pulse/health", views.pulse_health),
     path("api/pulse/score", views.score_peek),  # ✅ Fixed this
     path("api/ticks/buffer", views.tick_buffer),
