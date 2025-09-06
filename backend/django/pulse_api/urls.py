@@ -3,7 +3,7 @@ from . import views
 
 urlpatterns = [
     path("api/pulse/health", views.pulse_health),
-    path("api/pulse/score", views.score_peek),
+    path("api/pulse/score", views.score_peek),  # ✅ Fixed this
     path("api/ticks/buffer", views.tick_buffer),
     path("api/pulse/risk-check", views.risk_check),
     path("api/pulse/risk-summary", views.risk_summary),
