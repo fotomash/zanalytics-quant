@@ -26,4 +26,5 @@ urlpatterns = [
     # Generic health aliases used by monitors
     path('api/pulse/health', pulse_health, name='pulse-health'),
     path('api/pulse/health/', pulse_health, name='pulse-health-slash'),
+    path('', include('pulse_api.urls')),
 ]

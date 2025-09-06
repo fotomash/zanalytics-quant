@@ -1,0 +1,18 @@
+{
+  "strategies": [
+    {
+      "name": "ema_bullish",
+      "description": "EMA48 above EMA200",
+      "conditions": [
+        {"indicator": "EMA_48", "operator": "is_above", "target": "EMA_200"}
+      ]
+    },
+    {
+      "name": "ema_bearish",
+      "description": "EMA48 below EMA200",
+      "conditions": [
+        {"indicator": "EMA_48", "operator": "is_below", "target": "EMA_200"}
+      ]
+    }
+  ]
+}
