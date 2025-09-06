@@ -9,7 +9,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 # Import runtime / kernel layer
-from pulse_kernel import PulseKernel
+from core.pulse_kernel import PulseKernel
 
 app = FastAPI(title="Zanalytics Pulse API", version="1.0.0", docs_url="/")
 security = HTTPBearer()
@@ -75,6 +75,11 @@ class JournalEntry(BaseModel):
 
 # --- Runtime singleton (Kernel under the hood) ---
 KERNEL = PulseKernel()  # or PulseRuntime().kernel
+try:
+    KERNEL.connect_mt5()
+except Exception:
+    # MT5 might not be available in all environments
+    pass
 
 
 # --- Health ---
@@ -115,6 +120,39 @@ def risk(req: RiskRequest) -> RiskResponse:
         {"symbol": req.symbol, "size": req.size or req.intended_risk}
     )
     return RiskResponse(allowed=allowed, warnings=warnings, details=details)
+
+
+# --- Real-time tick interfaces ---
+@app.get("/score/peek")
+def score_peek(symbol: str = "EURUSD") -> Dict[str, Any]:
+    """Return a live confluence score for ``symbol``."""
+    return KERNEL.process_tick(symbol)
+
+
+@app.get("/risk/summary")
+def risk_summary() -> Dict[str, Any]:
+    """Expose the current risk state maintained by the kernel."""
+    rs = KERNEL.risk_state
+    return {
+        "trades_left": 5 - rs["trades_today"],
+        "daily_loss_pct": rs["daily_loss"],
+        "fatigue_level": rs["fatigue_level"],
+        "cooling_off": rs["cooling_off"],
+        "can_trade": rs["trades_today"] < 5 and rs["daily_loss"] < 0.03,
+    }
+
+
+@app.get("/signals/top")
+def signals_top(limit: int = 5) -> List[Dict[str, Any]]:
+    """Return top opportunities across a fixed symbol list."""
+    symbols = ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD"]
+    signals: List[Dict[str, Any]] = []
+    for sym in symbols:
+        score_data = KERNEL.process_tick(sym)
+        if score_data.get("score", 0) > 60:
+            signals.append(score_data)
+    signals.sort(key=lambda x: x["score"], reverse=True)
+    return signals[:limit]
 
 
 # --- Journal ---
