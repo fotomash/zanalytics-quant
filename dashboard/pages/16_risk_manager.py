@@ -311,6 +311,19 @@ def create_gauge_chart(value: float, title: str, max_value: float = 100) -> go.F
     fig.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
     return fig
 
+
+def compute_risk_limits(sod_equity: float, daily_risk_pct: float, anticipated_positions: int) -> Dict[str, float]:
+    """Derive daily and per-trade loss caps from risk settings."""
+    anticipated_positions = max(1, int(anticipated_positions))
+    daily_cap = sod_equity * (daily_risk_pct / 100.0)
+    per_trade_cap = daily_cap / anticipated_positions
+    per_trade_pct = daily_risk_pct / anticipated_positions
+    return {
+        "daily_cap": daily_cap,
+        "per_trade_cap": per_trade_cap,
+        "per_trade_pct": per_trade_pct,
+    }
+
 def render_pulse_tiles(pulse_manager: PulseRiskManager):
     """Render Pulse-specific tiles with error handling"""
     st.subheader("🎯 Pulse Decision Surface")
@@ -488,8 +501,8 @@ def main():
 
         # Risk limits
         st.header("⚠️ Risk Limits")
-        daily_loss_limit = st.slider("Daily Loss Limit (%)", 1, 10, 3)
-        max_drawdown = st.slider("Max Drawdown (%)", 5, 20, 10)
+        daily_risk_pct = st.slider("Daily Risk %", 0.1, 3.0, 2.0, 0.1)
+        anticipated_positions = st.number_input("Anticipated Positions Today", 1, 20, 5)
         max_positions = st.number_input("Max Open Positions", 1, 20, 5)
 
         # Display settings
@@ -515,10 +528,10 @@ def main():
         positions_df = pd.DataFrame()
         risk_data = {}
 
-    # Pulse Decision Surface
-    if show_pulse_tiles:
-        render_pulse_tiles(pulse_manager)
-        st.divider()
+    baseline_env = os.getenv("STARTING_EQUITY") or os.getenv("MT5_BASELINE_EQUITY") or os.getenv("PULSE_BASELINE_EQUITY")
+    sod_equity = float(baseline_env) if baseline_env else 200000.0
+    limits = compute_risk_limits(sod_equity, daily_risk_pct, anticipated_positions)
+    is_real = str(account_info.get('login', '')).upper() not in ('', 'MOCK', '0')
 
     # Top metrics row
     col1, col2, col3, col4, col5 = st.columns(5)
@@ -563,6 +576,41 @@ def main():
             len(positions_df),
             f"Max: {max_positions}"
         )
+
+    # Account statistics
+    st.markdown("---")
+    st.subheader("📊 Account Statistics")
+
+    stats_cols = st.columns([1.2, 1.2, 1, 1])
+    with stats_cols[0]:
+        st.metric("Start-of-Day Equity", f"${sod_equity:,.2f}")
+    with stats_cols[1]:
+        st.metric("Max Loss Today", f"${limits['daily_cap']:,.2f}", f"{daily_risk_pct:.2f}%")
+    with stats_cols[2]:
+        st.metric("Anticipated Positions", f"{anticipated_positions}")
+    with stats_cols[3]:
+        st.metric("Max Loss / Trade", f"${limits['per_trade_cap']:,.2f}", f"{limits['per_trade_pct']:.2f}%")
+
+    fig_alloc = create_gauge_chart(limits['per_trade_pct'], "Per-Trade Max (%)", max_value=5)
+    st.plotly_chart(fig_alloc, use_container_width=True)
+
+    if is_real:
+        st.markdown(
+            '''
+            <div class="market-card" style="text-align:center;">
+                <span style="background: #99ffd0; color:#181818; padding:8px 14px; border-radius:12px; font-weight:800;">
+                    ✅ This is my real MetaTrader account
+                </span>
+            </div>
+            ''',
+            unsafe_allow_html=True
+        )
+
+    # Pulse Decision Surface
+    if show_pulse_tiles:
+        st.markdown("---")
+        render_pulse_tiles(pulse_manager)
+        st.divider()
 
     # Risk gauges
     st.markdown("---")
