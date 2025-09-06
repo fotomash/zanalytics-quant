@@ -33,33 +33,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-# --- IMAGE BACKGROUND & STYLING (match Home/Macro pages) ---
-import base64
 
-def _get_image_as_base64(path: str):
-    try:
-        with open(path, "rb") as image_file:
-            return base64.b64encode(image_file.read()).decode()
-    except Exception:
-        return None
-
-_img_base64 = _get_image_as_base64("image_af247b.jpg")
-if _img_base64:
-    _background_style = f"""
-    <style>
-    [data-testid="stAppViewContainer"] > .main {{
-        background-image: linear-gradient(rgba(0,0,0,0.80), rgba(0,0,0,0.80)), url(data:image/jpeg;base64,{_img_base64});
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        background-attachment: fixed;
-    }}
-    .main .block-container {{
-        background-color: rgba(0,0,0,0.025) !important;
-    }}
-    </style>
-    """
-    st.markdown(_background_style, unsafe_allow_html=True)
 # Custom CSS for enhanced styling
 st.markdown("""
 <style>
