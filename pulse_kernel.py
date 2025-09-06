@@ -1,7 +1,11 @@
+"""PulseKernel - Central Orchestrator for Zanalytics Pulse.
+
+Coordinates between analyzers, risk management, and UI. Redis failures are
+logged and do not halt the pipeline, ensuring resilience during temporary
+outages or network issues.
 """
-PulseKernel - Central Orchestrator for Zanalytics Pulse
-Coordinates between analyzers, risk management, and UI
-"""
+
+__version__ = "0.1.0"
 
 import asyncio
 import json
