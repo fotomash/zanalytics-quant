@@ -1,0 +1,42 @@
+import os
+import time
+import json
+import logging
+import datetime
+from utils.mt5_kafka_producer import MT5KafkaProducer
+
+log = logging.getLogger(__name__)
+
+# Pull bootstrap address from env (default works for Docker compose)
+bootstrap = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+producer = MT5KafkaProducer(bootstrap_servers=bootstrap)
+
+
+def get_tick_from_mt5() -> dict:
+    """Placeholder for actual MT5 tick retrieval."""
+    raise NotImplementedError("Connect to MT5 and return a tick dictionary")
+
+
+def stream_ticks():
+    """Main loop that receives ticks from MT5 and forwards them to Kafka."""
+    while True:
+        tick = get_tick_from_mt5()  # <-- your existing MT5 call
+        # Normalise timestamp to ISO-8601 UTC
+        ts = tick.get("timestamp")
+        if isinstance(ts, (int, float)):
+            tick["timestamp"] = datetime.datetime.utcfromtimestamp(ts).isoformat()
+        else:
+            tick["timestamp"] = datetime.datetime.utcnow().isoformat()
+
+        producer.send_tick(tick)
+
+        # Optional back-pressure: sleep a tiny bit if queue is large
+        if producer.producer.len() > 5000:
+            time.sleep(0.01)
+
+
+def graceful_shutdown():
+    """Flush pending messages before exiting."""
+    log.info("Flushing Kafka producer...")
+    producer.flush()
+    log.info("Shutdown complete.")
