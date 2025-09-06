@@ -5,7 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     DJANGO_SETTINGS_MODULE=app.settings \
     DJANGO_LOG_DIR=/app/backend/django/logs \
-    PYTHONPATH=/app/backend/django:/app:/app/components:/app/utils
+    PYTHONPATH=/app/backend/django:/app:/app/components:/app/utils:/app/backend/django/app
 
 # (Optional) run as non-root
 ARG APP_USER=app

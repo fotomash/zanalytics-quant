@@ -3,8 +3,8 @@ from django.urls import path, include
 from django.http import JsonResponse
 from app.nexus.views import PingView
 from .api.views_wyckoff import wyckoff_score, wyckoff_health
-from . import pulse_views
-from server.pulse import views as pulse_api_views
+from app import pulse_views
+from pulse_kernel.api import pulse_api_views
 
 
 def health(request):

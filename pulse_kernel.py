@@ -1,12 +1,13 @@
-"""PulseKernel - Central Orchestrator for Zanalytics Pulse.
+# 
+# PulseKernel - Central Orchestrator for Zanalytics Pulse.
+#  Coordinates between analyzers, risk management, and UI. Redis failures are
+# logged and do not halt the pipeline, ensuring resilience during temporary
+# outages or network issues.
+# 
 
-Coordinates between analyzers, risk management, and UI. Redis failures are
-logged and do not halt the pipeline, ensuring resilience during temporary
-outages or network issues.
-"""
+# __version__ = "0.1.0"
 
-__version__ = "0.1.0"
-
+import os
 import asyncio
 import json
 from datetime import datetime, timedelta
@@ -15,7 +16,7 @@ import redis
 import logging
 from redis.exceptions import RedisError
 
-from risk_enforcer import RiskEnforcer
+from app.components.risk_enforcer import RiskEnforcer
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,8 @@ class PulseKernel:
     
     def __init__(self, config_path: str = "pulse_config.yaml"):
         self.config = self._load_config(config_path)
-        self.redis_client = redis.Redis(**self.config['redis'])
+        import os
+        self.redis_client = redis.Redis.from_url(os.getenv("REDIS_URL", "redis://redis:6379/0"))
         
         # Initialize components
         self.risk_enforcer = RiskEnforcer()
@@ -42,7 +44,7 @@ class PulseKernel:
         """Load configuration from YAML file"""
         # In production, use proper YAML loading
         return {
-            'redis': {'host': 'localhost', 'port': 6379, 'db': 0},
+            'redis': {'host': 'redis_service', 'port': 6379, 'db': 0},
             'risk_limits': {
                 'daily_loss_limit': 500,
                 'max_trades_per_day': 5,

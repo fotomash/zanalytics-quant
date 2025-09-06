@@ -20,14 +20,17 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Ensure log directory exists
+os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'dev-insecure-key-change-me')
-if SECRET_KEY == 'dev-insecure-key-change-me':
-    print('WARNING: Using development SECRET_KEY. Set DJANGO_SECRET_KEY for production.')
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    raise RuntimeError("Missing DJANGO_SECRET_KEY. Set it in your environment or docker-compose.")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -37,14 +40,12 @@ DJANGO_DOMAIN = os.getenv('DJANGO_DOMAIN')
 ALLOWED_HOSTS = [h for h in [DJANGO_DOMAIN, 'localhost', '127.0.0.1', 'django'] if h]
 
 CSRF_TRUSTED_ORIGINS = []
-if DJANGO_DOMAIN:
-    CSRF_TRUSTED_ORIGINS = [f"https://{DJANGO_DOMAIN}", f"http://{DJANGO_DOMAIN}"]
 
 # Secure cookies in prod; relaxed in dev for convenience
-CSRF_COOKIE_SECURE = False if os.getenv('DEBUG', '1') == '1' else True
-SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE
-if DJANGO_DOMAIN:
-    CSRF_COOKIE_DOMAIN = DJANGO_DOMAIN
+CSRF_COOKIE_SECURE = False
+SESSION_COOKIE_SECURE = False
+# if DJANGO_DOMAIN:
+#     CSRF_COOKIE_DOMAIN = DJANGO_DOMAIN
 
 LOGGING = {
     'version': 1,
@@ -111,7 +112,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
+    # 'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -237,4 +238,3 @@ CELERY_BEAT_SCHEDULE = {
         'args': ('EURUSD',),
     },
 }
-

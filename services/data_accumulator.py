@@ -82,4 +82,3 @@ def get_data(symbol: str, start_time: datetime = None):
     if start_time:
         df = df[df['timestamp'] >= start_time]
     return df
-Implementation Steps

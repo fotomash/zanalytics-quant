@@ -157,6 +157,7 @@ services:
     environment:
       - PYTHONPATH=/app:/app/components:/app/utils:/app/backend:/app/agents
       - DJANGO_SETTINGS_MODULE=app.settings
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-dev-insecure-key-change-me}
       - DJANGO_DOMAIN=${DJANGO_DOMAIN:-localhost}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
@@ -166,6 +167,7 @@ services:
       - ALERTS_SCORE_HI=90
       - ALERTS_TOXICITY_LIMIT=0.30
       - ALERTS_DD_INTRADAY_WARN=0.025
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
     depends_on:
       postgres:
         condition: service_started
@@ -206,25 +208,6 @@ services:
       start_period: 20s
     logging: *default-logging
 
-  pulse:
-    build: .
-    container_name: pulse_kernel
-    environment:
-      - REDIS_HOST=redis
-      - POSTGRES_HOST=postgres
-      - DJANGO_API_URL=http://django:8000
-    volumes:
-      - ./pulse_kernel.py:/app/pulse_kernel.py
-      - ./confluence_scorer.py:/app/confluence_scorer.py
-      - ./risk_enforcer.py:/app/risk_enforcer.py
-      - ./pulse_config.yaml:/app/pulse_config.yaml
-    depends_on:
-      - redis
-      - postgres
-      - django
-    networks:
-      - traefik-public
-    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -583,11 +566,15 @@ services:
       - PYTHONPATH=/app:/app/pulse_kernel
     volumes:
       - ./pulse_kernel.py:/app/pulse_kernel.py
-      - ./confluence_scorer.py:/app/confluence_scorer.py
-      - ./risk_enforcer.py:/app/risk_enforcer.py
       - ./pulse_config.yaml:/app/pulse_config.yaml
       - ./data/journal:/app/data/journal
-    depends_on: [redis, postgres]
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      django:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/pulse/health"]
       interval: 15s
@@ -618,3 +605,28 @@ networks:
     external: true
     name: traefik-public
   
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - 2181:2181
+    networks:
+      - default
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - 9092:9092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - default
