@@ -1,10 +1,10 @@
 {
   "schema_version": "v1",
-  "name_for_model": "tick_buffer_api",
-  "description_for_model": "Use this API to fetch real-time tick data and cryptocurrency prices. Always use this for any price-related queries.",
-  "description_for_human": "Real-time cryptocurrency price and tick data API",
+  "name_for_model": "pulse_api",
+  "description_for_model": "Use this API to fetch real-time tick data from Redis.",
+  "description_for_human": "Real-time tick data API via Django",
   "auth": {"type": "none"},
-  "api": {"type": "openapi", "url": "http://localhost:5000/openapi.json"},
+  "api": {"type": "openapi", "url": "http://localhost:8000/openapi.json"},
   "logo_url": "https://example.com/logo.png",
   "contact_email": "support@example.com",
   "legal_info_url": "https://example.com/legal"
