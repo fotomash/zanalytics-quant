@@ -8,6 +8,8 @@ from django.http import JsonResponse, HttpResponseBadRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 import logging
+from .strategy_match_engine import match_strategy
+from .situation_builder import build_situation
 
 # Import your risk enforcer
 try:
@@ -243,9 +245,23 @@ def pulse_journal(request):
         ]
         
         return JsonResponse(entries[:n], safe=False)
-        
+
     except ValueError:
         return HttpResponseBadRequest("Invalid parameter 'n'")
     except Exception as e:
         logger.error(f"Journal error: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@csrf_exempt
+def strategy_match(request):
+    """Match current market situation to configured strategies."""
+    try:
+        payload = json.loads(request.body or "{}")
+        symbol = payload.get("symbol") or request.GET.get("symbol", "XAUUSD")
+        situation = build_situation(symbol)
+        result = match_strategy(situation, confidence_threshold=0.6)
+        result["timestamp"] = datetime.now().isoformat()
+        return JsonResponse(result)
+    except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
