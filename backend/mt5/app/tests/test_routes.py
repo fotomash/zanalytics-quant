@@ -22,6 +22,7 @@ def client():
     with app.test_client() as client:
         yield client
 
+@pytest.mark.mt5
 def test_get_ticks(client, monkeypatch):
     sample = [
         {'time': 1000, 'bid': 1.1, 'ask': 1.2, 'last': 1.15, 'volume': 10},
@@ -39,6 +40,7 @@ def test_get_ticks(client, monkeypatch):
     assert len(data_resp) == 2
     assert data_resp[0]['bid'] == 1.1
 
+@pytest.mark.mt5
 def test_get_bars(client, monkeypatch):
     sample = [
         {'time': 1000, 'open': 1.0, 'high': 1.2, 'low': 0.9, 'close': 1.1, 'tick_volume': 10, 'spread': 2, 'real_volume': 15},
