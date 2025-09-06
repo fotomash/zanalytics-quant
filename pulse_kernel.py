@@ -10,11 +10,14 @@
 import os
 import asyncio
 import json
+import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import redis
 import logging
 from redis.exceptions import RedisError
+from confluent_kafka import Producer
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.components.risk_enforcer import RiskEnforcer
 
@@ -30,7 +33,16 @@ class PulseKernel:
         self.config = self._load_config(config_path)
         import os
         self.redis_client = redis.Redis.from_url(os.getenv("REDIS_URL", "redis://redis:6379/0"))
-        
+
+        # Kafka producer for journaling and event streaming
+        self.kafka_producer = Producer({
+            'bootstrap.servers': os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092'),
+            'acks': 'all',
+            'enable.idempotence': True,
+            'linger.ms': 5,
+            'batch.num.messages': 100
+        })
+
         # Initialize components
         self.risk_enforcer = RiskEnforcer()
         self.journal = None  # Placeholder for JournalEngine
@@ -39,7 +51,28 @@ class PulseKernel:
         self.active_signals = {}
         self.daily_stats = self._init_daily_stats()
         self.behavioral_state = "normal"
-        
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+    def _send_to_kafka(self, topic: str, message: Dict) -> None:
+        """Send message to Kafka with retry logic."""
+        try:
+            self.kafka_producer.produce(
+                topic=topic,
+                value=json.dumps(message).encode('utf-8'),
+                callback=self._delivery_report,
+            )
+            # Trigger delivery of previous messages
+            self.kafka_producer.poll(0)
+        except Exception as e:
+            logger.error(f"Kafka send failed: {e}")
+            raise
+
+    def _delivery_report(self, err, msg) -> None:
+        if err:
+            logger.error(f"Kafka delivery failed: {err}")
+        else:
+            logger.debug(f"Message delivered to {msg.topic()}")
+
     def _load_config(self, config_path: str) -> Dict:
         """Load configuration from YAML file"""
         # In production, use proper YAML loading
@@ -233,14 +266,18 @@ class PulseKernel:
         return decision
     
     async def _journal_decision(self, decision: Dict):
-        """Log decision to journal for later analysis"""
+        """Enhanced journaling with Kafka and Redis"""
         journal_entry = {
             **decision,
             'behavioral_state': self.behavioral_state,
-            'daily_stats': self.daily_stats.copy()
+            'daily_stats': self.daily_stats.copy(),
+            'timestamp': time.time(),
         }
-        
-        # Store in Redis if available
+
+        # Send to Kafka
+        self._send_to_kafka('pulse.journal', journal_entry)
+
+        # Also keep Redis for fast access
         key = f"journal:{datetime.now().strftime('%Y%m%d')}:{decision['timestamp']}"
         try:
             self.redis_client.set(key, json.dumps(journal_entry))
@@ -263,6 +300,11 @@ class PulseKernel:
         """Send alert to Telegram bot"""
         # Telegram integration would go here
         pass
+
+    def flush_and_close(self) -> None:
+        """Cleanup method to ensure Kafka producer flushes messages."""
+        self.kafka_producer.flush()
+        self.kafka_producer.close()
 
     def get_status(self) -> Dict:
         """Get current system status"""
