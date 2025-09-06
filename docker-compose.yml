@@ -156,6 +156,13 @@ services:
       - PYTHONPATH=/app:/app/components:/app/utils:/app/backend
       - DJANGO_SETTINGS_MODULE=app.settings
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - ALERTS_ENABLED=true
+      - ALERTS_MIN_INTERVAL_SECONDS=60
+      - ALERTS_SCORE_HI=90
+      - ALERTS_TOXICITY_LIMIT=0.30
+      - ALERTS_DD_INTRADAY_WARN=0.025
     depends_on:
       postgres:
         condition: service_started

@@ -16,7 +16,7 @@ from components.wyckoff_agents import MultiTFResolver
 from confluence_scorer import ConfluenceScorer
 from risk_enforcer import RiskEnforcer
 from journal_engine import JournalEngine
-from alerts.telegram_alerts import alert_event
+from alerts.telegram_alerts import notify
 
 
 class PulseKernel:
@@ -97,6 +97,18 @@ class PulseKernel:
         features = frame.get("features", {})
         decision = self.risk.check(ts, symbol, score["score"], features=features)
         self.journal.log(ts, symbol, score, decision)
-        alert_event({"ts": ts, "symbol": symbol, "score": score, "decision": decision, "features": features})
+        event = {
+            "ts": ts,
+            "symbol": symbol,
+            "score": score.get("score"),
+            "grade": score.get("grade"),
+            "reasons": score.get("reasons", []),
+            "risk_status": decision.get("status"),
+            "warnings": decision.get("reason", []) if decision.get("status") == "warned" else [],
+            "violations": decision.get("reason", []) if decision.get("status") == "blocked" else [],
+            "metrics": features,
+            "account": (decision.get("raw") or {}),
+        }
+        notify(event)
         return {"ts": ts, "symbol": symbol, "score": score, "decision": decision}
 
