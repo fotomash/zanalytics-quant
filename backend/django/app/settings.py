@@ -25,31 +25,26 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
-if not SECRET_KEY:
-    raise RuntimeError('DJANGO_SECRET_KEY environment variable not set')
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'dev-insecure-key-change-me')
+if SECRET_KEY == 'dev-insecure-key-change-me':
+    print('WARNING: Using development SECRET_KEY. Set DJANGO_SECRET_KEY for production.')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'django']
-_domain = os.getenv('DJANGO_DOMAIN')
-if _domain:
-    ALLOWED_HOSTS.append(_domain)
+DJANGO_DOMAIN = os.getenv('DJANGO_DOMAIN')
 
-_extra_hosts = os.getenv('DJANGO_ALLOWED_HOSTS')
-if _extra_hosts:
-    ALLOWED_HOSTS.extend([h.strip() for h in _extra_hosts.split(',') if h.strip()])
+ALLOWED_HOSTS = [h for h in [DJANGO_DOMAIN, 'localhost', '127.0.0.1', 'django'] if h]
 
-_csrf_domain = os.getenv('DJANGO_DOMAIN')
 CSRF_TRUSTED_ORIGINS = []
-if _csrf_domain:
-    CSRF_TRUSTED_ORIGINS = [f"https://{_csrf_domain}", f"http://{_csrf_domain}"]
+if DJANGO_DOMAIN:
+    CSRF_TRUSTED_ORIGINS = [f"https://{DJANGO_DOMAIN}", f"http://{DJANGO_DOMAIN}"]
 
-# If you need to debug CSRF issues, you can temporarily add:
-CSRF_COOKIE_SECURE = True
-CSRF_COOKIE_DOMAIN = os.getenv('DJANGO_DOMAIN')
-SESSION_COOKIE_SECURE = True
+# Secure cookies in prod; relaxed in dev for convenience
+CSRF_COOKIE_SECURE = False if os.getenv('DEBUG', '1') == '1' else True
+SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE
+if DJANGO_DOMAIN:
+    CSRF_COOKIE_DOMAIN = DJANGO_DOMAIN
 
 LOGGING = {
     'version': 1,

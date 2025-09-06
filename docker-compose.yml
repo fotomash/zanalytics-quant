@@ -157,6 +157,8 @@ services:
     environment:
       - PYTHONPATH=/app:/app/components:/app/utils:/app/backend:/app/agents
       - DJANGO_SETTINGS_MODULE=app.settings
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-dev-insecure-key-change-me}
+      - DJANGO_DOMAIN=${DJANGO_DOMAIN:-localhost}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
@@ -547,7 +549,7 @@ services:
       django:
         condition: service_healthy
     command: >
-      streamlit run Home.py --server.port=8501 --server.enableCORS false
+      streamlit run Home.py --server.port=${STREAMLIT_SERVER_PORT:-8501} --server.enableCORS false
     restart: unless-stopped
     networks:
       - default
@@ -577,8 +579,14 @@ services:
     build: .
     command: python -m uvicorn api.pulse_api:app --host 0.0.0.0 --port 8000
     environment:
-      - PULSE_CONFIG=${PULSE_CONFIG}
-      - PULSE_JOURNAL_PATH=${PULSE_JOURNAL_PATH}
+      - PULSE_CONFIG=/app/pulse_config.yaml
+      - PULSE_JOURNAL_PATH=/app/data/journal
+    volumes:
+      - ./pulse_kernel.py:/app/pulse_kernel.py
+      - ./confluence_scorer.py:/app/confluence_scorer.py
+      - ./risk_enforcer.py:/app/risk_enforcer.py
+      - ./pulse_config.yaml:/app/pulse_config.yaml
+      - ./data/journal:/app/data/journal
     depends_on: [redis, postgres]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/pulse/health"]

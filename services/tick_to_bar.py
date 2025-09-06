@@ -2,9 +2,11 @@ import os
 import json
 import time
 import redis
+from redis import Redis
 from datetime import datetime
 
-r = redis.StrictRedis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
+REDIS_URL = os.getenv('REDIS_URL', 'redis://redis:6379/0')
+r: Redis = redis.from_url(REDIS_URL, decode_responses=False)
 
 
 def _minute_floor(ts: float) -> float:
