@@ -6,9 +6,12 @@ from django.views.decorators.http import require_http_methods
 import json
 import redis
 from datetime import datetime
+from utils.mt5_kafka_producer import MT5KafkaProducer
 
 # Initialize Redis connection
 redis_client = redis.Redis(host='redis', port=6379, decode_responses=True)
+# Initialize Kafka producer
+kafka_producer = MT5KafkaProducer()
 
 @csrf_exempt
 @require_http_methods(["POST", "GET"])
@@ -40,11 +43,11 @@ def tick_ingestion(request):
         if 'timestamp' not in tick_data:
             tick_data['timestamp'] = datetime.now().isoformat()
 
-        # Store in Redis stream
+        # Store in Redis stream for persistence/legacy consumers
         redis_client.xadd('ticks', tick_data, maxlen=10000)
 
-        # Also publish to channel for real-time subscribers
-        redis_client.publish('tick_channel', json.dumps(tick_data))
+        # Publish to Kafka for downstream processing
+        kafka_producer.send_tick(tick_data)
 
         return JsonResponse({
             'status': 'success',
