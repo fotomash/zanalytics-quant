@@ -205,6 +205,26 @@ services:
       start_period: 20s
     logging: *default-logging
 
+  pulse:
+    build: .
+    container_name: pulse_kernel
+    environment:
+      - REDIS_HOST=redis
+      - POSTGRES_HOST=postgres
+      - DJANGO_API_URL=http://django:8000
+    volumes:
+      - ./pulse_kernel.py:/app/pulse_kernel.py
+      - ./confluence_scorer.py:/app/confluence_scorer.py
+      - ./risk_enforcer.py:/app/risk_enforcer.py
+      - ./pulse_config.yaml:/app/pulse_config.yaml
+    depends_on:
+      - redis
+      - postgres
+      - django
+    networks:
+      - traefik-public
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     container_name: redis

@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import path, include
 from app.nexus.views import PingView
 from .api.views_wyckoff import wyckoff_score, wyckoff_health
+from . import pulse_views
 
 # Provide a robust pulse health import with a safe fallback
 try:
@@ -27,4 +28,12 @@ urlpatterns = [
     path('api/pulse/health', pulse_health, name='pulse-health'),
     path('api/pulse/health/', pulse_health, name='pulse-health-slash'),
     path('', include('pulse_api.urls')),
+]
+
+urlpatterns += [
+    path('api/pulse/health/', pulse_views.health_check, name='pulse_health'),
+    path('api/pulse/score/', pulse_views.get_confluence_score, name='pulse_score'),
+    path('api/pulse/risk/', pulse_views.get_risk_status, name='pulse_risk'),
+    path('api/pulse/signals/', pulse_views.get_active_signals, name='pulse_signals'),
+    path('api/pulse/process/', pulse_views.process_tick, name='pulse_process'),
 ]
