@@ -311,20 +311,21 @@ def main():
 
     st.title("🛡️ Risk Management Dashboard")
 
-    # Data-source banner (Pulse Decision Surface)
-    is_real = False
+    # Data-source banner: show account number and broker if available
+    acct_info = {}
     try:
         if 'risk_manager' in st.session_state:
-            _probe = st.session_state.risk_manager.get_mt5_data("account_info")
-            is_real = bool(_probe)
+            acct_info = st.session_state.risk_manager.get_account_info()
     except Exception:
-        is_real = False
-    if is_real:
+        acct_info = {}
+    login = acct_info.get('login')
+    broker = acct_info.get('server') or acct_info.get('company')
+    if login:
         st.markdown(
-            '''
+            f'''
             <div class="market-card" style="text-align:center;">
                 <span style="background: #99ffd0; color:#181818; padding:8px 14px; border-radius:12px; font-weight:800;">
-                    ✅ This is my real MetaTrader account
+                    Account {login} • {broker or '—'}
                 </span>
             </div>
             ''',

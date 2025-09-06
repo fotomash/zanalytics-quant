@@ -417,18 +417,15 @@ def render_top_account_statistics(pulse_manager):
     y_open, y_close = get_yesterday_equities(pulse_manager, acct)
     series_7d = get_7d_sod_series(pulse_manager, include_today=True)
 
-    # Real account badge (show only when we truly see bridge/mt5 values)
-    is_real = False
-    try:
-        is_real = bool(acct and str(acct.get("login", "")).upper() not in ("", "MOCK", "0"))
-    except Exception:
-        is_real = False
-    if is_real:
+    # Real account badge: show account number and broker if available
+    login = acct.get("login")
+    broker = acct.get("server") or acct.get("company")
+    if login:
         st.markdown(
-            '<div class="market-card" style="text-align:center;">'
-            '<span style="background:#99ffd0;color:#181818;padding:8px 14px;border-radius:12px;font-weight:800;">'
-            '✅ This is my real MetaTrader account'
-            '</span></div>',
+            f'<div class="market-card" style="text-align:center;">'
+            f'<span style="background:#99ffd0;color:#181818;padding:8px 14px;border-radius:12px;font-weight:800;">'
+            f'Account {login} • {broker or "—"}'
+            f'</span></div>',
             unsafe_allow_html=True
         )
 
@@ -1071,19 +1068,21 @@ def main():
 
     pulse_manager = st.session_state.pulse_manager
 
-    # Data-source banner (Pulse Decision Surface banner)
-    acct_probe = pulse_manager.get_mt5_data("account_info")
-    is_real = bool(acct_probe and isinstance(acct_probe, dict) and str(acct_probe.get("login", "")).upper() != "MOCK")
-    st.markdown(
-        f'''
-        <div class="market-card" style="text-align:center;">
-            <span style="background: #99ffd0; color:#181818; padding:8px 14px; border-radius:12px; font-weight:800;">
-                {'✅ This is my real MetaTrader account' if is_real else '⚠️ Using mock data'}
-            </span>
-        </div>
-        ''',
-        unsafe_allow_html=True
-    )
+    # Data-source banner: account number and broker if available
+    acct_info_banner = pulse_manager.get_account_info() if pulse_manager else {}
+    login_banner = acct_info_banner.get("login")
+    broker_banner = acct_info_banner.get("server") or acct_info_banner.get("company")
+    if login_banner:
+        st.markdown(
+            f'''
+            <div class="market-card" style="text-align:center;">
+                <span style="background: #99ffd0; color:#181818; padding:8px 14px; border-radius:12px; font-weight:800;">
+                    Account {login_banner} • {broker_banner or '—'}
+                </span>
+            </div>
+            ''',
+            unsafe_allow_html=True
+        )
 
     # System health status
     health_data = safe_api_call("GET", "pulse/health")
