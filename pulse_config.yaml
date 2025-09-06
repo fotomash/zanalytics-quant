@@ -1,149 +1,76 @@
-# Zanalytics Pulse - Scientific Risk Configuration
-pulse:
-  version: "v11.5.1"
+# Zanalytics Pulse Configuration
+# Version: 11.5.1
+
+system:
+  name: "Zanalytics Pulse"
+  version: "11.5.1"
   environment: "production"
 
-# Scientific Risk Management Parameters
-risk_management:
-  # Daily loss limits with psychological buffers
-  daily_loss_limit: 0.03  # 3% buffer under 5% prop limit
-  warning_threshold: 0.02  # 2% warning level
+redis:
+  host: "localhost"
+  port: 6379
+  db: 0
+  password: null
+
+confluence_weights:
+  smc: 0.4          # Smart Money Concepts
+  wyckoff: 0.3      # Wyckoff Analysis
+  technical: 0.3    # Technical Indicators
+
+risk_limits:
+  daily_loss_limit: 500           # USD
+  daily_loss_percent: 0.03        # 3% of account
+  max_trades_per_day: 5
+  max_position_size: 0.02         # 2% risk per trade
+  cooling_period_minutes: 15
+  revenge_trade_window: 30        # minutes
+  max_consecutive_losses: 3
+
+behavioral:
+  revenge_trade_threshold: 3
+  overconfidence_threshold: 4
+  fatigue_hour: 22
+  optimal_hours: [9, 10, 11, 14, 15, 16]
   
-  # Risk phases with scientific adjustments
-  risk_phases:
-    low_equity:
-      per_trade_risk: 0.003  # 0.3% conservative risk
-      max_trades_per_day: 2
-      description: "Conservative phase - building confidence"
-      
-    stable:
-      per_trade_risk: 0.005  # 0.5% normal risk
-      max_trades_per_day: 3
-      description: "Stable phase - moderate risk"
-      
-    new_high:
-      per_trade_risk: 0.007  # 0.7% growth risk
-      max_trades_per_day: 4
-      description: "Growth phase - optimal risk"
-      
-    recovery:
-      per_trade_risk: 0.004  # 0.4% recovery risk
-      max_trades_per_day: 2
-      description: "Recovery phase - risk reduction"
+position_breakdown:
+  enabled: true
+  default_splits: 5               # Split position into 5 parts
+  min_confluence_per_entry: 60    # Minimum score for each entry
+  scale_in_increment: 5           # Confluence points between entries
 
-# Behavioral Psychology Safeguards
-behavioral_safeguards:
-  # Overconfidence protection
-  overconfidence_protection:
-    rapid_trading_threshold: 5  # minutes between trades
-    consecutive_wins_limit: 3
-    size_reduction_factor: 0.8
-    high_confidence_threshold: 85  # Confluence score threshold
+telegram:
+  enabled: true
+  bot_token: "${TELEGRAM_BOT_TOKEN}"
+  chat_id: "${TELEGRAM_CHAT_ID}"
+  alert_types:
+    - high_confluence
+    - risk_warning
+    - behavioral_alert
+    - daily_summary
     
-  # Revenge trading prevention
-  revenge_trading_prevention:
-    consecutive_loss_limit: 2
-    cooldown_minutes: 15
-    detection_window_minutes: 30
-    
-  # Disposition effect mitigation
-  disposition_effect_mitigation:
-    min_risk_reward: 1.5
-    auto_exit_rules: true
-    loss_limit_enforcement: "strict"
-    
-  # Trading fatigue management
-  fatigue_management:
-    max_trades_per_day: 5
-    warning_threshold: 4
-    fatigue_multiplier: 0.7
+ui:
+  refresh_rate: 2                 # seconds
+  theme: "dark"
+  show_behavioral_state: true
+  show_position_breakdown: true
+  show_journal_prompts: true
 
-# Scientific Position Sizing Parameters
-position_sizing:
-  # Base multipliers for different factors
-  confidence_multiplier:
-    low: 0.5      # < 40 confluence score
-    medium: 0.75  # 40-70 confluence score
-    high: 1.0     # > 70 confluence score
-    
-  phase_multiplier:
-    low_equity: 0.7
-    stable: 1.0
-    new_high: 1.2
-    recovery: 0.6
-    
-  behavioral_multiplier:
-    normal: 1.0
-    consecutive_losses: 0.5
-    high_frequency: 0.8
-    fatigue: 0.7
+journal:
+  auto_prompt: true
+  prompt_on_loss: true
+  prompt_on_win_streak: true
+  weekly_review: true
+  storage_path: "/data/journal"
 
-# Confluence Scoring with Scientific Weighting
-confluence_scoring:
-  weights:
-    smc: 0.35
-    wyckoff: 0.35
-    technical: 0.20
-    midas: 0.10
-    
-  thresholds:
-    low: 40
-    medium: 60
-    high: 80
-    
-  minimum_factors: 2
-
-# Performance Targets with Scientific Basis
-performance_targets:
-  daily_loss_frequency: 0.10    # <10% based on academic research
-  rule_adherence: 0.95          # >95% based on behavioral studies
-  ui_response_time: 2.0         # <2s for cognitive load optimization
-  decision_latency: 0.1         # <100ms for real-time trading
-  risk_efficiency: 0.75         # >75% based on portfolio theory
-
-# Integration Settings
-integration:
-  django_api:
-    base_url: "${DJANGO_API_URL:-http://django:8000}"
-    timeout: 2.0
-    
-  redis:
-    host: "${REDIS_HOST:-redis}"
-    port: "${REDIS_PORT:-6379}"
-    cache_ttl: 300
-    
-  mt5_api:
-    login: "${MT5_LOGIN:-}"
-    password: "${MT5_PASSWORD:-}"
-    server: "${MT5_SERVER:-}"
-
-# Logging and Monitoring
-logging:
-  level: "INFO"
-  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-  
 monitoring:
-  health_check_interval: 30
-  alert_thresholds:
-    api_latency: 1000  # ms
-    memory_usage: 80   # percent
-    
-# Dashboard Configuration
-dashboard:
-  refresh_interval: 5  # seconds
-  max_recent_decisions: 20
-  auto_refresh: false
-  
-  tiles:
-    - confluence_score
-    - market_bias
-    - risk_remaining
-    - suggested_rr
-    - top_opportunities
-    - behavioral_insights
-  
-  psychology_features:
-    - risk_allocation_visualization
-    - behavioral_insights_panel
-    - trading_principles_reminder
-    - fatigue_monitoring
+  metrics_port: 9090
+  health_check_interval: 30      # seconds
+  alert_on_error: true
+
+api_endpoints:
+  pulse_frame: "/api/pulse/frame"
+  pulse_health: "/api/pulse/health"
+  pulse_score: "/api/pulse/score"
+  pulse_risk: "/api/pulse/risk"
+  pulse_journal: "/api/pulse/journal"
+  signals_top: "/api/signals/top"
