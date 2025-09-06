@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import json
 import yaml
+import requests
 
 # Timezone constants
 LONDON = pytz.timezone("Europe/London")
@@ -75,24 +76,33 @@ class MT5Bridge:
         # Get deals from history
         from_date = datetime.now() - timedelta(days=days_back)
         deals = mt5.history_deals_get(from_date, datetime.now())
-        
-        if deals is None or len(deals) == 0:
+
+        if not deals:
             return pd.DataFrame()
-        
+
         # Convert to DataFrame
-        df = pd.DataFrame(list(deals), columns=deals[0]._asdict().keys())
-        
-        # FIX: Proper timezone conversion
-        df['time'] = pd.to_datetime(df['time'], unit='s', utc=True).dt.tz_convert(LONDON)
+        df = pd.DataFrame([d._asdict() for d in deals])
+
+        if 'time_msc' in df.columns:
+            df['time'] = pd.to_datetime(df['time_msc'], unit='ms', utc=True).dt.tz_convert(LONDON)
+        else:
+            df['time'] = pd.to_datetime(df['time'], unit='s', utc=True).dt.tz_convert(LONDON)
+
+        TRADE_TYPES = {mt5.DEAL_TYPE_BUY, mt5.DEAL_TYPE_SELL}
+        df = df[df['type'].isin(TRADE_TYPES)].copy()
+
+        df['net_profit'] = df['profit']
+        df['gross_profit'] = df['profit'] - df.get('commission', 0) - df.get('swap', 0)
+
         df['date'] = df['time'].dt.date
         df['hour_local'] = df['time'].dt.hour
-        
+
         # Sort by time for proper sequential analysis
         df = df.sort_values('time')
-        
+
         # Process and enrich with behavioral data
         df = self._enrich_with_behavioral_data(df)
-        
+
         return df
     
     def _enrich_with_behavioral_data(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -393,6 +403,44 @@ class MT5Bridge:
         
         print(f"Synced {new_entries} new entries to journal")
         return new_entries
+
+    def sync_to_pulse_journal_api(self, base_url: str, token: str) -> int:
+        """Sync trade history to Pulse journal via REST API."""
+        df = self.get_real_trade_history()
+        if df.empty:
+            return 0
+
+        payload = [
+            {
+                "timestamp": trade["time"].isoformat(),
+                "ticket": int(trade.get("ticket", 0)),
+                "symbol": str(trade.get("symbol", "UNKNOWN")),
+                "volume": float(trade.get("volume", 0)),
+                "profit": float(trade.get("profit", 0)),
+                "flags": {
+                    k: bool(trade.get(k, False))
+                    for k in [
+                        "revenge_trade",
+                        "overconfidence",
+                        "fatigue_trade",
+                        "fomo_trade",
+                    ]
+                },
+                "risk_score": int(trade.get("behavioral_risk_score", 0)),
+            }
+            for _, trade in df.iterrows()
+        ]
+
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        url = f"{base_url.rstrip('/')}/api/pulse/journal/import"
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=10)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            print(f"Failed to sync journal to API: {e}")
+            return 0
+
+        return len(payload)
     
     def generate_weekly_review(self) -> Dict:
         """
