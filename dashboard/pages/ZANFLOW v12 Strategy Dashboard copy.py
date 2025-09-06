@@ -22,7 +22,7 @@ import math
 import os
 import glob
 import re
-from collections import defaultdict, deque
+from collections import defaultdict
 
 warnings.filterwarnings('ignore')
 logging.basicConfig(level=logging.INFO)
@@ -39,152 +39,7 @@ try:
 except Exception:
     DEFAULT_DATA_FOLDER = "/Users/tom/Documents/_trade/_exports/_tick/parquet/"
 
-
 PARQUET_DATA_DIR = DEFAULT_DATA_FOLDER  # for external modules / clarity
-
-# ============================================================================
-# DATA LAYER: Live MT5 HTTP feed (optional) + Parquet fallback
-# ============================================================================
-import requests, threading
-import time as _time
-
-MT5_HTTP_BRIDGE_URL = os.getenv("MT5_HTTP_BRIDGE_URL", os.getenv("MT5_URL", "http://localhost:5001"))
-
-class TickRingBuffer:
-    """In-memory rolling buffer of ticks per symbol."""
-    def __init__(self, maxlen=200_000):
-        self.buf = deque(maxlen=maxlen)
-        self.last_ts = None  # epoch millis of last tick
-
-    def append_many(self, ticks):
-        # ticks: list[{"ts": 1699999999999, "bid": 1.23456, "ask": 1.23470}]
-        for t in ticks:
-            self.buf.append(t)
-            self.last_ts = t.get("ts")
-
-    def to_df(self) -> pd.DataFrame:
-        if not self.buf:
-            return pd.DataFrame(columns=["ts","bid","ask"])
-        df = pd.DataFrame(self.buf)
-        # support both ms epoch and ISO strings
-        if pd.api.types.is_integer_dtype(df["ts"]):
-            df["ts"] = pd.to_datetime(df["ts"], unit="ms", utc=True)
-        else:
-            df["ts"] = pd.to_datetime(df["ts"], utc=True, errors="coerce")
-        df.set_index("ts", inplace=True)
-        return df
-
-class LiveMT5HTTPFeed:
-    """
-    Polls a MetaTrader HTTP bridge for new ticks and accumulates them.
-    Endpoint contract expected:
-      GET {base_url}/ticks?symbol=EURUSD[&since=epoch_ms] -> list of {ts,bid,ask,volume?}
-    """
-    def __init__(self, base_url: str = MT5_HTTP_BRIDGE_URL, poll_ms: int = 1000):
-        self.base_url = (base_url or "").rstrip("/")
-        self.poll_ms = poll_ms
-        self.buffers: dict[str, TickRingBuffer] = {}
-        self._lock = threading.Lock()
-
-    def _buf(self, symbol: str) -> TickRingBuffer:
-        if symbol not in self.buffers:
-            self.buffers[symbol] = TickRingBuffer()
-        return self.buffers[symbol]
-
-    def update(self, symbol: str):
-        if not self.base_url:
-            return
-        buf = self._buf(symbol)
-        params = {"symbol": symbol}
-        if buf.last_ts:
-            params["since"] = int(buf.last_ts)
-        try:
-            r = requests.get(f"{self.base_url}/ticks", params=params, timeout=1.0)
-            if r.ok:
-                payload = r.json() or []
-                if payload:
-                    with self._lock:
-                        buf.append_many(payload)
-        except Exception:
-            # keep UI responsive even if the bridge hiccups
-            pass
-
-    def get_candles(self, symbol: str, timeframe: str = "1min", lookback: str = "2D") -> pd.DataFrame:
-        """
-        Returns OHLCV candles built from the live tick buffer, same columns your engines expect.
-        timeframe examples: '1min','5min','15min'
-        """
-        self.update(symbol)
-        df = self._buf(symbol).to_df()
-        if df.empty:
-            return df
-        # mid price + pseudo volume if bridge does not provide it
-        mid = (df["bid"].astype(float) + df["ask"].astype(float)) / 2.0
-        ticks = pd.DataFrame({"mid": mid})
-        res = (ticks["mid"]
-               .resample(timeframe)
-               .agg(["first", "max", "min", "last"]))
-        res.columns = ["open", "high", "low", "close"]
-        # If your bridge supplies volume, aggregate it; otherwise 1-per-tick
-        vol = df.get("volume")
-        if vol is not None:
-            res["volume"] = pd.Series(vol.values, index=df.index).resample(timeframe).sum().reindex(res.index).fillna(0)
-        else:
-            res["volume"] = 1
-            res["volume"] = res["volume"].astype(float)
-        res = res.last(pd.Timedelta(lookback))
-        return res.dropna()
-
-# --- Parquet fallback (keeps current behaviour) ---
-def load_parquet_candles(symbol: str, timeframe: str) -> pd.DataFrame:
-    """
-    Load last available parquet file for a symbol+timeframe.
-    Expected columns: open, high, low, close, volume with DateTimeIndex.
-    """
-    try:
-        pattern = os.path.join(PARQUET_DATA_DIR, f"{symbol}_{timeframe}_*.parquet")
-        candidates = sorted(glob.glob(pattern))
-        if not candidates:
-            return pd.DataFrame(columns=["open","high","low","close","volume"])
-        path = candidates[-1]
-        df = pd.read_parquet(path)
-        df.index = pd.to_datetime(df.index, utc=True)
-        return df[["open","high","low","close","volume"]].dropna()
-    except Exception:
-        return pd.DataFrame(columns=["open","high","low","close","volume"])
-
-# --- Unified getter used by all strategy engines ---
-def _get_live_feed() -> LiveMT5HTTPFeed:
-    if "live_feed" not in st.session_state:
-        st.session_state["live_feed"] = LiveMT5HTTPFeed()
-    return st.session_state["live_feed"]
-
-def get_candles(symbol: str, timeframe: str = "1min", lookback: str = "2D") -> pd.DataFrame:
-    """
-    Drop-in replacement for everywhere you currently load candles.
-    Switches between parquet and live ticks based on sidebar toggle.
-    """
-    mode = st.session_state.get("data_mode", "Parquet")
-    if mode == "Live":
-        return _get_live_feed().get_candles(symbol, timeframe, lookback=lookback)
-    return load_parquet_candles(symbol, timeframe)
-
-# --- Tiny spark tile (transparent) for equity/price/score trends ---
-def spark_tile(series: pd.Series, title: str, subtitle: str = "", line_color: Optional[str] = None):
-    if series is None or series.empty:
-        series = pd.Series([0, 0], index=pd.to_datetime([pd.Timestamp.utcnow() - pd.Timedelta("1m"), pd.Timestamp.utcnow()], utc=True))
-    delta = series.iloc[-1] - series.iloc[0]
-    color = line_color or ("#00FFC6" if delta >= 0 else "#FF4B6E")
-    fig = go.Figure(go.Scatter(x=series.index, y=series.values, mode="lines", line=dict(width=3, color=color)))
-    fig.update_layout(
-        height=90, margin=dict(l=0, r=0, t=0, b=0),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        xaxis_visible=False, yaxis_visible=False
-    )
-    st.markdown('<div class="spark-tile">', unsafe_allow_html=True)
-    st.write(f"**{title}**  {subtitle}")
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # ============================================================================
 # ZANFLOW v12 STRATEGY CONFIGURATION
@@ -486,28 +341,6 @@ def setup_zanflow_page():
         }
         </style>
     """, unsafe_allow_html=True)
-
-    # --- Data Source Toggle (Live vs Parquet) & LIVE badge ---
-    if "data_mode" not in st.session_state:
-        st.session_state["data_mode"] = "Parquet"
-    st.sidebar.markdown("### Data Source")
-    data_mode_choice = st.sidebar.radio("Feed", ["Parquet", "Live"], horizontal=True)
-    st.session_state["data_mode"] = data_mode_choice
-    if data_mode_choice == "Live":
-        st.caption("🔴 LIVE feed via MetaTrader HTTP bridge")
-        # soft auto-refresh when Live (no st.autorefresh in core Streamlit)
-        st.sidebar.toggle("Auto-refresh", value=True, key="live_autorefresh")
-        if st.session_state.get("live_autorefresh", True):
-            st.markdown("<meta http-equiv='refresh' content='2'>", unsafe_allow_html=True)
-
-
-# --- Helper: Show current mode as badge in headers ---
-def live_mode_badge():
-    mode = st.session_state.get("data_mode", "Parquet")
-    if mode == "Live":
-        st.markdown("**Mode:** 🔴 LIVE", unsafe_allow_html=True)
-    else:
-        st.markdown("**Mode:** 📁 Parquet", unsafe_allow_html=True)
 
 # ============================================================================
 # ZANFLOW v12 STRATEGY ENGINES
