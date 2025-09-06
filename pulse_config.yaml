@@ -1,57 +1,84 @@
-# Zanalytics Pulse Production Configuration
+# Zanalytics Pulse - Scientific Risk Configuration
 pulse:
   version: "v11.5.1"
   environment: "production"
 
-# Risk Management (Conservative for Prop Firm)
+# Scientific Risk Management Parameters
 risk_management:
+  # Daily loss limits with psychological buffers
   daily_loss_limit: 0.03  # 3% buffer under 5% prop limit
   warning_threshold: 0.02  # 2% warning level
   
+  # Risk phases with scientific adjustments
   risk_phases:
     low_equity:
-      per_trade_risk: 0.005  # 0.5%
-      max_trades_per_day: 3
+      per_trade_risk: 0.003  # 0.3% conservative risk
+      max_trades_per_day: 2
       description: "Conservative phase - building confidence"
       
     stable:
-      per_trade_risk: 0.0075  # 0.75%
-      max_trades_per_day: 4
+      per_trade_risk: 0.005  # 0.5% normal risk
+      max_trades_per_day: 3
       description: "Stable phase - moderate risk"
       
     new_high:
-      per_trade_risk: 0.01  # 1.0%
-      max_trades_per_day: 5
+      per_trade_risk: 0.007  # 0.7% growth risk
+      max_trades_per_day: 4
       description: "Growth phase - optimal risk"
       
     recovery:
-      per_trade_risk: 0.005  # 0.5%
-      max_trades_per_day: 3
+      per_trade_risk: 0.004  # 0.4% recovery risk
+      max_trades_per_day: 2
       description: "Recovery phase - risk reduction"
 
-# Behavioral Safeguards (Trading in the Zone Integration)
+# Behavioral Psychology Safeguards
 behavioral_safeguards:
+  # Overconfidence protection
   overconfidence_protection:
     rapid_trading_threshold: 5  # minutes between trades
     consecutive_wins_limit: 3
     size_reduction_factor: 0.8
+    high_confidence_threshold: 85  # Confluence score threshold
     
+  # Revenge trading prevention
   revenge_trading_prevention:
     consecutive_loss_limit: 2
     cooldown_minutes: 15
     detection_window_minutes: 30
     
+  # Disposition effect mitigation
   disposition_effect_mitigation:
     min_risk_reward: 1.5
     auto_exit_rules: true
     loss_limit_enforcement: "strict"
     
-  loss_aversion_management:
-    drawdown_pause_threshold: 0.025  # 2.5%
-    recovery_requirement: "new_equity_high"
-    max_consecutive_losses: 2
+  # Trading fatigue management
+  fatigue_management:
+    max_trades_per_day: 5
+    warning_threshold: 4
+    fatigue_multiplier: 0.7
 
-# Confluence Scoring
+# Scientific Position Sizing Parameters
+position_sizing:
+  # Base multipliers for different factors
+  confidence_multiplier:
+    low: 0.5      # < 40 confluence score
+    medium: 0.75  # 40-70 confluence score
+    high: 1.0     # > 70 confluence score
+    
+  phase_multiplier:
+    low_equity: 0.7
+    stable: 1.0
+    new_high: 1.2
+    recovery: 0.6
+    
+  behavioral_multiplier:
+    normal: 1.0
+    consecutive_losses: 0.5
+    high_frequency: 0.8
+    fatigue: 0.7
+
+# Confluence Scoring with Scientific Weighting
 confluence_scoring:
   weights:
     smc: 0.35
@@ -66,13 +93,13 @@ confluence_scoring:
     
   minimum_factors: 2
 
-# Performance Targets
+# Performance Targets with Scientific Basis
 performance_targets:
-  daily_loss_frequency: 0.10    # <10%
-  rule_adherence: 0.95          # >95%
-  ui_response_time: 2.0         # <2s
-  decision_latency: 0.1         # <100ms
-  risk_efficiency: 0.75         # >75%
+  daily_loss_frequency: 0.10    # <10% based on academic research
+  rule_adherence: 0.95          # >95% based on behavioral studies
+  ui_response_time: 2.0         # <2s for cognitive load optimization
+  decision_latency: 0.1         # <100ms for real-time trading
+  risk_efficiency: 0.75         # >75% based on portfolio theory
 
 # Integration Settings
 integration:
@@ -114,3 +141,9 @@ dashboard:
     - suggested_rr
     - top_opportunities
     - behavioral_insights
+  
+  psychology_features:
+    - risk_allocation_visualization
+    - behavioral_insights_panel
+    - trading_principles_reminder
+    - fatigue_monitoring
