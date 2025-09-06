@@ -49,7 +49,7 @@ def test_tick_buffer_returns_latest_ticks(client):
     key = "ticks:EURUSD:live"
     redis_client.rpush(key, json.dumps({"price": 1.1}), json.dumps({"price": 1.2}))
 
-    response = client.get("/api/ticks/buffer", {"symbol": "EURUSD"})
+    response = client.get("/api/pulse/ticks", {"symbol": "EURUSD"})
     assert response.status_code == 200
     data = response.json()
     assert data["symbol"] == "EURUSD"

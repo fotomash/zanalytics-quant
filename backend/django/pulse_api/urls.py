@@ -1,17 +1,15 @@
 from django.urls import path
 from . import views
-from django.urls import path, include
 
 urlpatterns = [
-    # …existing routes…
-    path("", include("pulse_api.urls")),
-    path("api/pulse/health", views.pulse_health),
-    path("api/pulse/score", views.score_peek),  # ✅ Fixed this
-    path("api/ticks/buffer", views.tick_buffer),
-    path("api/pulse/risk-check", views.risk_check),
-    path("api/pulse/risk-summary", views.risk_summary),
-    path("api/pulse/signals-top", views.signals_top),
-    path("api/pulse/adapter-status", views.adapter_status),
-    path("api/pulse/journal", views.pulse_journal),
-    path("api/strategy/match", views.strategy_match),
+    path("health", views.pulse_health, name="pulse_health"),
+    path("score", views.score_post, name="pulse_score_post"),
+    path("score/peek", views.score_peek, name="pulse_score_peek"),
+    path("risk/summary", views.risk_summary, name="pulse_risk_summary"),
+    path("risk/check", views.risk_check, name="pulse_risk_check"),
+    path("signals/top", views.signals_top, name="pulse_signals_top"),
+    path("journal/recent", views.pulse_journal, name="pulse_journal_recent"),
+    path("strategy/match", views.strategy_match, name="pulse_strategy_match"),
+    path("ticks", views.tick_buffer, name="pulse_tick_buffer"),
+    path("adapter/status", views.adapter_status, name="pulse_adapter_status"),
 ]

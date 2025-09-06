@@ -98,6 +98,13 @@ def score_peek(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+@csrf_exempt
+@require_http_methods(["POST"])
+def score_post(request):
+    """Compatibility wrapper for legacy /api/pulse/score endpoint."""
+    return score_peek(request)
+
+
 @api_view(["GET"])
 def tick_buffer(request):
     """Fetch the last ticks for a symbol from Redis."""
