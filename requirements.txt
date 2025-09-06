@@ -54,3 +54,4 @@ aioredis==2.0.1
 asyncpg==0.29.0
 fakeredis==2.23.2
 confluent-kafka==2.5.0
+tenacity==8.2.3
