@@ -79,12 +79,12 @@ multitasking==0.0.11
 mypy_extensions==1.1.0
 narwhals==1.44.0
 numba==0.61.2
-#numpy==1.26.2
+numpy>=1.24,<2.0
 openai==1.93.0
 openpyxl==3.1.2
 packaging==23.2
 pandas==2.1.3
-pandas-ta-remake==1.0.4
+# pandas-ta-remake==1.0.4  # Commented out due to conflict with numpy
 parso==0.8.4
 pathlib2>=2.3.7
 pathspec==0.12.1
