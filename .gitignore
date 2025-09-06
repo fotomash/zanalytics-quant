@@ -51,3 +51,4 @@ utils/.DS_Store
 backend/mt5/.env
 *.zip*
 /dashboard/.cache
+/config/.dbus/session-bus
