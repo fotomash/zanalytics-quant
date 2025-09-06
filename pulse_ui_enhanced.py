@@ -2,12 +2,13 @@
 
 from datetime import datetime, timedelta
 
+import asyncio
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
 from mt5_bridge import MT5Bridge
-from pulse_kernel import PulseKernel
+from ui import pulse_client
 
 
 class PulseUIEnhanced:
@@ -15,7 +16,6 @@ class PulseUIEnhanced:
 
     def __init__(self):
         self.bridge = MT5Bridge()
-        self.kernel = PulseKernel()
 
     def render_real_performance_metrics(self):
         """Display REAL performance metrics from MT5."""
@@ -155,26 +155,23 @@ class PulseUIEnhanced:
         """Render main decision surface."""
         st.markdown("### 🎯 Decision Surface")
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         with col1:
-            market_data = {"symbol": "EURUSD", "price": 1.0850}
-            confluence = self.kernel.confluence_scorer.calculate(market_data)
+            result = asyncio.run(pulse_client.score("EURUSD"))
+            confluence = result.get("score", 0)
             color = "🟢" if confluence >= 70 else "🟡" if confluence >= 50 else "🔴"
             st.metric(f"{color} Confluence", f"{confluence:.0f}%")
             if st.button("Explain Score"):
-                st.info(f"SMC: {confluence * 0.4:.0f} | Wyckoff: {confluence * 0.3:.0f} | Technical: {confluence * 0.3:.0f}")
+                reasons = result.get("reasons", [])
+                st.info("\n".join(reasons) if reasons else "No reasons.")
         with col2:
-            risk_check = self.kernel.risk_enforcer.check_constraints(confluence)
-            if risk_check['allowed']:
+            risk_check = asyncio.run(pulse_client.risk(size=0.005, score=int(confluence)))
+            if risk_check["allowed"]:
                 st.success("✅ Trade Allowed")
             else:
                 st.error("🚫 Trade Blocked")
-                for block in risk_check['blocks']:
-                    st.caption(f"• {block}")
-        with col3:
-            status = self.kernel.risk_enforcer.get_status()
-            st.metric("Trades Today", f"{status['trades_today']}/5")
-            st.metric("Daily P&L", f"${status['daily_pnl']:,.2f}")
+                for warn in risk_check.get("warnings", []):
+                    st.caption(f"• {warn}")
 
         st.markdown("#### Top 3 Opportunities")
         opportunities = [

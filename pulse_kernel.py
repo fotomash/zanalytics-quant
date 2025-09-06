@@ -9,8 +9,8 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import redis
 import logging
+from redis.exceptions import RedisError
 
-from confluence_scorer import ConfluenceScorer
 from risk_enforcer import RiskEnforcer
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,6 @@ class PulseKernel:
         self.redis_client = redis.Redis(**self.config['redis'])
         
         # Initialize components
-        self.confluence_scorer = ConfluenceScorer(config_path)
         self.risk_enforcer = RiskEnforcer()
         self.journal = None  # Placeholder for JournalEngine
         
@@ -235,14 +234,20 @@ class PulseKernel:
             'daily_stats': self.daily_stats.copy()
         }
         
-        # Store in Redis
+        # Store in Redis if available
         key = f"journal:{datetime.now().strftime('%Y%m%d')}:{decision['timestamp']}"
-        self.redis_client.set(key, json.dumps(journal_entry))
+        try:
+            self.redis_client.set(key, json.dumps(journal_entry))
+        except RedisError:
+            logger.warning("Redis unavailable for journaling")
         
     async def _publish_decision(self, decision: Dict):
         """Publish decision to UI and notification channels"""
         # Publish to Redis for Streamlit
-        self.redis_client.publish('pulse:decisions', json.dumps(decision))
+        try:
+            self.redis_client.publish('pulse:decisions', json.dumps(decision))
+        except RedisError:
+            logger.warning("Redis publish failed")
         
         # Send to Telegram if significant
         if decision['action'] in ['signal', 'blocked', 'warning']:
