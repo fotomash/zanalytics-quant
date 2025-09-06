@@ -1,4 +1,4 @@
-# File: dashboard/pages/12_🔥_Wyckoff_Live.py
+# File: dashboard/pages/12_🔥_Pulse_Wyckoff_Live.py
 """
 Zanalytics Pulse - Live Wyckoff Terminal
 Real-time tick analysis with adaptive Wyckoff scoring and behavioral guards
@@ -92,24 +92,33 @@ def aggregate_to_bars(df: pd.DataFrame, timeframe: str = '1min') -> pd.DataFrame
     return bars
 
 # Pulse API Integration
-def get_pulse_score(bars_df: pd.DataFrame) -> Dict:
+def get_pulse_score(bars_df: pd.DataFrame, symbol: str) -> Dict:
     """Get confluence score from Pulse API"""
     if bars_df.empty:
         return {}
-    
-    # Prepare bars for API (last 100 bars max)
-    bars_list = bars_df.tail(100).reset_index().to_dict('records')
-    for bar in bars_list:
-        bar['ts'] = bar['timestamp'].isoformat()
-        del bar['timestamp']  # Remove timestamp key as per API contract
-    
-    response = requests.post(
-        f"{PULSE_API_URL}/wyckoff/score",
-        json={'bars': bars_list},
-        timeout=2.0
-    )
-    response.raise_for_status()
-    return response.json()
+
+    bars_list = []
+    for idx, row in bars_df.tail(100).iterrows():
+        bars_list.append({
+            'ts': idx.isoformat(),
+            'open': float(row['open']),
+            'high': float(row['high']),
+            'low': float(row['low']),
+            'close': float(row['close']),
+            'volume': float(row['volume'])
+        })
+
+    try:
+        response = requests.post(
+            f"{PULSE_API_URL}/wyckoff/score",
+            json={'bars': bars_list},
+            timeout=2.0
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        st.warning(f"Pulse API error: {e}")
+        return {}
 
 # Adaptive Wyckoff Analysis (Placeholder for full implementation)
 def analyze_wyckoff_adaptive(df: pd.DataFrame, config: Dict = None) -> pd.DataFrame:
@@ -122,8 +131,7 @@ def analyze_wyckoff_adaptive(df: pd.DataFrame, config: Dict = None) -> pd.DataFr
     df['sma'] = df['close'].rolling(win).mean()
     df['volume_sma'] = df['volume'].rolling(win).mean()
     df['volume_z'] = (df['volume'] - df['volume_sma']) / df['volume'].rolling(win).std().fillna(1)
-    
-    # Phase detection (simplified)
+
     phases = []
     for i in range(len(df)):
         if df['volume_z'].iloc[i] > 1.5:
@@ -131,11 +139,16 @@ def analyze_wyckoff_adaptive(df: pd.DataFrame, config: Dict = None) -> pd.DataFr
         else:
             phases.append('Normal')
     df['vsa'] = phases
-    
-    # News detection
+
     news_threshold = config.get('news_buffer', {}).get('volz_thresh', 3.0) if config else 3.0
     df['news_event'] = df['volume_z'].abs() > news_threshold
-    
+
+    # Placeholder Wyckoff fields to avoid KeyErrors in the dashboard
+    df['phase'] = 'Neutral'
+    df['phase_confidence'] = 0.0
+    df['spring'] = False
+    df['upthrust'] = False
+
     return df
 
 # MTF Conflict Detection
