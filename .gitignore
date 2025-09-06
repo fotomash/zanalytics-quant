@@ -47,4 +47,3 @@ dashboard/.DS_Store
 utils/.DS_Store
 backend/mt5/.env
 *.zip*
-/dashboard/.cache
