@@ -3,12 +3,16 @@ Production-ready Django API views for Pulse system
 """
 import json
 import time
+import os
 from datetime import datetime
 import logging
 import pandas as pd
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+import redis
 from .strategy_match_engine import match_strategy
 from .situation_builder import build_situation
 from agents.analyzers import compute_confluence
@@ -27,6 +31,12 @@ if RISK_ENFORCER_AVAILABLE:
     risk_enforcer = EnhancedRiskEnforcer()
 else:
     risk_enforcer = None
+
+
+# Redis connection used by API endpoints
+redis_client = redis.from_url(
+    os.getenv("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True
+)
 
 @csrf_exempt
 @require_http_methods(["GET"])
@@ -86,6 +96,16 @@ def score_peek(request):
     except Exception as e:
         logger.error(f"Score peek error: {e}")
         return JsonResponse({"error": str(e)}, status=500)
+
+
+@api_view(["GET"])
+def tick_buffer(request):
+    """Fetch the last ticks for a symbol from Redis."""
+    symbol = request.GET.get("symbol", "EURUSD").upper()
+    key = f"ticks:{symbol}:live"
+    raw = redis_client.lrange(key, -5, -1)
+    ticks = [json.loads(x) for x in raw]
+    return Response({"symbol": symbol, "ticks": ticks, "source": "Redis"})
 
 @csrf_exempt
 @require_http_methods(["POST"])
