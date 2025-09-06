@@ -2,13 +2,7 @@ import os
 import json
 import time
 import redis
-from redis import Redis
 from datetime import datetime
-
-# Redis initialization: fallback to REDIS_HOST if REDIS_URL is not set
-host = os.getenv("REDIS_HOST", "redis")
-url = os.getenv("REDIS_URL", f"redis://{host}:6379/0")
-r = redis.Redis.from_url(url)
 
 
 def _minute_floor(ts: float) -> float:
