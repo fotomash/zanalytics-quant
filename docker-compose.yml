@@ -15,121 +15,82 @@ services:
     image: traefik:3.0
     container_name: traefik
     ports:
-      - 80:80 # HTTP port
-      - 443:443 # HTTPS port
+      - 80:80
+      - 443:443
     restart: always
     labels:
-      # Traefik configuration
       <<: *default-labels
       traefik.enable: true
       traefik.docker.network: traefik-public
       traefik.http.services.traefik-dashboard.loadbalancer.server.port: 8080
-
-      # HTTP router configuration
       traefik.http.routers.traefik-dashboard-http.entrypoints: http
-      traefik.http.routers.traefik-dashboard-http.rule: Host(`${TRAEFIK_DOMAIN?Variable not set}`)
-
-      # HTTPS router configuration
+      traefik.http.routers.traefik-dashboard-http.rule: Host(`${TRAEFIK_DOMAIN:-traefik.localhost}`)
       traefik.http.routers.traefik-dashboard-https.entrypoints: https
-      traefik.http.routers.traefik-dashboard-https.rule: Host(`${TRAEFIK_DOMAIN?Variable not set}`)
+      traefik.http.routers.traefik-dashboard-https.rule: Host(`${TRAEFIK_DOMAIN:-traefik.localhost}`)
       traefik.http.routers.traefik-dashboard-https.tls: true
       traefik.http.routers.traefik-dashboard-https.tls.certresolver: le
       traefik.http.routers.traefik-dashboard-https.service: api@internal
-
-      # HTTPS redirect middleware
       traefik.http.middlewares.https-redirect.redirectscheme.scheme: https
       traefik.http.middlewares.https-redirect.redirectscheme.permanent: true
       traefik.http.routers.traefik-dashboard-http.middlewares: https-redirect
-
-      # HTTP Basic Auth middleware
-      traefik.http.middlewares.admin-auth.basicauth.users: ${TRAEFIK_USERNAME?Variable not set}:${TRAEFIK_HASHED_PASSWORD?Variable not set}
+      traefik.http.middlewares.admin-auth.basicauth.users: ${TRAEFIK_USERNAME:-admin}:${TRAEFIK_HASHED_PASSWORD:-$$2y$$10$$example}
       traefik.http.routers.traefik-dashboard-https.middlewares: admin-auth
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro # Docker socket for reading service labels
-      - traefik-public-certificates:/certificates # Certificate storage
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-public-certificates:/certificates
     command:
-      # Docker provider configuration
       - --providers.docker
       - --providers.docker.exposedbydefault=false
-
-      # Entrypoints configuration
       - --entrypoints.http.address=:80
       - --entrypoints.https.address=:443
-
-      # Let's Encrypt configuration
-      - --certificatesresolvers.le.acme.email=${ACME_EMAIL?Variable not set}
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL:-admin@localhost}
       - --certificatesresolvers.le.acme.storage=/certificates/acme.json
       - --certificatesresolvers.le.acme.tlschallenge=true
-
-      # Logging and API configuration
       - --accesslog
       - --log
       - --api
     networks:
-      - traefik-public # Public network for Traefik and other services
-    logging: *default-logging
-
-  mt5:
-    build:
-      context: ./backend/mt5
-      dockerfile: Dockerfile
-    container_name: mt5
-    volumes:
-      - ./config:/config
-    ports:
-      - "8000:8000"
-      - "5001:5001"
-    networks:
       - traefik-public
-      - default
-    env_file:
-      - .env
-    restart: unless-stopped
-    labels:
-      <<: *default-labels
-      # Enable Traefik for this service
-      traefik.enable: true
-      traefik.docker.network: traefik-public
-
-      # Router for vnc.mt5.${domain} (Port 3000)
-      traefik.http.routers.vnc-mt5-http.rule: Host(`${VNC_DOMAIN}`)
-      traefik.http.routers.vnc-mt5-http.entrypoints: http
-      traefik.http.routers.vnc-mt5-http.middlewares: https-redirect
-
-      traefik.http.routers.vnc-mt5-https.rule: Host(`${VNC_DOMAIN}`)
-      traefik.http.routers.vnc-mt5-https.entrypoints: https
-      traefik.http.routers.vnc-mt5-https.tls: true
-      traefik.http.routers.vnc-mt5-https.tls.certresolver: le
-      traefik.http.routers.vnc-mt5-https.service: vnc-mt5-service
-
-      traefik.http.services.vnc-mt5-service.loadbalancer.server.port: 3000
-
-      # Router for api.mt5.${domain} (Port 5001)
-      traefik.http.routers.api-mt5-http.rule: Host(`${API_DOMAIN}`)
-      traefik.http.routers.api-mt5-http.entrypoints: http
-      traefik.http.routers.api-mt5-http.middlewares: https-redirect
-
-      traefik.http.routers.api-mt5-https.rule: Host(`${API_DOMAIN}`)
-      traefik.http.routers.api-mt5-https.entrypoints: https
-      traefik.http.routers.api-mt5-https.tls: true
-      traefik.http.routers.api-mt5-https.tls.certresolver: le
-      traefik.http.routers.api-mt5-https.service: api-mt5-service
-
-      traefik.http.services.api-mt5-service.loadbalancer.server.port: 5001
     logging: *default-logging
-    depends_on:
-      - traefik
 
   postgres:
     image: postgres:15-alpine
     container_name: postgres
     restart: unless-stopped
-    env_file:
-      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-zanalytics}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - default
+    labels:
+      <<: *default-labels
+    logging: *default-logging
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - 6379:6379
+    volumes:
+      - redis-data:/data
+    environment:
+      - PYTHONPATH=/app:/app/components:/app/utils
+      - PULSE_API_URL=http://django:8000
+      - MT5_API_URL=http://mt5:5001
+      - MT5_API_BASE=http://mt5:5001
+      - PULSE_API_BASE=http://django:8000
+      - REDIS_HOST=redis
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -157,23 +118,21 @@ services:
     environment:
       - PYTHONPATH=/app:/app/components:/app/utils:/app/backend:/app/agents
       - DJANGO_SETTINGS_MODULE=app.settings
-      - DJANGO_DOMAIN=${DJANGO_DOMAIN:-localhost}
+      - DJANGO_DOMAIN=${DJANGO_DOMAIN:-django.localhost}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
       - ALERTS_ENABLED=true
       - ALERTS_MIN_INTERVAL_SECONDS=60
       - ALERTS_SCORE_HI=90
       - ALERTS_TOXICITY_LIMIT=0.30
       - ALERTS_DD_INTRADAY_WARN=0.025
-      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-dev-secret-key-change-in-production}
     depends_on:
       postgres:
-        condition: service_started
-      traefik:
-        condition: service_started
+        condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     networks:
       - default
       - traefik-public
@@ -181,36 +140,32 @@ services:
       <<: *default-labels
       traefik.enable: true
       traefik.docker.network: traefik-public
-
-      traefik.http.routers.django-http.rule: Host(`${DJANGO_DOMAIN}`)
+      traefik.http.routers.django-http.rule: Host(`${DJANGO_DOMAIN:-django.localhost}`)
       traefik.http.routers.django-http.entrypoints: http
       traefik.http.routers.django-http.middlewares: https-redirect
       traefik.http.routers.django-http.service: django-service
-
-      traefik.http.routers.django-https.rule: Host(`${DJANGO_DOMAIN}`)
+      traefik.http.routers.django-https.rule: Host(`${DJANGO_DOMAIN:-django.localhost}`)
       traefik.http.routers.django-https.entrypoints: https
       traefik.http.routers.django-https.tls: true
       traefik.http.routers.django-https.tls.certresolver: le
       traefik.http.routers.django-https.service: django-service
-
       traefik.http.services.django-service.loadbalancer.server.port: 8000
-
-      traefik.http.routers.django-static.rule: Host(`${DJANGO_DOMAIN}`) && PathPrefix(`/static/`)
-      traefik.http.routers.django-static.service: django-service
-      traefik.http.middlewares.static-stripprefix.stripprefix.prefixes: /static
-      traefik.http.routers.django-static.middlewares: static-stripprefix@docker
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/api/pulse/health').getcode()==200 else sys.exit(1)\""]
-      interval: 10s
-      timeout: 5s
+      interval: 30s
+      timeout: 10s
       retries: 5
-      start_period: 20s
+      start_period: 60s
     logging: *default-logging
 
-  pulse:
+  pulse-kernel:
     build: .
     container_name: pulse_kernel
+    command: python -m uvicorn api.pulse_api:app --host 0.0.0.0 --port 8080
     environment:
+      - PULSE_CONFIG=/app/pulse_config.yaml
+      - PULSE_JOURNAL_PATH=/app/data/journal
+      - PYTHONPATH=/app:/app/pulse_kernel
       - REDIS_HOST=redis
       - POSTGRES_HOST=postgres
       - DJANGO_API_URL=http://django:8000
@@ -219,311 +174,23 @@ services:
       - ./confluence_scorer.py:/app/confluence_scorer.py
       - ./risk_enforcer.py:/app/risk_enforcer.py
       - ./pulse_config.yaml:/app/pulse_config.yaml
+      - ./data/journal:/app/data/journal
     depends_on:
-      - redis
-      - postgres
-      - django
-    networks:
-      - traefik-public
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    container_name: redis
-    ports:
-      - 6379:6379
-    volumes:
-      - redis-data:/data
-      - ./redis_architecture/redis.conf:/usr/local/etc/redis/redis.conf
-    environment:
-      - PYTHONPATH=/app:/app/components:/app/utils
-      - PULSE_API_URL=http://django:8000
-      - MT5_API_URL=http://mt5:5001
-      - MT5_API_BASE=http://mt5:5001
-      - PULSE_API_BASE=http://django:8000
-      - REDIS_HOST=redis
-    command: redis-server /usr/local/etc/redis/redis.conf
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - default
-    labels:
-      <<: *default-labels
-    logging: *default-logging
-
-  celery:
-    build:
-      context: .
-      dockerfile: backend/django/Dockerfile
-    container_name: celery
-    working_dir: /app/backend/django
-    entrypoint: ["sh", "-c", "celery -A ${CELERY_APP:-zanalytics} worker --loglevel=info --concurrency=${CELERY_CONCURRENCY:-3}"]
-    volumes:
-      - static_volume:/app/staticfiles
-      - ./data/cold:/app/data/cold
-    env_file:
-      - .env
-    environment:
-      - PYTHONPATH=/app:/app/components:/app/utils:/app/backend
-      - DJANGO_SETTINGS_MODULE=app.settings
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - CELERY_APP=app
-    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
       django:
         condition: service_healthy
-      redis:
-        condition: service_started
     networks:
       - default
-    labels:
-      <<: *default-labels
-    logging: *default-logging
-
-  celery-beat:
-    build:
-      context: .
-      dockerfile: backend/django/Dockerfile
-    container_name: celery-beat
-    working_dir: /app/backend/django
-    entrypoint: ["sh", "-c", "celery -A ${CELERY_APP:-zanalytics} beat --loglevel=info"]
-    volumes:
-      - static_volume:/app/staticfiles
-      - ./data/cold:/app/data/cold
-    env_file:
-      - .env
-    environment:
-      - PYTHONPATH=/app:/app/components:/app/utils:/app/backend
-      - DJANGO_SETTINGS_MODULE=app.settings
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - CELERY_APP=app
-    depends_on:
-      celery:
-        condition: service_started
-      redis:
-        condition: service_started
-    networks:
-      - default
-    labels:
-      <<: *default-labels
-    logging: *default-logging
-
-  grafana:
-    image: grafana/grafana:${GRAFANA_VERSION:-11.0.0}
-    container_name: grafana
     restart: unless-stopped
-    environment:
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
-      - GF_USERS_DEFAULT_THEME=dark
-      - GF_LOG_MODE=console
-      - GF_LOG_LEVEL=critical
-      - GF_PANELS_ENABLE_ALPHA=true
-      - GF_FEATURE_TOGGLES_ENABLE=accessControlOnCall lokiLogsDataplane
-      - GF_INSTALL_PLUGINS=grafana-polystat-panel,https://storage.googleapis.com/integration-artifacts/grafana-lokiexplore-app/grafana-lokiexplore-app-latest.zip;grafana-lokiexplore-app
-    volumes:
-      - ./monitoring/configs/grafana/provisioning/dashboards.yml:/etc/grafana/provisioning/dashboards/provisioning-dashboards.yaml:ro
-      - ./monitoring/configs/grafana/provisioning/datasources.yml:/etc/grafana/provisioning/datasources/provisioning-datasources.yaml:ro
-      - ./monitoring/configs/grafana/plugins/app.yaml:/etc/grafana/provisioning/plugins/app.yaml:ro
-      - ./monitoring/dashboards/node-metrics.json:/var/lib/grafana/dashboards/node-metrics.json:ro
-      - ./monitoring/dashboards/container-metrics.json:/var/lib/grafana/dashboards/container-metrics.json:ro
-      - ./monitoring/dashboards/log-search.json:/var/lib/grafana/dashboards/log-search.json:ro
-      - ./monitoring/dashboards/traefik_official.json:/var/lib/grafana/dashboards/traefik_official.json:ro
-      - ./monitoring/dashboards/altertmanager-dashboard.json:/var/lib/grafana/dashboards/altertmanager-dashboard.json:ro
-      - grafana-data:/var/lib/grafana
-    depends_on:
-      - prometheus
-      - traefik
-    ports:
-      - 3000:3000
-    cpus: 0.5
-    mem_limit: 512m
-    networks:
-      - default
-      - traefik-public
-    labels:
-      <<: *default-labels
-      traefik.enable: true
-      traefik.docker.network: traefik-public
-      traefik.http.routers.grafana.rule: Host(`${GRAFANA_DOMAIN?Variable not set}`)
-      traefik.http.routers.grafana.entrypoints: https
-      traefik.http.routers.grafana.tls: true
-      traefik.http.routers.grafana.tls.certresolver: le
-      traefik.http.services.grafana.loadbalancer.server.port: 3000
-    logging: *default-logging
-
-  prometheus:
-    image: prom/prometheus:${PROMETHEUS_VERSION:-v2.42.0}
-    container_name: prometheus
-    restart: unless-stopped
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--log.level=error"
-      - "--storage.tsdb.path=/prometheus"
-      - "--storage.tsdb.retention.time=7d"
-      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
-      - "--web.console.templates=/usr/share/prometheus/consoles"
-      - "--web.external-url=http://localhost:9090"
-    volumes:
-      - ./monitoring/configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./monitoring/configs/prometheus/recording-rules.yml:/etc/prometheus/recording-rules.yml
-      - ./monitoring/configs/prometheus/alerting-rules.yml:/etc/prometheus/alerting-rules.yml
-      - prometheus-data:/prometheus
-    depends_on:
-      - alertmanager
-      - traefik
-    ports:
-      - 9090:9090
-    cpus: 0.5
-    mem_limit: 512m
-    networks:
-      - default
-    labels:
-      <<: *default-labels
-    logging: *default-logging
-
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:${CADVISOR_VERSION:-v0.46.0}
-    container_name: cadvisor
-    restart: unless-stopped
-    privileged: true
-    depends_on:
-      - traefik
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:rw
-      - /sys:/sys:ro
-      - /var/lib/docker:/var/lib/docker:ro
-        # https://github.com/google/cadvisor/issues/1565#issuecomment-718812180
-      - /var/run/docker.sock:/var/run/docker.sock
-      #- /dev/disk:/dev/disk:ro
-    cpus: 0.5
-    mem_limit: 512m
-    networks:
-      - default
-    labels:
-      <<: *default-labels
-    logging: *default-logging
-
-  node-exporter:
-    image: prom/node-exporter:${NODE_EXPORTER_VERSION:-v1.5.0}
-    container_name: node-exporter
-    restart: unless-stopped
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    command:
-      - "--path.procfs=/host/proc"
-      - "--path.sysfs=/host/sys"
-      - "--collector.filesystem.ignored-mount-points"
-      - "^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)"
-    depends_on:
-      - traefik
-    cpus: 0.5
-    mem_limit: 512m
-    networks:
-      - default
-    labels:
-      <<: *default-labels
-    logging: *default-logging
-
-  alertmanager:
-    image: prom/alertmanager:${ALERTMANAGER_VERSION:-v0.25.0}
-    container_name: alertmanager
-    command:
-      - "--config.file=/etc/alertmanager/config.yml"
-      - "--log.level=error"
-      - "--storage.path=/alertmanager"
-      - "--web.external-url=http://localhost:9093"
-    volumes:
-      - ./monitoring/configs/alertmanager/alertmanager-fallback-config.yml:/etc/alertmanager/config.yml
-    ports:
-      - 9093:9093
-    cpus: 0.5
-    mem_limit: 512m
-    networks:
-      - default
-    depends_on:
-      - uncomplicated-alert-receiver
-      - traefik
-    labels:
-      <<: *default-labels
-    logging: *default-logging
-
-  uncomplicated-alert-receiver:
-    image: ghcr.io/jamesread/uncomplicated-alert-receiver
-    container_name: uncomplicated-alert-receiver
-    ports:
-      - 9094:8080
-    cpus: 0.5
-    mem_limit: 512m
-    networks:
-      - default
-    depends_on:
-      - traefik
-    labels:
-      <<: *default-labels
-    logging: *default-logging
-
-  loki:
-    image: grafana/loki:3.0.0
-    container_name: loki
-    user: root
-    ports:
-      - 3100:3100
-    command: -config.file=/etc/loki/loki.yaml
-    volumes:
-      - ./monitoring/configs/loki/loki.yaml:/etc/loki/loki.yaml
-      - ./monitoring/configs/loki/rules.yaml:/etc/loki/rules/fake/loki-rules.yml
-    depends_on:
-      - traefik
-    cpus: 0.5
-    mem_limit: 512m
-    networks:
-      - default
-    labels:
-      <<: *default-labels
-    logging: *default-logging
-
-  promtail:
-    image: grafana/promtail:3.0.0
-    container_name: promtail
-    volumes:
-      - ./monitoring/configs/promtail/promtail.yaml:/etc/promtail/docker-config.yaml
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: -config.file=/etc/promtail/docker-config.yaml
-    depends_on:
-      - loki
-      - traefik
-    cpus: 0.5
-    mem_limit: 512m
-    networks:
-      - default
-    labels:
-      <<: *default-labels
-    logging: *default-logging
-
-  tick-to-bar:
-    build:
-      context: .
-      dockerfile: Dockerfile.tick-to-bar
-    command: ["python", "services/tick_to_bar.py"]
-    environment:
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - SYMBOL=EURUSD
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
-    volumes:
-      - .:/app
-    depends_on:
-      - redis
-    restart: unless-stopped
-    networks:
-      - default
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/pulse/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   dashboard:
     build:
@@ -544,12 +211,15 @@ services:
       - PULSE_API_URL=http://django:8000
       - MT5_API_URL=http://mt5:5001
     depends_on:
-      mt5:
-        condition: service_started
       django:
         condition: service_healthy
+      pulse-kernel:
+        condition: service_healthy
     command: >
-      streamlit run pages/pulse_dashboard.py --server.port=${STREAMLIT_SERVER_PORT:-8501} --server.enableCORS true --server.enableXsrfProtection false
+      streamlit run pages/pulse_dashboard.py \
+      --server.port=${STREAMLIT_SERVER_PORT:-8501} \
+      --server.enableCORS true \
+      --server.enableXsrfProtection false
     restart: unless-stopped
     networks:
       - default
@@ -558,10 +228,10 @@ services:
       <<: *default-labels
       traefik.enable: true
       traefik.docker.network: traefik-public
-      traefik.http.routers.dashboard-http.rule: Host(`dash.zanalytics.app`)
+      traefik.http.routers.dashboard-http.rule: Host(`${DASHBOARD_DOMAIN:-dash.localhost}`)
       traefik.http.routers.dashboard-http.entrypoints: http
       traefik.http.routers.dashboard-http.middlewares: https-redirect
-      traefik.http.routers.dashboard-https.rule: Host(`dash.zanalytics.app`)
+      traefik.http.routers.dashboard-https.rule: Host(`${DASHBOARD_DOMAIN:-dash.localhost}`)
       traefik.http.routers.dashboard-https.entrypoints: https
       traefik.http.routers.dashboard-https.tls: true
       traefik.http.routers.dashboard-https.tls.certresolver: le
@@ -569,48 +239,73 @@ services:
       traefik.http.services.dashboard-service.loadbalancer.server.port: 8501
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8501/_stcore/health || exit 1"]
-      interval: 10s
-      timeout: 5s
+      interval: 30s
+      timeout: 10s
       retries: 5
-      start_period: 20s
+      start_period: 60s
     logging: *default-logging
 
-  pulse-kernel:
-    build: .
-    command: python -m uvicorn api.pulse_api:app --host 0.0.0.0 --port 8000
+  celery:
+    build:
+      context: .
+      dockerfile: backend/django/Dockerfile
+    container_name: celery
+    working_dir: /app/backend/django
+    entrypoint: ["sh", "-c", "celery -A ${CELERY_APP:-app} worker --loglevel=info --concurrency=${CELERY_CONCURRENCY:-3}"]
+    volumes:
+      - static_volume:/app/staticfiles
+      - ./data/cold:/app/data/cold
+    env_file:
+      - .env
     environment:
-      - PULSE_CONFIG=/app/pulse_config.yaml
-      - PULSE_JOURNAL_PATH=/app/data/journal
-      - PYTHONPATH=/app:/app/pulse_kernel
-    volumes:
-      - ./pulse_kernel.py:/app/pulse_kernel.py
-      - ./confluence_scorer.py:/app/confluence_scorer.py
-      - ./risk_enforcer.py:/app/risk_enforcer.py
-      - ./pulse_config.yaml:/app/pulse_config.yaml
-      - ./data/journal:/app/data/journal
-    depends_on: [redis, postgres]
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/pulse/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
+      - PYTHONPATH=/app:/app/components:/app/utils:/app/backend
+      - DJANGO_SETTINGS_MODULE=app.settings
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CELERY_APP=app
+    depends_on:
+      django:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - default
+    labels:
+      <<: *default-labels
+    logging: *default-logging
 
-  streamlit:
-    build: .
-    command: streamlit run dashboard/pulse_dashboard.py --server.port=${STREAMLIT_SERVER_PORT:-8501}
-    ports: ["8501:8501"]
-    env_file: [.env]
-    depends_on: [pulse-kernel]
+  celery-beat:
+    build:
+      context: .
+      dockerfile: backend/django/Dockerfile
+    container_name: celery-beat
+    working_dir: /app/backend/django
+    entrypoint: ["sh", "-c", "celery -A ${CELERY_APP:-app} beat --loglevel=info"]
     volumes:
-      - ./:/app
+      - static_volume:/app/staticfiles
+      - ./data/cold:/app/data/cold
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app:/app/components:/app/utils:/app/backend
+      - DJANGO_SETTINGS_MODULE=app.settings
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CELERY_APP=app
+    depends_on:
+      celery:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks:
+      - default
+    labels:
+      <<: *default-labels
+    logging: *default-logging
 
 volumes:
-  traefik-public-certificates: # Persistent volume for certificates
-  grafana-data: {}
-  prometheus-data: {}
-  redis-data: {}
-  postgres-data: {}
-  static_volume: {}
+  traefik-public-certificates:
+  postgres-data:
+  redis-data:
+  static_volume:
 
 networks:
   default:
@@ -618,4 +313,3 @@ networks:
   traefik-public:
     external: true
     name: traefik-public
-  
