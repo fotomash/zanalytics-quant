@@ -9,7 +9,7 @@
     { "url": "http://localhost:8000" }
   ],
   "paths": {
-    "/api/ticks/buffer": {
+    "/api/pulse/ticks": {
       "get": {
         "operationId": "get_tick_buffer",
         "summary": "Fetch the last ticks for a symbol.",
