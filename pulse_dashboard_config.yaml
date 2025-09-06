@@ -1,0 +1,17 @@
+confluence_weights:
+  smc: 0.4
+  wyckoff: 0.3
+  technical: 0.3
+risk_limits:
+  daily_loss_limit: 0.03
+  max_trades_per_day: 5
+  cooling_off_minutes: 15
+  min_confluence_score: 70
+  overconfidence_threshold: 3
+behavioral_modules:
+  revenge_trading: true
+  overconfidence: true
+  fatigue_detection: true
+  fomo_protection: true
+  loss_chasing: true
+  time_of_day: true

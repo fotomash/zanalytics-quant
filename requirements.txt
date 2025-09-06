@@ -40,3 +40,6 @@ wcwidth==0.2.13
 whitenoise==6.7.0
 PyYAML==6.0.2
 smartmoneyconcepts==0.0.26
+
+streamlit>=1.28.0
+plotly>=5.17.0
