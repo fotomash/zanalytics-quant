@@ -4,12 +4,14 @@ Production-ready Django API views for Pulse system
 import json
 import time
 from datetime import datetime
+import logging
+import pandas as pd
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-import logging
 from .strategy_match_engine import match_strategy
 from .situation_builder import build_situation
+from agents.analyzers import compute_confluence
 
 # Import your risk enforcer
 try:
@@ -70,25 +72,14 @@ def score_peek(request):
     """Get current confluence score with explainable reasons"""
     try:
         payload = json.loads(request.body or "{}")
-        
-        # Mock confluence score for now - replace with actual implementation
-        score_data = {
-            "score": 75,
-            "grade": "High",
-            "reasons": [
-                "SMC Break of Structure confirmed",
-                "Wyckoff accumulation phase detected",
-                "Volume divergence present"
-            ],
-            "component_scores": {
-                "smc": 85,
-                "wyckoff": 78,
-                "technical": 72
-            },
-            "timestamp": datetime.now().isoformat()
-        }
-        
-        return JsonResponse(score_data)
+        bars = payload.get("bars", [])
+        if not bars:
+            return HttpResponseBadRequest("'bars' field required")
+
+        df = pd.DataFrame(bars)
+        result = compute_confluence(df)
+        result["timestamp"] = datetime.now().isoformat()
+        return JsonResponse(result)
         
     except json.JSONDecodeError:
         return HttpResponseBadRequest("Invalid JSON")
