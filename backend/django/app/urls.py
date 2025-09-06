@@ -4,8 +4,7 @@ from django.http import JsonResponse
 from app.nexus.views import PingView
 from .api.views_wyckoff import wyckoff_score, wyckoff_health
 from app import pulse_views
-from pulse_kernel.api import pulse_api_views
-
+from pulse_api import views as pulse_api_views
 
 def health(request):
     return JsonResponse({"status": "ok"}, status=200)
