@@ -167,6 +167,7 @@ services:
       - ALERTS_SCORE_HI=90
       - ALERTS_TOXICITY_LIMIT=0.30
       - ALERTS_DD_INTRADAY_WARN=0.025
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
     depends_on:
       postgres:
         condition: service_started
@@ -596,7 +597,7 @@ services:
 
   streamlit:
     build: .
-    command: streamlit run dashboard/pulse_dashboard.py --server.port=${STREAMLIT_SERVER_PORT}
+    command: streamlit run dashboard/pulse_dashboard.py --server.port=${STREAMLIT_SERVER_PORT:-8501}
     ports: ["8501:8501"]
     env_file: [.env]
     depends_on: [pulse-kernel]
