@@ -4,8 +4,14 @@ import time
 import redis
 from datetime import datetime
 
+# Establish Redis connection from environment configuration.
+REDIS_HOST = os.getenv("REDIS_HOST", "redis")
+REDIS_URL = os.getenv("REDIS_URL", f"redis://{REDIS_HOST}:6379/0")
+r = redis.Redis.from_url(REDIS_URL)
+
 
 def _minute_floor(ts: float) -> float:
+    """Return the minute floor for a UNIX timestamp."""
     return (int(ts) // 60) * 60
 
 
