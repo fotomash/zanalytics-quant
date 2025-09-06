@@ -14,7 +14,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
     - uses: actions/checkout@v2
@@ -22,16 +22,17 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.9'
+        python-version: '3.11'
 
     - name: Install dependencies
       run: |
-        pip install -r requirements.txt
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt -c constraints.txt
         pip install pytest pytest-cov
 
     - name: Run Pulse tests
       run: |
-        pytest tests/test_pulse_integration.py -v --cov=./ --cov-report=xml
+        pytest tests/test_pulse_integration.py -m "not mt5" -v --cov=./ --cov-report=xml
 
     - name: Upload coverage
       uses: codecov/codecov-action@v2

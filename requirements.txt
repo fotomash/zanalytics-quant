@@ -18,15 +18,16 @@ djangorestframework==3.15.2
 gunicorn==23.0.0
 idna==3.10
 kombu==5.4.2
-numpy==1.24.3
+numpy==1.26.4
 packaging==24.1
-pandas
+pandas==2.2.2
+scipy==1.13.1
 prompt-toolkit==3.0.48
 psycopg2-binary==2.9.10
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
 pytz==2024.2
-pyarrow==14.0.1
+pyarrow==15.0.2
 fastparquet>=2023.0
 redis==5.2.0
 requests==2.32.3
@@ -39,7 +40,6 @@ vine==5.1.0
 wcwidth==0.2.13
 whitenoise==6.7.0
 PyYAML==6.0.2
-smartmoneyconcepts==0.0.26
 
 streamlit>=1.28.0
 plotly>=5.17.0
