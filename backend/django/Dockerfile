@@ -16,6 +16,7 @@ WORKDIR /app
 # 1) Install deps
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir pandas \
  && pip install --no-cache-dir -r /app/requirements.txt
 
 # 2) Copy your code

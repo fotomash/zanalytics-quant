@@ -148,13 +148,14 @@ services:
     volumes:
       - static_volume:/app/staticfiles
       - ./data/cold:/app/data/cold
+      - ./agents:/app/agents
     restart: unless-stopped
     ports:
-      - 8000:8000
+      - 8010:8000
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/app:/app/components:/app/utils:/app/backend
+      - PYTHONPATH=/app:/app/components:/app/utils:/app/backend:/app/agents
       - DJANGO_SETTINGS_MODULE=app.settings
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
@@ -512,10 +513,12 @@ services:
       - ./dashboard:/app/dashboard
       - ./components:/app/components
       - ./utils:/app/utils
+      - ./api_integration:/app/api_integration
+      - ./dashboard/.streamlit:/app/dashboard/.streamlit
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/app:/app/components:/app/utils
+      - PYTHONPATH=/app:/app/components:/app/utils:/app/api_integration
       - PULSE_API_URL=http://django:8000
       - MT5_API_URL=http://mt5:5001
     depends_on:

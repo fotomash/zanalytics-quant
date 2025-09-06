@@ -220,6 +220,18 @@ class ZanalyticsDashboard:
     # TRADING_ECONOMICS_API_KEY available, not currently used
     # OPENAI_API_KEY available, not currently used
 
+    def get_recent_trades(self, limit: int = 50, days: int = 7) -> pd.DataFrame:
+        """Mock trade loader until real backend is connected."""
+        timestamps = pd.date_range(end=pd.Timestamp.utcnow(), periods=limit, freq='H')
+        data = {
+            "timestamp": timestamps,
+            "symbol": np.random.choice(self.supported_pairs, size=limit),
+            "score": np.random.randint(50, 95, size=limit),
+            "decision": np.random.choice(["accepted", "blocked"], size=limit),
+            "pnl": np.random.normal(0, 30, size=limit).round(2)
+        }
+        return pd.DataFrame(data).sort_values("timestamp", ascending=False)
+
     def __init__(self):
         """
         Initializes the dashboard, loading configuration from env or Streamlit secrets.
@@ -313,7 +325,7 @@ class ZanalyticsDashboard:
         </style>
         """, unsafe_allow_html=True)
 
-        img_base64 = get_image_as_base64("image_af247b.jpg")
+        img_base64 = get_image_as_base64("dashboard/static/image_af247b.jpg")
         if img_base64:
             background_style = f"""
             <style>
@@ -334,6 +346,21 @@ class ZanalyticsDashboard:
         <style>
         .main .block-container {
             background-color: rgba(0,0,0,0.025) !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # Fallback CSS theme styling for consistency
+        st.markdown("""
+        <style>
+        body {
+            background-color: #0f1117;
+            color: #e6e6e6;
+        }
+        .stMetric {
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 0.5rem;
+            padding: 1rem;
         }
         </style>
         """, unsafe_allow_html=True)
