@@ -63,6 +63,36 @@ if _img_base64:
 # Custom CSS for enhanced styling
 st.markdown("""
 <style>
+    :root {
+        --tile-text: #ffffff;
+        --tile-shadow: rgba(0,0,0,0.25);
+
+        /* Confluence palette (latest decisions) */
+        --conf-high-1: #12C48B;   /* High (>=70) — Emerald */
+        --conf-high-2: #0AA66E;
+
+        --conf-med-1: #F59E0B;    /* Medium (50-69) — Amber */
+        --conf-med-2: #D97706;
+
+        --conf-low-1: #EF4444;    /* Low (<50) — Red */
+        --conf-low-2: #B91C1C;
+
+        /* Bias palette */
+        --bias-bull-1: #10B981;
+        --bias-bull-2: #059669;
+
+        --bias-neutral-1: #F59E0B;
+        --bias-neutral-2: #D97706;
+
+        --bias-bear-1: #EF4444;
+        --bias-bear-2: #B91C1C;
+
+        /* Neutral tile */
+        --tile-neutral-1: #4B5563;
+        --tile-neutral-2: #374151;
+    }
+
+    /* --- General cards --- */
     .risk-metric {
         padding: 1rem;
         border-radius: 0.5rem;
@@ -71,6 +101,7 @@ st.markdown("""
     .risk-high { background-color: #ffebee; color: #c62828; }
     .risk-medium { background-color: #fff3e0; color: #ef6c00; }
     .risk-low { background-color: #e8f5e9; color: #2e7d32; }
+
     .metric-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 1.5rem;
@@ -78,14 +109,30 @@ st.markdown("""
         color: white;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
+
+    /* --- Pulse tiles --- */
     .pulse-tile {
-        background: white;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        border: 1px solid #e0e0e0;
+        padding: 1rem 1.25rem;
+        border-radius: 0.75rem;
         margin: 0.5rem 0;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        color: var(--tile-text);
+        box-shadow: 0 8px 20px var(--tile-shadow);
+        border: 1px solid rgba(255,255,255,0.06);
+        backdrop-filter: blur(4px);
     }
+    .pulse-tile h4 { margin: 0 0 0.5rem 0; opacity: 0.95; }
+    .pulse-tile h2 { margin: 0.25rem 0 0.5rem 0; font-weight: 800; }
+
+    .tile-high   { background: linear-gradient(135deg, var(--conf-high-1),   var(--conf-high-2)); }
+    .tile-med    { background: linear-gradient(135deg, var(--conf-med-1),    var(--conf-med-2)); }
+    .tile-low    { background: linear-gradient(135deg, var(--conf-low-1),    var(--conf-low-2)); }
+
+    .tile-bull   { background: linear-gradient(135deg, var(--bias-bull-1),   var(--bias-bull-2)); }
+    .tile-neutral{ background: linear-gradient(135deg, var(--bias-neutral-1),var(--bias-neutral-2)); }
+    .tile-bear   { background: linear-gradient(135deg, var(--bias-bear-1),   var(--bias-bear-2)); }
+
+    .tile-plain  { background: linear-gradient(135deg, var(--tile-neutral-1),var(--tile-neutral-2)); }
+
     .risk-slider-container {
         background: #f8f9fa;
         padding: 1rem;
@@ -101,6 +148,29 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+def _confluence_band(score: float) -> str:
+    """Return 'high' for &gt;=70, 'med' for 50-69, 'low' for &lt;50."""
+    try:
+        s = float(score)
+    except Exception:
+        return "med"
+    if s >= 70:
+        return "high"
+    if s >= 50:
+        return "med"
+    return "low"
+
+def _bias_class(score: float) -> str:
+    """Map score to bull/neutral/bear class for tile coloring."""
+    try:
+        s = float(score)
+    except Exception:
+        return "neutral"
+    if s > 60:
+        return "bull"
+    if s < 40:
+        return "bear"
+    return "neutral"
 
 # API Configuration
 DJANGO_API_URL = os.getenv("DJANGO_API_URL", "http://django:8000")
@@ -334,7 +404,7 @@ def create_risk_allocation_visualization(account_equity: float,
     fig.add_trace(go.Bar(
         x=['Daily Risk Budget', 'Per-Trade Risk', 'Adjusted Risk'],
         y=[daily_risk_amount, per_trade_risk, adjusted_per_trade],
-        marker_color=['#1f77b4', '#ff7f0e', '#2ca02c'],
+        marker_color='rgba(255,255,255,0.75)',
         text=[f"${daily_risk_amount:.2f}", f"${per_trade_risk:.2f}", f"${adjusted_per_trade:.2f}"],
         textposition='auto',
     ))
@@ -344,7 +414,9 @@ def create_risk_allocation_visualization(account_equity: float,
         xaxis_title="Risk Category",
         yaxis_title="Risk Amount ($)",
         showlegend=False,
-        height=400
+        height=400,
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)'
     )
     
     return fig
@@ -458,15 +530,14 @@ def render_pulse_tiles(pulse_manager: AdvancedPulseRiskManager):
         confluence_data = pulse_manager.get_confluence_score()
         score = confluence_data.get("score", 0)
         grade = confluence_data.get("grade", "Unknown")
-        
+        band = _confluence_band(score)
         st.markdown(f"""
-        <div class="pulse-tile">
+        <div class="pulse-tile tile-{band}">
             <h4>Confluence Score</h4>
             <h2>{score}/100</h2>
             <p>Grade: {grade}</p>
         </div>
         """, unsafe_allow_html=True)
-        
         if st.button("🔍 Explain Score", key="explain_confluence"):
             with st.expander("Score Breakdown", expanded=True):
                 reasons = confluence_data.get("reasons", [])
@@ -475,46 +546,43 @@ def render_pulse_tiles(pulse_manager: AdvancedPulseRiskManager):
                         st.write(f"• {reason}")
                 else:
                     st.write("No specific reasons available")
-                
                 # Component scores
                 components = confluence_data.get("component_scores", {})
                 if components:
                     st.write("**Component Analysis:**")
                     for component, comp_score in components.items():
                         st.write(f"- {component.upper()}: {comp_score}")
-    
+
     # Market Bias Tile
     with col2:
-        bias = "Bull" if score > 60 else "Bear" if score < 40 else "Neutral"
-        bias_color = "🟢" if bias == "Bull" else "🔴" if bias == "Bear" else "🟡"
-        
+        bias_cls = _bias_class(score)
+        bias = "Bull" if bias_cls == "bull" else "Bear" if bias_cls == "bear" else "Neutral"
+        bias_icon = "🟢" if bias_cls == "bull" else "🔴" if bias_cls == "bear" else "🟡"
         st.markdown(f"""
-        <div class="pulse-tile">
+        <div class="pulse-tile tile-{bias_cls}">
             <h4>Market Bias</h4>
-            <h2>{bias_color} {bias}</h2>
+            <h2>{bias_icon} {bias}</h2>
             <p>Confidence: {score}%</p>
         </div>
         """, unsafe_allow_html=True)
-    
+
     # Risk Remaining Tile
     with col3:
         risk_data = pulse_manager.get_risk_summary()
         risk_remaining = risk_data.get("risk_left", 0)
-        
         st.markdown(f"""
-        <div class="pulse-tile">
+        <div class="pulse-tile tile-plain">
             <h4>Risk Remaining</h4>
             <h2>{risk_remaining:.1f}%</h2>
             <p>Daily Budget</p>
         </div>
         """, unsafe_allow_html=True)
-    
+
     # Suggested R:R Tile
     with col4:
         suggested_rr = 2.0 if score > 70 else 1.5 if score > 50 else 1.2
-        
         st.markdown(f"""
-        <div class="pulse-tile">
+        <div class="pulse-tile tile-plain">
             <h4>Suggested R:R</h4>
             <h2>{suggested_rr}:1</h2>
             <p>Based on Score</p>
@@ -788,8 +856,8 @@ def create_gauge_chart(value: float, title: str, max_value: float = 100) -> go.F
             'axis': {'range': [None, max_value]},
             'bar': {'color': color},
             'steps': [
-                {'range': [0, 30], 'color': "lightgray"},
-                {'range': [30, 70], 'color': "gray"}
+                {'range': [0, 30], 'color': 'rgba(16,18,28,0.30)'},
+                {'range': [30, 70], 'color': 'rgba(16,18,28,0.50)'}
             ],
             'threshold': {
                 'line': {'color': "red", 'width': 4},
