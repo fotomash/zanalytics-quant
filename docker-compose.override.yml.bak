@@ -21,5 +21,5 @@ services:
       - default
     restart: unless-stopped
     volumes:
-      - ./tick_to_bar_service.py:/app/tick_to_bar_service.py
-    command: python /app/tick_to_bar_service.py
+      - ./tick_to_bar_service.py:
+    command: python 

@@ -2,9 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies (if needed, add confluent_kafka here if using Kafka version)
+RUN pip install --no-cache-dir \
+    redis \
+    pandas \
+    numpy \
+    confluent_kafka \
+    requests
 
-COPY . .
-
-CMD ["python", "services/tick_to_bar.py"]
+COPY services/tick_to_bar.py /app/tick_to_bar.py
