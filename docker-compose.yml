@@ -482,6 +482,8 @@ services:
     environment:
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - SYMBOL=EURUSD
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
     volumes:
       - .:/app
     depends_on:
