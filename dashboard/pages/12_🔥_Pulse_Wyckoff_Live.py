@@ -52,33 +52,59 @@ def init_redis():
 
 redis_client = init_redis()
 
-# Data Fetching
-def fetch_tick_data(symbol: str, limit: int = 5000) -> pd.DataFrame:
-    """Fetch tick data from MT5 API with error handling"""
-    params = {'symbol': symbol, 'limit': limit}
+# Health check helper
+def check_health(url: str) -> bool:
     try:
-        response = requests.get(f"{MT5_API_URL}/ticks", params=params, timeout=5)
-        response.raise_for_status()
-        data = response.json()
-        if not data:
-            st.warning(f"No tick data for {symbol}")
-            return pd.DataFrame()
-        
-        df = pd.DataFrame(data)
-        df['timestamp'] = pd.to_datetime(df['time'], unit='s', utc=True)
-        df = df.set_index('timestamp').sort_index()
-        # Price handling
-        if 'last' in df and df['last'].notna().any():
-            df['price'] = df['last']
-        elif 'bid' in df and 'ask' in df:
-            df['price'] = (df['bid'] + df['ask']) / 2
-        # Volume fallback to 1 per tick if missing
-        if 'volume' not in df:
-            df['volume'] = 1.0
-        return df
-    except Exception as e:
-        st.error(f"MT5 API error: {e}")
-        return pd.DataFrame()  # Return empty DF on error
+        r = requests.get(f"{url}/health", timeout=1)
+        return r.ok
+    except Exception:
+        return False
+
+# Data Fetching
+@st.cache_data(ttl=30)
+def fetch_tick_data(symbol: str, limit: int = 5000, use_mock: bool = False) -> pd.DataFrame:
+    """Fetch tick data from MT5 API with retries and mock fallback"""
+
+    def _mock_ticks() -> pd.DataFrame:
+        idx = pd.date_range(datetime.utcnow() - timedelta(minutes=limit // 10),
+                            periods=limit, freq="6S")
+        df_mock = pd.DataFrame({
+            "bid": np.random.normal(1.085, 0.001, limit).cumsum(),
+            "ask": np.random.normal(1.0852, 0.001, limit).cumsum(),
+            "volume": np.random.randint(1, 10, limit)
+        }, index=idx)
+        df_mock["price"] = (df_mock["bid"] + df_mock["ask"]) / 2
+        return df_mock
+
+    if use_mock:
+        return _mock_ticks()
+
+    params = {"symbol": symbol, "limit": limit}
+    last_error = None
+    for _ in range(3):
+        try:
+            response = requests.get(f"{MT5_API_URL}/ticks", params=params, timeout=5)
+            response.raise_for_status()
+            data = response.json()
+            if not data:
+                st.warning(f"No tick data for {symbol}")
+                return _mock_ticks()
+            df = pd.DataFrame(data)
+            df["timestamp"] = pd.to_datetime(df["time"], unit="s", utc=True)
+            df = df.set_index("timestamp").sort_index()
+            if "last" in df and df["last"].notna().any():
+                df["price"] = df["last"]
+            elif "bid" in df and "ask" in df:
+                df["price"] = (df["bid"] + df["ask"]) / 2
+            if "volume" not in df:
+                df["volume"] = 1.0
+            return df
+        except Exception as e:
+            last_error = e
+            time.sleep(1)
+
+    st.error(f"MT5 API error: {last_error} - using mock data")
+    return _mock_ticks()
 
 def aggregate_to_bars(df: pd.DataFrame, timeframe: str = '1min') -> pd.DataFrame:
     """Aggregate ticks to OHLCV bars with robust handling"""
@@ -183,7 +209,17 @@ def main():
     # Sidebar Configuration
     with st.sidebar:
         st.header("⚙️ Configuration")
-        
+
+        # Service health indicators
+        st.subheader("Service Status")
+        api_ok = check_health(MT5_API_URL)
+        try:
+            redis_ok = bool(redis_client and redis_client.ping())
+        except Exception:
+            redis_ok = False
+        st.write(f"MT5 API: {'🟢' if api_ok else '🔴'}")
+        st.write(f"Redis: {'🟢' if redis_ok else '🔴'}")
+
         # Symbol selection
         symbol = st.selectbox(
             "Symbol",
@@ -199,6 +235,7 @@ def main():
             ["30s", "1min", "5min", "15min", "30min", "1H"],
             index=1
         )
+        use_mock = st.checkbox("Use Mock Data", value=False)
         
         # Analysis parameters
         st.subheader("Analysis Settings")
@@ -227,7 +264,7 @@ def main():
 
     # Fetch tick data
     with st.spinner(f"Fetching {tick_limit} ticks for {symbol}..."):
-        tick_df = fetch_tick_data(symbol, tick_limit)
+        tick_df = fetch_tick_data(symbol, tick_limit, use_mock)
     
     if not tick_df.empty:
         st.success(f"Fetched {len(tick_df)} ticks | Time range: {tick_df.index.min()} to {tick_df.index.max()}")
@@ -402,25 +439,33 @@ def main():
         
         # Display data tables
         st.markdown("---")
-        tab1, tab2, tab3, tab4 = st.tabs(["📊 Latest Bars", "🎯 Wyckoff Events", "🔍 Pulse Analysis", "📡 Redis Stream"])
-        
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Latest Bars", "🎯 Wyckoff Events", "🚩 VSA Flags", "🔍 Pulse Analysis", "📡 Redis Stream"])
+
         with tab1:
             st.subheader("Latest Price Bars")
             display_cols = ['open', 'high', 'low', 'close', 'volume', 'phase']
             display_df = analyzed_df[display_cols].tail(20)
             st.dataframe(display_df, use_container_width=True)
-        
+
         with tab2:
             st.subheader("Detected Wyckoff Events")
-            events_df = analyzed_df[(analyzed_df['spring'] == True) | 
+            events_df = analyzed_df[(analyzed_df['spring'] == True) |
                                    (analyzed_df['upthrust'] == True)]
             if not events_df.empty:
                 event_display = events_df[['close', 'volume', 'phase', 'spring', 'upthrust']]
                 st.dataframe(event_display, use_container_width=True)
             else:
                 st.info("No Wyckoff events detected in current data")
-        
+
         with tab3:
+            st.subheader("VSA Flags")
+            vsa_df = analyzed_df[analyzed_df['vsa'] != 'Normal'] if 'vsa' in analyzed_df.columns else pd.DataFrame()
+            if not vsa_df.empty:
+                st.dataframe(vsa_df[['open', 'high', 'low', 'close', 'volume', 'volume_z', 'vsa']], use_container_width=True)
+            else:
+                st.info("No VSA flags triggered")
+
+        with tab4:
             st.subheader("Pulse System Analysis")
             st.json({
                 'score': pulse_score.get('score', 0),
@@ -428,8 +473,8 @@ def main():
                 'last_label': pulse_score.get('last_label', 'Unknown'),
                 'news_mask': pulse_score.get('news_mask', [])[:10] if pulse_score.get('news_mask') else []
             })
-        
-        with tab4:
+
+        with tab5:
             if show_redis_stream and redis_client:
                 st.subheader("Redis Stream Messages")
                 try:
