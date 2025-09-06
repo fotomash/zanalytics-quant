@@ -160,6 +160,24 @@ def detect_mtf_conflict(labels_1m: str, labels_5m: str, labels_15m: str) -> bool
     bear_htf = labels_5m in ["Markdown", "Distribution"] or labels_15m in ["Markdown", "Distribution"]
     return (labels_1m == "Distribution" and bull_htf) or (labels_1m == "Accumulation" and bear_htf)
 
+# Equity and drawdown helpers
+def compute_equity_curve(df: pd.DataFrame, start_equity: float) -> pd.Series:
+    """Convert close prices into a simple equity curve"""
+    if df.empty or 'close' not in df:
+        return pd.Series(dtype=float)
+    returns = df['close'].pct_change().fillna(0)
+    equity = (1 + returns).cumprod() * start_equity
+    return equity
+
+
+def calculate_max_drawdown(equity: pd.Series) -> float:
+    """Return max drawdown as a negative fraction of peak equity"""
+    if equity.empty:
+        return 0.0
+    cumulative_max = equity.cummax()
+    drawdown = (equity - cumulative_max) / cumulative_max
+    return float(drawdown.min())
+
 # Dashboard Main
 def main():
     # Sidebar Configuration
@@ -195,6 +213,12 @@ def main():
         st.subheader("Real-time Settings")
         auto_refresh = st.checkbox("Auto-refresh (30s)", value=True)
         show_redis_stream = st.checkbox("Show Redis Stream", value=False)
+
+        # Risk settings
+        st.subheader("Risk Settings")
+        starting_equity = st.number_input("Starting Equity", value=STARTING_EQUITY, step=100.0)
+        daily_risk_pct = st.slider("Daily Risk %", 0.1, 10.0, 3.0, 0.1)
+        anticipated_positions = st.slider("Anticipated Positions", 1, 20, 5, 1)
 
     # Main content
     if auto_refresh:
@@ -238,6 +262,12 @@ def main():
         labels_5m = mtf_scores.get('5min', {}).get('phase', 'Neutral')
         labels_15m = mtf_scores.get('15min', {}).get('phase', 'Neutral')
         mtf_conflict = detect_mtf_conflict(labels_1m, labels_5m, labels_15m)
+
+        # Risk calculations
+        max_loss_today = starting_equity * (daily_risk_pct / 100.0)
+        max_loss_per_trade = max_loss_today / max(anticipated_positions, 1)
+        equity_curve = compute_equity_curve(analyzed_df, starting_equity)
+        max_drawdown = calculate_max_drawdown(equity_curve)
         
         # Display key metrics
         col1, col2, col3, col4, col5, col6 = st.columns(6)
@@ -262,6 +292,15 @@ def main():
         
         with col6:
             st.metric("MTF Conflict", "Yes" if mtf_conflict else "No")
+
+        # Risk metrics
+        risk_col1, risk_col2, risk_col3 = st.columns(3)
+        with risk_col1:
+            st.metric("Max Drawdown", f"{abs(max_drawdown)*100:.2f}%")
+        with risk_col2:
+            st.metric("Max Loss Today", f"{max_loss_today:,.2f}")
+        with risk_col3:
+            st.metric("Max Loss/Trade", f"{max_loss_per_trade:,.2f}")
         
         # Create main chart
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.7, 0.3])
