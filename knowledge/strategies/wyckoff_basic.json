@@ -1,0 +1,5 @@
+{
+  "use_volume_profile": true,
+  "price_level_threshold": 0.5,
+  "volume_profile_window": 20
+}
