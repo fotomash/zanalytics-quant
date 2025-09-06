@@ -1,6 +1,5 @@
 """
-Enhanced Risk Enforcer - Production Ready with Security & Stability
-Behavioral-first risk management with graceful degradation
+Enhanced Risk Enforcer - Scientific Position Sizing with Behavioral Psychology
 """
 import os
 import json
@@ -11,8 +10,9 @@ from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 import yaml
+import numpy as np
 
-# Safe MT5 import with fallback
+# Safe MT5 import
 try:
     import MetaTrader5 as mt5
     MT5_AVAILABLE = True
@@ -50,7 +50,7 @@ class AccountState:
     last_trade_time: Optional[datetime] = None
 
 class EnhancedRiskEnforcer:
-    """Production-ready risk enforcer with behavioral safeguards"""
+    """Scientific Risk Enforcer with Behavioral Psychology Integration"""
     
     def __init__(self, config_path: str = "pulse_config.yaml"):
         self.config = self._load_config(config_path)
@@ -65,7 +65,6 @@ class EnhancedRiskEnforcer:
                 socket_timeout=2.0,
                 socket_connect_timeout=2.0
             )
-            # Test connection
             self.redis_client.ping()
             self.redis_available = True
         except Exception as e:
@@ -77,12 +76,12 @@ class EnhancedRiskEnforcer:
         self.mt5_connected = False
         self.mt5_available = MT5_AVAILABLE
         
-        # Risk limits by phase
+        # Risk limits by phase with scientific adjustments
         self.risk_limits = {
-            RiskPhase.LOW_EQUITY: RiskLimits(per_trade_risk=0.005, max_trades_per_day=3),
-            RiskPhase.STABLE: RiskLimits(per_trade_risk=0.0075, max_trades_per_day=4),
-            RiskPhase.NEW_HIGH: RiskLimits(per_trade_risk=0.01, max_trades_per_day=5),
-            RiskPhase.RECOVERY: RiskLimits(per_trade_risk=0.005, max_trades_per_day=3)
+            RiskPhase.LOW_EQUITY: RiskLimits(per_trade_risk=0.003, max_trades_per_day=2),  # Conservative
+            RiskPhase.STABLE: RiskLimits(per_trade_risk=0.005, max_trades_per_day=3),       # Moderate
+            RiskPhase.NEW_HIGH: RiskLimits(per_trade_risk=0.007, max_trades_per_day=4),     # Growth
+            RiskPhase.RECOVERY: RiskLimits(per_trade_risk=0.004, max_trades_per_day=2)      # Recovery
         }
     
     def _load_config(self, config_path: str) -> Dict:
@@ -222,27 +221,91 @@ class EnhancedRiskEnforcer:
         except (ZeroDivisionError, TypeError):
             return RiskPhase.LOW_EQUITY
     
+    def calculate_dynamic_position_size(self, 
+                                      account_state: AccountState,
+                                      signal_confidence: float,
+                                      stop_loss_pips: float,
+                                      pip_value: float,
+                                      max_daily_risk_pct: float = 2.0,
+                                      anticipated_trades: int = 3) -> Dict:
+        """
+        Scientific position sizing with behavioral psychology integration
+        
+        Args:
+            account_state: Current account state
+            signal_confidence: Confluence score (0-100)
+            stop_loss_pips: Stop loss distance in pips
+            pip_value: Value per pip
+            max_daily_risk_pct: Maximum daily risk percentage
+            anticipated_trades: Number of trades planned for the day
+        """
+        
+        # Base risk calculation
+        daily_risk_amount = account_state.current_equity * (max_daily_risk_pct / 100)
+        per_trade_risk = daily_risk_amount / anticipated_trades
+        
+        # Confidence-based adjustment (psychological factor)
+        confidence_multiplier = min(1.0, signal_confidence / 100)  # Cap at 100%
+        
+        # Risk phase adjustment (scientific factor)
+        risk_phase = self.determine_risk_phase(account_state)
+        phase_multiplier = {
+            RiskPhase.LOW_EQUITY: 0.7,   # Reduce risk in low equity phase
+            RiskPhase.STABLE: 1.0,       # Normal risk
+            RiskPhase.NEW_HIGH: 1.2,     # Increase risk in new high phase
+            RiskPhase.RECOVERY: 0.6      # Conservative in recovery
+        }.get(risk_phase, 1.0)
+        
+        # Behavioral adjustment (psychological factor)
+        behavioral_multiplier = 1.0
+        if account_state.consecutive_losses >= 2:
+            behavioral_multiplier = 0.5  # Reduce risk after consecutive losses
+        elif account_state.trades_today >= anticipated_trades * 0.8:
+            behavioral_multiplier = 0.8  # Reduce risk near trade limit
+        
+        # Calculate final position size
+        adjusted_risk = per_trade_risk * confidence_multiplier * phase_multiplier * behavioral_multiplier
+        
+        if stop_loss_pips > 0 and pip_value > 0:
+            position_size = round(adjusted_risk / (stop_loss_pips * pip_value), 2)
+        else:
+            position_size = 0
+        
+        return {
+            "position_size": position_size,
+            "risk_amount": adjusted_risk,
+            "confidence_multiplier": confidence_multiplier,
+            "phase_multiplier": phase_multiplier,
+            "behavioral_multiplier": behavioral_multiplier,
+            "effective_multiplier": confidence_multiplier * phase_multiplier * behavioral_multiplier,
+            "risk_phase": risk_phase.value
+        }
+    
     def check_behavioral_patterns(self, account_state: AccountState, signal: Dict) -> Tuple[RiskDecision, str]:
-        """Check for behavioral trading patterns"""
+        """Check for behavioral trading patterns with psychological insights"""
         flags = []
         
         try:
             # Overconfidence check (high confluence score after wins)
-            if (signal.get('confluence_score', 0) > 80 and 
+            if (signal.get('confluence_score', 0) > 85 and 
                 account_state.consecutive_losses == 0 and 
                 account_state.trades_today >= 3):
-                flags.append("potential_overconfidence")
+                flags.append("overconfidence_risk")
             
             # Revenge trading check
             if (account_state.consecutive_losses >= 2 and 
                 account_state.last_trade_time and
                 datetime.now() - account_state.last_trade_time < timedelta(minutes=30)):
-                flags.append("potential_revenge_trading")
+                flags.append("revenge_trading_risk")
             
             # Disposition effect check
             if (account_state.daily_pnl < 0 and 
                 signal.get('risk_reward', 0) < 1.5):
                 flags.append("disposition_effect_risk")
+            
+            # Fatigue check
+            if account_state.trades_today >= 5:
+                flags.append("trading_fatigue")
             
             if flags:
                 return RiskDecision.WARN, f"Behavioral flags: {', '.join(flags)}"
@@ -252,19 +315,26 @@ class EnhancedRiskEnforcer:
         except Exception as e:
             self.logger.error(f"Error in behavioral check: {e}")
             return RiskDecision.WARN, "Behavioral check error"
-    
+
     def check(self, ts: str, symbol: str, score: float, features: Dict | None = None) -> Dict:
+        """Compatibility wrapper for legacy interface"""
         if features and features.get('news_active'):
             return {'status': 'blocked', 'reason': ['News event active'], 'raw': {}}
+
         signal = {'symbol': symbol, 'confluence_score': score}
         if features:
             signal.update(features)
+
         result = self.evaluate_trade_request(signal)
         status_map = {'allow': 'allowed', 'warn': 'warned', 'block': 'blocked'}
-        return {'status': status_map.get(result['decision'], 'blocked'), 'reason': result.get('reasons', []), 'raw': result}
+        return {
+            'status': status_map.get(result['decision'], 'blocked'),
+            'reason': result.get('reasons', []),
+            'raw': result
+        }
 
     def evaluate_trade_request(self, signal: Dict, account_state: Optional[AccountState] = None) -> Dict:
-        """Comprehensive trade evaluation with error handling"""
+        """Comprehensive trade evaluation with scientific position sizing"""
         try:
             if account_state is None:
                 account_state = self.get_current_account_state()
@@ -292,18 +362,32 @@ class EnhancedRiskEnforcer:
                 overall_decision = RiskDecision.ALLOW
             
             # Calculate position size if allowed
-            position_size = 0
+            position_sizing = {}
             if overall_decision != RiskDecision.BLOCK:
-                risk_amount = account_state.current_equity * limits.per_trade_risk
-                position_size = self._calculate_position_size(signal, risk_amount)
+                # Get user-defined parameters from signal or defaults
+                max_daily_risk = signal.get('max_daily_risk_pct', 2.0)
+                anticipated_trades = signal.get('anticipated_trades', 3)
+                stop_loss_pips = signal.get('stop_loss_pips', 20)
+                pip_value = signal.get('pip_value', 1.0)
+                confluence_score = signal.get('confluence_score', 75)
+                
+                position_sizing = self.calculate_dynamic_position_size(
+                    account_state,
+                    confluence_score,
+                    stop_loss_pips,
+                    pip_value,
+                    max_daily_risk,
+                    anticipated_trades
+                )
             
             result = {
                 "decision": overall_decision.value,
                 "allowed": overall_decision == RiskDecision.ALLOW,
                 "risk_phase": risk_phase.value,
-                "position_size": position_size,
+                "position_sizing": position_sizing,
+                "position_size": position_sizing.get("position_size", 0),
                 "reasons": reasons,
-                "behavioral_flags": [r for r in reasons if any(flag in r.lower() for flag in ['overconfidence', 'revenge', 'disposition'])],
+                "behavioral_flags": [r for r in reasons if any(flag in r.lower() for flag in ['overconfidence', 'revenge', 'disposition', 'fatigue'])],
                 "risk_level": "critical" if overall_decision == RiskDecision.BLOCK else "medium" if overall_decision == RiskDecision.WARN else "low",
                 "remaining_budget": max(0, limits.daily_loss_limit - abs(account_state.daily_pnl / account_state.starting_equity)),
                 "trades_remaining": max(0, limits.max_trades_per_day - account_state.trades_today),
@@ -360,19 +444,6 @@ class EnhancedRiskEnforcer:
         
         return RiskDecision.ALLOW, "No cooldown active"
     
-    def _calculate_position_size(self, signal: Dict, risk_amount: float) -> float:
-        """Calculate position size based on risk amount and stop loss"""
-        try:
-            stop_loss_pips = signal.get('stop_loss_pips', 20)
-            pip_value = signal.get('pip_value', 1.0)
-            
-            if stop_loss_pips > 0 and pip_value > 0:
-                return round(risk_amount / (stop_loss_pips * pip_value), 2)
-            
-            return 0
-        except (ZeroDivisionError, TypeError):
-            return 0
-    
     def _log_decision(self, signal: Dict, account_state: AccountState, result: Dict):
         """Log risk decision with error handling"""
         if not self.redis_available:
@@ -388,6 +459,7 @@ class EnhancedRiskEnforcer:
                 "account_equity": account_state.current_equity,
                 "daily_pnl": account_state.daily_pnl,
                 "trades_today": account_state.trades_today,
+                "position_size": result.get("position_size", 0),
                 "reasons": result["reasons"]
             }
             
@@ -465,25 +537,10 @@ class EnhancedRiskEnforcer:
         
         return warnings
 
-RiskEnforcer = EnhancedRiskEnforcer
-
 # Factory function for integration
 def create_risk_enforcer() -> EnhancedRiskEnforcer:
     """Factory function to create risk enforcer"""
     return EnhancedRiskEnforcer()
 
-if __name__ == "__main__":
-    # Test the risk enforcer
-    enforcer = EnhancedRiskEnforcer()
-    
-    # Test signal
-    signal = {
-        "symbol": "EURUSD",
-        "confluence_score": 75,
-        "risk_reward": 2.0,
-        "stop_loss_pips": 20,
-        "pip_value": 1.0
-    }
-    
-    result = enforcer.evaluate_trade_request(signal)
-    print(json.dumps(result, indent=2))
+# Backwards compatibility alias
+RiskEnforcer = EnhancedRiskEnforcer
