@@ -1,40 +1,31 @@
 version: "3.9"
 services:
+  redis:
+    image: redis:7.2
+    ports: ["6379:6379"]
+
   pulse-api:
     build:
       context: .
-      dockerfile: Dockerfile.pulse-api
+      dockerfile: services/pulse_api/Dockerfile
     environment:
-      HOST: 0.0.0.0
-      PORT: 8000
-      PULSE_CONFIG: /srv/pulse-api/pulse_config.yaml
-      PULSE_CORS_ORIGINS: "http://localhost:8501,http://127.0.0.1:8501,*"
-      LOG_LEVEL: INFO
-      RELOAD: "0"
-    ports:
-      - "8000:8000"
-    depends_on:
-      - redis
-    networks: [pulse-net]
-
-  streamlit:
-    image: python:3.11-slim
-    working_dir: /app
+      PULSE_CONFIG: /app/pulse_config.yaml
     volumes:
-      - .:/app
-    command: bash -lc "pip install -r requirements.txt && streamlit run pulse_ui_enhanced.py --server.port 8501 --server.address 0.0.0.0"
+      - ./pulse_config.yaml:/app/pulse_config.yaml:ro
+      - ./:/app:ro
+    depends_on: [redis]
+    ports: ["8080:8080"]
+    command: uvicorn services.pulse_api.main:app --host 0.0.0.0 --port 8080
+
+  pulse-bot:
+    build:
+      context: .
+      dockerfile: services/pulse_bot/Dockerfile
     environment:
-      PULSE_API_BASE: "http://pulse-api:8000"
-    ports:
-      - "8501:8501"
-    depends_on:
-      - pulse-api
-    networks: [pulse-net]
-
-  redis:
-    image: redis:7.2-alpine
-    ports: ["6379:6379"]
-    networks: [pulse-net]
-
-networks:
-  pulse-net: {}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_WHITELIST: ${TELEGRAM_CHAT_WHITELIST}
+      PULSE_CONFIG: /app/pulse_config.yaml
+    volumes:
+      - ./pulse_config.yaml:/app/pulse_config.yaml:ro
+      - ./:/app:ro
+    depends_on: [redis]
