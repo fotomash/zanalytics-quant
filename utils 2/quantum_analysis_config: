@@ -1,0 +1,207 @@
+quantum_analysis_config:
+  # Core system configuration
+  system:
+    name: "Quantum Microstructure Analyzer"
+    version: "2.0"
+    embedding_dim: 1536
+    session_scope: "single"
+    vector_native: true
+    
+  # Analysis modules configuration
+  analysis_modules:
+    # Volume inference from tick patterns
+    volume_inference_engine:
+      enabled: true
+      params:
+        tick_density_weight: 0.4
+        spread_change_weight: 0.3
+        price_movement_weight: 0.3
+        normalization_window: 100
+        volume_base_multiplier: 100
+        
+    # Iceberg order detection
+    iceberg_detector:
+      enabled: true
+      params:
+        min_executions: 5
+        time_window_seconds: 60
+        price_tolerance: 0.0001
+        interval_consistency_threshold: 0.5
+        confidence_multiplier: 1.0
+        
+    # Spoofing pattern detection
+    spoofing_detector:
+      enabled: true
+      params:
+        spread_spike_threshold: 3.0
+        price_recovery_threshold: 0.5
+        reversal_time_ms: 250
+        rolling_window: 20
+        confidence_decay: 0.5
+        
+    # Quote stuffing detection
+    quote_stuffing_detector:
+      enabled: true
+      params:
+        update_rate_threshold: 20  # updates per second
+        price_movement_threshold: 0.0001  # minimal price change
+        detection_window: 50
+        confidence_scale: 1.0
+        
+    # Layering detection
+    layering_detector:
+      enabled: true
+      params:
+        time_correlation_window: 50
+        pressure_threshold_std: 2.0
+        min_affected_levels: 3
+        confidence_normalization: true
+
+  # Market regime detection
+  regime_detection:
+    vpin_bucket_size: 50
+    regime_thresholds:
+      normal:
+        vpin_max: 0.5
+        spread_volatility_max: 1.0
+      stressed:
+        vpin_max: 0.7
+        spread_volatility_max: 2.0
+      manipulated:
+        vpin_min: 0.7
+        spoofing_event_min: 5
+      breakdown:
+        spread_volatility_min: 2.0
+        tick_rate_variance_min: 10000
+        
+  # Liquidity analysis
+  liquidity_analysis:
+    sweep_detection:
+      threshold_std_dev: 3.0
+      window_size: 5
+      volume_aggregation: "sum"
+    hidden_liquidity:
+      price_level_rounding: 0
+      top_levels_count: 10
+      volume_threshold: 100
+      
+  # Execution quality metrics
+  execution_quality:
+    spread_metrics:
+      basis_points_multiplier: 10000
+      volatility_window: 20
+    price_impact:
+      kyle_lambda_window: 100
+      volume_adjustment: 1
+    adverse_selection:
+      tight_spread_quantile: 0.25
+      future_volatility_window: 20
+      
+  # Vectorization configuration
+  vector_config:
+    tick_vectorizer:
+      embedding_dim: 1536
+      feature_extractors:
+        - microstructure
+        - regime
+        - temporal
+        - manipulation_signals
+      normalization: "standard"
+      
+    feature_weights:
+      price_features: 0.25
+      volume_features: 0.25
+      spread_features: 0.2
+      manipulation_features: 0.3
+      
+    anomaly_detection:
+      method: "isolation_forest"
+      contamination: 0.1
+      n_estimators: 100
+      
+  # Kill zone configuration
+  killzones:
+    london:
+      start_hour: 7
+      end_hour: 10
+      timezone: "UTC"
+    new_york:
+      start_hour: 12
+      end_hour: 15
+      timezone: "UTC"
+    tokyo:
+      start_hour: 0
+      end_hour: 3
+      timezone: "UTC"
+      
+  # Alert thresholds
+  alerts:
+    manipulation_score:
+      warning: 5
+      critical: 8
+    vpin_toxicity:
+      warning: 0.5
+      critical: 0.7
+    spread_spike:
+      warning_multiplier: 2
+      critical_multiplier: 3
+      
+  # Visualization settings
+  visualization:
+    default_chart_height: 400
+    color_schemes:
+      price: "#1f77b4"
+      volume: "#ff7f0e"
+      spread: "#2ca02c"
+      vpin: "#d62728"
+      manipulation: "#9467bd"
+    heatmap_resolution:
+      time_bins: 100
+      price_bins: 50
+      
+  # Data preprocessing
+  preprocessing:
+    spread_divisor: 1000  # Convert from integer to decimal
+    tick_rate_cap: 1000  # Maximum ticks per second
+    min_tick_interval_ms: 0.1  # Avoid division by zero
+    rolling_window_defaults:
+      small: 20
+      medium: 50
+      large: 100
+      
+  # Session management
+  session:
+    state_tracking:
+      - inferred_volumes
+      - iceberg_events
+      - spoofing_events
+      - manipulation_score
+      - market_regime
+      - toxic_flow_periods
+      - hidden_liquidity_map
+    persistence: false  # Single session only
+    
+  # Performance optimization
+  performance:
+    max_bars_display: 10000
+    chunk_size: 1000
+    parallel_processing: false
+    cache_results: true
+    
+  # Mock data detection
+  mock_detection:
+    min_unique_price_steps: 3
+    min_unique_spread_values: 3
+    min_tick_interval_std_ms: 1.0
+    
+  # Agent coordination (for ncOS integration)
+  agent_interfaces:
+    correlation_engine:
+      input_vectors: ["price", "volume", "spread"]
+      output_dimension: 128
+    risk_monitor:
+      alert_channels: ["manipulation", "regime", "toxicity"]
+      update_frequency_ms: 100
+    signal_coordinator:
+      signal_types: ["iceberg", "spoofing", "stuffing", "layering"]
+      confidence_threshold: 0.7

@@ -4,3 +4,6 @@ streamlit
 pandas
 plotly
 MetaTrader5
+uvicorn
+fastapi
+load_dotenv

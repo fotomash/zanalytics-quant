@@ -71,11 +71,13 @@ services:
 
   mt5:
     build:
-      context: backend/mt5
+      context: ./backend/mt5
       dockerfile: Dockerfile
     container_name: mt5
     volumes:
       - ./config:/config
+    ports:
+      - "5001:5001"
     networks:
       - traefik-public
       - default
@@ -125,6 +127,11 @@ services:
       - .env
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - default
     labels:
@@ -133,9 +140,10 @@ services:
 
   django:
     build:
-      context: backend/django
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/django/Dockerfile
     container_name: django
+    working_dir: /app/backend/django
     volumes:
       - static_volume:/app/staticfiles
     restart: unless-stopped
@@ -143,10 +151,17 @@ services:
       - 8000:8000
     env_file:
       - .env
+    environment:
+      - PYTHONPATH=/app:/app/components:/app/utils:/app/backend
+      - DJANGO_SETTINGS_MODULE=app.settings
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     depends_on:
-      - postgres
-      - traefik
-      - redis
+      postgres:
+        condition: service_started
+      traefik:
+        condition: service_started
+      redis:
+        condition: service_started
     networks:
       - default
       - traefik-public
@@ -172,17 +187,35 @@ services:
       traefik.http.routers.django-static.service: django-service
       traefik.http.middlewares.static-stripprefix.stripprefix.prefixes: /static
       traefik.http.routers.django-static.middlewares: static-stripprefix@docker
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/api/pulse/health').getcode()==200 else sys.exit(1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     logging: *default-logging
 
   redis:
-    image: redis:6
+    image: redis:7-alpine
     container_name: redis
     ports:
       - 6379:6379
-    cpus: 0.5
-    mem_limit: 512m
-    depends_on:
-      - traefik
+    volumes:
+      - redis-data:/data
+      - ./redis_architecture/redis.conf:/usr/local/etc/redis/redis.conf
+    environment:
+      - PYTHONPATH=/app:/app/components:/app/utils
+      - PULSE_API_URL=http://django:8000
+      - MT5_API_URL=http://mt5:5001
+      - MT5_API_BASE=http://mt5:5001
+      - PULSE_API_BASE=http://django:8000
+      - REDIS_HOST=redis
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - default
     labels:
@@ -191,17 +224,25 @@ services:
 
   celery:
     build:
-      context: backend/django
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/django/Dockerfile
     container_name: celery
-    command: celery -A app worker --loglevel=info --concurrency=3
+    working_dir: /app/backend/django
+    entrypoint: ["sh", "-c", "celery -A ${CELERY_APP:-zanalytics} worker --loglevel=info --concurrency=${CELERY_CONCURRENCY:-3}"]
     volumes:
       - static_volume:/app/staticfiles
     env_file:
       - .env
+    environment:
+      - PYTHONPATH=/app:/app/components:/app/utils:/app/backend
+      - DJANGO_SETTINGS_MODULE=app.settings
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CELERY_APP=app
     depends_on:
-      - django
-      - redis
+      django:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - default
     labels:
@@ -210,17 +251,25 @@ services:
 
   celery-beat:
     build:
-      context: backend/django
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/django/Dockerfile
     container_name: celery-beat
-    command: celery -A app beat --loglevel=info
+    working_dir: /app/backend/django
+    entrypoint: ["sh", "-c", "celery -A ${CELERY_APP:-zanalytics} beat --loglevel=info"]
     volumes:
       - static_volume:/app/staticfiles
     env_file:
       - .env
+    environment:
+      - PYTHONPATH=/app:/app/components:/app/utils:/app/backend
+      - DJANGO_SETTINGS_MODULE=app.settings
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CELERY_APP=app
     depends_on:
-      - celery
-      - redis
+      celery:
+        condition: service_started
+      redis:
+        condition: service_started
     networks:
       - default
     labels:
@@ -424,6 +473,22 @@ services:
       <<: *default-labels
     logging: *default-logging
 
+  tick-to-bar:
+    build:
+      context: .
+      dockerfile: Dockerfile.tick-to-bar
+    command: ["python", "services/tick_to_bar.py"]
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - SYMBOL=EURUSD
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - default
+
   dashboard:
     build:
       context: ./dashboard
@@ -432,14 +497,19 @@ services:
     working_dir: /app/dashboard
     volumes:
       - ./dashboard:/app/dashboard
+      - ./components:/app/components
+      - ./utils:/app/utils
     env_file:
       - .env
-    links:
-      - mt5
-      - django
+    environment:
+      - PYTHONPATH=/app:/app/components:/app/utils
+      - PULSE_API_URL=http://django:8000
+      - MT5_API_URL=http://mt5:5001
     depends_on:
-      - mt5
-      - django
+      mt5:
+        condition: service_started
+      django:
+        condition: service_healthy
     command: >
       streamlit run Home.py --server.port=8501 --server.enableCORS false
     restart: unless-stopped
@@ -459,12 +529,19 @@ services:
       traefik.http.routers.dashboard-https.tls.certresolver: le
       traefik.http.routers.dashboard-https.service: dashboard-service
       traefik.http.services.dashboard-service.loadbalancer.server.port: 8501
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8501/_stcore/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     logging: *default-logging
 
 volumes:
   traefik-public-certificates: # Persistent volume for certificates
   grafana-data: {}
   prometheus-data: {}
+  redis-data: {}
   postgres-data: {}
   static_volume: {}
 
@@ -473,3 +550,5 @@ networks:
     driver: bridge
   traefik-public:
     external: true
+    name: traefik-public
+  

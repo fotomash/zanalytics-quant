@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
 
 # Launch Streamlit application
-streamlit run Home.py
+cd /app
+streamlit run dashboard/Home.py

@@ -17,6 +17,7 @@
 - [Example .env Configuration (Partial)](#example-env-configuration-partial)
 - [Security & Access Control](#security--access-control)
 - [Contributing](#contributing)
+- [Running Tests](#running-tests)
 - [Known Issues & Best Practices](#known-issues--best-practices)
 - [Future Directions & Next Steps](#future-directions--next-steps)
 - [License (Strict, Non-Transferable)](#license-strict-non-transferable)
@@ -187,6 +188,11 @@ This approach improves both data quality and system efficiency, ensuring that da
     ```bash
     curl "$DJANGO_API_URL/api/v1/enriched/?symbol=USDJPY"
     ```
+- Filter ticks or bars by time range using the Django API:
+    ```bash
+    curl "$DJANGO_API_URL/api/v1/ticks/?symbol=EURUSD&time_after=2024-01-01T00:00:00Z&time_before=2024-01-01T12:00:00Z"
+    curl "$DJANGO_API_URL/api/v1/bars/?symbol=EURUSD&timeframe=M5&time_after=2024-01-01T00:00:00Z"
+    ```
 
 ### d) **Troubleshooting**
 - Dashboard blank?  
@@ -209,7 +215,7 @@ A typical enrichment workflow begins with raw tick data streamed from MT5 or loa
 1. **Transformation:** The raw tick is parsed and normalized (e.g., timestamp conversion, price adjustments).
 2. **Hashing:** The tick is hashed with MD5 to detect duplicates.
 3. **Storage:** Unique ticks are inserted into Postgres for long-term storage and cached in Redis for fast access.
-4. **Feature Generation:** Rolling statistics, indicators (such as SMA, RSI), and signals are computed over the tick and bar data.
+4. **Feature Generation:** Ticks are resampled into OHLC bars using `pandas.resample` and rolling statistics or indicators (SMA, RSI, etc.) are computed over the resulting bar data.
 5. **Caching:** Computed features are cached in Redis to support low-latency dashboard queries.
 6. **Visualization:** The Streamlit dashboard fetches enriched data from the Django API, which queries both Postgres and Redis, to render charts and analytics in near real-time.
 
@@ -260,8 +266,23 @@ ACME_EMAIL=your@email.com
 
 ## Contributing
 
-This codebase is not open for external contributions.  
+This codebase is not open for external contributions.
 All changes are managed internally, with strict audit and review.
+
+---
+
+## Running Tests
+
+To execute the automated Django test suite:
+
+```bash
+pip install -r backend/django/requirements.txt
+export DJANGO_SECRET_KEY=test-secret
+pytest
+```
+
+Tests run against the lightweight SQLite database defined in
+`backend/django/app/test_settings.py`.
 
 ---
 

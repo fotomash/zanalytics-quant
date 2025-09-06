@@ -1,0 +1,74 @@
+# Zanalytics Pulse Configuration v11.5.1
+# Behavioral Trading System Settings
+
+# Confluence scoring weights (must sum to 1.0)
+weights:
+  smc: 0.4        # Smart Money Concepts
+  wyckoff: 0.3    # Wyckoff Analysis
+  technical: 0.3  # Technical Indicators
+
+# Signal strength thresholds
+thresholds:
+  strong_signal: 80
+  moderate_signal: 60
+  weak_signal: 40
+  min_confluence: 60  # Minimum score to consider entry
+
+# Confluence multipliers for agreement/divergence
+confluence_multipliers:
+  all_aligned: 1.2       # All methods agree strongly
+  majority_aligned: 1.1  # 2 of 3 methods agree
+  divergence_penalty: 0.8 # Methods disagree significantly
+
+# Risk management parameters (evidence-based)
+risk_limits:
+  daily_loss_limit: 0.03      # 3% soft limit (prop firm buffer)
+  prop_firm_daily: 0.05       # 5% hard limit
+  prop_firm_total: 0.10       # 10% max drawdown
+  max_trades_per_day: 5       # Prevent overtrading
+  max_position_size: 0.02     # 2% risk per trade
+  cooling_off_minutes: 15     # Emotional reset period
+  revenge_threshold: 2        # Consecutive losses trigger
+
+# Behavioral thresholds
+behavioral:
+  confidence_danger_zone: 0.85  # Overconfidence alert
+  rapid_trade_minutes: 5        # Minimum time between trades
+  disposition_threshold: 2.0     # % loss to trigger stop reminder
+
+# Position sizing parameters
+position_sizing:
+  base_risk: 0.01              # 1% base risk
+  confidence_scaling: true      # Scale with confluence score
+  max_scale_factor: 2.0        # Maximum position multiplier
+  min_scale_factor: 0.5        # Minimum position multiplier
+
+# Journal settings
+journal:
+  persist_to_redis: true
+  max_entries: 1000
+  export_format: json
+
+# API endpoints (Django integration)
+api:
+  health_check: /api/pulse/health
+  confluence_score: /api/pulse/score
+  risk_status: /api/pulse/risk
+  active_signals: /api/pulse/signals
+  journal_export: /api/pulse/journal
+
+# Redis configuration
+redis:
+  host: localhost
+  port: 6379
+  db: 0
+  signal_channel: pulse:signals
+  journal_key: pulse:journal
+  state_key: pulse:state
+
+# Dashboard integration
+dashboard:
+  update_interval: 1000  # milliseconds
+  show_behavioral_metrics: true
+  show_confluence_breakdown: true
+  show_risk_modules: true

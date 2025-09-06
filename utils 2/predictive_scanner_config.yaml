@@ -1,0 +1,8 @@
+predictive_scanner_config:
+  name: PredictiveSetupScanner
+  vector_dims: 1536
+  components:
+    - tick_microstructure_features
+    - manipulation_event_vectors
+    - regime_transition_signals
+  session_scope: single

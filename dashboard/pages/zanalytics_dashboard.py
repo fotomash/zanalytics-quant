@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import time
 from typing import Dict, List, Any, Optional
+import os, redis
 import yfinance as yf
 
 # Configure Streamlit
@@ -80,6 +81,36 @@ class ZAnalyticsDashboard:
             return pd.DataFrame()
 
     def load_latest_analysis(self, analysis_type: str) -> Optional[Dict]:
+    def _get_redis_client(self):
+        """Create a Redis client from REDIS_URL or localhost fallback."""
+        try:
+            url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+            return redis.Redis.from_url(url, decode_responses=True)
+        except Exception:
+            return None
+
+    def load_risk_metrics_from_redis(self) -> Optional[Dict[str, float]]:
+        """Fetch today's risk metrics written by the Risk Manager into Redis.
+        Expects hashes like risk_metrics:YYYYMMDD with numeric values.
+        """
+        client = self._get_redis_client()
+        if client is None:
+            return None
+        try:
+            key = f"risk_metrics:{datetime.now().strftime('%Y%m%d')}"
+            data = client.hgetall(key)
+            if not data:
+                return None
+            # coerce to floats where possible
+            out: Dict[str, float] = {}
+            for k, v in data.items():
+                try:
+                    out[k] = float(v)
+                except Exception:
+                    continue
+            return out if out else None
+        except Exception:
+            return None
         """Load latest analysis results"""
         try:
             pattern = f"{analysis_type}_*.json"
@@ -308,6 +339,29 @@ class ZAnalyticsDashboard:
                             st.metric("Entry Price", f"${signal_data['entry_price']:,.2f}")
 
     def display_risk_metrics(self):
+    def display_live_risk_metrics(self):
+        """Show live risk metrics if available from Redis (preferred over static JSON)."""
+        live = self.load_risk_metrics_from_redis()
+        if not live:
+            return
+        st.subheader("⚠️ Live Risk (Redis)")
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.metric("Overall Risk Score", f"{live.get('risk_score', 0):.1f}")
+        with c2:
+            st.metric("Drawdown %", f"{live.get('drawdown', 0):.2f}%")
+        with c3:
+            st.metric("Account Risk %", f"{live.get('account_risk', 0):.2f}%")
+        with c4:
+            st.metric("Position Risk %", f"{live.get('position_risk', 0):.2f}%")
+        # Optional limits display if present
+        dl = live.get('daily_loss')
+        mdl = live.get('max_daily_loss_limit')
+        mtl = live.get('max_total_loss_limit')
+        if dl is not None or mdl is not None or mtl is not None:
+            st.caption(
+                f"Daily loss: {dl if dl is not None else 0:.2f} | Max daily loss limit: {mdl if mdl is not None else 0:.2%} | Max total loss limit: {mtl if mtl is not None else 0:.2%}"
+            )
         """Display risk metrics"""
         risk_data = self.load_latest_analysis("risk_assessment")
 
@@ -338,7 +392,7 @@ class ZAnalyticsDashboard:
 
     def run(self):
         """Run the dashboard"""
-        st.title("🚀 ZAnalytics Trading Dashboard")
+        st.title("🚀 ZANALYTICS Trading Dashboard")
 
         # Sidebar
         with st.sidebar:
@@ -396,6 +450,20 @@ class ZAnalyticsDashboard:
                 st.success(f"✅ {len(result_files)} analysis files found")
             else:
                 st.warning("⚠️ No results directory found")
+            try:
+                client = self._get_redis_client()
+                if client is not None and client.ping():
+                    st.success("✅ Redis live feed connected")
+                    # Show whether today's risk hash exists
+                    key = f"risk_metrics:{datetime.now().strftime('%Y%m%d')}"
+                    if client.exists(key):
+                        st.write("Risk feed: **present**")
+                    else:
+                        st.write("Risk feed: not written yet")
+                else:
+                    st.warning("⚠️ Redis not available")
+            except Exception:
+                st.warning("⚠️ Redis check failed")
 
         # Main content
         # Load market data
@@ -413,6 +481,7 @@ class ZAnalyticsDashboard:
 
             # Display risk metrics
             self.display_risk_metrics()
+            self.display_live_risk_metrics()
 
             # Charts
             tab1, tab2, tab3 = st.tabs(["📈 Price Chart", "📊 Technical Indicators", "📉 Analysis"])
