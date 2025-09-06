@@ -10,6 +10,9 @@ from typing import Dict, List, Optional, Tuple
 import redis
 import logging
 
+from confluence_scorer import ConfluenceScorer
+from risk_enforcer import RiskEnforcer
+
 logger = logging.getLogger(__name__)
 
 class PulseKernel:
@@ -22,10 +25,10 @@ class PulseKernel:
         self.config = self._load_config(config_path)
         self.redis_client = redis.Redis(**self.config['redis'])
         
-        # Initialize components (these wrap existing analyzers)
-        self.confluence_scorer = None  # Will be initialized with ConfluenceScorer
-        self.risk_enforcer = None      # Will be initialized with RiskEnforcer
-        self.journal = None             # Will be initialized with JournalEngine
+        # Initialize components
+        self.confluence_scorer = ConfluenceScorer(config_path)
+        self.risk_enforcer = RiskEnforcer()
+        self.journal = None  # Placeholder for JournalEngine
         
         # State management
         self.active_signals = {}
@@ -249,7 +252,7 @@ class PulseKernel:
         """Send alert to Telegram bot"""
         # Telegram integration would go here
         pass
-    
+
     def get_status(self) -> Dict:
         """Get current system status"""
         return {
@@ -258,6 +261,27 @@ class PulseKernel:
             'active_signals': len(self.active_signals),
             'system_health': 'operational'
         }
+
+    def get_session_report(self) -> Dict:
+        """Return session report used by API health endpoint."""
+        return {
+            'behavioral_health': {
+                'overtrading_risk': False,
+                'cooling_off_active': False,
+                'daily_loss_safe': True
+            },
+            'active_signals': list(self.active_signals.values())
+        }
+
+    def process_frame(self, data: Dict):
+        """Synchronous helper to process a frame."""
+        try:
+            return asyncio.run(self.on_frame(data))
+        except RuntimeError:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                return loop.create_task(self.on_frame(data))
+        return None
 
 # API Endpoints for Django Integration
 async def process_frame(request_data: Dict) -> Dict:

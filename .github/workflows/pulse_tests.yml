@@ -1,0 +1,39 @@
+name: Pulse Integration Tests
+
+on:
+  push:
+    paths:
+      - 'pulse_*.py'
+      - 'confluence_scorer.py'
+      - 'risk_enforcer.py'
+  pull_request:
+    paths:
+      - 'pulse_*.py'
+      - 'confluence_scorer.py'
+      - 'risk_enforcer.py'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+
+    - name: Run Pulse tests
+      run: |
+        pytest tests/test_pulse_integration.py -v --cov=./ --cov-report=xml
+
+    - name: Upload coverage
+      uses: codecov/codecov-action@v2
+      with:
+        file: ./coverage.xml

@@ -6,37 +6,40 @@ Wraps existing analyzers to produce unified scoring
 import numpy as np
 from typing import Dict, List, Tuple
 import logging
+import yaml
+import pandas as pd
 
 # Import existing analyzers (these already exist in the codebase)
 from components.smc_analyser import SMCAnalyzer
-from components.wyckoff_analyzer import WyckoffAnalyzer  
+from components.wyckoff_analyzer import WyckoffAnalyzer
 from components.technical_analysis import TechnicalAnalysis
 
 logger = logging.getLogger(__name__)
 
+
 class ConfluenceScorer:
-    """
-    Combines signals from multiple analysis methods into a single score.
-    This is a lightweight wrapper around existing heavy analyzers.
-    """
-    
-    def __init__(self, config: Dict = None):
+    """Combine signals from multiple analysis methods into a single score."""
+
+    def __init__(self, config_path: str = "pulse_config.yaml"):
+        # Load optional config
+        try:
+            with open(config_path, "r") as f:
+                config = yaml.safe_load(f) or {}
+        except Exception:
+            config = {}
+
         # Initialize existing analyzers
-        self.smc = SMCAnalyzer()           # 35,895 LOC
-        self.wyckoff = WyckoffAnalyzer()   # 15,011 LOC
-        self.technical = TechnicalAnalysis() # 8,161 LOC
-        
+        self.smc = SMCAnalyzer()
+        self.wyckoff = WyckoffAnalyzer()
+        self.technical = TechnicalAnalysis()
+
         # Default weights (configurable)
         self.weights = config.get('weights', {
             'smc': 0.4,
             'wyckoff': 0.3,
             'technical': 0.3
-        }) if config else {
-            'smc': 0.4,
-            'wyckoff': 0.3,
-            'technical': 0.3
-        }
-        
+        })
+
         # Score thresholds
         self.thresholds = {
             'high': 80,
@@ -87,6 +90,7 @@ class ConfluenceScorer:
                     'technical': technical_result['score']
                 },
                 'reasons': reasons,
+                'reasoning': reasons,
                 'details': {
                     'smc': smc_result['details'],
                     'wyckoff': wyckoff_result['details'],
@@ -100,13 +104,14 @@ class ConfluenceScorer:
                 'score': 0,
                 'grade': 'error',
                 'components': {},
-                'reasons': [f'Error: {str(e)}']
+                'reasons': [f'Error: {str(e)}'],
+                'reasoning': [f'Error: {str(e)}']
             }
     
     def _score_smc(self, data: Dict) -> Dict:
         """Calculate SMC-based score"""
         # Call existing SMC analyzer
-        smc_analysis = self.smc.analyze(data.get('df', {}))
+        smc_analysis = self.smc.analyze(self._get_df(data))
         
         score = 0
         details = []
@@ -136,7 +141,7 @@ class ConfluenceScorer:
     def _score_wyckoff(self, data: Dict) -> Dict:
         """Calculate Wyckoff-based score"""
         # Call existing Wyckoff analyzer
-        wyckoff_analysis = self.wyckoff.analyze(data.get('df', {}))
+        wyckoff_analysis = self.wyckoff.analyze(self._get_df(data))
         
         score = 0
         details = []
@@ -164,7 +169,7 @@ class ConfluenceScorer:
     def _score_technical(self, data: Dict) -> Dict:
         """Calculate technical indicator score"""
         # Call existing technical analysis
-        ta_analysis = self.technical.calculate_all(data.get('df', {}))
+        ta_analysis = self.technical.calculate_all(self._get_df(data))
         
         score = 0
         details = []
@@ -203,6 +208,19 @@ class ConfluenceScorer:
             'score': min(100, score),
             'details': details
         }
+
+    def _get_df(self, data: Dict) -> pd.DataFrame:
+        """Ensure analyzers receive a DataFrame."""
+        df = data.get('df')
+        if df is not None:
+            return df
+        return pd.DataFrame([{
+            'open': data.get('open', 0),
+            'high': data.get('high', 0),
+            'low': data.get('low', 0),
+            'close': data.get('close', 0),
+            'volume': data.get('volume', 0)
+        }])
     
     def _check_volume_confirmation(self, ta_analysis: Dict) -> bool:
         """Check if volume confirms the move"""

@@ -39,6 +39,12 @@ class RiskEnforcer:
             'cooling_until': None,
             'violations': []
         }
+
+        # Trading state for behavioral checks
+        self.state = {
+            'consecutive_wins': 0,
+            'confidence_level': 0.0
+        }
         
         # Behavioral tracking
         self.behavioral_flags = {
@@ -79,6 +85,8 @@ class RiskEnforcer:
         if not loss_check['allowed']:
             allowed = False
             warnings.append(loss_check['reason'])
+        if loss_check.get('flag'):
+            self.daily_stats['violations'].append(loss_check['flag'])
             
         # Check trade count
         count_check = self._check_trade_count()
@@ -125,15 +133,39 @@ class RiskEnforcer:
             'risk_level': self._calculate_risk_level(),
             'flags': self.behavioral_flags
         }
-        
+
         return allowed, warnings, details
+
+    def evaluate_signal(self, signal: Dict) -> Dict:
+        """Convenience wrapper returning structured decision data."""
+        allowed, warnings, details = self.allow(signal)
+        flags: List[str] = []
+
+        # Include violation flags
+        flags.extend(self.daily_stats.get('violations', []))
+
+        # Include behavioral flags
+        for key, val in details.get('flags', {}).items():
+            if val:
+                if key == 'overconfidence':
+                    flags.append('OVERCONFIDENCE_ALERT')
+                else:
+                    flags.append(key.upper())
+
+        return {
+            'approved': allowed,
+            'reason': warnings[0] if warnings else 'APPROVED',
+            'risk_score': details.get('behavioral_score', 0),
+            'flags': flags
+        }
     
     def _check_daily_loss(self) -> Dict:
         """Check if daily loss limit is exceeded"""
         if self.daily_stats['total_pnl'] <= -self.limits['daily_loss_limit']:
             return {
                 'allowed': False,
-                'reason': '🔴 Daily loss limit reached. No more trades today.'
+                'reason': '🔴 Daily loss limit reached. No more trades today.',
+                'flag': 'DAILY_LIMIT_REACHED'
             }
         
         # Warning if close to limit
@@ -224,7 +256,12 @@ class RiskEnforcer:
     
     def _check_overconfidence(self) -> Dict:
         """Detect overconfidence patterns"""
-        # Simple check: many trades in succession or after wins
+        if self.state.get('consecutive_wins', 0) >= 3 or self.state.get('confidence_level', 0) > 0.8:
+            return {
+                'detected': True,
+                'confidence': self.state.get('confidence_level', 0),
+                'reason': 'Winning streak / high confidence'
+            }
         if self.daily_stats['trades_count'] >= 4:
             return {
                 'detected': True,
@@ -261,7 +298,7 @@ class RiskEnforcer:
     def _calculate_risk_level(self) -> str:
         """Calculate current risk level"""
         score = self._calculate_behavioral_score()
-        
+
         if score >= 80:
             return 'low'
         elif score >= 60:
@@ -270,6 +307,28 @@ class RiskEnforcer:
             return 'high'
         else:
             return 'critical'
+
+    def get_behavioral_report(self) -> Dict:
+        """Return current behavioral state for external reporting."""
+        state = {
+            'confidence_level': self.state.get('confidence_level', 0.0),
+            'daily_pnl_percent': self.daily_stats.get('total_pnl', 0.0),
+            'trades_today': self.daily_stats.get('trades_count', 0),
+            'emotional_state': 'neutral'
+        }
+        recommendations: List[str] = []
+
+        if self.behavioral_flags.get('overconfidence'):
+            state['emotional_state'] = 'confident'
+            recommendations.append('Reduce position size to manage confidence')
+        elif self.behavioral_flags.get('revenge_trading'):
+            state['emotional_state'] = 'anxious'
+            recommendations.append('Pause trading to avoid revenge trades')
+
+        return {
+            'current_state': state,
+            'recommendations': recommendations
+        }
     
     def update_trade_result(self, result: Dict):
         """Update stats after a trade completes"""
