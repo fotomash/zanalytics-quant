@@ -3,6 +3,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework.decorators import api_view, permission_classes
+from django.http import JsonResponse
+from django.views import View
+from django.db import connection
+import time
 from .models import Trade, TradeClosePricesMutation, Tick, Bar, PsychologicalState, JournalEntry
 from .serializers import (
     TradeSerializer,
@@ -293,3 +297,21 @@ class JournalEntryView(views.APIView):
                 setattr(journal, f, data.get(f))
         journal.save()
         return Response(JournalEntrySerializer(journal).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+class Healthz(View):
+    """Ultra-light health endpoint that avoids ORM to prevent startup failures."""
+    def get(self, request):
+        db_ok = True
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+        except Exception:
+            db_ok = False
+        payload = {
+            "status": "ok" if db_ok else "degraded",
+            "db": db_ok,
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+        return JsonResponse(payload, status=200 if db_ok else 503)

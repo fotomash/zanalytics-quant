@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from django.http import JsonResponse
-from app.nexus.views import PingView
+from app.nexus.views import Healthz
 from .api.views_wyckoff import wyckoff_score, wyckoff_health
 from app import pulse_views
 
@@ -13,16 +13,16 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     # v1 api
-    path('api/v1/ping/', PingView.as_view(), name='api-ping'),
     path('api/v1/', include('app.nexus.urls')),
 
     # Wyckoff endpoints
     path('api/pulse/wyckoff/score', wyckoff_score, name='wyckoff-score'),
     path('api/pulse/wyckoff/health', wyckoff_health, name='wyckoff-health'),
 
-    # Generic health endpoint used by monitors
-    path('api/pulse/health', health, name='pulse-health'),
-    path('api/pulse/health/', health, name='pulse-health-slash'),
+    # Robust health endpoint (readiness)
+    path('api/pulse/health', Healthz.as_view(), name='pulse-health'),
+
+    # Pulse API bundle
     path('api/pulse/', include('pulse_api.urls')),
 ]
 

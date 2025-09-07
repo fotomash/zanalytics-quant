@@ -360,8 +360,42 @@ class AdvancedPulseRiskManager:
             st.error(f"MT5 Connection Error: {e}")
             return False
 
+    # --- Simple cache (Redis preferred, fallback to session) ---
+    def _cache_get(self, key: str):
+        try:
+            if getattr(self, 'redis_available', False) and self.redis_client:
+                val = self.redis_client.get(key)
+                if val:
+                    return json.loads(val)
+        except Exception:
+            pass
+        try:
+            skey = f"cache:{key}"
+            row = st.session_state.get(skey)
+            if isinstance(row, dict) and row.get('exp', 0) > time.time():
+                return row.get('data')
+        except Exception:
+            pass
+        return None
+
+    def _cache_set(self, key: str, data, ttl_seconds: int = 5):
+            if getattr(self, 'redis_available', False) and self.redis_client:
+                self.redis_client.set(key, json.dumps(data), ex=ttl_seconds)
+                return
+        except Exception:
+            pass
+        try:
+            skey = f"cache:{key}"
+            st.session_state[skey] = {'data': data, 'exp': time.time() + ttl_seconds}
+        except Exception:
+            pass
+
     def get_account_info(self) -> Dict:
         """Get account information. No mocks; only real sources (match page 16)."""
+        ck = "adv19:account_info"
+        cached = self._cache_get(ck)
+        if isinstance(cached, dict) and cached:
+            return cached
         def _normalize(ai: Dict) -> Dict:
             """Normalize various bridge shapes: lower-case keys, handle nested/list, coerce numbers."""
             obj = ai
@@ -395,6 +429,7 @@ class AdvancedPulseRiskManager:
                     if isinstance(data, dict) and data and 'equity' in data:
                         self.bridge_available = True
                         self.mt5_url = base  # lock onto the working base
+                        self._cache_set(ck, data, ttl_seconds=5)
                         return data
                 else:
                     self.status_messages.append(f"HTTP bridge {url} returned {r.status_code}")
@@ -411,7 +446,7 @@ class AdvancedPulseRiskManager:
                 if self.connected:
                     ai = mt5.account_info()
                     if ai:
-                        return {
+                        info = {
                             'login': ai.login,
                             'server': ai.server,
                             'balance': ai.balance,
@@ -425,6 +460,8 @@ class AdvancedPulseRiskManager:
                             'name': ai.name,
                             'company': ai.company,
                         }
+                        self._cache_set(ck, info, ttl_seconds=5)
+                        return info
             except Exception as e:
                 self.status_messages.append(f"MT5 native error: {e}")
         # No data available
@@ -432,6 +469,13 @@ class AdvancedPulseRiskManager:
 
     def get_positions(self) -> pd.DataFrame:
         """Get all open positions with error handling (match page 16)."""
+        ck = "adv19:positions"
+        cached = self._cache_get(ck)
+        if isinstance(cached, list):
+            try:
+                return pd.DataFrame(cached)
+            except Exception:
+                pass
         # Try HTTP MT5 bridge if available
         try:
             if self.mt5_url:
@@ -448,6 +492,10 @@ class AdvancedPulseRiskManager:
                                     df[col] = pd.to_datetime(df[col])
                                 except Exception:
                                     pass
+                        try:
+                            self._cache_set(ck, df.to_dict(orient='records'), ttl_seconds=5)
+                        except Exception:
+                            pass
                         return df
         except Exception:
             pass
@@ -464,6 +512,10 @@ class AdvancedPulseRiskManager:
                     df = pd.DataFrame(list(positions), columns=positions[0]._asdict().keys())
                     df['time'] = pd.to_datetime(df['time'], unit='s')
                     df['time_update'] = pd.to_datetime(df['time_update'], unit='s')
+                    try:
+                        self._cache_set(ck, df.to_dict(orient='records'), ttl_seconds=5)
+                    except Exception:
+                        pass
                     return df
         except Exception:
             pass
@@ -471,13 +523,27 @@ class AdvancedPulseRiskManager:
 
     def get_confluence_score(self) -> Dict:
         """Get confluence score from Pulse API (short timeout, tolerate errors)."""
+        ck = "adv19:confluence"
+        cached = self._cache_get(ck)
+        if isinstance(cached, dict) and cached:
+            return cached
         result = safe_api_call("POST", "score/peek", {}, timeout=0.9)
-        return result if isinstance(result, dict) and 'error' not in result else {}
+        if isinstance(result, dict) and 'error' not in result:
+            self._cache_set(ck, result, ttl_seconds=5)
+            return result
+        return {}
 
     def get_risk_summary(self) -> Dict:
         """Get risk summary from Pulse API (short timeout)."""
+        ck = "adv19:risk_summary"
+        cached = self._cache_get(ck)
+        if isinstance(cached, dict) and cached:
+            return cached
         result = safe_api_call("GET", "risk/summary", timeout=1.0)
-        return result if isinstance(result, dict) and 'error' not in result else {}
+        if isinstance(result, dict) and 'error' not in result:
+            self._cache_set(ck, result, ttl_seconds=5)
+            return result
+        return {}
 
     def get_top_opportunities(self, n: int = 3) -> List[Dict]:
         """Get top trading opportunities. No mocks."""
@@ -486,6 +552,13 @@ class AdvancedPulseRiskManager:
 
     def get_recent_trades(self, limit: int = 10, days: int = 7) -> pd.DataFrame:
         """Fetch recent trades from MT5 bridge; return empty DF on failure."""
+        ck = f"adv19:recent_trades:{limit}:{days}"
+        cached = self._cache_get(ck)
+        if isinstance(cached, list):
+            try:
+                return pd.DataFrame(cached)
+            except Exception:
+                pass
         eps = [
             f"history_deals_get?days={days}&limit={limit}",
             f"history_orders_get?days={days}&limit={limit}",
@@ -515,7 +588,12 @@ class AdvancedPulseRiskManager:
                 keep = [c for c in ["time","ticket","symbol","type","volume","price","price_open","price_current","profit","commission","swap","comment"] if c in df.columns]
                 if "time" in keep:
                     df = df.sort_values("time", ascending=False)
-                return df[keep].head(limit) if keep else df.head(limit)
+                out = df[keep].head(limit) if keep else df.head(limit)
+                try:
+                    self._cache_set(ck, out.to_dict(orient='records'), ttl_seconds=10)
+                except Exception:
+                    pass
+                return out
             except Exception:
                 continue
         return pd.DataFrame()
@@ -1074,12 +1152,52 @@ def main():
         st.caption(f"System Status: offline ({err}) | Last Update: {datetime.now().strftime('%H:%M:%S')}")
 
 
-    # Get account information and risk status
+    # Controls: Fast Mode + Live Updates (Kafka)
+    ctrl_cols = st.columns([1.2, 1.2, 6])
+    with ctrl_cols[0]:
+        fast_mode = st.checkbox("Fast mode", value=True, help="Prefer cached data and avoid slow calls on load")
+    with ctrl_cols[1]:
+        live_updates = st.checkbox("Live (Kafka)", value=False, help="Ingest latest trade from Kafka once per refresh")
+
+    # If live updates enabled, try a single non-blocking Kafka poll and write to cache
+    if live_updates:
+        try:
+            msg = _read_last_trade_from_kafka(timeout_sec=0.15)
+            if isinstance(msg, dict) and msg:
+                # Normalize minimal trade record for cache list
+                trade = {
+                    'time': msg.get('time') or msg.get('timestamp') or datetime.now().isoformat(),
+                    'ticket': msg.get('ticket'),
+                    'symbol': msg.get('symbol'),
+                    'type': msg.get('type'),
+                    'volume': msg.get('volume'),
+                    'price': msg.get('price') or msg.get('price_current') or msg.get('price_open'),
+                    'profit': msg.get('profit'),
+                    'comment': msg.get('comment', 'kafka')
+                }
+                # Append to cached recent trades (list of dicts)
+                key = f"adv19:recent_trades:20:7"
+                cached_list = pulse_manager._cache_get(key) or []
+                if isinstance(cached_list, list):
+                    cached_list = [trade] + cached_list
+                    cached_list = cached_list[:50]
+                    pulse_manager._cache_set(key, cached_list, ttl_seconds=15)
+        except Exception:
+            pass
+
+    # Get account information and risk status (prefer fast calls)
     try:
-        account_info = pulse_manager.get_account_info()
-        positions_df = pulse_manager.get_positions()
-        risk_data = pulse_manager.get_risk_summary()
-        confluence_data = pulse_manager.get_confluence_score()
+        # Try cache first when fast_mode is on
+        account_info = pulse_manager._cache_get("adv19:account_info") if fast_mode else None
+        if not isinstance(account_info, dict) or not account_info:
+            account_info = pulse_manager.get_account_info()
+
+        risk_data = pulse_manager._cache_get("adv19:risk_summary") if fast_mode else None
+        if not isinstance(risk_data, dict) or not risk_data:
+            risk_data = pulse_manager.get_risk_summary()
+        # Defer heavy/optional calls
+        positions_df = pd.DataFrame()
+        confluence_data = {}
     except Exception as e:
         st.error(f"Error loading data: {e}")
         account_info = {}
@@ -1129,7 +1247,23 @@ def main():
     # Divider
     st.divider()
 
-    # Pulse Decision Surface
+    # Pulse Decision Surface (optional fetch for confluence/positions)
+    fetch_cols = st.columns([1, 1, 6])
+    with fetch_cols[0]:
+        if st.button("Load Positions", key="load_pos_19") or (fast_mode and isinstance(pulse_manager._cache_get('adv19:positions'), list)):
+            try:
+                # Prefer cached positions if available
+                cached_pos = pulse_manager._cache_get('adv19:positions')
+                positions_df = pd.DataFrame(cached_pos) if isinstance(cached_pos, list) else pulse_manager.get_positions()
+            except Exception:
+                positions_df = pd.DataFrame()
+    with fetch_cols[1]:
+        if st.button("Load Confluence", key="load_conf_19") or (fast_mode and isinstance(pulse_manager._cache_get('adv19:confluence'), dict)):
+            try:
+                confluence_data = pulse_manager._cache_get('adv19:confluence') or pulse_manager.get_confluence_score()
+            except Exception:
+                confluence_data = {}
+
     render_pulse_tiles(pulse_manager)
     st.divider()
 
@@ -1161,7 +1295,17 @@ def main():
     # Recent Trades (only)
     st.subheader("📜 Recent Trades")
     try:
-        recent_df = pulse_manager.get_recent_trades(limit=20, days=7)
+        # Lazy-load recent trades to avoid slow startups
+        recent_df = pd.DataFrame()
+        if st.button("Load Recent Trades", key="load_recent_19") or (fast_mode and isinstance(pulse_manager._cache_get('adv19:recent_trades:20:7'), list)):
+            cached_list = pulse_manager._cache_get('adv19:recent_trades:20:7')
+            if isinstance(cached_list, list):
+                try:
+                    recent_df = pd.DataFrame(cached_list)
+                except Exception:
+                    recent_df = pd.DataFrame()
+            if recent_df.empty:
+                recent_df = pulse_manager.get_recent_trades(limit=20, days=7)
     except Exception:
         recent_df = pd.DataFrame()
     if isinstance(recent_df, pd.DataFrame) and not recent_df.empty:

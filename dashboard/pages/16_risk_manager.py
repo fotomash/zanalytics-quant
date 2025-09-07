@@ -606,6 +606,37 @@ class PulseRiskManager:
             self.redis_available = False
             self.redis_client = None
 
+    # --- Simple cache (Redis preferred, fallback to session) ---
+    def _cache_get(self, key: str):
+        try:
+            if getattr(self, 'redis_available', False) and self.redis_client:
+                val = self.redis_client.get(key)
+                if val:
+                    return json.loads(val)
+        except Exception:
+            pass
+        try:
+            skey = f"cache:{key}"
+            row = st.session_state.get(skey)
+            if isinstance(row, dict) and row.get('exp', 0) > time.time():
+                return row.get('data')
+        except Exception:
+            pass
+        return None
+
+    def _cache_set(self, key: str, data, ttl_seconds: int = 5):
+        try:
+            if getattr(self, 'redis_available', False) and self.redis_client:
+                self.redis_client.set(key, json.dumps(data), ex=ttl_seconds)
+                return
+        except Exception:
+            pass
+        try:
+            skey = f"cache:{key}"
+            st.session_state[skey] = {'data': data, 'exp': time.time() + ttl_seconds}
+        except Exception:
+            pass
+
     def connect(self) -> bool:
         """Connect to MT5 with proper error handling"""
         if not self.mt5_available:
@@ -636,6 +667,10 @@ class PulseRiskManager:
 
     def get_account_info(self) -> Dict:
         """Get account information. No mocks; only real sources."""
+        ck = "rm16:account_info"
+        cached = self._cache_get(ck)
+        if isinstance(cached, dict) and cached:
+            return cached
         # Try HTTP MT5 bridge first
         if self.mt5_url:
             try:
@@ -644,6 +679,10 @@ class PulseRiskManager:
                     data = r.json() or {}
                     if isinstance(data, dict) and data:
                         self.bridge_available = True
+                        try:
+                            self._cache_set(ck, data, ttl_seconds=5)
+                        except Exception:
+                            pass
                         return data
                 else:
                     self.status_messages.append(f"HTTP bridge /account_info returned {r.status_code}")
@@ -658,7 +697,7 @@ class PulseRiskManager:
                 if self.connected:
                     ai = mt5.account_info()
                     if ai:
-                        return {
+                        info = {
                             'login': ai.login,
                             'server': ai.server,
                             'balance': ai.balance,
@@ -672,6 +711,11 @@ class PulseRiskManager:
                             'name': ai.name,
                             'company': ai.company,
                         }
+                        try:
+                            self._cache_set(ck, info, ttl_seconds=5)
+                        except Exception:
+                            pass
+                        return info
             except Exception as e:
                 self.status_messages.append(f"MT5 native error: {e}")
         # No data available
@@ -679,6 +723,13 @@ class PulseRiskManager:
 
     def get_positions(self) -> pd.DataFrame:
         """Get all open positions with error handling"""
+        ck = "rm16:positions"
+        cached = self._cache_get(ck)
+        if isinstance(cached, list):
+            try:
+                return pd.DataFrame(cached)
+            except Exception:
+                pass
         # Try HTTP MT5 bridge if available
         try:
             if self.mt5_url:
@@ -695,6 +746,10 @@ class PulseRiskManager:
                                     df[col] = pd.to_datetime(df[col])
                                 except Exception:
                                     pass
+                        try:
+                            self._cache_set(ck, df.to_dict(orient='records'), ttl_seconds=5)
+                        except Exception:
+                            pass
                         return df
         except Exception:
             pass
@@ -711,6 +766,10 @@ class PulseRiskManager:
                     df = pd.DataFrame(list(positions), columns=positions[0]._asdict().keys())
                     df['time'] = pd.to_datetime(df['time'], unit='s')
                     df['time_update'] = pd.to_datetime(df['time_update'], unit='s')
+                    try:
+                        self._cache_set(ck, df.to_dict(orient='records'), ttl_seconds=5)
+                    except Exception:
+                        pass
                     return df
         except Exception:
             pass
@@ -801,6 +860,13 @@ def make_drawdown_bar(used_frac: float, dd_pct: float, cap_pct: float) -> go.Fig
           - history_orders_get?days={days}&limit={limit}
           - history_deals_get?from=ISO&to=ISO&limit={limit}
         """
+        ck = f"rm16:recent_trades:{limit}:{days}"
+        cached = self._cache_get(ck)
+        if isinstance(cached, list):
+            try:
+                return pd.DataFrame(cached)
+            except Exception:
+                pass
         candidates = [
             f"history_deals_get?days={days}&limit={limit}",
             f"history_orders_get?days={days}&limit={limit}",
@@ -825,7 +891,12 @@ def make_drawdown_bar(used_frac: float, dd_pct: float, cap_pct: float) -> go.Fig
                 cols = [c for c in ["time","ticket","symbol","type","volume","price","price_open","price_current","profit","commission","swap","comment"] if c in df.columns]
                 if "time" in cols:
                     df = df.sort_values("time", ascending=False)
-                return df[cols].head(limit) if cols else df.head(limit)
+                out = df[cols].head(limit) if cols else df.head(limit)
+                try:
+                    self._cache_set(ck, out.to_dict(orient='records'), ttl_seconds=10)
+                except Exception:
+                    pass
+                return out
         return pd.DataFrame()
 
     def get_confluence_score(self) -> Dict:
