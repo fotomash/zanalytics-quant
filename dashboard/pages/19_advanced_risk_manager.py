@@ -1036,17 +1036,79 @@ def _render_session_trajectory(account_info: Dict, risk_summary: Dict):
         pass
     fig.update_layout(height=260, margin=dict(l=20, r=10, t=10, b=10), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
     st.plotly_chart(fig, use_container_width=True)
+    # Session Vitals (prototype)
+    with st.expander("🫀 Session Vitals (Prototype)", expanded=False):
+        try:
+            eq = float(account_info.get('equity') or 0)
+            bal = float(account_info.get('balance') or 0)
+            # fetch risk env fresh to avoid stale cache
+            risk_env = safe_api_call("GET", "api/v1/account/risk") or {}
+            sod = float(risk_env.get('sod_equity') or bal or eq)
+            target_amt = float(risk_env.get('target_amount') or 0)
+            loss_amt = float(risk_env.get('loss_amount') or 0)
+            pnl = eq - sod
+            prog_target = max(0.0, min(1.0, (pnl/target_amt))) if (pnl >= 0 and target_amt > 0) else 0.0
+            prog_loss = max(0.0, min(1.0, (abs(pnl)/loss_amt))) if (pnl < 0 and loss_amt > 0) else 0.0
+            dd_used = max(0.0, min(1.0, ((sod - eq)/loss_amt))) if (eq < sod and loss_amt > 0) else 0.0
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.markdown("**Balance**")
+                st.metric("Account Balance", f"${bal:,.0f}")
+                st.caption("Long‑term health (baseline reference)")
+            with c2:
+                st.markdown("**Equity (Daily DD)**")
+                st.progress(dd_used)
+                st.caption(f"Daily DD used: {dd_used*100:.0f}%")
+            with c3:
+                st.markdown("**P&L Progress**")
+                if pnl >= 0:
+                    st.progress(prog_target)
+                    st.caption(f"Toward target: {prog_target*100:.0f}% (P&L +${pnl:,.0f} of +${target_amt:,.0f})")
+                else:
+                    st.progress(prog_loss)
+                    st.caption(f"Toward loss cap: {prog_loss*100:.0f}% (P&L -${abs(pnl):,.0f} of -${loss_amt:,.0f})")
+        except Exception:
+            st.info("Vitals unavailable")
     # Trade History (behavioral analysis)
     try:
-        from dashboard.utils.streamlit_api import fetch_trade_history
+        from dashboard.utils.streamlit_api import fetch_trade_history_filtered, fetch_symbols
         st.subheader("Trade History")
-        sym_opts = ['All', 'XAUUSD', 'EURUSD', 'GBPUSD']
+        sym_list = fetch_symbols() or []
+        sym_opts = ['All'] + sym_list
         sel = st.selectbox("Filter by Symbol", sym_opts, key='hist_sym')
         sym = None if sel == 'All' else sel
-        data = fetch_trade_history(sym)
-        import pandas as pd
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            dfrom = st.date_input("From", value=None, key='hist_from')
+        with c2:
+            dto = st.date_input("To", value=None, key='hist_to')
+        with c3:
+            pmin = st.number_input("Min PnL", value=0.0, step=10.0, format="%f", key='hist_pmin')
+        with c4:
+            pmax = st.number_input("Max PnL", value=0.0, step=10.0, format="%f", key='hist_pmax')
+        data = fetch_trade_history_filtered(
+            symbol=sym,
+            date_from=(dfrom.isoformat() if dfrom else None),
+            date_to=(dto.isoformat() if dto else None),
+            pnl_min=(pmin if pmin != 0.0 else None),
+            pnl_max=(pmax if pmax != 0.0 else None),
+        )
         df = pd.DataFrame(data)
         if not df.empty:
+            # Quick stats
+            try:
+                pnl_series = pd.to_numeric(df.get('pnl'), errors='coerce').fillna(0.0)
+                total = len(df)
+                wins = int((pnl_series > 0).sum())
+                losses = int((pnl_series < 0).sum())
+                winrate = (wins/total*100.0) if total else 0.0
+                avg_pnl = float(pnl_series.mean()) if total else 0.0
+                cst1, cst2, cst3 = st.columns(3)
+                cst1.metric("Trades", f"{total}")
+                cst2.metric("Win Rate", f"{winrate:.0f}%")
+                cst3.metric("Avg PnL", f"${avg_pnl:,.2f}")
+            except Exception:
+                pass
             if 'ts' in df.columns:
                 df['ts'] = pd.to_datetime(df['ts'], errors='coerce')
             cols = [c for c in ['id','ts','symbol','direction','entry','exit','pnl','status'] if c in df.columns]
@@ -1606,6 +1668,188 @@ def _read_last_trade_via_api() -> Optional[Dict]:
         except Exception:
             continue
     return best[1] if best else None
+
+def _fetch_equity_series_df() -> pd.DataFrame:
+    try:
+        data = safe_api_call("GET", "api/v1/feed/equity/series") or {}
+        pts = data.get('points') if isinstance(data, dict) else []
+        if not isinstance(pts, list) or not pts:
+            return pd.DataFrame()
+        df = pd.DataFrame(pts)
+        df['time'] = pd.to_datetime(df.get('ts'), errors='coerce')
+        df['pnl'] = pd.to_numeric(df.get('pnl'), errors='coerce')
+        return df.dropna(subset=['time'])
+    except Exception:
+        return pd.DataFrame()
+
+def _render_unified_whisperer_block(account_info: Dict, risk_env: Dict):
+    # Behavioral Compass and Pattern Watch side-by-side
+    try:
+        mirror = safe_api_call("GET", "api/v1/mirror/state") or {}
+    except Exception:
+        mirror = {}
+    try:
+        patt = safe_api_call("GET", "api/v1/behavioral/patterns") or {}
+    except Exception:
+        patt = {}
+    colA, colB = st.columns(2)
+    with colA:
+        st.subheader("🎯 Behavioral Compass")
+        metrics = [
+            {'name': 'Discipline', 'value': int(mirror.get('discipline') or 0), 'color': '#22C55E'},
+            {'name': 'Patience', 'value': int(mirror.get('patience_ratio') or 0), 'color': '#3B82F6'},
+            {'name': 'Efficiency', 'value': int(mirror.get('efficiency') or 0), 'color': '#06B6D4'},
+            {'name': 'Conviction', 'value': int(mirror.get('conviction_hi_win') or 0), 'color': '#8B5CF6'},
+        ]
+        fig = go.Figure()
+        for i, m in enumerate(metrics):
+            fig.add_trace(go.Pie(values=[m['value'], 100-m['value']], hole=0.4 + i*0.1,
+                                 marker=dict(colors=[m['color'], 'rgba(31,41,55,0.3)']),
+                                 textinfo='none', showlegend=False,
+                                 domain=dict(x=[0.1*i, 1-0.1*i], y=[0.1*i, 1-0.1*i]),
+                                 hovertemplate=f"{m['name']}: {m['value']}%<extra></extra>"))
+        try:
+            import numpy as _np
+            overall = int(_np.mean([m['value'] for m in metrics]))
+        except Exception:
+            overall = int(sum([m['value'] for m in metrics])/len(metrics)) if metrics else 0
+        fig.add_annotation(text=f"<b>{overall}%</b><br>Overall", x=0.5, y=0.5, showarrow=False, font=dict(size=20, color='white'))
+        fig.update_layout(height=300, margin=dict(t=0,b=0,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(fig, use_container_width=True)
+    with colB:
+        st.subheader("🧩 Pattern Watch")
+        chips = [
+            ('Revenge Trading', patt.get('revenge_trading') or {}),
+            ('FOMO', patt.get('fomo') or {}),
+            ('Fear (Cut Winners)', patt.get('fear_cut_winners') or {}),
+        ]
+        for label, obj in chips:
+            active = bool(obj.get('active'))
+            note = obj.get('note') or ''
+            color = '#EF4444' if active else '#22C55E'
+            status = 'ALERT' if active else 'OK'
+            st.markdown(
+                f"<div style='padding:8px;margin:4px 0;background:rgba(31,41,55,0.3);border-left:3px solid {color};border-radius:0 6px 6px 0;'>"
+                f"<span style='color:#9CA3AF;'>{label}:</span> "
+                f"<span style='color:{color};font-weight:700'>{status}</span>"
+                f"<span style='color:#9CA3AF;'> {'• ' + note if (note and active) else ''}</span>"
+                f"</div>",
+                unsafe_allow_html=True)
+
+    # Session Vitals: same size as compass (rendered separately)
+    st.subheader("💰 Session Vitals")
+    try:
+        eq = float(account_info.get('equity') or 0)
+        bal = float(account_info.get('balance') or 0)
+        sod = float(risk_env.get('sod_equity') or bal or eq)
+        target_amt = risk_env.get('target_amount') if isinstance(risk_env.get('target_amount'), (int, float)) else None
+        loss_amt = risk_env.get('loss_amount') if isinstance(risk_env.get('loss_amount'), (int, float)) else None
+        daily_profit_pct = float(risk_env.get('daily_profit_pct') or 0.0)
+        daily_risk_pct = float(risk_env.get('daily_risk_pct') or 0.0)
+        fig_sess = donut_session_vitals(
+            equity_usd=eq,
+            sod_equity_usd=sod,
+            baseline_equity_usd=bal or sod,
+            daily_profit_pct=daily_profit_pct,
+            daily_risk_pct=daily_risk_pct,
+            target_amount_usd=target_amt,
+            loss_amount_usd=loss_amt,
+            size=(280, 280),
+        )
+        st.plotly_chart(fig_sess, use_container_width=True, config={'displayModeBar': False})
+    except Exception:
+        st.info("Vitals unavailable")
+
+    # Session Trajectory
+    st.subheader("📈 Session Trajectory")
+    series = _fetch_equity_series_df()
+    if not series.empty:
+        figT = go.Figure()
+        figT.add_trace(go.Scatter(x=series['time'], y=series['pnl'], mode='lines', name='P&L',
+                                  line=dict(color='#22C55E', width=2), fill='tozeroy',
+                                  fillcolor='rgba(34,197,94,0.1)'))
+        figT.add_hline(y=0, line_dash='dash', line_color='gray', opacity=0.3)
+        figT.update_layout(height=300, margin=dict(t=0,b=20,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(figT, use_container_width=True)
+    else:
+        st.info("No trades today — trajectory will appear once trades close.")
+
+    # Discipline Posture (placeholder)
+    st.subheader("📊 Discipline Posture")
+    st.info("Awaiting discipline posture feed")
+
+    # The Whisperer (reuse component)
+    st.subheader("🤖 The Whisperer")
+    try:
+        render_whisper_panel(api=os.getenv("DJANGO_API_URL", "http://django:8000").rstrip('/') + "/api/pulse/whispers")
+    except Exception:
+        st.info("Whisperer unavailable")
+
+    # Bottom tiles
+    st.divider()
+    bc1, bc2, bc3, bc4 = st.columns(4)
+    with bc1:
+        st.markdown("### Trade Quality")
+        try:
+            ph = safe_api_call('GET', 'api/v1/profit-horizon') or []
+            items = ph if isinstance(ph, list) else ph.get('items') or []
+            wins = sum(1 for x in items if (float(x.get('pnl_usd') or 0) > 0))
+            losses = sum(1 for x in items if (float(x.get('pnl_usd') or 0) < 0))
+            st.metric("Wins", f"{wins}")
+            st.metric("Losses", f"{losses}")
+        except Exception:
+            st.info("Unavailable")
+    with bc2:
+        st.markdown("### Profit Efficiency")
+        try:
+            ph = safe_api_call('GET', 'api/v1/profit-horizon') or []
+            items = ph if isinstance(ph, list) else ph.get('items') or []
+            total_peak = 0.0
+            total_pnl = 0.0
+            for it in items:
+                peak = float(it.get('peak_usd') or 0)
+                pnlv = float(it.get('pnl_usd') or 0)
+                if peak > 0 and pnlv > 0:
+                    total_peak += peak
+                    total_pnl += pnlv
+            eff = (total_pnl / total_peak) if total_peak > 0 else None
+            if eff is not None:
+                st.metric("Captured vs Potential", f"{eff*100:.0f}%")
+            else:
+                st.metric("Captured vs Potential", "—")
+                st.caption("Awaiting positive trades")
+        except Exception:
+            st.metric("Captured vs Potential", "—")
+    with bc3:
+        st.markdown("### Risk Management")
+        try:
+            used = risk_env.get('used_pct')
+            exp = risk_env.get('exposure_pct')
+            def _norm(x):
+                if x is None: return None
+                x = float(x)
+                return x if x <= 1.0 else x/100.0
+            used_n = _norm(used)
+            exp_n = _norm(exp)
+            st.metric("Risk Used", f"{(used_n*100):.0f}%" if used_n is not None else "—")
+            st.metric("Exposure", f"{(exp_n*100):.0f}%" if exp_n is not None else "—")
+        except Exception:
+            st.metric("Risk Used", "—")
+            st.metric("Exposure", "—")
+    with bc4:
+        st.markdown("### Session Momentum")
+        try:
+            series2 = _fetch_equity_series_df()
+            if not series2.empty and len(series2) > 2:
+                df = series2.tail(min(20, len(series2)))
+                inc = (df['pnl'].diff() > 0).mean()
+                st.metric("Positive Momentum", f"{inc*100:.0f}%")
+                st.caption("Last ~20 points")
+            else:
+                st.metric("Positive Momentum", "—")
+                st.caption("Awaiting series")
+        except Exception:
+            st.metric("Positive Momentum", "—")
 
 def get_last_trade_snapshot() -> Dict:
     """Return last trade from API, falling back to Kafka if configured."""
@@ -2271,6 +2515,12 @@ def main():
                 confluence_data = pulse_manager._cache_get('adv19:confluence') or pulse_manager.get_confluence_score()
             except Exception:
                 confluence_data = {}
+    # Unified Whisperer Cockpit block (copied from 04-style UI)
+    try:
+        _render_unified_whisperer_block(account_info, risk_data)
+    except Exception:
+        pass
+
     render_pulse_tiles(pulse_manager)
 
     # Footer with last update time

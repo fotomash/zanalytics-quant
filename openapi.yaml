@@ -461,6 +461,49 @@ paths:
       summary: Latest whispers list (JSON)
       operationId: getWhispers
       responses: { '200': { description: OK } }
+  /api/v1/trades/history:
+    get:
+      summary: Trade history with filters (behavioral-friendly)
+      operationId: getTradeHistory
+      parameters:
+        - in: query
+          name: symbol
+          schema: { type: string, nullable: true }
+          description: Filter by symbol (e.g., XAUUSD)
+        - in: query
+          name: date_from
+          schema: { type: string, nullable: true, description: ISO date or datetime }
+          description: Include trades with entry_time >= date_from
+        - in: query
+          name: date_to
+          schema: { type: string, nullable: true, description: ISO date or datetime }
+          description: Include trades with entry_time <= date_to
+        - in: query
+          name: pnl_min
+          schema: { type: number, nullable: true }
+          description: Minimum PnL (USD)
+        - in: query
+          name: pnl_max
+          schema: { type: number, nullable: true }
+          description: Maximum PnL (USD)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: integer }
+                    ts: { type: string }
+                    symbol: { type: string }
+                    direction: { type: string }
+                    entry: { type: number }
+                    exit: { type: number, nullable: true }
+                    pnl: { type: number, nullable: true }
+                    status: { type: string }
   /api/pulse/whisper/ack:
     post:
       summary: Acknowledge a whisper

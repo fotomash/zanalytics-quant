@@ -865,10 +865,46 @@ class TradeHistoryView(views.APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+        from django.utils import timezone
+        from datetime import datetime, timedelta
         symbol = request.GET.get('symbol')
+        date_from = request.GET.get('date_from')  # ISO date or datetime
+        date_to = request.GET.get('date_to')
+        pnl_min = request.GET.get('pnl_min')
+        pnl_max = request.GET.get('pnl_max')
+
         qs = Trade.objects.all().order_by('-entry_time')
         if symbol:
             qs = qs.filter(symbol=str(symbol))
+        # Date range filters (inclusive)
+        try:
+            if date_from:
+                try:
+                    dtf = datetime.fromisoformat(date_from)
+                except Exception:
+                    dtf = timezone.make_aware(datetime.strptime(date_from, "%Y-%m-%d"))
+                qs = qs.filter(entry_time__gte=dtf)
+            if date_to:
+                try:
+                    dtt = datetime.fromisoformat(date_to)
+                except Exception:
+                    # end of day
+                    base = datetime.strptime(date_to, "%Y-%m-%d")
+                    dtt = timezone.make_aware(base + timedelta(hours=23, minutes=59, seconds=59))
+                qs = qs.filter(entry_time__lte=dtt)
+        except Exception:
+            pass
+        # PnL filters
+        try:
+            if pnl_min is not None:
+                qs = qs.filter(pnl__gte=float(pnl_min))
+        except Exception:
+            pass
+        try:
+            if pnl_max is not None:
+                qs = qs.filter(pnl__lte=float(pnl_max))
+        except Exception:
+            pass
         out = []
         for t in qs[:500]:
             try:

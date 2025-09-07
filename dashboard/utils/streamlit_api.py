@@ -137,15 +137,48 @@ def render_status_row() -> None:
 
 
 def fetch_trade_history(symbol: str | None = None) -> List[Dict[str, Any]]:
-    params = {}
+    return fetch_trade_history_filtered(symbol=symbol)
+
+
+def fetch_trade_history_filtered(
+    *,
+    symbol: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    pnl_min: float | None = None,
+    pnl_max: float | None = None,
+) -> List[Dict[str, Any]]:
+    params: Dict[str, Any] = {}
     if symbol:
         params['symbol'] = symbol
+    if date_from:
+        params['date_from'] = date_from
+    if date_to:
+        params['date_to'] = date_to
+    if pnl_min is not None:
+        params['pnl_min'] = pnl_min
+    if pnl_max is not None:
+        params['pnl_max'] = pnl_max
     try:
         url = api_url('api/v1/trades/history')
-        r = requests.get(url, params=params, timeout=2.0)
+        r = requests.get(url, params=params, timeout=3.0)
         if r.ok:
             data = r.json() or []
             return data if isinstance(data, list) else []
+    except Exception:
+        pass
+    return []
+
+
+@st.cache_data(show_spinner=False, ttl=30)
+def fetch_symbols() -> List[str]:
+    try:
+        r = requests.get(api_url('api/v1/market/symbols'), timeout=2.0)
+        if r.ok:
+            data = r.json() or {}
+            syms = data.get('symbols') if isinstance(data, dict) else []
+            if isinstance(syms, list):
+                return syms
     except Exception:
         pass
     return []

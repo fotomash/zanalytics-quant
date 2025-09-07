@@ -18,6 +18,8 @@ from dashboard.utils.streamlit_api import (
     drain_whisper_sse,
     get_sse_status,
     fetch_trade_history,
+    fetch_trade_history_filtered,
+    fetch_symbols,
 )
 import time
 
@@ -549,12 +551,63 @@ try:
 except Exception:
     st.info("Trajectory feed unavailable.")
 
+# Session Vitals (prototype)
+with st.expander("🫀 Session Vitals (Prototype)", expanded=True):
+    try:
+        eq = float((acct or {}).get('equity') or 0)
+        bal = float((acct or {}).get('balance') or 0)
+        risk_env = risk or {}
+        sod = float(risk_env.get('sod_equity') or bal or eq)
+        target_amt = float(risk_env.get('target_amount') or 0)
+        loss_amt = float(risk_env.get('loss_amount') or 0)
+        pnl = eq - sod
+        # Progress values
+        prog_target = max(0.0, min(1.0, (pnl/target_amt))) if (pnl >= 0 and target_amt > 0) else 0.0
+        prog_loss = max(0.0, min(1.0, (abs(pnl)/loss_amt))) if (pnl < 0 and loss_amt > 0) else 0.0
+        dd_used = max(0.0, min(1.0, ((sod - eq)/loss_amt))) if (eq < sod and loss_amt > 0) else 0.0
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown("**Balance**")
+            st.metric("Account Balance", f"${bal:,.0f}")
+            st.caption("Long‑term health (baseline reference)")
+        with c2:
+            st.markdown("**Equity (Daily DD)**")
+            st.progress(dd_used)
+            st.caption(f"Daily DD used: {dd_used*100:.0f}%")
+        with c3:
+            st.markdown("**P&L Progress**")
+            if pnl >= 0:
+                st.progress(prog_target)
+                st.caption(f"Toward target: {prog_target*100:.0f}% (P&L +${pnl:,.0f} of +${target_amt:,.0f})")
+            else:
+                st.progress(prog_loss)
+                st.caption(f"Toward loss cap: {prog_loss*100:.0f}% (P&L -${abs(pnl):,.0f} of -${loss_amt:,.0f})")
+    except Exception:
+        st.info("Vitals unavailable")
+
 # Trade History (behavioral analysis)
 st.subheader("Trade History")
-sym_opts = ['All', 'XAUUSD', 'EURUSD', 'GBPUSD']
+sym_list = fetch_symbols() or []
+sym_opts = ['All'] + sym_list
 sel = st.selectbox("Filter by Symbol", sym_opts)
 sym = None if sel == 'All' else sel
-hist = fetch_trade_history(sym)
+
+colf1, colf2, colf3, colf4 = st.columns(4)
+with colf1:
+    date_from = st.date_input("From", value=None)
+with colf2:
+    date_to = st.date_input("To", value=None)
+with colf3:
+    pnl_min = st.number_input("Min PnL", value=0.0, step=10.0, format="%f")
+with colf4:
+    pnl_max = st.number_input("Max PnL", value=0.0, step=10.0, format="%f")
+
+df_str_from = date_from.isoformat() if date_from else None
+df_str_to = date_to.isoformat() if date_to else None
+pmin = pnl_min if pnl_min != 0.0 else None
+pmax = pnl_max if pnl_max != 0.0 else None
+
+hist = fetch_trade_history_filtered(symbol=sym, date_from=df_str_from, date_to=df_str_to, pnl_min=pmin, pnl_max=pmax)
 try:
     import pandas as pd
     df = pd.DataFrame(hist)
