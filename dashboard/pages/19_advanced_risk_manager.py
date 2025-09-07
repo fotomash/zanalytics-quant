@@ -1012,6 +1012,7 @@ def main():
     # If account info missing, show connection diagnostics
     if not account_info:
         with st.expander("Connection Diagnostics", expanded=False):
+            st.caption(f"MT5 bridge URL: {getattr(pulse_manager, 'mt5_url', '—')}")
             if getattr(pulse_manager, 'status_messages', None):
                 for m in pulse_manager.status_messages[-5:]:
                     st.caption(f"• {m}")
