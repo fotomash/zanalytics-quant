@@ -59,6 +59,13 @@ import yfinance as yf
 from fredapi import Fred
 import os
 import requests
+# Optional DB access for bars
+try:
+    from sqlalchemy import create_engine as _create_engine, text as _sql_text
+except Exception:
+    _create_engine = None
+    def _sql_text(x):
+        return x
 # --- PATCH: Caching Utilities (robust, writable path) ---
 import pickle
 
@@ -119,6 +126,29 @@ def get_cache_timestamp(key: str):
     if os.path.exists(cache_file):
         return datetime.fromtimestamp(os.path.getmtime(cache_file))
     return None
+
+# --- DB connectivity (optional) ---
+DB_URL = (
+    get_config_var("DB_URL")
+    or get_config_var("POSTGRES_URL")
+    or os.getenv("DB_URL")
+    or os.getenv("POSTGRES_URL")
+)
+if not DB_URL:
+    # Compose from component vars if a full URL is not provided
+    DB_URL = (
+        f"postgresql://{os.getenv('POSTGRES_USER','postgres')}:"
+        f"{os.getenv('POSTGRES_PASSWORD','postgres')}@"
+        f"{os.getenv('POSTGRES_HOST','localhost')}:"
+        f"{os.getenv('POSTGRES_PORT','5432')}/"
+        f"{os.getenv('POSTGRES_DB','postgres')}"
+    )
+db_engine = None
+try:
+    if DB_URL and _create_engine is not None:
+        db_engine = _create_engine(DB_URL, pool_pre_ping=True)
+except Exception:
+    db_engine = None
 
 # Suppress warnings for a cleaner output
 # Suppress warnings for a cleaner output
@@ -200,9 +230,36 @@ class ZanalyticsDashboard:
             st.session_state.chart_theme = 'plotly_dark'
 
     def fetch_bar_data(self, symbol: str, interval: str = "M15", limit: int = 200) -> pd.DataFrame:
-        """Retrieve bar data from the backend API and apply enrichment."""
-        df = self.mt5_client.get_bars(symbol, interval, limit)
-        return enrich_ticks(df)
+        """Retrieve bars preferably from Postgres, fallback to MT5 bridge, then enrich."""
+        df = pd.DataFrame()
+        # 1) Try database
+        if db_engine is not None:
+            try:
+                q = _sql_text(
+                    """
+                    SELECT ts, open, high, low, close, volume
+                    FROM bars
+                    WHERE symbol = :sym AND timeframe = :tf
+                    ORDER BY ts DESC
+                    LIMIT :lim
+                    """
+                )
+                df = pd.read_sql(q, db_engine, params={"sym": symbol, "tf": interval, "lim": limit})
+                if not df.empty:
+                    df = df.sort_values("ts")
+            except Exception:
+                df = pd.DataFrame()
+        # 2) Fallback: bridge
+        if df is None or df.empty:
+            try:
+                df = self.mt5_client.get_bars(symbol, interval, limit)
+            except Exception:
+                df = pd.DataFrame()
+        # 3) Enrich and return
+        try:
+            return enrich_ticks(df)
+        except Exception:
+            return df if isinstance(df, pd.DataFrame) else pd.DataFrame()
 
     def fetch_tick_data(self, symbol: str, limit: int = 1000) -> pd.DataFrame:
         """Retrieve tick data from the backend API."""
@@ -222,6 +279,15 @@ class ZanalyticsDashboard:
             st.sidebar.success("✅ Cache present")
         else:
             st.sidebar.warning("⚠️ No cache")
+
+        # Connectivity snapshot
+        with st.sidebar.expander("Connectivity", expanded=True):
+            st.write("Postgres:", "✅" if db_engine is not None else "❌")
+            try:
+                r = requests.get(f"{self.api_url}/ping", timeout=1.2)
+                st.write("MT5 bridge:", "✅" if r.ok else "❌")
+            except Exception:
+                st.write("MT5 bridge:", "❌")
 
         # Enrichment controls
         if "run_enrichment" not in st.session_state:
@@ -276,12 +342,7 @@ class ZanalyticsDashboard:
         """, unsafe_allow_html=True)
 
 
-        if not self.data_dir.exists():
-            st.error(f"Data directory not found at: `{self.data_dir}`")
-            st.info(
-                "Please create this directory or configure the correct path in your `.streamlit/secrets.toml` file.")
-            st.code('data_directory = "/path/to/your/data"')
-            return
+        # Directory scanning/parquet dependency removed — live and DB feeds only
 
         # --- Tick Data from API ---
         with st.expander("📡 Tick Data – XAUUSD (Last 100 Ticks)", expanded=False):
@@ -296,19 +357,13 @@ class ZanalyticsDashboard:
             except Exception as e:
                 st.error(f"Failed to load tick data: {e}")
 
-        with st.spinner("🛰️ Scanning all data sources..."):
-            data_sources = auto_cache(
-                "home_data_sources",
-                lambda: self.scan_all_data_sources(),
-                refresh=st.session_state.get("refresh_home_data", False)
-            )
-        # Moved st.success to display_home_page
-        self.display_home_page(data_sources)
+        # Move straight into main content (no local directory scan)
+        self.display_home_page(None)
         # PATCH: Reset refresh flag at end of run
         if "refresh_home_data" in st.session_state and st.session_state["refresh_home_data"]:
             st.session_state["refresh_home_data"] = False
 
-    def display_home_page(self, data_sources):
+    def display_home_page(self, data_sources=None):
         # --- Quant-Desk Welcome Block (Updated Design) ---
         st.markdown(
             """
@@ -870,14 +925,14 @@ class ZanalyticsDashboard:
                 )
                 st.plotly_chart(fig_xau_3d, use_container_width=True)
                 # Render consolidated multi-asset 3-D view
-                self.create_multi_asset_3d_chart(data_sources)
+                self.create_multi_asset_3d_chart()
             else:
                 st.info("XAUUSD 15min data missing 'timestamp' or 'close' column for 3D FVG/SMC chart.")
         except Exception as e:
             st.warning(f"Error loading 3D XAUUSD FVG/SMC chart: {e}")
 
     # --- Multi-Asset 3D Volume Surface Chart ---
-    def create_multi_asset_3d_chart(self, data_sources):
+    def create_multi_asset_3d_chart(self):
         st.markdown("#### 🌐 Multi-Asset 3D Volume Surface – 15-Minute")
 
         import numpy as np
@@ -1105,11 +1160,6 @@ class ZanalyticsDashboard:
             </div>
             """, unsafe_allow_html=True)
 
-        # Horizontal rule before available datasets
-        st.markdown("---")
-        # ─── Available datasets (bottom, plain) ────────────────────────────────
-        self.display_available_data(data_sources)
-
         st.markdown(
             "<div style='text-align:center; color:#8899a6; font-size:0.97rem; margin-top:2.5rem;'>"
             "© 2025 Zanalytics. Powered by institutional-grade market microstructure analytics.<br>"
@@ -1117,7 +1167,6 @@ class ZanalyticsDashboard:
             "</div>",
             unsafe_allow_html=True,
         )
-        st.success(f"📂  Loaded **{len(data_sources)}** asset folders • **{sum(len(v) for v in data_sources.values())}** timeframe files detected")
 
     def get_10y_yields(self):
         """Fetches the latest and previous available 10Y government bond yields from FRED."""
@@ -1145,19 +1194,6 @@ class ZanalyticsDashboard:
                 previous_yields[country] = None
         return latest_yields, previous_yields
 
-    def display_available_data(self, data_sources):
-        """Lists the pairs and timeframes found in the data directory."""
-        st.markdown("##### Available Datasets")
-        if not data_sources:
-            st.warning("No data found in the configured directory.")
-            return
-
-        for pair, tfs in sorted(data_sources.items()):
-            if tfs:
-                # Sort timeframes logically
-                tf_list = ", ".join(
-                    sorted(tfs.keys(), key=lambda t: (self.timeframes.index(t) if t in self.timeframes else 99, t)))
-                st.markdown(f"{pair}: {tf_list}")
 
     def display_original_dxy_chart(self):
         """

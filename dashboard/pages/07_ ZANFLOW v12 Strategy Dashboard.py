@@ -48,8 +48,121 @@ PARQUET_DATA_DIR = DEFAULT_DATA_FOLDER  # for external modules / clarity
 # ============================================================================
 import requests, threading
 import time as _time
+import pickle
+# Optional dependencies: redis and sqlalchemy
+try:
+    import redis as _redis
+except Exception:
+    _redis = None
+try:
+    from sqlalchemy import create_engine as _create_engine, text as _sql_text
+except Exception:
+    _create_engine = None
+    def _sql_text(x):
+        return x
 
 MT5_HTTP_BRIDGE_URL = os.getenv("MT5_HTTP_BRIDGE_URL", os.getenv("MT5_URL", "http://localhost:5001"))
+
+# --- Runtime overrides (sidebar) ---
+def get_bridge_base() -> str:
+    base = st.session_state.get("zan_bridge_url") or MT5_HTTP_BRIDGE_URL
+    return str(base or "").rstrip("/")
+
+def get_parquet_dir() -> str:
+    return st.session_state.get("zan_parquet_dir") or PARQUET_DATA_DIR
+
+# --- Optional: Database + Redis cache configuration ---
+DB_URL = os.getenv("DB_URL") or os.getenv("DATABASE_URL")
+CANDLES_TABLE = os.getenv("CANDLES_TABLE", "candles")
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+
+def _get_engine():
+    eng = st.session_state.get("zan_db_engine")
+    if DB_URL and eng is None and _create_engine is not None:
+        try:
+            eng = _create_engine(DB_URL, pool_pre_ping=True)
+            st.session_state["zan_db_engine"] = eng
+        except Exception:
+            st.session_state["zan_db_engine"] = None
+            eng = None
+    return eng
+
+def _get_redis():
+    cli = st.session_state.get("zan_redis")
+    if cli is None:
+        if _redis is None:
+            cli = None
+        else:
+            try:
+                cli = _redis.Redis.from_url(REDIS_URL, socket_timeout=0.5, socket_connect_timeout=0.5)
+                cli.ping()
+            except Exception:
+                cli = None
+        st.session_state["zan_redis"] = cli
+    return cli
+
+def _parse_lookback(lb: str) -> timedelta:
+    try:
+        s = str(lb).strip().upper()
+        if s.endswith("D"):
+            return timedelta(days=float(s[:-1]))
+        if s.endswith("H"):
+            return timedelta(hours=float(s[:-1]))
+        if s.endswith("MIN") or s.endswith("M"):
+            val = s[:-3] if s.endswith("MIN") else s[:-1]
+            return timedelta(minutes=float(val))
+    except Exception:
+        pass
+    return timedelta(days=2)
+
+def _redis_get(symbol: str, timeframe: str) -> Optional[pd.DataFrame]:
+    r = _get_redis()
+    if not r:
+        return None
+    try:
+        key = f"candles:{symbol}:{timeframe}"
+        raw = r.get(key)
+        if not raw:
+            return None
+        return pickle.loads(raw)
+    except Exception:
+        return None
+
+def _redis_set(symbol: str, timeframe: str, df: pd.DataFrame, ttl: int = 20) -> None:
+    r = _get_redis()
+    if not r or df is None or df.empty:
+        return
+    try:
+        key = f"candles:{symbol}:{timeframe}"
+        r.setex(key, ttl, pickle.dumps(df))
+    except Exception:
+        pass
+
+def load_db_candles(symbol: str, timeframe: str, lookback: str = "2D") -> pd.DataFrame:
+    eng = _get_engine()
+    if eng is None:
+        return pd.DataFrame(columns=["open","high","low","close","volume"])
+    # Try cache first
+    cached = _redis_get(symbol, timeframe)
+    if isinstance(cached, pd.DataFrame) and not cached.empty:
+        return cached
+    since = datetime.utcnow() - _parse_lookback(lookback)
+    try:
+        q = _sql_text(f"""
+            SELECT ts, open, high, low, close, COALESCE(volume,0) AS volume
+            FROM {CANDLES_TABLE}
+            WHERE symbol = :sym AND timeframe = :tf AND ts >= :since
+            ORDER BY ts ASC
+        """)
+        df = pd.read_sql(q, eng, params={"sym": symbol, "tf": timeframe, "since": since})
+        if df.empty:
+            return df
+        df["ts"] = pd.to_datetime(df["ts"], utc=True, errors="coerce")
+        df = df.set_index("ts").sort_index()
+        _redis_set(symbol, timeframe, df)
+        return df
+    except Exception:
+        return pd.DataFrame(columns=["open","high","low","close","volume"])
 
 class TickRingBuffer:
     """In-memory rolling buffer of ticks per symbol."""
@@ -143,7 +256,7 @@ def load_parquet_candles(symbol: str, timeframe: str) -> pd.DataFrame:
     Expected columns: open, high, low, close, volume with DateTimeIndex.
     """
     try:
-        pattern = os.path.join(PARQUET_DATA_DIR, f"{symbol}_{timeframe}_*.parquet")
+        pattern = os.path.join(get_parquet_dir(), f"{symbol}_{timeframe}_*.parquet")
         candidates = sorted(glob.glob(pattern))
         if not candidates:
             return pd.DataFrame(columns=["open","high","low","close","volume"])
@@ -156,9 +269,19 @@ def load_parquet_candles(symbol: str, timeframe: str) -> pd.DataFrame:
 
 # --- Unified getter used by all strategy engines ---
 def _get_live_feed() -> LiveMT5HTTPFeed:
-    if "live_feed" not in st.session_state:
-        st.session_state["live_feed"] = LiveMT5HTTPFeed()
-    return st.session_state["live_feed"]
+    base = get_bridge_base()
+    feed = st.session_state.get("live_feed")
+    if not isinstance(feed, LiveMT5HTTPFeed):
+        feed = LiveMT5HTTPFeed(base_url=base)
+        st.session_state["live_feed"] = feed
+    else:
+        # Update base URL if changed at runtime
+        try:
+            if base and feed.base_url != base:
+                feed.base_url = base
+        except Exception:
+            pass
+    return feed
 
 def get_candles(symbol: str, timeframe: str = "1min", lookback: str = "2D") -> pd.DataFrame:
     """
@@ -492,7 +615,34 @@ def setup_zanflow_page():
     if "data_mode" not in st.session_state:
         st.session_state["data_mode"] = "Parquet"
     st.sidebar.markdown("### Data Source")
-    data_mode_choice = st.sidebar.radio("Feed", ["Parquet", "Live"], horizontal=True)
+    # Determine defaults based on availability
+    db_ok = False
+    try:
+        eng = _get_engine()
+        if eng is not None:
+            with eng.connect() as c:
+                c.execute(text("SELECT 1"))
+                db_ok = True
+    except Exception:
+        db_ok = False
+    bridge_ok = False
+    try:
+        test_url = f"{get_bridge_base()}/ticks"
+        r = requests.get(test_url, params={"symbol":"EURUSD","limit":1}, timeout=0.8)
+        bridge_ok = bool(r.ok)
+    except Exception:
+        bridge_ok = False
+    parquet_ok = False
+    try:
+        p = Path(get_parquet_dir())
+        parquet_ok = p.exists() and any(p.glob("**/*.parquet"))
+    except Exception:
+        parquet_ok = False
+
+    if "data_mode" not in st.session_state:
+        st.session_state["data_mode"] = "Database" if db_ok else ("Live" if bridge_ok else "Parquet")
+
+    data_mode_choice = st.sidebar.radio("Feed", ["Database", "Live", "Parquet"], index=["Database","Live","Parquet"].index(st.session_state["data_mode"]))
     st.session_state["data_mode"] = data_mode_choice
     if data_mode_choice == "Live":
         st.caption("🔴 LIVE feed via MetaTrader HTTP bridge")
@@ -500,6 +650,60 @@ def setup_zanflow_page():
         st.sidebar.toggle("Auto-refresh", value=True, key="live_autorefresh")
         if st.session_state.get("live_autorefresh", True):
             st.markdown("<meta http-equiv='refresh' content='2'>", unsafe_allow_html=True)
+
+    # --- Source Overrides (Bridge URL + Parquet dir) ---
+    with st.sidebar.expander("Sources (override)", expanded=False):
+        current_bridge = get_bridge_base()
+        bridge_input = st.text_input("MT5 Bridge URL", value=current_bridge, placeholder="https://bridge.example:5001")
+        if bridge_input and bridge_input.strip() != current_bridge:
+            st.session_state["zan_bridge_url"] = bridge_input.strip()
+            try:
+                # Immediately reflect into live feed if exists
+                lf = st.session_state.get("live_feed")
+                if isinstance(lf, LiveMT5HTTPFeed):
+                    lf.base_url = bridge_input.strip().rstrip("/")
+            except Exception:
+                pass
+        colA, colB = st.columns([1,1])
+        with colA:
+            if st.button("Test Bridge", use_container_width=True):
+                test_url = get_bridge_base()
+                if not test_url:
+                    st.warning("No bridge URL set")
+                else:
+                    try:
+                        r = requests.get(f"{test_url}/ticks", params={"symbol":"EURUSD","limit":1}, timeout=1.5)
+                        st.success("Bridge OK" if r.ok else f"HTTP {r.status_code}")
+                    except Exception as e:
+                        st.error(f"Bridge error: {e}")
+        with colB:
+            autoref = st.session_state.get("live_autorefresh", False)
+            st.caption(f"Auto-refresh: {'ON' if autoref else 'OFF'}")
+
+        current_dir = get_parquet_dir()
+        dir_input = st.text_input("Parquet Directory", value=current_dir, placeholder="/data/parquet")
+        if dir_input and dir_input.strip() != current_dir:
+            st.session_state["zan_parquet_dir"] = dir_input.strip()
+        d1, d2 = st.columns([1,1])
+        with d1:
+            if st.button("Test Directory", use_container_width=True):
+                p = Path(get_parquet_dir())
+                if not p.exists():
+                    st.error("Directory not found")
+                else:
+                    try:
+                        files = list(p.glob("*.parquet"))[:3]
+                        st.success(f"Found {len(files)} parquet file(s)")
+                    except Exception as e:
+                        st.error(f"List error: {e}")
+        with d2:
+            st.caption(f"Active: {get_parquet_dir()}")
+
+    # Status badges
+    st.sidebar.markdown("### Sources (status)")
+    st.sidebar.markdown(f"{'✅' if db_ok else '⚠️'} Database")
+    st.sidebar.markdown(f"{'✅' if bridge_ok else '⚠️'} MT5 Bridge")
+    st.sidebar.markdown(f"{'✅' if parquet_ok else '⚠️'} Parquet Dir")
 
 
 # --- Helper: Show current mode as badge in headers ---
@@ -1637,64 +1841,89 @@ def main():
         st.markdown("### 📂 Data Location")
         data_folder = st.text_input(
             "Base folder for Parquet/CSV files",
-            value=DEFAULT_DATA_FOLDER,
+            value=get_parquet_dir(),
             help="Folder where your time‑series parquet files live"
         )
+        if data_folder and data_folder.strip() != get_parquet_dir():
+            st.session_state["zan_parquet_dir"] = data_folder.strip()
 
-        # Scan for symbols as subfolders in the data folder
-        symbols_found = sorted(
-            [d.name.upper() for d in Path(data_folder).iterdir() if d.is_dir()]
-        )
+        # Symbol selection depends on source
+        data_mode = st.session_state.get("data_mode", "Parquet")
+        symbols_found: List[str] = []
+        if data_mode == "Parquet":
+            try:
+                p = Path(data_folder).expanduser()
+                if p.exists() and p.is_dir():
+                    symbols_found = sorted([d.name.upper() for d in p.iterdir() if d.is_dir()])
+            except Exception:
+                symbols_found = []
 
         st.markdown("### 💱 Trading Pair")
-        selected_symbol = st.selectbox(
-            "💱 Select Pair",
-            options=symbols_found or ["<No pairs found>"],
-            index=0,
-            help="Choose a trading pair detected in the data folder"
-        )
+        if data_mode == "Parquet":
+            selected_symbol = st.selectbox(
+                "💱 Select Pair",
+                options=symbols_found or ["<No pairs found>"],
+                index=0,
+                help="Choose a trading pair detected in the data folder"
+            )
+            if not symbols_found:
+                st.warning("No symbol folders found. Check the directory or set Sources override.")
+                return
+        else:
+            selected_symbol = st.text_input("Symbol", value="EURUSD", help="Enter instrument symbol for Live/Database")
     # Load data
     with st.spinner("🔄 Loading ZANFLOW v12 data..."):
         try:
             # Dynamically discover parquet files within the symbol subfolder
-            symbol_dir = os.path.join(data_folder, selected_symbol)
-            parquet_files = glob.glob(os.path.join(symbol_dir, f'{selected_symbol}_*.parquet'))
-            timeframes = {}
-            tf_pattern = re.compile(fr'{selected_symbol}_(\d+(?:min|h|d))\.parquet', re.IGNORECASE)
-            for pf in parquet_files:
-                match = tf_pattern.search(Path(pf).name)
-                if match:
-                    tf = match.group(1).lower()
-                    timeframes[tf] = pf
-
-            if not timeframes:
-                st.error(f"❌ No {selected_symbol} parquet files found in **{symbol_dir}**. "
-                         "Please verify the location or adjust the Data Location above.")
+            if st.session_state.get("data_mode") == "Parquet" and selected_symbol.startswith("<"):
+                st.info("Select a valid symbol once data is available.")
                 return
-
             data = {}
-            for tf, filename in timeframes.items():
-                try:
-                    df = pd.read_parquet(filename)
+            if st.session_state.get("data_mode") == "Parquet":
+                symbol_dir = os.path.join(data_folder, selected_symbol)
+                parquet_files = glob.glob(os.path.join(symbol_dir, f'{selected_symbol}_*.parquet'))
+                timeframes = {}
+                tf_pattern = re.compile(fr'{selected_symbol}_(\d+(?:min|h|d))\.parquet', re.IGNORECASE)
+                for pf in parquet_files:
+                    match = tf_pattern.search(Path(pf).name)
+                    if match:
+                        tf = match.group(1).lower()
+                        timeframes[tf] = pf
 
-                    # Ensure proper datetime index
-                    if 'timestamp' in df.columns:
-                        df['timestamp'] = pd.to_datetime(df['timestamp'])
-                        df.set_index('timestamp', inplace=True)
+                if not timeframes:
+                    st.error(f"❌ No {selected_symbol} parquet files found in **{symbol_dir}**. "
+                             "Please verify the location or adjust the Data Location above.")
+                    return
 
-                    # Normalize column names
-                    df.columns = df.columns.str.lower()
-
-                    # Basic validation
-                    required_cols = ['open', 'high', 'low', 'close']
-                    if not all(col in df.columns for col in required_cols):
-                        st.warning(f"Missing required columns in {filename}")
+                for tf, filename in timeframes.items():
+                    try:
+                        df = pd.read_parquet(filename)
+                        if 'timestamp' in df.columns:
+                            df['timestamp'] = pd.to_datetime(df['timestamp'])
+                            df.set_index('timestamp', inplace=True)
+                        df.columns = df.columns.str.lower()
+                        required_cols = ['open', 'high', 'low', 'close']
+                        if not all(col in df.columns for col in required_cols):
+                            st.warning(f"Missing required columns in {filename}")
+                            continue
+                        data[tf] = df
+                    except Exception as e:
+                        st.warning(f"Could not load {filename}: {e}")
+            else:
+                # Live or Database: construct data from feeds
+                tfs = ["1min", "5min", "15min", "1h"]
+                for tf in tfs:
+                    try:
+                        if st.session_state.get("data_mode") == "Database":
+                            df = load_db_candles(selected_symbol, tf, lookback="2D")
+                        else:
+                            df = _get_live_feed().get_candles(selected_symbol, timeframe=tf, lookback="2D")
+                        if isinstance(df, pd.DataFrame) and not df.empty:
+                            # Normalize columns (ensure lower-case)
+                            df.columns = [c.lower() for c in df.columns]
+                            data[tf] = df
+                    except Exception as e:
                         continue
-
-                    data[tf] = df
-
-                except Exception as e:
-                    st.warning(f"Could not load {filename}: {e}")
 
         except Exception as e:
             st.error(f"Error loading data: {e}")
@@ -1708,10 +1937,16 @@ def main():
         st.markdown("### 🎛️ ZANFLOW v12 Strategy Controls")
 
         # Timeframe selection
+        if not isinstance(data, dict) or len(data) == 0:
+            st.warning("No timeframes available from the selected data source. Check DB/Live connectivity or symbol.")
+            return
+        tf_options = list(data.keys())
+        # Safe default index: last item if available
+        default_idx = max(0, len(tf_options) - 1)
         selected_timeframe = st.selectbox(
             "📊 Primary Analysis Timeframe",
-            options=list(data.keys()),
-            index=len(data)-1,
+            options=tf_options,
+            index=default_idx,
             help="Select primary timeframe for strategy analysis"
         )
 
@@ -1774,7 +2009,13 @@ def main():
                    unsafe_allow_html=True)
 
     # Main content area
-    current_df = data[selected_timeframe]
+    # Guard missing selection
+    if selected_timeframe not in data:
+        selected_timeframe = next(iter(data.keys()))
+    current_df = data.get(selected_timeframe, pd.DataFrame())
+    if current_df is None or current_df.empty:
+        st.info("No data to display for the chosen timeframe.")
+        return
 
     # Display current market metrics
     latest = current_df.iloc[-1]

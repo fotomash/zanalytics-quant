@@ -1188,6 +1188,43 @@ def main():
 
     pulse_manager = st.session_state.pulse_manager
 
+    # Sidebar: Sources status (quick connectivity checks)
+    with st.sidebar.expander("Sources (status)", expanded=False):
+        dj = os.getenv("DJANGO_API_URL", "http://django:8000").rstrip('/')
+        # Pulse endpoints
+        try:
+            r1 = requests.get(f"{dj}/api/v1/market/mini", timeout=1.0)
+            ok_market = r1.ok
+        except Exception:
+            ok_market = False
+        try:
+            r2 = requests.get(f"{dj}/api/v1/mirror/state", timeout=1.0)
+            ok_mirror = r2.ok
+        except Exception:
+            ok_mirror = False
+        try:
+            r3 = requests.get(f"{dj}/api/v1/feed/equity/series", timeout=1.0)
+            ok_equity = r3.ok
+        except Exception:
+            ok_equity = False
+        # MT5 Bridge (account_info)
+        mt5_base = getattr(pulse_manager, 'mt5_url', None)
+        try:
+            ok_bridge = False
+            if mt5_base:
+                r4 = requests.get(f"{str(mt5_base).rstrip('/')}/account_info", timeout=1.0)
+                ok_bridge = r4.ok
+        except Exception:
+            ok_bridge = False
+        # Redis
+        ok_redis = bool(getattr(pulse_manager, 'redis_available', False))
+        st.caption(f"DJANGO_API_URL: {dj}")
+        st.markdown(f"{'✅' if ok_market else '⚠️'} Market mini")
+        st.markdown(f"{'✅' if ok_mirror else '⚠️'} Mirror state")
+        st.markdown(f"{'✅' if ok_equity else '⚠️'} Equity series")
+        st.markdown(f"{'✅' if ok_bridge else '⚠️'} MT5 Bridge")
+        st.markdown(f"{'✅' if ok_redis else '⚠️'} Redis")
+
     # Data-source banner: account number and broker if available
     acct_info_banner = pulse_manager.get_account_info() if pulse_manager else {}
     login_banner = acct_info_banner.get("login")
