@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime
 
 from dashboard.components.ui_concentric import donut_session_vitals
-from dashboard.components.ui_tri_vitals import make_three_vitals
+from dashboard.utils.plotly_donuts import bipolar_donut, oneway_donut, behavioral_score_from_mirror
 from dashboard.utils.streamlit_api import (
     safe_api_call,
     render_status_row,
@@ -106,36 +106,84 @@ try:
     eq = float(acct.get('equity') or 0)
     bal = float(acct.get('balance') or 0)
     sod = float(risk.get('sod_equity') or bal or eq)
-    target_amt = risk.get('target_amount') if isinstance(risk.get('target_amount'), (int, float)) else None
-    loss_amt = risk.get('loss_amount') if isinstance(risk.get('loss_amount'), (int, float)) else None
-    exposure = risk.get('exposure_pct')
-    # previous session close (from balance feed markers if available)
-    bal_feed = safe_api_call('GET', 'api/v1/feed/balance') or {}
-    prev_close = None
-    try:
-        prev_close = (bal_feed.get('markers') or {}).get('prev_close')
-    except Exception:
-        prev_close = None
-    d = int(mirror.get('discipline') or 0)
-    p = int(mirror.get('patience_ratio') or 0)
-    e = int(mirror.get('efficiency') or 0)
-    f1, f2, f3 = make_three_vitals(
-        equity_usd=eq, sod_equity_usd=sod, baseline_equity_usd=bal or sod,
-        target_amount_usd=target_amt, loss_amount_usd=loss_amt,
-        exposure_pct=exposure, prev_close_equity_usd=prev_close,
-        discipline=d, patience=p, efficiency=e, size=280)
+    target_amt = float(risk.get('target_amount') or 0.0)
+    loss_amt = float(risk.get('loss_amount') or 0.0)
+    pnl_today = eq - sod
+    exp_pct = risk.get('exposure_pct') or 0.0
+    exp_ratio = float(exp_pct/100.0 if exp_pct > 1 else exp_pct)
+    bhv_score = behavioral_score_from_mirror(mirror)
+    bhv_ratio = bhv_score/100.0
+
     cV1, cV2, cV3 = st.columns(3)
     with cV1:
-        st.plotly_chart(f1, use_container_width=True, config={'displayModeBar': False})
-        st.caption("Equity vs SoD/Prev Close")
+        st.plotly_chart(
+            bipolar_donut(
+                title="Equity vs SoD (11pm UK)",
+                value=pnl_today,
+                pos_max=max(1.0, target_amt),
+                neg_max=max(1.0, loss_amt),
+                start_anchor="top",
+                center_title=f"{eq:,.0f}",
+                center_sub=f"{pnl_today:+,.0f} today",
+            ),
+            use_container_width=True,
+        )
     with cV2:
-        st.plotly_chart(f2, use_container_width=True, config={'displayModeBar': False})
-        st.caption("Exposure • P&L vs target/cap")
+        st.plotly_chart(
+            oneway_donut(
+                title="Position Exposure",
+                frac=exp_ratio,
+                start_anchor="bottom",
+                center_title=f"{exp_ratio*100:.0f}%",
+                center_sub="of daily risk budget",
+            ),
+            use_container_width=True,
+        )
     with cV3:
-        st.plotly_chart(f3, use_container_width=True, config={'displayModeBar': False})
-        st.caption("Behavior: Patience • Discipline • Efficiency")
+        st.plotly_chart(
+            oneway_donut(
+                title="Behavioral Posture",
+                frac=bhv_ratio,
+                start_anchor="top",
+                center_title=f"{bhv_score:.0f}",
+                center_sub="composite",
+            ),
+            use_container_width=True,
+        )
 except Exception:
     st.info("Vitals unavailable")
+
+# Session Insights
+st.markdown("### 🧠 Session Insights")
+try:
+    ins = []
+    used = risk.get('used_pct')
+    used_ratio = float(used/100.0 if (used is not None and used > 1) else (used or 0.0))
+    dd_used = min(abs(min(pnl_today, 0.0)) / max(1.0, loss_amt), 1.0) if loss_amt else 0.0
+    pos_used = min(max(pnl_today, 0.0) / max(1.0, target_amt), 1.0) if target_amt else 0.0
+
+    if dd_used >= 0.8:
+        ins.append(f"🚨 Drawdown used {dd_used*100:.0f}% of daily cap.")
+    elif dd_used >= 0.5:
+        ins.append(f"⚠️ Drawdown used {dd_used*100:.0f}% — tighten risk.")
+
+    if used_ratio >= 0.8:
+        ins.append(f"⚠️ Daily risk used {used_ratio*100:.0f}%. Consider scaling down.")
+    elif exp_ratio >= 0.6:
+        ins.append(f"🟡 Exposure {exp_ratio*100:.0f}% — keep size disciplined.")
+
+    if pos_used >= 0.8:
+        ins.append(f"✅ {pos_used*100:.0f}% toward target — protect profits.")
+    if bhv_score and bhv_score < 60:
+        ins.append("🧭 Behavioral < 60 — breathe, follow plan.")
+    elif bhv_score and bhv_score >= 85:
+        ins.append("🎯 Behavioral strong — stay selective.")
+
+    if not ins:
+        ins.append("✅ Stable posture. Follow checklist and wait for A‑setups.")
+    st.markdown("\n".join(f"- {s}" for s in ins))
+except Exception:
+    st.info("Insights unavailable")
 
 # Session Trajectory
 st.subheader("📈 Session Trajectory")

@@ -27,8 +27,10 @@ import time
 # Suppress warnings
 warnings.filterwarnings('ignore')
 
-# Load .env so this file can use environment keys as single source of truth
-load_dotenv()
+
+# Load .env from project root (two levels up) to work in Docker/Streamlit
+_ROOT_ENV = Path(__file__).resolve().parents[2] / ".env"
+load_dotenv(dotenv_path=_ROOT_ENV if _ROOT_ENV.exists() else None)
 
 st.set_page_config(
     page_title="Elite Trading Desk Pro",
@@ -81,12 +83,12 @@ if 'auto_refresh_enabled' not in st.session_state:
     st.session_state['auto_refresh_enabled'] = False
 
 # Cache configuration
-CACHE_DIR = ".cache"
+CACHE_DIR = str((Path(__file__).resolve().parents[2] / ".cache"))
 CACHE_EXPIRY_MINUTES = 15
 
 def ensure_cache_dir():
     """Ensure cache directory exists"""
-    os.makedirs(CACHE_DIR, exist_ok=True)
+    Path(CACHE_DIR).mkdir(parents=True, exist_ok=True)
 
 ensure_cache_dir()
 

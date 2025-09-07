@@ -170,6 +170,32 @@ def fetch_trade_history_filtered(
     return []
 
 
+def inject_glass_css() -> None:
+    """Inject subtle gradient + glass card utility for a React‑like feel.
+
+    Usage: call once near the top of the page.
+    """
+    st.markdown(
+        """
+        <style>
+        .stApp {
+            background: radial-gradient(1200px 600px at 10% 10%, rgba(29,78,216,0.08) 0%, rgba(15,23,42,0.0) 60%),
+                        radial-gradient(800px 400px at 90% 0%, rgba(6,182,212,0.08) 0%, rgba(15,23,42,0.0) 60%),
+                        linear-gradient(135deg, #0B1220 0%, #111827 100%);
+        }
+        .glass { 
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px; 
+            padding: 10px 14px; 
+        }
+        .section-title { color: #9CA3AF; font-size: 0.9rem; margin-bottom: 6px; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 @st.cache_data(show_spinner=False, ttl=30)
 def fetch_symbols() -> List[str]:
     try:
