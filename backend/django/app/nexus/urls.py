@@ -8,6 +8,8 @@ from .views import (
     BarViewSet,
     SymbolListView,
     TimeframeListView,
+    DashboardDataView,
+    JournalEntryView,
 )
 
 router = DefaultRouter()
@@ -21,4 +23,6 @@ urlpatterns = [
     path('modify_sl_tp/', ModifySLTPView.as_view(), name='modify_sl_tp'),
     path('symbols/', SymbolListView.as_view(), name='symbols'),
     path('timeframes/', TimeframeListView.as_view(), name='timeframes'),
+    path('dashboard-data/', DashboardDataView.as_view(), name='dashboard-data'),
+    path('journal/', JournalEntryView.as_view(), name='journal'),
 ]

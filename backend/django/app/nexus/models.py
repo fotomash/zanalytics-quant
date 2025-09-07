@@ -115,3 +115,37 @@ class Bar(models.Model):
     def __str__(self):
         return f"{self.symbol} {self.timeframe} bar @ {self.time}"
 
+
+class PsychologicalState(models.Model):
+    STATE_CHOICES = [
+        ("CALM", "Calm"),
+        ("ALERT", "Alert"),
+        ("DANGER", "Danger"),
+    ]
+
+    trade = models.ForeignKey(Trade, on_delete=models.CASCADE, related_name='psychological_states')
+    timestamp = models.DateTimeField(auto_now_add=True)
+    state = models.CharField(max_length=10, choices=STATE_CHOICES)
+    behavioral_score = models.IntegerField()
+
+    revenge_trading_detected = models.BooleanField(default=False)
+    overconfidence_detected = models.BooleanField(default=False)
+    fatigue_detected = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"{self.state} ({self.behavioral_score}) for Trade {self.trade_id}"
+
+
+class JournalEntry(models.Model):
+    trade = models.OneToOneField(Trade, on_delete=models.CASCADE, related_name='journal')
+    pre_trade_confidence = models.IntegerField(null=True, blank=True)
+    post_trade_feeling = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Journal for Trade {self.trade_id}"

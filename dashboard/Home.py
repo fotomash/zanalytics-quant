@@ -209,6 +209,43 @@ def get_image_as_base64(path):
         st.warning(f"Background image not found at '{path}'. Please ensure it's in the same directory as the script.")
         return None
 
+# --- Minimal Pulse Snapshot Card (consumes /api/v1/dashboard-data/) ---
+def render_pulse_snapshot():
+    dj_url = get_config_var("DJANGO_API_URL", "http://django:8000")
+    try:
+        r = requests.get(f"{dj_url}/api/v1/dashboard-data/", timeout=3)
+        payload = r.json() if r.ok else {}
+    except Exception as e:
+        st.sidebar.error(f"Pulse snapshot unavailable: {e}")
+        return
+
+    risk = payload.get("risk_metrics", {})
+    risk_summary = payload.get("risk_summary", {})
+    psych = payload.get("psychological_state") or {}
+    opps = payload.get("opportunities", [])
+
+    with st.sidebar.expander("🎯 Pulse Snapshot", expanded=True):
+        c1, c2 = st.columns(2)
+        with c1:
+            st.metric("Trades Today", risk.get("trades_today", 0))
+        with c2:
+            st.metric("PnL Today", f"{risk.get('pnl_today', 0):,.2f}")
+        rs_left = risk_summary.get("risk_left")
+        if rs_left is not None:
+            st.caption(f"Risk Remaining: {rs_left:.1f}% • Trades left: {risk_summary.get('trades_left','—')}")
+        if psych:
+            st.caption(f"State: {psych.get('state','—')} • Score: {psych.get('behavioral_score','—')}")
+        if opps:
+            st.write("Top Signals:")
+            for o in opps[:3]:
+                st.write(f"• {o.get('symbol','?')} {o.get('score','?')}")
+
+# Render snapshot after definition
+try:
+    render_pulse_snapshot()
+except Exception:
+    pass
+
 
 # --- Economic Data Manager ---
 class EconomicDataManager:

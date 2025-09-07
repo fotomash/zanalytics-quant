@@ -447,10 +447,8 @@ def create_risk_allocation_3d(account_equity: float,
     fig = go.Figure(data=[go.Surface(
         x=X, y=Y, z=Z,
         colorscale='Turbo',
-        colorbar=dict(title='Per-Trade ($)', titleside='right', tickformat=',.0f'),
-        contours={
-            "z": {"show": True, "usecolormap": True, "highlightcolor": "#ffffff", "project_z": True}
-        },
+        showscale=False,  # hide vertical color bar
+        contours={"z": {"show": False}},  # remove horizontal contour lines
         lighting=dict(ambient=0.45, diffuse=0.6, roughness=0.65, specular=0.2),
         hovertemplate='Trades %{x}<br>Conf %{y:.0f}%<br>$%{z:,.0f}<extra></extra>',
         opacity=0.92,
@@ -491,7 +489,7 @@ def create_risk_allocation_3d(account_equity: float,
             camera=dict(eye=dict(x=1.6, y=1.6, z=0.8)),
             aspectmode='manual', aspectratio=dict(x=1.2, y=1.0, z=0.6)
         ),
-        title=dict(text='Risk Allocation 3D (3% daily)', x=0.01, xanchor='left', y=0.95),
+        title=dict(text=f'Risk Allocation 3D ({daily_risk_pct:.1f}% daily)', x=0.01, xanchor='left', y=0.95),
         height=520,
         margin=dict(l=20, r=20, t=50, b=20),
         paper_bgcolor='rgba(0,0,0,0)',
@@ -533,7 +531,7 @@ def create_psychology_insights(confluence_score: float,
     return insights
 
 def render_risk_control_panel(account_info: Dict, risk_summary: Dict):
-    """Render risk control panel with 3D allocation (daily slider 0.5–3%)."""
+    """Render risk control panel with 3D allocation and adjustable daily risk %."""
     
     st.subheader("🎛️ Risk Controls")
     
@@ -541,13 +539,13 @@ def render_risk_control_panel(account_info: Dict, risk_summary: Dict):
     
     with col1:
         st.markdown("#### Risk Parameters")
-        # Daily risk slider (bounded 0.5–3.0%)
+        # Daily risk percent slider (bring back 0.2% → 3%)
         daily_risk_pct = st.slider(
-            "Daily Risk Budget (%)",
-            0.5, 3.0, 2.0, 0.1,
-            help="Max percentage of equity to risk today"
+            "Daily Risk %",
+            min_value=0.2, max_value=3.0, step=0.1, value=3.0,
+            help="Percent of equity you're willing to risk today"
         )
-        # Anticipated trades slider only
+        # Anticipated trades slider
         anticipated_trades = st.slider(
             "Anticipated Trades Today",
             1, 12, 5,
@@ -557,7 +555,19 @@ def render_risk_control_panel(account_info: Dict, risk_summary: Dict):
         equity = float(account_info.get('equity') or 0)
         daily_risk_amount = equity * (daily_risk_pct / 100.0)
         per_trade_dollars = daily_risk_amount / anticipated_trades if anticipated_trades else 0.0
-        st.metric("Per-Trade Risk ($)", f"${per_trade_dollars:,.0f}", f"Daily: {daily_risk_pct:.1f}% → ${daily_risk_amount:,.0f}")
+        st.metric(
+            "Per-Trade Risk ($)",
+            f"${per_trade_dollars:,.0f}",
+            f"{daily_risk_pct:.1f}% daily: ${daily_risk_amount:,.0f}"
+        )
+        # Small fine-tune slider under per-trade risk
+        fine_tune = st.slider(
+            "Fine-tune Per-Trade (x)",
+            min_value=0.5, max_value=1.5, step=0.05, value=1.0,
+            help="Quickly nudge per-trade risk up/down"
+        )
+        per_trade_dollars *= fine_tune
+        st.caption(f"Adjusted per-trade: ${per_trade_dollars:,.0f} (x{fine_tune:.2f})")
     
     with col2:
         st.markdown("#### Risk Allocation 3D")
@@ -565,7 +575,9 @@ def render_risk_control_panel(account_info: Dict, risk_summary: Dict):
         if equity is None:
             st.warning("No equity available from MT5 (not connected).")
         else:
-            fig3d = create_risk_allocation_3d(float(equity or 0), anticipated_trades, daily_risk_pct)
+            fig3d = create_risk_allocation_3d(
+                float(equity or 0), anticipated_trades, daily_risk_pct
+            )
             st.plotly_chart(fig3d, use_container_width=True)
 
 def get_trait_history(limit: int = 20) -> List[Dict]:
@@ -850,19 +862,35 @@ def get_last_trade_snapshot() -> Dict:
 
 def _fetch_ohlc(symbol: str, tf: str) -> pd.DataFrame:
     """Fetch OHLC data via yfinance for common timeframes including 15m."""
+    # Use only valid yfinance intervals and resample for 4h
     tf_map = {
         '15m': ('7d', '15m'),
         '1h': ('30d', '60m'),
-        '4h': ('60d', '240m'),
+        '4h': ('60d', '60m'),  # fetch 60m then resample to 4H
         '1d': ('1y', '1d'),
     }
     period, interval = tf_map.get(tf, ('30d', '60m'))
     try:
         df = yf.download(symbol, period=period, interval=interval, auto_adjust=False, progress=False)
+        # Fallback for some FX/indices where 15m may be spotty: try 30m
+        if (df is None or df.empty) and tf == '15m':
+            df = yf.download(symbol, period='14d', interval='30m', auto_adjust=False, progress=False)
         if isinstance(df, pd.DataFrame) and not df.empty:
             df = df.rename(columns=str.title)
             df = df[['Open','High','Low','Close','Volume']]
             df = df.dropna()
+            # Resample to 4H if requested
+            if tf == '4h':
+                try:
+                    df = df.resample('4H').agg({
+                        'Open': 'first',
+                        'High': 'max',
+                        'Low': 'min',
+                        'Close': 'last',
+                        'Volume': 'sum',
+                    }).dropna()
+                except Exception:
+                    pass
         return df if isinstance(df, pd.DataFrame) else pd.DataFrame()
     except Exception:
         return pd.DataFrame()
@@ -871,7 +899,17 @@ def render_technical_analysis_panel():
     st.subheader("📈 Technical Analysis")
     colA, colB, colC = st.columns([3,1,1])
     with colA:
-        symbol = st.selectbox("Symbol", options=["BTC-USD","ETH-USD","XAUUSD=X","EURUSD=X","GBPUSD=X","USDJPY=X"], index=0)
+        instruments = [
+            ("EUR/USD", "EURUSD=X"),
+            ("GBP/USD", "GBPUSD=X"),
+            ("USD/JPY", "USDJPY=X"),
+            ("GBP/JPY", "GBPJPY=X"),
+            ("EUR/GBP", "EURGBP=X"),
+            ("Gold", "GC=F"),
+            ("S&P 500", "^GSPC"),
+        ]
+        selected = st.selectbox("Select Instrument", options=instruments, index=0, format_func=lambda x: x[0])
+        symbol_label, symbol = selected
     with colB:
         tf = st.selectbox("Timeframe", options=["15m","1h","4h","1d"], index=0)
     with colC:
@@ -886,7 +924,7 @@ def render_technical_analysis_panel():
     fig = go.Figure(data=[go.Candlestick(
         x=df.index,
         open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
-        name=symbol
+        name=symbol_label
     )])
     # Add simple MAs for context
     try:
@@ -924,9 +962,10 @@ def render_technical_analysis_panel():
 def main():
     """Main dashboard function with comprehensive error handling"""
     
-    st.title("Zanalytics Pulse — Advanced Risk Manager")
+    # Title removed per request
+    # st.title("Zanalytics Pulse — Advanced Risk Manager")
 
-    # Initialize Advanced manager under a distinct key to avoid clashes with page 16
+    # IniOkay, now the OX3 macro works pretty well, but it's showing that it's showing different instruments. It doesn't show that it's only one year to one day periods. I just wanted to check if it's possible to change the 16 and 19. So now it's just showing something else. So it shows something more like 16 and 19. So I just wanted to check. If we can use the same symbols as in the 03 macro in the news dashboard, because it's got slash not equals X. It's got the correct ticker symbol. Also, there is control power takes to positional argument a 3-word command. So that's a mistake.tialize Advanced manager under a distinct key to avoid clashes with page 16
     if 'adv_pulse_manager' not in st.session_state or not isinstance(st.session_state.adv_pulse_manager, AdvancedPulseRiskManager):
         st.session_state.adv_pulse_manager = AdvancedPulseRiskManager()
 

@@ -3,16 +3,20 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework.decorators import api_view, permission_classes
-from .models import Trade, TradeClosePricesMutation, Tick, Bar
+from .models import Trade, TradeClosePricesMutation, Tick, Bar, PsychologicalState, JournalEntry
 from .serializers import (
     TradeSerializer,
     TradeClosePricesMutationSerializer,
     TickSerializer,
     BarSerializer,
+    PsychologicalStateSerializer,
+    JournalEntrySerializer,
 )
 from .filters import TradeFilter, TickFilter, BarFilter
 
 from app.utils.api.order import send_market_order, modify_sl_tp
+import os
+import requests
 
 
 class PingView(views.APIView):
@@ -175,3 +179,117 @@ class TimeframeListView(views.APIView):
             )
         return Response({"timeframes": list(timeframes)})
 
+
+class DashboardDataView(views.APIView):
+    """Aggregate dashboard payload for Streamlit.
+
+    Returns:
+      - psychological_state: latest PsychologicalState (if any)
+      - confluence_score: placeholder for now (hook to pulse_api)
+      - risk_metrics: simple daily PnL, trades_today
+      - opportunities: [] (placeholder)
+      - recent_journal: recent JournalEntry items
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        # Latest psychological state
+        latest_psych = PsychologicalState.objects.order_by('-timestamp').first()
+        psych_payload = PsychologicalStateSerializer(latest_psych).data if latest_psych else None
+
+        # Risk metrics (basic): PnL today and trades today
+        from django.utils import timezone
+        from datetime import timedelta
+        now = timezone.now()
+        sod = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        trades_today = Trade.objects.filter(entry_time__gte=sod)
+        closed_today = trades_today.exclude(close_time__isnull=True)
+        pnl_today = sum([t.pnl or 0 for t in closed_today])
+
+        risk_metrics = {
+            "trades_today": trades_today.count(),
+            "pnl_today": pnl_today,
+        }
+
+        # Pull pulse_api aggregates via HTTP (internal) with graceful fallbacks
+        dj_url = os.getenv("DJANGO_API_URL", "http://django:8000")
+        confluence = None
+        risk_summary = None
+        opportunities = []
+        recent_journal_payload = []
+        try:
+            # risk summary
+            rs = requests.get(f"{dj_url}/api/pulse/risk/summary", timeout=2)
+            if rs.ok:
+                risk_summary = rs.json()
+        except Exception:
+            risk_summary = None
+        try:
+            sig = requests.get(f"{dj_url}/api/pulse/signals/top?n=3", timeout=2)
+            if sig.ok and isinstance(sig.json(), list):
+                opportunities = sig.json()
+        except Exception:
+            opportunities = []
+        try:
+            jr = requests.get(f"{dj_url}/api/pulse/journal/recent?n=10", timeout=2)
+            if jr.ok:
+                jdata = jr.json()
+                # Normalize to list
+                if isinstance(jdata, list):
+                    recent_journal_payload = jdata
+                elif isinstance(jdata, dict) and isinstance(jdata.get("items"), list):
+                    recent_journal_payload = jdata["items"]
+        except Exception:
+            # Fallback to local DB journal entries
+            recent_journal = JournalEntry.objects.select_related('trade').order_by('-updated_at')[:10]
+            recent_journal_payload = JournalEntrySerializer(recent_journal, many=True).data
+
+        payload = {
+            "psychological_state": psych_payload,
+            "confluence_score": confluence,
+            "risk_metrics": risk_metrics,
+            "risk_summary": risk_summary,
+            "opportunities": opportunities,
+            "recent_journal": recent_journal_payload,
+        }
+        return Response(payload)
+
+
+class JournalEntryView(views.APIView):
+    """Create/update JournalEntry linked to a Trade.
+
+    POST JSON fields:
+      - trade_id (required)
+      - pre_trade_confidence, post_trade_feeling, notes (optional)
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        # Optional token auth: if DJANGO_API_TOKEN is set, require it
+        api_token = os.getenv("DJANGO_API_TOKEN", "").strip().strip('"')
+        if api_token:
+            auth = request.headers.get("Authorization", "")
+            x_token = request.headers.get("X-API-Token", "")
+            valid = False
+            if auth.startswith("Token ") and auth.split(" ", 1)[1] == api_token:
+                valid = True
+            if x_token and x_token == api_token:
+                valid = True
+            if not valid:
+                return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        data = request.data or {}
+        trade_id = data.get('trade_id')
+        if not trade_id:
+            return Response({"error": "trade_id required"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            trade = Trade.objects.get(id=trade_id)
+        except Trade.DoesNotExist:
+            return Response({"error": "Trade not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Upsert
+        journal, created = JournalEntry.objects.get_or_create(trade=trade)
+        for f in ["pre_trade_confidence", "post_trade_feeling", "notes"]:
+            if f in data:
+                setattr(journal, f, data.get(f))
+        journal.save()
+        return Response(JournalEntrySerializer(journal).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)

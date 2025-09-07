@@ -19,12 +19,16 @@ import yfinance as yf
 from fredapi import Fred
 import streamlit as st
 from openai import OpenAI
+from dotenv import load_dotenv
 import hashlib
 import json
 import time
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
+
+# Load .env so this file can use environment keys as single source of truth
+load_dotenv()
 
 st.set_page_config(
     page_title="Elite Trading Desk Pro",
@@ -87,14 +91,27 @@ def ensure_cache_dir():
 ensure_cache_dir()
 
 # Initialize OpenAI client
-# --- OpenAI key bootstrap (safe) -------------------------------------------
-import os
+def _getenv_or_secret(key: str, alt_key: str = None, default: str = ""):
+    val = os.getenv(key)
+    if val:
+        return val
+    if alt_key:
+        v2 = os.getenv(alt_key)
+        if v2:
+            return v2
+    # fallback to st.secrets
+    v = st.secrets.get(key)
+    if v:
+        return v
+    if alt_key:
+        return st.secrets.get(alt_key, default)
+    return default
 
 # Support both naming conventions for OpenAI API key
-api_key = st.secrets.get("OPENAI_API_KEY") or st.secrets.get("openai_API")
-if api_key:
+_openai_key = _getenv_or_secret("OPENAI_API_KEY", "openai_API", "")
+if _openai_key:
     try:
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(api_key=_openai_key)
         st.sidebar.success("✅ OpenAI key loaded")
     except Exception as e:
         st.sidebar.warning(f"⚠️ Failed to init OpenAI client: {e}")
@@ -102,7 +119,38 @@ if api_key:
 else:
     st.sidebar.warning("⚠️ OPENAI_API_KEY not found – OpenAI features disabled.")
     client = None
-# ---------------------------------------------------------------------------
+
+# ---- API Status Panel (sidebar): env-first keys with masking ----
+def _mask_key(val: str) -> str:
+    try:
+        if not val:
+            return "missing"
+        if len(val) <= 6:
+            return "•••" + val[-2:]
+        return "••••" + val[-4:]
+    except Exception:
+        return "hidden"
+
+def render_api_status_panel():
+    st.sidebar.markdown("### 🔑 API Status")
+    sources = [
+        ("OpenAI", "OPENAI_API_KEY", "openai_API"),
+        ("Finnhub", "FINNHUB_API_KEY", "finnhub_api_key"),
+        ("NewsAPI", "NEWSAPI_KEY", "newsapi_key"),
+        ("TradingEconomics", "TRADING_ECONOMICS_API_KEY", "trading_economics_api_key"),
+        ("FRED", "FRED_API_KEY", "fred_api_key"),
+        ("Polygon", "POLYGON_API_KEY", "polygon_api_key"),
+    ]
+    for label, ek, ak in sources:
+        v = _getenv_or_secret(ek, ak, "")
+        ok = bool(v)
+        icon = "✅" if ok else "❌"
+        st.sidebar.write(f"{icon} {label}: {_mask_key(v)}")
+    # Helpful note
+    st.sidebar.caption("Keys are read from .env first, then secrets.")
+
+# Render the panel early so it's visible regardless of other sections
+render_api_status_panel()
 
 # --- VISUAL STYLING ---
 # Remove or comment out any previous or conflicting image background code that sets `.stApp`'s background or image.
@@ -374,7 +422,7 @@ class ComprehensiveNewsScanner:
 
     def _scan_finnhub_news(self, keywords):
         try:
-            api_key = st.secrets.get("finnhub_api_key", "")
+            api_key = _getenv_or_secret("FINNHUB_API_KEY", "finnhub_api_key", "")
             if not api_key:
                 return []
 
@@ -408,7 +456,7 @@ class ComprehensiveNewsScanner:
 
     def _scan_newsapi_news(self, keywords):
         try:
-            api_key = st.secrets.get("newsapi_key", "")
+            api_key = _getenv_or_secret("NEWSAPI_KEY", "newsapi_key", "")
             if not api_key:
                 return []
 
@@ -478,7 +526,7 @@ class ComprehensiveNewsScanner:
 
     def _scan_polygon_news(self, asset):
         try:
-            api_key = st.secrets.get("polygon_api_key", "")
+            api_key = _getenv_or_secret("POLYGON_API_KEY", "polygon_api_key", "")
             if not api_key:
                 return []
 
@@ -821,7 +869,7 @@ class EconomicDataManager:
     def __init__(self):
         self.cache_manager = CacheManager()
         try:
-            fred_key = st.secrets.get("fred_api_key", "")
+            fred_key = _getenv_or_secret("FRED_API_KEY", "fred_api_key", "")
             self.fred = Fred(api_key=fred_key) if fred_key else None
         except:
             self.fred = None
