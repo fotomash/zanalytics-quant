@@ -1205,3 +1205,96 @@ class PositionsProxyView(views.APIView):
             return Response(out)
         except Exception:
             return Response([], status=200)
+
+
+class AccountInfoView(views.APIView):
+    """Return normalized MT5 account info with stable lowercase keys.
+
+    GET /api/v1/account/info -> { equity, balance, margin, free_margin, margin_level, profit, login, server, currency }
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        base = (
+            os.getenv("MT5_URL")
+            or os.getenv("MT5_API_URL")
+            or "http://mt5:5001"
+        )
+        try:
+            r = requests.get(f"{str(base).rstrip('/')}/account_info", timeout=2.5)
+            if not r.ok:
+                return Response({}, status=200)
+            data = r.json() or {}
+            if isinstance(data, list) and data:
+                data = data[0]
+            if not isinstance(data, dict):
+                return Response({}, status=200)
+            # normalize keys to lowercase
+            norm = {str(k).lower(): v for k, v in data.items()}
+            # keep only common fields
+            keep = [
+                'equity','balance','margin','free_margin','margin_level','profit','login','server','currency'
+            ]
+            out = {k: norm.get(k) for k in keep}
+            return Response(out)
+        except Exception:
+            return Response({}, status=200)
+
+
+class JournalAppendView(views.APIView):
+    """Append a journal entry; optionally linked to a trade by id.
+
+    POST JSON: { trade_id?, kind?, text?, tags?, meta? }
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        data = request.data or {}
+        trade_id = data.get('trade_id')
+        kind = data.get('kind') or 'note'
+        text = data.get('text') or ''
+        tags = data.get('tags') or []
+        meta = data.get('meta') or {}
+        try:
+            je = None
+            if trade_id:
+                try:
+                    trade = Trade.objects.get(id=trade_id)
+                except Trade.DoesNotExist:
+                    return Response({'error': 'Trade not found'}, status=404)
+                # Upsert against OneToOne
+                je, _ = JournalEntry.objects.get_or_create(trade=trade)
+            else:
+                # Create a detached JournalEntry requires a trade; if no trade, emulate minimal store via meta
+                return Response({'error': 'trade_id required for now'}, status=400)
+            # Store text in notes; stash kind/tags/meta as JSON in notes if provided
+            payload = { 'kind': kind, 'text': text, 'tags': tags, 'meta': meta }
+            existing = je.notes or ''
+            sep = '\n---\n' if existing else ''
+            import json as _json
+            je.notes = f"{existing}{sep}{_json.dumps(payload)}"
+            je.save()
+            return Response({'ok': True, 'id': je.id, 'ts': je.updated_at.isoformat()})
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+class JournalRecentView(views.APIView):
+    """Return recent journal entries (last N)."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            limit = int(request.GET.get('limit', '50'))
+        except Exception:
+            limit = 50
+        qs = JournalEntry.objects.select_related('trade').order_by('-updated_at')[:max(1, min(200, limit))]
+        out = []
+        for je in qs:
+            out.append({
+                'id': je.id,
+                'ts': je.updated_at.isoformat(),
+                'trade_id': je.trade_id,
+                'text': je.notes or '',
+            })
+        return Response(out)

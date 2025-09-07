@@ -129,6 +129,79 @@ paths:
                 type: array
                 items:
                   type: object
+  /api/v1/positions/open:
+    get:
+      summary: Normalized open positions (alias)
+      operationId: getPositionsOpen
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+  /api/v1/account/info:
+    get:
+      summary: Normalized MT5 account info
+      operationId: getAccountInfo
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  equity: { type: number, nullable: true }
+                  balance: { type: number, nullable: true }
+                  margin: { type: number, nullable: true }
+                  free_margin: { type: number, nullable: true }
+                  margin_level: { type: number, nullable: true }
+                  profit: { type: number, nullable: true }
+                  login: { type: string, nullable: true }
+                  server: { type: string, nullable: true }
+                  currency: { type: string, nullable: true }
+  /api/v1/journal/append:
+    post:
+      summary: Append a structured journal entry (linked to trade)
+      operationId: postJournalAppend
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                trade_id: { type: integer }
+                kind: { type: string }
+                text: { type: string }
+                tags: { type: array, items: { type: string } }
+                meta: { type: object }
+      responses: { '200': { description: OK } }
+  /api/v1/journal/recent:
+    get:
+      summary: Recent journal entries
+      operationId: getJournalRecent
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, minimum: 1, maximum: 200 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: integer }
+                    ts: { type: string }
+                    trade_id: { type: integer, nullable: true }
+                    text: { type: string }
   /api/pulse/whispers:
     get:
       summary: Latest whispers stream

@@ -25,6 +25,9 @@ from .views import (
     MarketFetchView,
     MarketNewsPublisherView,
     PositionsProxyView,
+    AccountInfoView,
+    JournalAppendView,
+    JournalRecentView,
 )
 
 # --- Minimal, dependency-free Pulse endpoints (stubs) ---
@@ -87,4 +90,8 @@ urlpatterns = [
     path('market/fetch', MarketFetchView.as_view(), name='market-fetch'),
     path('market/news/next', MarketNewsPublisherView.as_view(), name='market-news-next'),
     path('account/positions', PositionsProxyView.as_view(), name='account-positions'),
+    path('positions/open', PositionsProxyView.as_view(), name='positions-open'),
+    path('account/info', AccountInfoView.as_view(), name='account-info'),
+    path('journal/append', JournalAppendView.as_view(), name='journal-append'),
+    path('journal/recent', JournalRecentView.as_view(), name='journal-recent'),
 ]
