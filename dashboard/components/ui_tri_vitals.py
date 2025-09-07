@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import plotly.graph_objects as go
+from dashboard.components.behavioral_compass import make_behavioral_compass
 
 
 def _clamp01(x: float) -> float:
@@ -135,3 +136,52 @@ def make_three_vitals(*,
                             size=size)
     return f1, f2, f3
 
+
+def fig_behavior_concentric_from_mirror(mirror: dict,
+                                        pnl_norm: float | None = None,
+                                        *,
+                                        title: str = "Behavioral Compass",
+                                        subtitle: str | None = "Keep red covered; tempo in check") -> go.Figure:
+    """Convenience wrapper: build the concentric behavioral compass directly from a mirror dict.
+    Accepts either 0..1 or 0..100 for numeric fields; tolerates missing keys.
+    """
+    def _g(d: dict, *keys, default=0.0):
+        for k in keys:
+            v = d.get(k)
+            if v is None:
+                continue
+            try:
+                x = float(v)
+                if 0.0 <= x <= 1.0:
+                    x *= 100.0
+                return x
+            except Exception:
+                continue
+        return float(default)
+
+    mirror = mirror or {}
+    # Patience: accept patience_ratio in [-0.5,0.5] or [-1,1], or patience in [0,100]
+    pr_raw = mirror.get('patience_ratio')
+    if pr_raw is None:
+        pr_raw = mirror.get('patience', 50)
+    try:
+        prf = float(pr_raw)
+        if -1.0 <= prf <= 1.0:
+            patience_ratio = prf
+        elif 0.0 <= prf <= 100.0:
+            patience_ratio = (prf / 100.0) - 0.5
+        else:
+            patience_ratio = 0.0
+    except Exception:
+        patience_ratio = 0.0
+
+    return make_behavioral_compass(
+        discipline=_g(mirror, 'discipline'),
+        patience_ratio=patience_ratio,
+        efficiency=_g(mirror, 'efficiency'),
+        conviction_hi_win=_g(mirror, 'conviction_hi_win', 'conviction'),
+        conviction_lo_loss=_g(mirror, 'conviction_lo_loss', default=0.0),
+        pnl_norm=pnl_norm,
+        title=title,
+        subtitle=subtitle,
+    )

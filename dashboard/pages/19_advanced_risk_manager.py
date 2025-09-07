@@ -92,6 +92,73 @@ if _img_base64:
 
 # Market Conditions header
 render_market_header()
+
+# --- Session Vitals (three donuts • Equity/Exposure/Behavior) ---
+try:
+    mirror = (requests.get(f"{os.getenv('DJANGO_API_URL','http://django:8000').rstrip('/')}/api/v1/mirror/state", timeout=1.2).json())
+except Exception:
+    mirror = {}
+try:
+    acct = (requests.get(f"{os.getenv('DJANGO_API_URL','http://django:8000').rstrip('/')}/api/v1/account/info", timeout=1.2).json())
+except Exception:
+    acct = {}
+try:
+    risk = (requests.get(f"{os.getenv('DJANGO_API_URL','http://django:8000').rstrip('/')}/api/v1/account/risk", timeout=1.2).json())
+except Exception:
+    risk = {}
+
+st.subheader("💰 Session Vitals")
+try:
+    eq = float(acct.get('equity') or 0.0)
+    bal = float(acct.get('balance') or 0.0)
+    sod = float(risk.get('sod_equity') or bal or eq)
+    target_amt = float(risk.get('target_amount') or 0.0)
+    loss_amt   = float(risk.get('loss_amount') or 0.0)
+    pnl_today  = eq - sod
+    exp_pct   = risk.get('exposure_pct') or 0.0
+    exp_ratio = float(exp_pct/100.0 if exp_pct and exp_pct > 1 else (exp_pct or 0.0))
+    bhv_score = behavioral_score_from_mirror(mirror) if isinstance(mirror, dict) else 0.0
+    bhv_ratio = float((bhv_score or 0.0)/100.0)
+
+    cV1, cV2, cV3 = st.columns(3)
+    with cV1:
+        st.plotly_chart(
+            bipolar_donut(
+                title="Equity vs SoD (11pm UK)",
+                value=pnl_today,
+                pos_max=max(1.0, target_amt),
+                neg_max=max(1.0, loss_amt),
+                start_anchor="top",
+                center_title=f"{eq:,.0f}",
+                center_sub=f"{pnl_today:+,.0f} today",
+            ),
+            use_container_width=True,
+        )
+    with cV2:
+        st.plotly_chart(
+            oneway_donut(
+                title="Position Exposure",
+                frac=max(0.0, min(1.0, exp_ratio)),
+                start_anchor="bottom",
+                center_title=f"{exp_ratio*100:.0f}%",
+                center_sub="of daily risk budget",
+            ),
+            use_container_width=True,
+        )
+    with cV3:
+        st.plotly_chart(
+            oneway_donut(
+                title="Behavioral Posture",
+                frac=max(0.0, min(1.0, bhv_ratio)),
+                start_anchor="top",
+                center_title=f"{bhv_score:.0f}",
+                center_sub="composite",
+            ),
+            use_container_width=True,
+        )
+    st.divider()
+except Exception:
+    st.info("Vitals unavailable")
 # Custom CSS for enhanced styling
 st.markdown("""
 <style>
@@ -1302,54 +1369,7 @@ def _render_top_three_donuts(account_info: Dict):
         st.plotly_chart(fig_compass, use_container_width=True, config={'displayModeBar': False})
         st.caption("Outer: Discipline • Mid: Patience/Efficiency • Inner: Conviction")
     with c_right:
-        # Three‑donut Session Vitals (plotly_donuts)
-        try:
-            target_amt = float(risk_env.get('target_amount') or 0.0)
-            loss_amt = float(risk_env.get('loss_amount') or 0.0)
-            pnl_today = equity_val - (sod_equity_api or sod_equity or 0.0)
-            exp_pct = (st.session_state.get('adv19_risk_last') or {}).get('exposure_pct') or 0.0
-            exp_ratio = float(exp_pct/100.0 if exp_pct > 1 else exp_pct)
-            bhv_score = behavioral_score_from_mirror(ms)
-            bhv_ratio = bhv_score/100.0
-
-            d1, d2, d3 = st.columns(3)
-            with d1:
-                st.plotly_chart(
-                    bipolar_donut(
-                        title="Equity vs SoD (11pm UK)",
-                        value=pnl_today,
-                        pos_max=max(1.0, target_amt),
-                        neg_max=max(1.0, loss_amt),
-                        start_anchor="top",
-                        center_title=f"{equity_val:,.0f}",
-                        center_sub=f"{pnl_today:+,.0f} today",
-                    ),
-                    use_container_width=True,
-                )
-            with d2:
-                st.plotly_chart(
-                    oneway_donut(
-                        title="Position Exposure",
-                        frac=exp_ratio,
-                        start_anchor="bottom",
-                        center_title=f"{exp_ratio*100:.0f}%",
-                        center_sub="of daily risk budget",
-                    ),
-                    use_container_width=True,
-                )
-            with d3:
-                st.plotly_chart(
-                    oneway_donut(
-                        title="Behavioral Posture",
-                        frac=bhv_ratio,
-                        start_anchor="top",
-                        center_title=f"{bhv_score:.0f}",
-                        center_sub="composite",
-                    ),
-                    use_container_width=True,
-                )
-        except Exception:
-            st.info("Vitals unavailable")
+        st.caption("Session vitals shown above")
 
     # Unified Whisperer block (compass, patterns, vitals, trajectory, whisperer, tiles)
     # Already rendered compass/vitals above; here render the remainder (patterns, trajectory, whisperer, tiles)
@@ -1774,29 +1794,7 @@ def _render_unified_whisperer_block(account_info: Dict, risk_env: Dict):
                 f"</div>",
                 unsafe_allow_html=True)
 
-    # Session Vitals: same size as compass (rendered separately)
-    st.subheader("💰 Session Vitals")
-    try:
-        eq = float(account_info.get('equity') or 0)
-        bal = float(account_info.get('balance') or 0)
-        sod = float(risk_env.get('sod_equity') or bal or eq)
-        target_amt = risk_env.get('target_amount') if isinstance(risk_env.get('target_amount'), (int, float)) else None
-        loss_amt = risk_env.get('loss_amount') if isinstance(risk_env.get('loss_amount'), (int, float)) else None
-        daily_profit_pct = float(risk_env.get('daily_profit_pct') or 0.0)
-        daily_risk_pct = float(risk_env.get('daily_risk_pct') or 0.0)
-        fig_sess = donut_session_vitals(
-            equity_usd=eq,
-            sod_equity_usd=sod,
-            baseline_equity_usd=bal or sod,
-            daily_profit_pct=daily_profit_pct,
-            daily_risk_pct=daily_risk_pct,
-            target_amount_usd=target_amt,
-            loss_amount_usd=loss_amt,
-            size=(280, 280),
-        )
-        st.plotly_chart(fig_sess, use_container_width=True, config={'displayModeBar': False})
-    except Exception:
-        st.info("Vitals unavailable")
+    # Session vitals are already shown at the top
 
     # Session Trajectory
     st.subheader("📈 Session Trajectory")
