@@ -26,6 +26,17 @@ except ImportError:
 # Load environment variables
 load_dotenv()
 
+# Baseline equity override (keeps mock aligned with production baseline)
+try:
+    ADV_BASELINE_EQUITY = float(
+        os.getenv("MT5_BASELINE_EQUITY", "")
+        or os.getenv("PULSE_BASELINE_EQUITY", "")
+        or "200000"
+    )
+except Exception:
+    ADV_BASELINE_EQUITY = 200000.0
+ADV_BASELINE_CCY = os.getenv("MT5_BASELINE_CCY", "USD")
+
 # Page configuration
 st.set_page_config(
     page_title="Zanalytics Pulse - Advanced Risk Manager",
@@ -116,7 +127,7 @@ st.markdown("""
         border-radius: 0.75rem;
         margin: 0.5rem 0;
         color: var(--tile-text);
-        box-shadow: 0 8px 20px var(--tile-shadow);
+        box-shadow: 0 8px 20px var(--tile-shadow); opacity: 0.92;
         border: 1px solid rgba(255,255,255,0.06);
         backdrop-filter: blur(4px);
     }
@@ -133,6 +144,11 @@ st.markdown("""
 
     .tile-plain  { background: linear-gradient(135deg, var(--tile-neutral-1),var(--tile-neutral-2)); }
 
+    .tile-high, .tile-med, .tile-low, .tile-bull, .tile-neutral, .tile-bear, .tile-plain {
+        filter: saturate(0.9) brightness(0.95);
+        opacity: 0.92;
+    }
+
     .risk-slider-container {
         background: #f8f9fa;
         padding: 1rem;
@@ -140,11 +156,24 @@ st.markdown("""
         margin: 1rem 0;
     }
     .psychology-insight {
-        background: #e3f2fd;
-        border-left: 4px solid #2196f3;
-        padding: 1rem;
-        margin: 1rem 0;
-        border-radius: 0 0.5rem 0.5rem 0;
+        background: rgba(255,255,255,0.08);
+        border-left: 3px solid rgba(153,255,208,0.85); /* neon mint accent */
+        padding: 0.9rem 1rem;
+        margin: 0.75rem 0;
+        border-radius: 0 10px 10px 0;
+        color: #eaeaea;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+        backdrop-filter: blur(3px);
+    }
+    /* Make expanders (e.g., Trading in the Zone) translucent like prior UI */
+    div[data-testid="stExpander"] > details {
+        background: rgba(26, 29, 58, 0.35) !important;
+        border: 1px solid rgba(255,255,255,0.10);
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    }
+    div[data-testid="stExpander"] summary {
+        color: #eaeaea !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -211,6 +240,7 @@ class AdvancedPulseRiskManager:
         # Initialize connections
         self.connected = False
         self.mt5_available = MT5_AVAILABLE
+        self._last_account_info: Dict = {}
         
         # Redis connection with error handling
         try:
@@ -256,46 +286,60 @@ class AdvancedPulseRiskManager:
 
     def get_account_info(self) -> Dict:
         """Get account information with fallback"""
-        if not self.connected:
-            if not self.connect():
-                # Return mock data for development
-                return {
-                    'login': 'MOCK',
-                    'server': 'MOCK-SERVER',
-                    'balance': 10000.00,
-                    'equity': 10000.00,
-                    'margin': 0.00,
-                    'free_margin': 10000.00,
-                    'margin_level': 0.00,
-                    'profit': 0.00,
-                    'leverage': 100,
-                    'currency': 'USD',
-                    'name': 'Mock Account',
-                    'company': 'Mock Broker',
-                }
-
+        # If we were previously connected and have a last good snapshot, reuse it on transient failures
         try:
-            account_info = mt5.account_info()
-            if account_info is None:
-                return {}
+            if self.connected and self._last_account_info:
+                return self._last_account_info
+        except Exception:
+            pass
 
-            return {
-                'login': account_info.login,
-                'server': account_info.server,
-                'balance': account_info.balance,
-                'equity': account_info.equity,
-                'margin': account_info.margin,
-                'free_margin': account_info.margin_free,
-                'margin_level': account_info.margin_level,
-                'profit': account_info.profit,
-                'leverage': account_info.leverage,
-                'currency': account_info.currency,
-                'name': account_info.name,
-                'company': account_info.company,
-            }
-        except Exception as e:
-            st.error(f"Error getting account info: {e}")
-            return {}
+        # Try to (re)connect to MT5
+        if not self.connected:
+            self.connect()
+
+        # If connected, pull live account info
+        if self.connected:
+            try:
+                account_info = mt5.account_info()
+                if account_info is not None:
+                    info = {
+                        'login': account_info.login,
+                        'server': account_info.server,
+                        'balance': account_info.balance,
+                        'equity': account_info.equity,
+                        'margin': account_info.margin,
+                        'free_margin': account_info.margin_free,
+                        'margin_level': account_info.margin_level,
+                        'profit': account_info.profit,
+                        'leverage': account_info.leverage,
+                        'currency': account_info.currency,
+                        'name': account_info.name,
+                        'company': account_info.company,
+                    }
+                    self._last_account_info = info
+                    return info
+            except Exception as e:
+                st.error(f"Error getting account info: {e}")
+
+        # No live data — return last known good real snapshot if available
+        if self._last_account_info:
+            return self._last_account_info
+
+        # Final fallback: MOCK that honors the global baseline (prevents 10k/200k flicker)
+        return {
+            'login': 'MOCK',
+            'server': 'MOCK-SERVER',
+            'balance': ADV_BASELINE_EQUITY,
+            'equity': ADV_BASELINE_EQUITY,
+            'margin': 0.00,
+            'free_margin': ADV_BASELINE_EQUITY,
+            'margin_level': 0.00,
+            'profit': 0.00,
+            'leverage': 100,
+            'currency': ADV_BASELINE_CCY,
+            'name': 'Mock Account',
+            'company': 'Mock Broker',
+        }
 
     def get_positions(self) -> pd.DataFrame:
         """Get all open positions with error handling"""
@@ -387,38 +431,49 @@ def create_risk_allocation_visualization(account_equity: float,
                                        daily_risk_pct: float, 
                                        anticipated_trades: int,
                                        confluence_score: float = 75) -> go.Figure:
-    """Create scientific risk allocation visualization"""
-    
+    """Create a cleaner, more attractive risk allocation chart"""
+
     # Calculate risk amounts
     daily_risk_amount = account_equity * (daily_risk_pct / 100)
-    per_trade_risk = daily_risk_amount / anticipated_trades
-    
+    per_trade_risk = daily_risk_amount / max(anticipated_trades, 1)
+
     # Confidence-based adjustment
-    confidence_multiplier = min(1.0, confluence_score / 100)
+    confidence_multiplier = min(1.0, max(confluence_score, 0) / 100)
     adjusted_per_trade = per_trade_risk * confidence_multiplier
-    
-    # Create visualization
+
+    categories = ['Daily Risk Budget', 'Per-Trade Risk', 'Adjusted Risk']
+    values = [daily_risk_amount, per_trade_risk, adjusted_per_trade]
+    colors = ['#2DD4BF', '#60A5FA', '#A78BFA']  # teal, blue, violet
+
     fig = go.Figure()
-    
-    # Add bars for visualization
     fig.add_trace(go.Bar(
-        x=['Daily Risk Budget', 'Per-Trade Risk', 'Adjusted Risk'],
-        y=[daily_risk_amount, per_trade_risk, adjusted_per_trade],
-        marker_color='rgba(255,255,255,0.75)',
-        text=[f"${daily_risk_amount:.2f}", f"${per_trade_risk:.2f}", f"${adjusted_per_trade:.2f}"],
-        textposition='auto',
+        x=categories,
+        y=values,
+        marker=dict(
+            color=colors,
+            line=dict(color='rgba(255,255,255,0.25)', width=1)
+        ),
+        text=[f"${v:,.2f}" for v in values],
+        textposition='outside',
+        hovertemplate='%{x}<br>$%{y:,.2f}<extra></extra>'
     ))
-    
+
     fig.update_layout(
-        title=f"Scientific Risk Allocation<br><sub>Daily Risk: {daily_risk_pct}% of ${account_equity:,.0f}</sub>",
-        xaxis_title="Risk Category",
+        title=dict(
+            text=f"Scientific Risk Allocation",
+            x=0.01, xanchor='left', y=0.95
+        ),
+        xaxis_title=None,
         yaxis_title="Risk Amount ($)",
         showlegend=False,
-        height=400,
+        height=420,
+        margin=dict(l=20, r=20, t=50, b=20),
         paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)'
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='rgba(255,255,255,0.92)')
     )
-    
+    fig.update_yaxes(gridcolor='rgba(255,255,255,0.08)', zerolinecolor='rgba(255,255,255,0.12)')
+
     return fig
 
 def create_psychology_insights(confluence_score: float, 
@@ -511,13 +566,25 @@ def render_psychology_insights_panel(confluence_data: Dict, risk_summary: Dict):
         st.markdown(f'<div class="psychology-insight">{insight}</div>', 
                    unsafe_allow_html=True)
     
-    # Trading principles reminder
+    # Trading principles (dynamic-ready: fetch from API if available)
+    principles = []
+    try:
+        resp = safe_api_call("GET", "principles/titz")
+        if isinstance(resp, dict) and resp.get("items"):
+            principles = resp.get("items", [])
+    except Exception:
+        principles = []
+    if not principles:
+        principles = [
+            "Think in probabilities, not predictions",
+            "Focus on process over outcomes",
+            "Accept uncertainty as natural",
+            "Maintain emotional discipline",
+            "Stick to your risk management rules",
+        ]
     with st.expander("📚 Trading in the Zone Principles", expanded=False):
-        st.write("✅ Think in probabilities, not predictions")
-        st.write("✅ Focus on process over outcomes")
-        st.write("✅ Accept uncertainty as natural")
-        st.write("✅ Maintain emotional discipline")
-        st.write("✅ Stick to your risk management rules")
+        for p in principles:
+            st.write(f"✅ {p}")
 
 def render_pulse_tiles(pulse_manager: AdvancedPulseRiskManager):
     """Render Pulse-specific tiles with error handling"""
@@ -746,11 +813,11 @@ def main():
         )
 
     with col4:
-        risk_used = risk_data.get('daily_risk_used', 0)
+        # Temporarily mark as unavailable per feedback
         st.metric(
             "📈 Risk Used",
-            f"{risk_used:.1f}%",
-            f"Phase: {risk_data.get('status', 'Unknown')}"
+            "NA",
+            "NA"
         )
 
     with col5:
@@ -760,32 +827,31 @@ def main():
             f"Max: {risk_data.get('max_trades', 5)}"
         )
 
-    # Risk gauges
+    # Risk metrics (temporarily not available)
     st.markdown("---")
     st.subheader("🎯 Risk Metrics")
 
+    def _na_tile(title: str) -> None:
+        st.markdown(
+            f"""
+            <div class=\"pulse-tile tile-plain\">
+                <h4>{title}</h4>
+                <h2>NA</h2>
+                <p>Not available</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
     gauge_col1, gauge_col2, gauge_col3, gauge_col4 = st.columns(4)
-
     with gauge_col1:
-        fig = create_gauge_chart(risk_data.get('daily_risk_used', 0), "Daily Risk Used (%)")
-        st.plotly_chart(fig, use_container_width=True)
-
+        _na_tile("Daily Risk Used (%)")
     with gauge_col2:
-        drawdown = abs(account_info.get('profit', 0)) / account_info.get('balance', 1) * 100 if account_info.get('balance', 0) > 0 else 0
-        fig = create_gauge_chart(drawdown, "Current Drawdown (%)")
-        st.plotly_chart(fig, use_container_width=True)
-
+        _na_tile("Current Drawdown (%)")
     with gauge_col3:
-        trades_used = risk_data.get('trades_used', 0)
-        max_trades = risk_data.get('max_trades', 5)
-        trade_usage = (trades_used / max_trades) * 100 if max_trades > 0 else 0
-        fig = create_gauge_chart(trade_usage, "Trade Limit Usage (%)")
-        st.plotly_chart(fig, use_container_width=True)
-
+        _na_tile("Trade Limit Usage (%)")
     with gauge_col4:
-        overall_risk = min(risk_data.get('daily_risk_used', 0) + drawdown, 100)
-        fig = create_gauge_chart(overall_risk, "Overall Risk Score")
-        st.plotly_chart(fig, use_container_width=True)
+        _na_tile("Overall Risk Score")
 
     # Main content area
     col1, col2 = st.columns([2, 1])

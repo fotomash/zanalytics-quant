@@ -429,16 +429,19 @@ def render_top_account_statistics(pulse_manager):
             unsafe_allow_html=True
         )
 
-    st.markdown("### Account Statistics")
-    c1, c2, c3, c4 = st.columns(4)
+    st.markdown("### Equity Summary")
+    c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
-        st.metric("Start-of-Day Equity", fmt_ccy(sod_equity, ccy), delta=fmt_ccy(equity_now - sod_equity, ccy))
+        st.metric("Previous Session Close Equity", fmt_ccy(y_close or sod_equity, ccy))
     with c2:
-        st.metric("Baseline Equity", fmt_ccy(baseline_equity, ccy), delta=f"{((equity_now / baseline_equity - 1) * 100):.2f}%" if baseline_equity else "—")
+        st.metric("Today Opening Equity", fmt_ccy(sod_equity, ccy), delta=fmt_ccy(equity_now - sod_equity, ccy))
     with c3:
-        st.metric("PnL Today", fmt_ccy(pnl_today, ccy))
+        st.metric("Current Equity", fmt_ccy(equity_now, ccy), delta=f"{((equity_now / (sod_equity or equity_now) - 1) * 100):.2f}% vs. SOD" if sod_equity else "—")
     with c4:
-        st.metric("Trades Today", f"{stats.get('trades_today',0)}", f"Win-rate 7d: {stats.get('win_rate_7d',0.0):.1f}%")
+        st.metric("Max Allowed Loss Today", fmt_ccy(loss_caps['daily_cap'], ccy), delta=f"{daily_risk_pct:.1f}% of SOD")
+    with c5:
+        st.metric("Max Loss / Trade", fmt_ccy(loss_caps['per_trade_cap'], ccy), delta=f"{loss_caps['positions']} anticipated")
+    st.caption(f"Starting Equity Baseline: {fmt_ccy(baseline_equity, ccy)}")
 
     # Allowed loss tiles
     t0, t1, t2 = st.columns(3)
@@ -454,7 +457,7 @@ def render_top_account_statistics(pulse_manager):
 
     # Micro charts row – same transparent style as Macro News tiles
     st.markdown("---")
-    st.subheader("Micro Charts")
+    st.subheader("Equity Micro Charts")
     s1, s2, s3 = st.columns(3)
     with s1:
         st.plotly_chart(make_sparkline(intraday_series, "Intraday Equity", ccy, line_color="#00FFC6"), use_container_width=True, config={"displayModeBar": False})
@@ -465,7 +468,7 @@ def render_top_account_statistics(pulse_manager):
             y_series.append((datetime.now() - timedelta(days=1), float(y_open)))
         if y_close is not None:
             y_series.append((datetime.now(), float(y_close)))
-        st.plotly_chart(make_sparkline(y_series, "Yesterday Open→Close", ccy, line_color="#FFD400"), use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(make_sparkline(y_series, "Previous Session Open→Close", ccy, line_color="#FFD400"), use_container_width=True, config={"displayModeBar": False})
     with s3:
         st.plotly_chart(make_sparkline(series_7d, "7d SOD Trail", ccy, line_color="#9b59b6"), use_container_width=True, config={"displayModeBar": False})
 
@@ -641,21 +644,91 @@ class PulseRiskManager:
                 except Exception as e:
                     self.status_messages.append(f"HTTP bridge error: {e}")
 
-                # Fallback to mock data for development
+                # Final fallback: MOCK that honors the global baseline (prevents 10k/200k flicker)
+                try:
+                    _baseline = float(os.getenv("MT5_BASELINE_EQUITY") or os.getenv("PULSE_BASELINE_EQUITY") or os.getenv("STARTING_EQUITY", "200000"))
+                except Exception:
+                    _baseline = 200000.0
+                _ccy = os.getenv("MT5_BASELINE_CCY", "USD")
                 return {
                     'login': 'MOCK',
                     'server': 'MOCK-SERVER',
-                    'balance': 10000.00,
-                    'equity': 10000.00,
+                    'balance': _baseline,
+                    'equity': _baseline,
                     'margin': 0.00,
-                    'free_margin': 10000.00,
+                    'free_margin': _baseline,
                     'margin_level': 0.00,
                     'profit': 0.00,
                     'leverage': 100,
-                    'currency': 'USD',
+                    'currency': _ccy,
                     'name': 'Mock Account',
                     'company': 'Mock Broker',
                 }
+st.markdown("""
+<style>
+.psychology-insight {
+    background: rgba(255,255,255,0.08) !important;
+    border-left: 3px solid rgba(153,255,208,0.85) !important;
+    padding: 0.9rem 1rem !important;
+    margin: 0.75rem 0 !important;
+    border-radius: 0 10px 10px 0 !important;
+    color: #eaeaea !important;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25) !important;
+    backdrop-filter: blur(3px) !important;
+}
+div[data-testid="stExpander"] > details {
+    background: rgba(26, 29, 58, 0.35) !important;
+    border: 1px solid rgba(255,255,255,0.10) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25) !important;
+}
+div[data-testid="stExpander"] summary {
+    color: #eaeaea !important;
+}
+</style>
+""", unsafe_allow_html=True)
+def make_drawdown_bar(used_frac: float, dd_pct: float, cap_pct: float) -> go.Figure:
+    """
+    Horizontal bar showing today's drawdown vs. daily cap.
+    used_frac: 0..1 (portion of cap used)
+    dd_pct: today's loss as % of SoD (positive means loss)
+    cap_pct: allowed daily risk % of SoD
+    """
+    u = max(0.0, min(1.0, float(used_frac or 0.0)))
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=[u * 100],
+        y=[""],
+        orientation="h",
+        marker=dict(color="rgba(239,68,68,0.85)"),  # red-ish
+        hovertemplate="Used: %{x:.1f}% of cap<extra></extra>",
+        name="Used"
+    ))
+    fig.add_trace(go.Bar(
+        x=[(1.0 - u) * 100],
+        y=[""],
+        orientation="h",
+        marker=dict(color="rgba(16,185,129,0.45)"),  # green-ish translucent
+        hovertemplate="Remaining: %{x:.1f}% of cap<extra></extra>",
+        name="Remaining"
+    ))
+    fig.update_layout(
+        barmode="stack",
+        height=70,
+        margin=dict(l=6, r=6, t=8, b=6),
+        showlegend=False,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(
+            range=[0, 100],
+            showgrid=False,
+            zeroline=False,
+            visible=False
+        ),
+        yaxis=dict(visible=False),
+        title=dict(text=f"Session Drawdown {dd_pct:.2f}%  •  Cap {cap_pct:.2f}%", x=0.0, y=0.98, font=dict(size=12))
+    )
+    return fig
 
         try:
             account_info = mt5.account_info()
@@ -1119,18 +1192,41 @@ def main():
         trades_df = pulse_manager.get_recent_trades(limit=250, days=1)
         trade_stats = compute_trade_stats(trades_df)
 
-        st.markdown("## 📊 Account Statistics")
+        st.markdown("## 📊 Equity Summary")
         c1, c2, c3, c4, c5 = st.columns(5)
+        prev_close = y_close or sod_equity
         with c1:
-            st.metric("Starting Equity (Baseline)", fmt_ccy(baseline_equity, ccy))
+            st.metric("Previous Session Close Equity", fmt_ccy(prev_close, ccy))
         with c2:
-            st.metric("Start-of-Day Equity", fmt_ccy(sod_equity, ccy))
+            st.metric("Today Opening Equity", fmt_ccy(sod_equity, ccy), delta=fmt_ccy(eq_now - sod_equity, ccy))
         with c3:
-            st.metric("Today's P&amp;L", fmt_ccy(trade_stats.get("pnl_today", 0.0), ccy))
+            st.metric("Current Equity", fmt_ccy(eq_now, ccy), delta=f"{((eq_now / (sod_equity or eq_now) - 1) * 100):.2f}% vs. SOD" if sod_equity else "—")
         with c4:
-            st.metric("Max Allowed Loss (info)", fmt_ccy(limits["max_loss_today"], ccy), delta=f"{daily_risk_pct:.1f}% of SOD")
+            st.metric("Max Allowed Loss Today", fmt_ccy(limits["max_loss_today"], ccy), delta=f"{daily_risk_pct:.1f}% of SOD")
         with c5:
-            st.metric("Max Loss / Trade", fmt_ccy(limits["max_loss_per_trade"], ccy), delta=f"{anticipated_positions} trades planned")
+            st.metric("Max Loss / Trade", fmt_ccy(limits["max_loss_per_trade"], ccy), delta=f"{anticipated_positions} anticipated")
+        st.caption(f"Starting Equity Baseline: {fmt_ccy(baseline_equity, ccy)}")
+
+        # Session Drawdown vs Daily Cap  +  Per-Trade Risk Suggestion
+        dd_pct = compute_daily_loss_pct(pulse_manager, acct)
+        used_frac = min(dd_pct / max(daily_risk_pct, 1e-6), 1.0) if daily_risk_pct > 0 else 0.0
+        dcol1, dcol2 = st.columns([2, 1])
+        with dcol1:
+            st.plotly_chart(
+                make_drawdown_bar(used_frac, dd_pct, daily_risk_pct),
+                use_container_width=True,
+                config={"displayModeBar": False}
+            )
+        with dcol2:
+            try:
+                _peek = pulse_manager.get_confluence_score()
+                _score = float(_peek.get("score", 0) or 0.0)
+            except Exception:
+                _score = 0.0
+            _per_trade_pct = (daily_risk_pct / max(anticipated_positions, 1))
+            _adj_pct = _per_trade_pct * max(min(_score, 100.0), 0.0) / 100.0
+            _adj_amt = (sod_equity or 0.0) * _adj_pct / 100.0
+            st.metric("Per-Trade Risk Suggestion", f"{_adj_pct:.2f}%", delta=f"{fmt_ccy(_adj_amt, ccy)}  at score {_score:.0f}")
 
         # Tiny transparent sparklines (DXY-style)
         m1, m2, m3 = st.columns(3)
@@ -1141,14 +1237,14 @@ def main():
             if y_open is not None:
                 st.plotly_chart(make_sparkline(
                     [(datetime.now()-timedelta(days=1), y_open), (datetime.now(), y_close or sod_equity)],
-                    "Yesterday Open→Close", ccy=ccy, line_color="#FFD400"),
+                    "Previous Session Open→Close", ccy=ccy, line_color="#FFD400"),
                     use_container_width=True, config={"displayModeBar": False}
                 )
             else:
-                st.plotly_chart(make_sparkline([], "Yesterday Open→Close", ccy=ccy, line_color="#FFD400"),
+                st.plotly_chart(make_sparkline([], "Previous Session Open→Close", ccy=ccy, line_color="#FFD400"),
                                 use_container_width=True, config={"displayModeBar": False})
         with m3:
-            st.plotly_chart(make_sparkline(series_7d, "SOD (7d series)", ccy=ccy, line_color="#FFD400"),
+            st.plotly_chart(make_sparkline(series_7d, "Start-of-Day Equity (7d)", ccy=ccy, line_color="#FFD400"),
                             use_container_width=True, config={"displayModeBar": False})
 
         st.divider()
@@ -1279,20 +1375,21 @@ def main():
         render_pulse_tiles(pulse_manager)
         st.divider()
 
-    # --- Account Statistics (informational, non-enforcing) ---
-    st.subheader("📊 Account Statistics")
+    # --- Key Risk Stats (informational, non-enforcing) ---
+    st.subheader("📊 Key Risk Stats")
     colA, colB, colC, colD, colE = st.columns(5)
+    prev_close_disp = y_close or sod_equity
     with colA:
-        st.metric("Starting Equity (Baseline)", fmt_ccy(baseline_equity, acct_ccy))
+        st.metric("Previous Session Close Equity", fmt_ccy(prev_close_disp, acct_ccy))
     with colB:
         st.metric("Start-of-Day Equity", fmt_ccy(sod_equity, acct_ccy))
     with colC:
         st.metric("Today's P&L", fmt_ccy(trade_stats["pnl_today"], acct_ccy))
     with colD:
-        st.metric("Max Allowed Loss (info)", fmt_ccy(max_allowed_loss_amt, acct_ccy), help="Calculated as Daily Risk Budget × Start-of-Day equity. This is *informational*, not enforced.")
+        st.metric("Max Allowed Loss (info)", fmt_ccy(max_allowed_loss_amt, acct_ccy), help="Daily Risk Budget × Start-of-Day equity. Informational only.")
     with colE:
         st.metric("Win Rate (7D)", f"{trade_stats['win_rate_7d']:.1f}%")
-    st.caption("These statistics are derived from your **real MetaTrader HTTP bridge** when available. Values are informational and support decision-making; they do not impose trading locks.")
+    st.caption(f"Starting Equity Baseline: {fmt_ccy(baseline_equity, acct_ccy)}  •  Derived from your MetaTrader bridge when available. Informational; not enforced.")
     st.markdown("---")
 
     # Top metrics row
