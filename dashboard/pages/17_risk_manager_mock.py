@@ -314,8 +314,8 @@ def main():
     # Data-source banner: show account number and broker if available
     acct_info = {}
     try:
-        if 'risk_manager' in st.session_state:
-            acct_info = st.session_state.risk_manager.get_account_info()
+        if 'risk_manager_17' in st.session_state:
+            acct_info = st.session_state.risk_manager_17.get_account_info()
     except Exception:
         acct_info = {}
     login = acct_info.get('login')
@@ -334,10 +334,10 @@ def main():
     st.markdown("### Real-time Account Monitoring & Risk Control")
 
     # Initialize Risk Manager
-    if 'risk_manager' not in st.session_state:
-        st.session_state.risk_manager = RiskManager()
-
-    risk_manager = st.session_state.risk_manager
+    if 'risk_manager_17' not in st.session_state:
+        st.session_state.risk_manager_17 = RiskManager()
+    
+    risk_manager = st.session_state.risk_manager_17
 
     # Sidebar
     with st.sidebar:

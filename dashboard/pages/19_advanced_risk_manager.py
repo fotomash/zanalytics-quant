@@ -15,6 +15,7 @@ import requests
 from typing import Dict, List, Optional, Tuple
 import os
 from dotenv import load_dotenv
+import yfinance as yf
 
 # Safe MT5 import
 try:
@@ -391,53 +392,111 @@ class AdvancedPulseRiskManager:
         result = safe_api_call("GET", f"signals/top?n={n}")
         return result if isinstance(result, list) else []
 
-def create_risk_allocation_visualization(account_equity: float, 
-                                       daily_risk_pct: float, 
-                                       anticipated_trades: int,
-                                       confluence_score: float = 75) -> go.Figure:
-    """Create a cleaner, more attractive risk allocation chart"""
+    def get_recent_trades(self, limit: int = 10, days: int = 7) -> pd.DataFrame:
+        """Fetch recent trades from MT5 bridge; return empty DF on failure."""
+        eps = [
+            f"history_deals_get?days={days}&limit={limit}",
+            f"history_orders_get?days={days}&limit={limit}",
+            f"history_deals_get?from={(datetime.now()-timedelta(days=days)).isoformat()}&to={datetime.now().isoformat()}&limit={limit}",
+        ]
+        for ep in eps:
+            try:
+                r = requests.get(f"{self.mt5_url}/{ep}", timeout=2.0)
+                if not r.ok:
+                    continue
+                data = r.json() or []
+                if not isinstance(data, list) or not data:
+                    continue
+                df = pd.DataFrame(data)
+                # normalize time
+                tcols = [c for c in ["time", "time_msc", "time_done", "time_close"] if c in df.columns]
+                if tcols:
+                    col = tcols[0]
+                    try:
+                        df["time"] = pd.to_datetime(df[col], unit='s', errors='coerce')
+                    except Exception:
+                        df["time"] = pd.to_datetime(df[col], errors='coerce')
+                elif "timestamp" in df.columns:
+                    df["time"] = pd.to_datetime(df["timestamp"], errors='coerce')
+                if "type" in df.columns:
+                    df["type"] = df["type"].replace({0: "BUY", 1: "SELL", 2: "BUY", 3: "SELL"})
+                keep = [c for c in ["time","ticket","symbol","type","volume","price","price_open","price_current","profit","commission","swap","comment"] if c in df.columns]
+                if "time" in keep:
+                    df = df.sort_values("time", ascending=False)
+                return df[keep].head(limit) if keep else df.head(limit)
+            except Exception:
+                continue
+        return pd.DataFrame()
 
-    # Calculate risk amounts
-    daily_risk_amount = account_equity * (daily_risk_pct / 100)
-    per_trade_risk = daily_risk_amount / max(anticipated_trades, 1)
+def create_risk_allocation_3d(account_equity: float,
+                              anticipated_trades: int,
+                              daily_risk_pct: float = 3.0) -> go.Figure:
+    """3D-looking surface: per-trade risk ($) vs anticipated trades (fixed 3% daily budget).
 
-    # Confidence-based adjustment
-    confidence_multiplier = min(1.0, max(confluence_score, 0) / 100)
-    adjusted_per_trade = per_trade_risk * confidence_multiplier
+    X: anticipated trades (1..12)
+    Y: dummy 0..1 band for 3D effect (no labeling)
+    Z: per-trade risk dollars = equity * 3% / X
+    """
+    daily_risk_amount = max(0.0, float(account_equity) * (float(daily_risk_pct) / 100.0))
+    x_vals = np.arange(1, 13)
+    y_vals = np.linspace(0.0, 1.0, 5)
+    X, Y = np.meshgrid(x_vals, y_vals)
+    Z_line = np.where(x_vals > 0, daily_risk_amount / x_vals, 0.0)
+    Z = np.tile(Z_line, (len(y_vals), 1))
 
-    categories = ['Daily Risk Budget', 'Per-Trade Risk', 'Adjusted Risk']
-    values = [daily_risk_amount, per_trade_risk, adjusted_per_trade]
-    colors = ['#2DD4BF', '#60A5FA', '#A78BFA']  # teal, blue, violet
+    fig = go.Figure(data=[go.Surface(
+        x=X, y=Y, z=Z,
+        colorscale='Turbo',
+        colorbar=dict(title='Per-Trade ($)', titleside='right', tickformat=',.0f'),
+        contours={
+            "z": {"show": True, "usecolormap": True, "highlightcolor": "#ffffff", "project_z": True}
+        },
+        lighting=dict(ambient=0.45, diffuse=0.6, roughness=0.65, specular=0.2),
+        hovertemplate='Trades %{x}<br>Conf %{y:.0f}%<br>$%{z:,.0f}<extra></extra>',
+        opacity=0.92,
+        name='Allocation Surface'
+    )])
 
-    fig = go.Figure()
-    fig.add_trace(go.Bar(
-        x=categories,
-        y=values,
-        marker=dict(
-            color=colors,
-            line=dict(color='rgba(255,255,255,0.25)', width=1)
-        ),
-        text=[f"${v:,.2f}" for v in values],
-        textposition='outside',
-        hovertemplate='%{x}<br>$%{y:,.2f}<extra></extra>'
+    # Current selection marker
+    x0 = max(1, int(anticipated_trades))
+    y0 = 0.5
+    z0 = (daily_risk_amount / x0)
+    fig.add_trace(go.Scatter3d(
+        x=[x0], y=[y0], z=[z0],
+        mode='markers+text',
+        text=[f"${z0:,.0f}"],
+        textposition='top center',
+        marker=dict(size=6, color='#FFB703', symbol='diamond'),
+        hovertemplate='Current • Trades %{x}, Conf %{y:.0f}%<br>$%{z:,.0f}<extra></extra>',
+        name='Current'
     ))
 
     fig.update_layout(
-        title=dict(
-            text=f"Risk Allocation",
-            x=0.01, xanchor='left', y=0.95
+        scene=dict(
+            xaxis_title='Anticipated Trades',
+            yaxis_title='',
+            zaxis_title='Per-Trade Risk ($)',
+            xaxis=dict(
+                backgroundcolor='rgba(0,0,0,0.0)', gridcolor='rgba(255,255,255,0.12)',
+                tickmode='linear', dtick=1
+            ),
+            yaxis=dict(
+                backgroundcolor='rgba(0,0,0,0.0)', gridcolor='rgba(255,255,255,0.12)',
+                tickmode='array', tickvals=[]
+            ),
+            zaxis=dict(
+                backgroundcolor='rgba(0,0,0,0.0)', gridcolor='rgba(255,255,255,0.12)',
+                tickformat=',.0f'
+            ),
+            camera=dict(eye=dict(x=1.6, y=1.6, z=0.8)),
+            aspectmode='manual', aspectratio=dict(x=1.2, y=1.0, z=0.6)
         ),
-        xaxis_title=None,
-        yaxis_title="Risk Amount ($)",
-        showlegend=False,
-        height=420,
+        title=dict(text='Risk Allocation 3D (3% daily)', x=0.01, xanchor='left', y=0.95),
+        height=520,
         margin=dict(l=20, r=20, t=50, b=20),
         paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='rgba(255,255,255,0.92)')
+        plot_bgcolor='rgba(0,0,0,0)'
     )
-    fig.update_yaxes(gridcolor='rgba(255,255,255,0.08)', zerolinecolor='rgba(255,255,255,0.12)')
-
     return fig
 
 def create_psychology_insights(confluence_score: float, 
@@ -474,7 +533,7 @@ def create_psychology_insights(confluence_score: float,
     return insights
 
 def render_risk_control_panel(account_info: Dict, risk_summary: Dict):
-    """Render risk control panel"""
+    """Render risk control panel with 3D allocation (daily slider 0.5–3%)."""
     
     st.subheader("🎛️ Risk Controls")
     
@@ -482,43 +541,46 @@ def render_risk_control_panel(account_info: Dict, risk_summary: Dict):
     
     with col1:
         st.markdown("#### Risk Parameters")
-        
-        # Daily risk slider with psychological guidance
+        # Daily risk slider (bounded 0.5–3.0%)
         daily_risk_pct = st.slider(
-            "Daily Risk Budget (%)", 
-            0.5, 5.0, 2.0, 0.1,
-            help="Maximum percentage of equity to risk today"
+            "Daily Risk Budget (%)",
+            0.5, 3.0, 2.0, 0.1,
+            help="Max percentage of equity to risk today"
         )
-        
-        # Anticipated trades slider
+        # Anticipated trades slider only
         anticipated_trades = st.slider(
-            "Anticipated Trades Today", 
-            1, 10, 3,
+            "Anticipated Trades Today",
+            1, 12, 5,
             help="Number of trades you plan to take today"
         )
-        
-        # Calculate per-trade risk
-        per_trade_risk = daily_risk_pct / anticipated_trades
-        st.metric("Suggested Per-Trade Risk", f"{per_trade_risk:.2f}%", 
-                 f"{anticipated_trades} trades planned")
+        # Compute per-trade dollars
+        equity = float(account_info.get('equity') or 0)
+        daily_risk_amount = equity * (daily_risk_pct / 100.0)
+        per_trade_dollars = daily_risk_amount / anticipated_trades if anticipated_trades else 0.0
+        st.metric("Per-Trade Risk ($)", f"${per_trade_dollars:,.0f}", f"Daily: {daily_risk_pct:.1f}% → ${daily_risk_amount:,.0f}")
     
     with col2:
-        st.markdown("#### Risk Allocation")
-        
-        # Create risk allocation chart (do not guess equity)
+        st.markdown("#### Risk Allocation 3D")
         equity = account_info.get('equity')
         if equity is None:
             st.warning("No equity available from MT5 (not connected).")
         else:
-            fig = create_risk_allocation_visualization(
-                float(equity or 0), daily_risk_pct, anticipated_trades
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            fig3d = create_risk_allocation_3d(float(equity or 0), anticipated_trades, daily_risk_pct)
+            st.plotly_chart(fig3d, use_container_width=True)
+
+def get_trait_history(limit: int = 20) -> List[Dict]:
+    """Fetch recent behavioral traits/incidents (no mocks)."""
+    res = safe_api_call("GET", f"psych/traits/history?limit={limit}")
+    if isinstance(res, list):
+        return res
+    if isinstance(res, dict) and isinstance(res.get("items"), list):
+        return res["items"]
+    return []
 
 def render_psychology_insights_panel(confluence_data: Dict, risk_summary: Dict):
-    """Render behavioral psychology insights panel"""
+    """Render session mindset panel"""
     
-    st.subheader("🧠 Behavioral Psychology Insights")
+    st.subheader("🧠 SESSION MINDSET")
     
     confluence_score = confluence_data.get("score", 75)
     consecutive_losses = risk_summary.get("consecutive_losses", 0)
@@ -549,9 +611,22 @@ def render_psychology_insights_panel(confluence_data: Dict, risk_summary: Dict):
             "Maintain emotional discipline",
             "Stick to your risk management rules",
         ]
-    with st.expander("📚 Trading in the Zone Principles", expanded=False):
-        for p in principles:
-            st.write(f"✅ {p}")
+    # Trait history timeline (subtle)
+    try:
+        traits = get_trait_history(10)
+    except Exception:
+        traits = []
+    if traits:
+        st.markdown("**Recent Traits:**")
+        for t in traits:
+            ts = t.get("time") or t.get("timestamp")
+            try:
+                tdisp = pd.to_datetime(ts, errors="coerce").strftime("%Y-%m-%d %H:%M") if ts else "—"
+            except Exception:
+                tdisp = "—"
+            label = t.get("name") or t.get("trait") or "trait"
+            val = t.get("value") or t.get("score") or ""
+            st.caption(f"{tdisp} • {label} {val}")
 
 def render_pulse_tiles(pulse_manager: AdvancedPulseRiskManager):
     """Render Pulse-specific tiles with error handling"""
@@ -773,11 +848,83 @@ def get_last_trade_snapshot() -> Dict:
     snap = _read_last_trade_via_api() or _read_last_trade_from_kafka()
     return snap or {}
 
+def _fetch_ohlc(symbol: str, tf: str) -> pd.DataFrame:
+    """Fetch OHLC data via yfinance for common timeframes including 15m."""
+    tf_map = {
+        '15m': ('7d', '15m'),
+        '1h': ('30d', '60m'),
+        '4h': ('60d', '240m'),
+        '1d': ('1y', '1d'),
+    }
+    period, interval = tf_map.get(tf, ('30d', '60m'))
+    try:
+        df = yf.download(symbol, period=period, interval=interval, auto_adjust=False, progress=False)
+        if isinstance(df, pd.DataFrame) and not df.empty:
+            df = df.rename(columns=str.title)
+            df = df[['Open','High','Low','Close','Volume']]
+            df = df.dropna()
+        return df if isinstance(df, pd.DataFrame) else pd.DataFrame()
+    except Exception:
+        return pd.DataFrame()
+
+def render_technical_analysis_panel():
+    st.subheader("📈 Technical Analysis")
+    colA, colB, colC = st.columns([3,1,1])
+    with colA:
+        symbol = st.selectbox("Symbol", options=["BTC-USD","ETH-USD","XAUUSD=X","EURUSD=X","GBPUSD=X","USDJPY=X"], index=0)
+    with colB:
+        tf = st.selectbox("Timeframe", options=["15m","1h","4h","1d"], index=0)
+    with colC:
+        highlight_mondays = st.checkbox("Highlight Mondays", value=False)
+
+    with st.spinner("Loading chart…"):
+        df = _fetch_ohlc(symbol, tf)
+    if df is None or df.empty:
+        st.info("No data available for chart.")
+        return
+
+    fig = go.Figure(data=[go.Candlestick(
+        x=df.index,
+        open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
+        name=symbol
+    )])
+    # Add simple MAs for context
+    try:
+        ma_fast = df['Close'].rolling(10).mean()
+        ma_slow = df['Close'].rolling(30).mean()
+        fig.add_trace(go.Scatter(x=df.index, y=ma_fast, mode='lines', name='MA10', line=dict(color='#10B981', width=1.5)))
+        fig.add_trace(go.Scatter(x=df.index, y=ma_slow, mode='lines', name='MA30', line=dict(color='#F59E0B', width=1.5)))
+    except Exception:
+        pass
+
+    if highlight_mondays:
+        try:
+            mondays = [ts for ts in df.index if ts.weekday() == 0]
+            for ts in mondays:
+                fig.add_vline(x=ts, line=dict(color='rgba(255,255,255,0.25)', width=1, dash='dot'))
+        except Exception:
+            pass
+
+    fig.update_layout(
+        height=420,
+        margin=dict(l=20, r=20, t=30, b=20),
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Lightweight analysis notes (local only)
+    with st.expander("📝 Analysis Notes", expanded=False):
+        key = f"ta_notes_{symbol}_{tf}"
+        existing = st.session_state.get(key, "")
+        notes = st.text_area("Notes", value=existing, height=120)
+        if st.button("Save Notes", key=f"save_{key}"):
+            st.session_state[key] = notes
+            st.success("Saved.")
+
 def main():
     """Main dashboard function with comprehensive error handling"""
     
-    st.title("🎯 Zanalytics Pulse — Advanced Risk Manager")
-    st.markdown("### Live risk, behavior, and recent trades")
+    st.title("Zanalytics Pulse — Advanced Risk Manager")
 
     # Initialize Advanced manager under a distinct key to avoid clashes with page 16
     if 'adv_pulse_manager' not in st.session_state or not isinstance(st.session_state.adv_pulse_manager, AdvancedPulseRiskManager):
@@ -822,7 +969,25 @@ def main():
             unsafe_allow_html=True
         )
 
-    # Advanced Risk Control Panel
+    # Top metrics row (concise, at top)
+    balance_val = float(account_info.get('balance', 0) or 0)
+    equity_val = float(account_info.get('equity', 0) or 0)
+    profit_val = float(account_info.get('profit', 0) or 0)
+    margin_level_val = float(account_info.get('margin_level', 0) or 0)
+
+    colm1, colm2, colm3, colm4 = st.columns(4)
+    with colm1:
+        st.metric("💰 Balance", f"${balance_val:,.2f}", f"${profit_val:,.2f}")
+    with colm2:
+        base = balance_val if balance_val > 0 else 1.0
+        eq_delta_pct = ((equity_val / base - 1) * 100) if base else 0
+        st.metric("📊 Equity", f"${equity_val:,.2f}", f"{eq_delta_pct:.2f}%")
+    with colm3:
+        st.metric("🎯 Margin Level", f"{margin_level_val:,.2f}%", "Safe" if margin_level_val > 200 else "Warning")
+    with colm4:
+        st.metric("📈 PnL", f"${profit_val:,.2f}")
+
+    # Advanced Risk Control Panel (with 3D allocation, fixed 3%)
     render_risk_control_panel(account_info, risk_data)
     
     # Behavioral Psychology Insights
@@ -859,6 +1024,32 @@ def main():
             st.metric("Closed", tdisp)
     else:
         st.info("No recent trade found.")
+
+    # Recent Trades (only)
+    st.subheader("📜 Recent Trades")
+    try:
+        recent_df = pulse_manager.get_recent_trades(limit=20, days=7)
+    except Exception:
+        recent_df = pd.DataFrame()
+    if isinstance(recent_df, pd.DataFrame) and not recent_df.empty:
+        disp = recent_df.copy()
+        if 'time' in disp.columns:
+            try:
+                disp['time'] = pd.to_datetime(disp['time']).dt.strftime('%Y-%m-%d %H:%M')
+            except Exception:
+                pass
+        st.dataframe(disp, use_container_width=True)
+        # Zoom into last trade details
+        try:
+            last_row = disp.iloc[0].to_dict()
+            with st.expander('🔎 Last Trade Details', expanded=False):
+                for k in ['time','symbol','type','volume','price','price_open','price_current','profit','commission','swap','comment']:
+                    if k in last_row:
+                        st.write(f"{k}: {last_row.get(k)}")
+        except Exception:
+            pass
+    else:
+        st.info('No recent trades available.')
 
     # Top metrics row
     balance_val = float(account_info.get('balance', 0) or 0)
@@ -956,6 +1147,10 @@ def main():
     with col2:
         # Behavioral insights
         render_behavioral_insights(pulse_manager)
+
+    # Technical Analysis
+    st.markdown("---")
+    render_technical_analysis_panel()
 
     # Risk warnings
     st.markdown("---")

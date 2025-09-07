@@ -569,6 +569,8 @@ def safe_api_call(method: str, path: str, payload: Dict = None, timeout: float =
     except Exception as e:
         return {"error": str(e)}
 
+ 
+
 class PulseRiskManager:
     """Enhanced Risk Manager with Pulse Integration and Error Handling"""
 
@@ -884,7 +886,14 @@ def render_pulse_tiles(pulse_manager: PulseRiskManager):
     
     # Confluence Score Tile
     with col1:
-        confluence_data = pulse_manager.get_confluence_score()
+        try:
+            if hasattr(pulse_manager, "get_confluence_score"):
+                confluence_data = pulse_manager.get_confluence_score()
+            else:
+                cd = safe_api_call("POST", "score/peek", {})
+                confluence_data = cd if isinstance(cd, dict) else {}
+        except Exception:
+            confluence_data = {}
         score = confluence_data.get("score", 0)
         grade = confluence_data.get("grade", "Unknown")
         
@@ -960,48 +969,65 @@ def render_pulse_tiles(pulse_manager: PulseRiskManager):
 def render_opportunities(pulse_manager: PulseRiskManager):
     """Render top trading opportunities with error handling"""
     st.subheader("🎯 Top Trading Opportunities")
-    
+    # Load opportunities from manager if available; else via API
+    opportunities = []
     try:
-        opportunities = pulse_manager.get_top_opportunities(3)
-        
-        for opp in opportunities:
-            with st.container():
-                col1, col2, col3 = st.columns([2, 1, 1])
-                
-                with col1:
-                    st.write(f"**{opp['symbol']}** - Score: {opp['score']}")
-                    st.write(f"Bias: {opp.get('bias', 'Neutral')}")
-                
-                with col2:
-                    st.write(f"R:R: {opp.get('rr', '—')}")
-                    st.write(f"SL: {opp.get('sl', '—')}")
-                
-                with col3:
-                    st.write(f"TP: {opp.get('tp', '—')}")
-                    
-                    if st.button(f"Analyze {opp['symbol']}", key=f"analyze_{opp['symbol']}"):
-                        st.info(f"Opening analysis for {opp['symbol']}...")
-                
-                # Expandable reasons
-                with st.expander("📋 Analysis Details"):
-                    reasons = opp.get("reasons", [])
-                    if reasons:
-                        for reason in reasons:
-                            st.write(f"• {reason}")
-                    else:
-                        st.write("No specific analysis available")
-            
-            st.divider()
-    
-    except Exception as e:
-        st.error(f"Unable to load opportunities: {str(e)}")
+        if hasattr(pulse_manager, 'get_top_opportunities'):
+            opportunities = pulse_manager.get_top_opportunities(3) or []
+        else:
+            res = safe_api_call("GET", "signals/top?n=3")
+            if isinstance(res, list):
+                opportunities = res
+            elif isinstance(res, dict) and isinstance(res.get('items'), list):
+                opportunities = res['items']
+    except Exception:
+        opportunities = []
+
+    if not opportunities:
+        st.info("No opportunities available.")
+        return
+
+    for opp in opportunities:
+        with st.container():
+            col1, col2, col3 = st.columns([2, 1, 1])
+            with col1:
+                st.write(f"**{opp.get('symbol','—')}** - Score: {opp.get('score','—')}")
+                st.write(f"Bias: {opp.get('bias', 'Neutral')}")
+            with col2:
+                st.write(f"R:R: {opp.get('rr', '—')}")
+                st.write(f"SL: {opp.get('sl', '—')}")
+            with col3:
+                st.write(f"TP: {opp.get('tp', '—')}")
+                if st.button(f"Analyze {opp.get('symbol','—')}", key=f"analyze_{opp.get('symbol','sym')}"):
+                    st.info(f"Opening analysis for {opp.get('symbol','—')}...")
+            with st.expander("📋 Analysis Details"):
+                reasons = opp.get("reasons", [])
+                if reasons:
+                    for reason in reasons:
+                        st.write(f"• {reason}")
+                else:
+                    st.write("No specific analysis available")
+        st.divider()
+
+def get_trait_history(limit: int = 20) -> List[Dict]:
+    """Fetch recent behavioral traits/incidents (no mocks)."""
+    res = safe_api_call("GET", f"psych/traits/history?limit={limit}")
+    if isinstance(res, list):
+        return res
+    if isinstance(res, dict) and isinstance(res.get("items"), list):
+        return res["items"]
+    return []
 
 def render_behavioral_insights(pulse_manager: PulseRiskManager):
-    """Render behavioral trading insights"""
-    st.subheader("🧠 Behavioral Insights")
+    """Render session mindset panel"""
+    st.subheader("🧠 SESSION MINDSET")
     
     try:
-        risk_data = pulse_manager.get_risk_summary()
+        if hasattr(pulse_manager, 'get_risk_summary'):
+            risk_data = pulse_manager.get_risk_summary()
+        else:
+            rd = safe_api_call("GET", "risk/summary")
+            risk_data = rd if isinstance(rd, dict) else {}
         warnings = risk_data.get("warnings", [])
         
         if warnings:
@@ -1011,13 +1037,23 @@ def render_behavioral_insights(pulse_manager: PulseRiskManager):
         else:
             st.success("✅ No behavioral alerts")
         
-        # Trading principles reminder
-        with st.expander("📚 Trading in the Zone Principles"):
-            st.write("✅ Think in probabilities, not predictions")
-            st.write("✅ Focus on process over outcomes")
-            st.write("✅ Accept uncertainty as natural")
-            st.write("✅ Maintain emotional discipline")
-            st.write("✅ Stick to your risk management rules")
+        # Trait history timeline (subtle)
+        traits = []
+        try:
+            traits = get_trait_history(10)
+        except Exception:
+            traits = []
+        if traits:
+            st.markdown("**Recent Traits:**")
+            for t in traits:
+                ts = t.get("time") or t.get("timestamp")
+                try:
+                    tdisp = pd.to_datetime(ts, errors="coerce").strftime("%Y-%m-%d %H:%M") if ts else "—"
+                except Exception:
+                    tdisp = "—"
+                label = t.get("name") or t.get("trait") or "trait"
+                val = t.get("value") or t.get("score") or ""
+                st.caption(f"{tdisp} • {label} {val}")
     
     except Exception as e:
         st.error(f"Error loading behavioral insights: {e}")
@@ -1025,8 +1061,7 @@ def render_behavioral_insights(pulse_manager: PulseRiskManager):
 def main():
     """Main dashboard function with comprehensive error handling"""
     
-    st.title("🎯 Zanalytics Pulse - Risk Management Dashboard")
-    st.markdown("### Behavioral-First Risk Management with Real-Time MT5 Integration")
+    st.title("Zanalytics Pulse — Risk Manager")
 
     # Initialize Pulse Risk Manager (ensure this page's manager, not advanced)
     if 'pulse_manager' not in st.session_state or not isinstance(st.session_state.pulse_manager, PulseRiskManager):
@@ -1082,20 +1117,22 @@ def main():
         trades_df = pulse_manager.get_recent_trades(limit=250, days=1)
         trade_stats = compute_trade_stats(trades_df)
 
-        st.markdown("## 📊 Equity Summary")
-        c1, c2, c3, c4, c5 = st.columns(5)
-        prev_close = y_close or sod_equity
-        with c1:
-            st.metric("Previous Session Close Equity", fmt_ccy(prev_close, ccy))
-        with c2:
-            st.metric("Today Opening Equity", fmt_ccy(sod_equity, ccy), delta=fmt_ccy(eq_now - sod_equity, ccy))
-        with c3:
-            st.metric("Current Equity", fmt_ccy(eq_now, ccy), delta=f"{((eq_now / (sod_equity or eq_now) - 1) * 100):.2f}% vs. SOD" if sod_equity else "—")
-        with c4:
-            st.metric("Max Allowed Loss Today", fmt_ccy(limits["daily_cap"], ccy), delta=f"{daily_risk_pct:.1f}% of SOD")
-        with c5:
-            st.metric("Max Loss / Trade", fmt_ccy(limits["per_trade_cap"], ccy), delta=f"{anticipated_positions} anticipated")
-        st.caption(f"Starting Equity Baseline: {fmt_ccy(baseline_equity, ccy)}")
+        if not st.session_state.get("_equity_summary_rendered", False):
+            st.markdown("## 📊 Equity Summary")
+            c1, c2, c3, c4, c5 = st.columns(5)
+            prev_close = y_close or sod_equity
+            with c1:
+                st.metric("Previous Session Close Equity", fmt_ccy(prev_close, ccy))
+            with c2:
+                st.metric("Today Opening Equity", fmt_ccy(sod_equity, ccy), delta=fmt_ccy(eq_now - sod_equity, ccy))
+            with c3:
+                st.metric("Current Equity", fmt_ccy(eq_now, ccy), delta=f"{((eq_now / (sod_equity or eq_now) - 1) * 100):.2f}% vs. SOD" if sod_equity else "—")
+            with c4:
+                st.metric("Max Allowed Loss Today", fmt_ccy(limits["daily_cap"], ccy), delta=f"{daily_risk_pct:.1f}% of SOD")
+            with c5:
+                st.metric("Max Loss / Trade", fmt_ccy(limits["per_trade_cap"], ccy), delta=f"{anticipated_positions} anticipated")
+            st.caption(f"Starting Equity Baseline: {fmt_ccy(baseline_equity, ccy)}")
+            st.session_state["_equity_summary_rendered"] = True
 
         # Session Drawdown vs Daily Cap  +  Per-Trade Risk Suggestion
         dd_pct = compute_daily_loss_pct(pulse_manager, acct)
@@ -1245,8 +1282,9 @@ def main():
             (datetime.now().replace(hour=0, minute=0, second=0, microsecond=0), float(y_close)),
         ]
 
-    st.markdown("#### 📈 Equity Summary")
-    col_eq1, col_eq2, col_eq3 = st.columns(3)
+    if not st.session_state.get("_equity_summary_rendered", False):
+        st.markdown("#### 📈 Equity Summary")
+        col_eq1, col_eq2, col_eq3 = st.columns(3)
 
     with col_eq1:
         fig = make_sparkline(yesterday_series, "Yesterday (Open → Close)", acct_ccy)
@@ -1275,6 +1313,7 @@ def main():
         st.plotly_chart(fig, use_container_width=True)
         if len(sod7d_series) >= 2:
             st.caption(f"{sod7d_series[0][0].strftime('%d %b')} → {sod7d_series[-1][0].strftime('%d %b')}")
+        st.session_state["_equity_summary_rendered"] = True
 
     # Pulse Decision Surface
     if show_pulse_tiles:
@@ -1473,8 +1512,7 @@ def main():
     st.markdown("---")
     st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-if __name__ == "__main__":
-    main()
+ 
 
 # Helper: compute today's loss as % of SOD equity
 def compute_daily_loss_pct(pulse_manager, account_info: Dict) -> float:
@@ -1490,14 +1528,14 @@ def compute_daily_loss_pct(pulse_manager, account_info: Dict) -> float:
 # === Injected: top Account Statistics + Recent Trades (runs once) ===
 try:
     if not st.session_state.get("_patched_stats_rendered", False):
-        rm = st.session_state.get("risk_manager")
+        rm = st.session_state.get("risk_manager_16")
         if rm is None:
             rm = PulseRiskManager()
-            st.session_state["risk_manager"] = rm
+            st.session_state["risk_manager_16"] = rm
         render_top_account_statistics(rm)
         render_recent_trades_section(rm, limit=10)
         st.session_state["_patched_stats_rendered"] = True
-except Exception as _e:
+except Exception:
     # Keep page resilient
     pass
 def fetch_recent_trades_fallback(pulse_manager=None, limit: int = 10, days: int = 7) -> pd.DataFrame:
@@ -1544,3 +1582,6 @@ def fetch_recent_trades_fallback(pulse_manager=None, limit: int = 10, days: int 
         except Exception:
             continue
     return pd.DataFrame()
+
+if __name__ == "__main__":
+    main()

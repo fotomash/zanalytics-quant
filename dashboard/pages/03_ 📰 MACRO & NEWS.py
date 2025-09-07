@@ -266,6 +266,14 @@ class CacheManager:
         return file_age.total_seconds() < (expiry_minutes * 60)
 
     @staticmethod
+    def get_cache_age_minutes(key) -> Optional[float]:
+        cache_path = CacheManager.get_cache_path(key)
+        if not os.path.exists(cache_path):
+            return None
+        age = datetime.now() - datetime.fromtimestamp(os.path.getmtime(cache_path))
+        return round(age.total_seconds() / 60.0, 2)
+
+    @staticmethod
     def save_cache(data, key):
         cache_path = CacheManager.get_cache_path(key)
         with open(cache_path, "wb") as f:
@@ -317,36 +325,52 @@ class ComprehensiveNewsScanner:
             'Central Banks': ['Fed', 'ECB', 'BOE', 'BOJ', 'FOMC', 'Powell', 'Lagarde', 'Bailey', 'Ueda']
         }
 
-    def get_all_news(self, refresh=False):
+    def _deduplicate(self, articles):
+        seen = set()
+        out = []
+        for a in articles:
+            uid = (
+                a.get('url') or a.get('link') or a.get('id') or
+                (a.get('headline') or a.get('title') or '')[:120]
+            )
+            if not uid:
+                continue
+            h = hashlib.md5(uid.encode('utf-8', errors='ignore')).hexdigest()
+            if h in seen:
+                continue
+            seen.add(h)
+            out.append(a)
+        return out
+
+    def get_all_news(self, refresh=False, ttl_minutes=CACHE_EXPIRY_MINUTES):
         cache_key = "comprehensive_news"
 
-        if not refresh and self.cache_manager.is_cache_valid(cache_key):
-            return self.cache_manager.load_cache(cache_key)
+        # Serve from cache if valid and not forced refresh
+        if not refresh and self.cache_manager.is_cache_valid(cache_key, expiry_minutes=ttl_minutes):
+            cached = self.cache_manager.load_cache(cache_key)
+            if cached:
+                return cached
 
-        all_news = {}
+        # Try fetching; on any failure, fall back to stale cache if present
+        try:
+            all_news = {}
+            for asset in self.asset_keywords.keys():
+                asset_news = []
+                asset_news.extend(self._scan_finnhub_news(self.asset_keywords[asset]))
+                asset_news.extend(self._scan_newsapi_news(self.asset_keywords[asset]))
+                if asset in ['EUR/USD', 'GBP/USD', 'USD/JPY', 'GBP/JPY', 'EUR/GBP', 'Gold', 'Oil', 'BTC/USD']:
+                    asset_news.extend(self._scan_polygon_news(asset))
 
-        for asset in self.asset_keywords.keys():
-            asset_news = []
+                # dedup + rank + cap
+                asset_news = self._deduplicate(asset_news)
+                asset_news = self._rank_news(asset_news)[:20]
+                all_news[asset] = asset_news
 
-            # Finnhub news
-            finnhub_news = self._scan_finnhub_news(self.asset_keywords[asset])
-            asset_news.extend(finnhub_news)
-
-            # NewsAPI news
-            newsapi_news = self._scan_newsapi_news(self.asset_keywords[asset])
-            asset_news.extend(newsapi_news)
-
-            # Polygon news (for applicable assets)
-            if asset in ['EUR/USD', 'GBP/USD', 'USD/JPY', 'GBP/JPY', 'EUR/GBP', 'Gold', 'Oil', 'BTC/USD']:
-                polygon_news = self._scan_polygon_news(asset)
-                asset_news.extend(polygon_news)
-
-            # Sort by relevance and recency
-            asset_news = self._rank_news(asset_news)
-            all_news[asset] = asset_news[:20]
-
-        self.cache_manager.save_cache(all_news, cache_key)
-        return all_news
+            self.cache_manager.save_cache(all_news, cache_key)
+            return all_news
+        except Exception:
+            fallback = self.cache_manager.load_cache(cache_key)
+            return fallback if fallback else {}
 
     def _scan_finnhub_news(self, keywords):
         try:
@@ -1207,43 +1231,105 @@ def main():
     with tab2:
         st.markdown("### 📰 Comprehensive News Center")
 
-        # Get all news
-        if st.button("🔄 Refresh News", key="refresh_news"):
-            all_news = news_scanner.get_all_news(refresh=True)
-        else:
-            all_news = news_scanner.get_all_news(refresh=False)
+        # TTL selector
+        ttl_choice = st.selectbox(
+            "Cache TTL",
+            options=["5 min", "15 min", "30 min", "60 min"],
+            index=1,
+            help="How long fetched news stays fresh before refetch"
+        )
+        ttl_map = {"5 min": 5, "15 min": 15, "30 min": 30, "60 min": 60}
+        ttl_minutes = ttl_map[ttl_choice]
+
+        # Cache status indicator
+        news_key = "comprehensive_news"
+        is_fresh = CacheManager.is_cache_valid(news_key, expiry_minutes=ttl_minutes)
+        age_min = CacheManager.get_cache_age_minutes(news_key)
+        badge_color = "#10b981" if is_fresh else "#f59e0b"
+        state_label = "FRESH" if is_fresh else "STALE"
+        st.markdown(
+            f"<div style='display:inline-block;padding:0.25rem 0.6rem;border-radius:0.6rem;"
+            f"background:{badge_color};color:black;font-weight:800;margin-bottom:0.4rem;'>"
+            f"Cache {state_label} • Age: {age_min if age_min is not None else '—'}m • TTL: {ttl_minutes}m</div>",
+            unsafe_allow_html=True
+        )
+
+        # Fetch news respecting TTL; manual refresh overrides
+        do_refresh = st.button("🔄 Refresh News", key="refresh_news")
+        with st.spinner("Updating news..." if do_refresh or not is_fresh else "Loading news..."):
+            all_news = news_scanner.get_all_news(refresh=do_refresh, ttl_minutes=ttl_minutes)
 
         # News controls
         col1, col2, col3 = st.columns([4, 2, 2])
-
         with col1:
             selected_assets = st.multiselect(
                 "Filter by Asset",
                 options=list(all_news.keys()),
                 default=["EUR/USD", "GBP/USD", "Gold", "Central Banks", "GBP/JPY"]
             )
-
         with col2:
             news_count = st.slider("News per asset", 1, 10, 5)
-
         with col3:
-            show_summaries = st.checkbox("Show summaries", True)
+            show_summaries = st.checkbox("Show asset summaries (AI)", True)
 
-        # Display news
+        # Optional: AI summaries per asset
+        asset_summaries = {}
+        if show_summaries and client:
+            for asset in selected_assets:
+                try:
+                    top = all_news.get(asset, [])[:news_count]
+                    if not top:
+                        continue
+                    headlines = [a.get('headline') or a.get('title') or '' for a in top]
+                    prompt = (
+                        f"Asset: {asset}\n"
+                        f"Headlines:\n- " + "\n- ".join(headlines[:5]) + "\n\n"
+                        "Summarize in 1-2 crisp sentences for a professional trading desk. "
+                        "Be specific and avoid hype."
+                    )
+                    resp = client.chat.completions.create(
+                        model="zanalytics_midas",
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0.2,
+                        max_tokens=120
+                    )
+                    asset_summaries[asset] = resp.choices[0].message.content.strip()
+                except Exception:
+                    asset_summaries[asset] = ""
+
+        # Render lists
         for asset in selected_assets:
-            if asset in all_news:
-                st.markdown(f'#### 📰 {asset}')
-
-                asset_news = all_news[asset][:news_count]
-
-                if asset_news:
-                    for article in asset_news:
-                        impact = article.get('impact', 'LOW')
-                        impact_class = f"{impact.lower()}-impact"
-                        impact_emoji = {'HIGH': '🔴', 'MEDIUM': '🟡', 'LOW': '🟢'}.get(impact, '🟢')
-
-                        with st.container():
-                            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown(f'#### 📰 {asset}')
+            if show_summaries and asset in asset_summaries and asset_summaries[asset]:
+                st.markdown(
+                    f"<div style='background:rgba(255,255,120,0.08);"
+                    f"border-left:4px solid #fff700;border-radius:8px;padding:0.6rem 0.8rem;"
+                    f"margin-bottom:0.4rem;color:#ffe082;font-weight:600;'>{asset_summaries[asset]}</div>",
+                    unsafe_allow_html=True
+                )
+            items = all_news.get(asset, [])[:news_count]
+            if not items:
+                st.info("No items.")
+                continue
+            for article in items:
+                impact = article.get('impact', 'LOW')
+                impact_class = f"{impact.lower()}-impact"
+                impact_emoji = {'HIGH': '🔴', 'MEDIUM': '🟡', 'LOW': '🟢'}.get(impact, '🟢')
+                summary = article.get('summary') or article.get('description', '')
+                headline = article.get('headline') or article.get('title', 'Untitled')
+                url = article.get('url') or article.get('link') or '#'
+                st.markdown(
+                    f"""
+                    <div class="news-item {impact_class}">
+                        <span style='font-size:1.15rem;'>{impact_emoji}</span>
+                        <a href="{url}" target="_blank" style="color:#93c5fd; text-decoration:none; font-weight:600;">
+                            {headline}
+                        </a>
+                        {'<br><span style="font-size:0.97rem; color:#b5b5be;">'+summary+'</span>' if summary and summary != headline else ''}
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
     # Tab 3: Technical Analysis
     with tab3:

@@ -1746,7 +1746,7 @@ def main():
         )
 
         show_all_timeframes = st.checkbox("Multi-Timeframe Matrix", value=False)
-        show_zbar_logs = st.checkbox("ZBAR Analysis Logs", value=True)
+        show_zbar_logs = st.checkbox("Session Mindset", value=True)
         show_performance = st.checkbox("Strategy Performance", value=True)
 
         # Current session info
@@ -1997,7 +1997,7 @@ def main():
 
             # ZBAR Logs
             if show_zbar_logs and analysis_results['zbar_logs']:
-                st.subheader("📊 ZBAR Analysis Logs")
+                st.subheader("🧠 Session Mindset")
 
                 for log in analysis_results['zbar_logs'][-5:]:  # Show last 5 logs
                     st.markdown(f"""
