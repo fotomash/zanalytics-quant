@@ -905,7 +905,17 @@ def make_drawdown_bar(used_frac: float, dd_pct: float, cap_pct: float) -> go.Fig
         return result if isinstance(result, dict) else {}
 
     def get_risk_summary(self) -> Dict:
-        """Get risk summary from Pulse API. No mocks."""
+        """Get risk summary with Redis-first fallback to API."""
+        # Try Redis key written by kernel/publishers
+        try:
+            if getattr(self, 'redis_available', False) and self.redis_client:
+                raw = self.redis_client.get('pulse:risk:latest')
+                if raw:
+                    import json as _json
+                    return _json.loads(raw)
+        except Exception:
+            pass
+        # API (native pulse bundle)
         result = safe_api_call("GET", "risk/summary")
         return result if isinstance(result, dict) else {}
 

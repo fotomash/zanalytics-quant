@@ -19,6 +19,7 @@ from .serializers import (
 from .filters import TradeFilter, TickFilter, BarFilter
 
 from app.utils.api.order import send_market_order, modify_sl_tp
+from app.utils.policies import load_policies
 import os
 import requests
 
@@ -255,6 +256,7 @@ class DashboardDataView(views.APIView):
             "risk_summary": risk_summary,
             "opportunities": opportunities,
             "recent_journal": recent_journal_payload,
+            "policies": load_policies(),
         }
         return Response(payload)
 

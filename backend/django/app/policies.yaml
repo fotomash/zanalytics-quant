@@ -1,0 +1,9 @@
+daily_loss_cap_pct: 2.5
+per_trade_risk_pct_min: 0.2
+per_trade_risk_pct_max: 3.0
+streak_throttle:
+  loss_count: 2
+  factor: 0.5
+cool_off:
+  after_losses: 3
+  minutes: 15

@@ -10,6 +10,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+try:
+    # Optional policies loader (Django app path); degrade gracefully if unavailable
+    from backend.django.app.utils.policies import load_policies  # type: ignore
+except Exception:  # pragma: no cover
+    def load_policies():  # fallback
+        return {}
+
 class RiskEnforcer:
     """
     Enforces risk management rules and behavioral safeguards.
@@ -65,6 +72,123 @@ class RiskEnforcer:
             'revenge_trade_window': 30,
             'max_consecutive_losses': 3
         }
+
+class EnhancedRiskEnforcer:
+    """
+    Adapter used by pulse_api to expose a richer, queryable risk surface.
+
+    It wraps RiskEnforcer and adds:
+      - get_risk_status(): summarized metrics for tiles
+      - evaluate_trade_request(payload): decision contract for /risk/check
+    """
+
+    def __init__(self):
+        # Load policy snapshot if available
+        policies = load_policies() or {}
+        # Map a few known policy fields into RiskEnforcer limits
+        limits = {
+            'daily_loss_limit': None,  # USD optional
+            'daily_loss_percent': None,
+            'max_trades_per_day': None,
+            'max_position_size': None,
+            'cooling_period_minutes': None,
+        }
+        # Pull dynamic values if present
+        risk_pol = policies if isinstance(policies, dict) else {}
+        # Support both naming conventions
+        dl_pct = (
+            risk_pol.get('daily_loss_cap_pct')
+            or risk_pol.get('risk', {}).get('max_daily_loss_pct')
+        )
+        pt_max = (
+            risk_pol.get('per_trade_risk_pct_max')
+            or risk_pol.get('risk', {}).get('max_single_trade_loss_pct')
+        )
+        max_trades = (
+            risk_pol.get('max_trades_per_day')
+            or risk_pol.get('risk', {}).get('max_daily_trades')
+        )
+        cooling = (
+            risk_pol.get('cool_off', {}).get('minutes')
+        )
+        # Build effective config
+        effective = {}
+        if dl_pct is not None:
+            effective['daily_loss_percent'] = float(dl_pct) / 100.0 if dl_pct > 1 else float(dl_pct)
+        if pt_max is not None:
+            effective['max_position_size'] = float(pt_max) / 100.0 if pt_max > 1 else float(pt_max)
+        if max_trades is not None:
+            effective['max_trades_per_day'] = int(max_trades)
+        if cooling is not None:
+            effective['cooling_period_minutes'] = int(cooling)
+
+        self.core = RiskEnforcer(config={'limits': effective} if effective else None)
+
+    # --- Public API expected by pulse_api.views ---
+    def get_risk_status(self) -> Dict:
+        ds = self.core.daily_stats
+        lim = self.core.limits
+        # Compute daily risk used as % of limit if USD cap present; else use percent cap
+        used_pct = 0.0
+        remaining_pct = 100.0
+        try:
+            if lim.get('daily_loss_limit'):
+                used = max(0.0, abs(float(ds.get('total_pnl', 0.0))))
+                cap = float(lim['daily_loss_limit'])
+                used_pct = min(100.0, (used / cap) * 100.0) if cap > 0 else 0.0
+                remaining_pct = max(0.0, 100.0 - used_pct)
+            elif lim.get('daily_loss_percent'):
+                # Percent-based cap: approximate used% from pnl vs cap% of equity baseline (unknown here)
+                # Without equity context, expose remaining as 100 and let UI compute vs SOD.
+                remaining_pct = 100.0
+        except Exception:
+            remaining_pct = 100.0
+
+        warnings: List[str] = []
+        if ds.get('cooling_until') and ds['cooling_until'] > datetime.now():
+            warnings.append('Cooling period active')
+        if ds.get('consecutive_losses', 0) >= self.core.limits.get('max_consecutive_losses', 3):
+            warnings.append('Loss streak threshold reached')
+
+        status = 'OK'
+        if warnings:
+            status = 'Warning'
+
+        return {
+            'risk_remaining_pct': remaining_pct,
+            'trades_remaining': max(0, int(self.core.limits.get('max_trades_per_day', 5)) - int(ds.get('trades_count', 0))),
+            'status': status,
+            'warnings': warnings,
+            'daily_risk_used': used_pct,
+        }
+
+    def evaluate_trade_request(self, payload: Dict) -> Dict:
+        """Map incoming payload to RiskEnforcer signal and return decision."""
+        # Normalize incoming risk/size % → fraction
+        size_pct = payload.get('risk_pct') or payload.get('size_pct') or payload.get('size') or 0
+        try:
+            size = float(size_pct)
+            if size > 1.0:
+                size = size / 100.0
+        except Exception:
+            size = 0.0
+
+        signal = {
+            'size': size,
+            'score': payload.get('score', 0),
+            'symbol': payload.get('symbol', ''),
+            'side': payload.get('side', ''),
+            'planned': bool(payload.get('planned', False)),
+        }
+        allowed, warnings, details = self.core.allow(signal)
+        decision = {
+            'decision': 'allow' if allowed else 'block',
+            'reasons': warnings or ['OK'],
+            'trades_remaining': details.get('trades_remaining', 0),
+            'daily_risk_used': self.get_risk_status().get('daily_risk_used', 0),
+            'timestamp': datetime.utcnow().isoformat() + 'Z'
+        }
+        return decision
     
     def allow(self, signal: Dict) -> Tuple[bool, List[str], Dict]:
         """

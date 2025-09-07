@@ -17,12 +17,18 @@ from .strategy_match_engine import match_strategy
 from .situation_builder import build_situation
 from agents.analyzers import compute_confluence
 
-# Import your risk enforcer
+# Import your risk enforcer (prefer app-local, then external fallback)
+RISK_ENFORCER_AVAILABLE = False
+EnhancedRiskEnforcer = None  # type: ignore
 try:
-    from risk_enforcer import EnhancedRiskEnforcer
+    from app.risk_enforcer import EnhancedRiskEnforcer  # app-local
     RISK_ENFORCER_AVAILABLE = True
-except ImportError:
-    RISK_ENFORCER_AVAILABLE = False
+except Exception:
+    try:
+        from risk_enforcer import EnhancedRiskEnforcer  # external / root
+        RISK_ENFORCER_AVAILABLE = True
+    except Exception:
+        EnhancedRiskEnforcer = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -161,14 +167,21 @@ def risk_summary(request):
         risk_status = risk_enforcer.get_risk_status()
         
         # Format for dashboard
-        return JsonResponse({
+        payload = {
             "risk_left": risk_status.get("risk_remaining_pct", 0),
             "trades_left": risk_status.get("trades_remaining", 0),
             "status": risk_status.get("status", "Unknown"),
             "warnings": risk_status.get("warnings", []),
             "daily_risk_used": risk_status.get("daily_risk_used", 0),
             "timestamp": datetime.now().isoformat()
-        })
+        }
+        # Publish to Redis so UI can read without calling API
+        try:
+            from app.utils.pulse_bus import publish_risk_summary
+            publish_risk_summary(payload)
+        except Exception:
+            pass
+        return JsonResponse(payload)
         
     except Exception as e:
         logger.error(f"Risk summary error: {e}")
