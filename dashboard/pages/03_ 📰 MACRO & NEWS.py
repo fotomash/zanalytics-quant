@@ -82,13 +82,61 @@ if 'last_refresh' not in st.session_state:
 if 'auto_refresh_enabled' not in st.session_state:
     st.session_state['auto_refresh_enabled'] = False
 
-# Cache configuration
-CACHE_DIR = str((Path(__file__).resolve().parents[2] / ".cache"))
+# Cache configuration (choose a writable directory robustly)
 CACHE_EXPIRY_MINUTES = 15
 
+def _choose_cache_dir() -> str:
+    candidates = []
+    # Environment overrides first
+    for key in ("ZAN_CACHE_DIR", "CACHE_DIR", "STREAMLIT_CACHE_DIR"):
+        v = os.getenv(key)
+        if v:
+            candidates.append(Path(v))
+    # Project-local .cache (works when repo volume is writable)
+    candidates.append(Path(__file__).resolve().parents[2] / ".cache")
+    # XDG cache home
+    xdg = os.getenv("XDG_CACHE_HOME")
+    if xdg:
+        candidates.append(Path(xdg) / "zanalytics-pulse")
+    # User home cache
+    try:
+        candidates.append(Path.home() / ".cache" / "zanalytics-pulse")
+    except Exception:
+        pass
+    # Always include /tmp as last resort
+    candidates.append(Path("/tmp") / "zanalytics-cache")
+
+    for p in candidates:
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+            # quick write test
+            testf = p / ".write_test"
+            with open(testf, "w") as f:
+                f.write("ok")
+            try:
+                testf.unlink()
+            except Exception:
+                pass
+            return str(p)
+        except Exception:
+            continue
+    # Fallback string (should not happen)
+    return "/tmp/zanalytics-cache"
+
+CACHE_DIR = _choose_cache_dir()
+
 def ensure_cache_dir():
-    """Ensure cache directory exists"""
-    Path(CACHE_DIR).mkdir(parents=True, exist_ok=True)
+    """Ensure cache directory exists and is writable; fallback to /tmp if needed."""
+    try:
+        Path(CACHE_DIR).mkdir(parents=True, exist_ok=True)
+    except Exception:
+        # final fallback
+        fallback = Path("/tmp") / "zanalytics-cache"
+        try:
+            fallback.mkdir(parents=True, exist_ok=True)
+            globals()["CACHE_DIR"] = str(fallback)
+        except Exception:
+            pass
 
 ensure_cache_dir()
 

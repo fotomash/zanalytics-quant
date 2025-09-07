@@ -2670,6 +2670,223 @@ def main():
 
     render_pulse_tiles(pulse_manager)
 
+    # ---------- Bottom Section - Additional Metrics (live) ----------
+    # Placed after Whisperer and tiles, before footer
+    st.divider()
+    st.markdown("#### Additional Metrics")
+
+    # Fetch server-side trade summary if available; fallback to today's trades
+    summary = safe_api_call('GET', 'api/v1/trades/summary?window=today')
+    if not summary:
+        trades_today = safe_api_call('GET', 'api/v1/trades/history?window=today&closed_only=true') or []
+    else:
+        trades_today = None
+
+    # Merge risk information from existing risk_data with account risk endpoint
+    try:
+        risk_account = safe_api_call('GET', 'api/v1/account/risk') or {}
+    except Exception:
+        risk_account = {}
+    risk = {}
+    if isinstance(risk_data, dict):
+        risk.update(risk_data)
+    if isinstance(risk_account, dict):
+        risk.update(risk_account)
+
+    # Equity series for momentum calculation
+    try:
+        equity_series = safe_api_call('GET', 'api/v1/feed/equity/series') or {}
+    except Exception:
+        equity_series = {}
+
+    def _norm_grade(x):
+        if x is None:
+            return None
+        s = str(x).strip().lower()
+        if s in ("a+", "aplus", "a_plus", "alpha"): return "A+"
+        if s in ("a", "grade_a"): return "A"
+        if s in ("b", "grade_b"): return "B"
+        if s in ("c", "grade_c"): return "C"
+        return None
+
+    def extract_grade(tr):
+        # Common fields: grade, setup_quality, quality, label; else tags heuristic
+        for k in ("grade", "setup_quality", "quality", "label"):
+            g = tr.get(k)
+            gg = _norm_grade(g)
+            if gg: return gg
+        tags = tr.get("tags") or []
+        if isinstance(tags, list):
+            for t in tags:
+                gg = _norm_grade(t)
+                if gg: return gg
+        return None
+
+    def infer_r_multiple(tr):
+        # Prefer explicit r_multiple if server provides it
+        r = tr.get("r_multiple")
+        if r is not None:
+            try:
+                return float(r)
+            except Exception:
+                pass
+        # Fallback: use pnl and a risk unit if available
+        pnl = tr.get("pnl")
+        risk_unit = risk.get("risk_unit") or risk.get("risk_per_trade")
+        try:
+            pnl = float(pnl)
+            if pnl is not None and risk_unit:
+                ru = float(risk_unit)
+                if ru and abs(ru) > 1e-9:
+                    return pnl / ru
+        except Exception:
+            pass
+        return None
+
+    def compute_momentum_ratio(eq_series: dict, tgt_amt: float, loss_amt: float) -> float:
+        # Returns 0..1, where 0.5 ~ flat, >0.5 positive, <0.5 negative
+        try:
+            pts = eq_series.get('points') if isinstance(eq_series, dict) else None
+            if not pts or len(pts) < 4:
+                return 0.5
+            dfm = pd.DataFrame(pts)
+            dfm['t'] = pd.to_datetime(dfm['ts'], errors='coerce')
+            dfm['sec'] = (dfm['t'] - dfm['t'].iloc[0]).dt.total_seconds()
+            dfm['pnl'] = pd.to_numeric(dfm['pnl'], errors='coerce').fillna(0.0)
+            # Use last ~30 minutes (1800s) if available
+            horizon = 1800
+            tail = dfm[dfm['sec'] >= max(0, dfm['sec'].iloc[-1] - horizon)]
+            if len(tail) < 4:
+                tail = dfm.tail(10)
+            x = tail['sec'].values
+            y = tail['pnl'].values
+            x = x - x[0]
+            if x.ptp() < 1e-6:
+                return 0.5
+            slope, intercept = np.polyfit(x, y, 1)  # slope per second (PnL/sec)
+            slope_per_min = slope * 60.0
+            scale = max(1.0, float(tgt_amt or 0.0), float(loss_amt or 0.0))
+            s_norm = slope_per_min / scale  # dimensionless
+            # Squash to (0,1) with tanh: 0.5 is neutral
+            ratio = 0.5 + 0.5 * np.tanh(3.0 * s_norm)
+            return float(np.clip(ratio, 0.0, 1.0))
+        except Exception:
+            return 0.5
+
+    # Targets for momentum normalization
+    try:
+        tgt = float(risk.get('target_amount') or 0)
+    except Exception:
+        tgt = 0.0
+    try:
+        loss_cap = float(risk.get('loss_amount') or 0)
+    except Exception:
+        loss_cap = 0.0
+
+    # 1) Trade Quality Distribution • 2) Session Momentum • 3) Risk Management
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("##### Trade Quality Distribution")
+        with st.container():
+            if summary and isinstance(summary, dict):
+                aplus = int(summary.get('counts', {}).get('A+', 0))
+                a_cnt = int(summary.get('counts', {}).get('A', 0))
+                b_cnt = int(summary.get('counts', {}).get('B', 0))
+                c_cnt = int(summary.get('counts', {}).get('C', 0))
+            else:
+                aplus = a_cnt = b_cnt = c_cnt = 0
+                if isinstance(trades_today, list):
+                    for tr in trades_today:
+                        g = extract_grade(tr)
+                        if g == "A+": aplus += 1
+                        elif g == "A": a_cnt += 1
+                        elif g == "B": b_cnt += 1
+                        elif g == "C": c_cnt += 1
+
+            cA, cB, cC = st.columns(3)
+            with cA:
+                st.markdown(f"<div class='text-center'><div class='text-2xl' style='color:#22C55E;font-weight:700'>{aplus}</div><div class='section-muted'>A+ Setups</div></div>", unsafe_allow_html=True)
+            with cB:
+                st.markdown(f"<div class='text-center'><div class='text-2xl' style='color:#F59E0B;font-weight:700'>{a_cnt + b_cnt}</div><div class='section-muted'>A/B Setups</div></div>", unsafe_allow_html=True)
+            with cC:
+                st.markdown(f"<div class='text-center'><div class='text-2xl' style='color:#EF4444;font-weight:700'>{c_cnt}</div><div class='section-muted'>C Setups</div></div>", unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("##### Session Momentum")
+        with st.container():
+            momentum = compute_momentum_ratio(equity_series, tgt, loss_cap)
+            pct = int(round(momentum * 100))
+            color = "#22C55E" if momentum >= 0.6 else "#F59E0B" if momentum >= 0.45 else "#EF4444"
+            st.markdown(f"""
+            <div class="flex items-center" style="display:flex;gap:14px;align-items:center">
+              <div style="flex:1;height:10px;background:#374151;border-radius:999px;overflow:hidden">
+                <div style="height:10px;width:{pct}%;background:{color};border-radius:999px"></div>
+              </div>
+              <div style="font-weight:700;color:{color}">{pct}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+            st.caption("Composite of recent P&L slope vs. daily scale")
+
+    with col3:
+        st.markdown("##### Risk Management")
+        with st.container():
+            avg_risk_per_trade = None
+            max_exposure = None
+
+            # Prefer server summary metrics if present
+            if summary and isinstance(summary, dict):
+                avg_risk_per_trade = summary.get('avg_planned_risk_r') or summary.get('avg_abs_r_realized')
+                max_exposure = (
+                    risk.get('exposure_pct_peak_today') or summary.get('max_exposure_pct')
+                    or risk.get('exposure_peak_pct') or risk.get('exposure_pct')
+                )
+            else:
+                # Derive from trades_today
+                if isinstance(trades_today, list) and trades_today:
+                    r_vals = []
+                    for tr in trades_today:
+                        r = tr.get('risk_r') or tr.get('planned_r')
+                        if r is None:
+                            r = infer_r_multiple(tr)  # fallback to realized |R|
+                        if r is not None:
+                            try:
+                                r_vals.append(abs(float(r)))
+                            except Exception:
+                                pass
+                    if r_vals:
+                        avg_risk_per_trade = float(np.mean(r_vals))
+                max_exposure = (
+                    risk.get('exposure_pct_peak_today') or risk.get('exposure_peak_pct') or risk.get('exposure_pct')
+                )
+
+            # Normalize exposure
+            try:
+                if max_exposure is not None and max_exposure > 1:
+                    max_exposure = float(max_exposure) / 100.0
+            except Exception:
+                pass
+
+            c1, c2 = st.columns(2)
+            with c1:
+                val = f"{avg_risk_per_trade:.1f}R" if isinstance(avg_risk_per_trade, (int, float)) else "—"
+                st.markdown(f"<div class='section-muted'>Avg Risk/Trade</div><div style='font-weight:700;font-size:18px'>{val}</div>", unsafe_allow_html=True)
+            with c2:
+                exp_val = f"{(max_exposure or 0)*100:.1f}%"
+                color = "#F59E0B" if (max_exposure or 0) >= 0.035 else "#E5E7EB"
+                st.markdown(f"<div class='section-muted'>Max Exposure</div><div style='font-weight:700;font-size:18px;color:{color}'>{exp_val}</div>", unsafe_allow_html=True)
+
+            # Optional extras if server provides
+            es = risk.get('es_5') or risk.get('expected_shortfall_5')
+            var = risk.get('var_5') or risk.get('var_p5')
+            if es or var:
+                st.markdown("<br/>", unsafe_allow_html=True)
+                c3, c4 = st.columns(2)
+                with c3:
+                    st.markdown(f"<div class='section-muted'>VaR 5%</div><div style='font-weight:700'>{(var if var is not None else '—')}</div>", unsafe_allow_html=True)
+                with c4:
+                    st.markdown(f"<div class='section-muted'>ES 5%</div><div style='font-weight:700'>{(es if es is not None else '—')}</div>", unsafe_allow_html=True)
+
     # Footer with last update time
     st.markdown("---")
     st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")

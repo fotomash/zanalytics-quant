@@ -63,13 +63,50 @@ import requests
 import redis
 import time
 from sqlalchemy import create_engine, text
-# --- PATCH: Caching Utilities ---
+# --- PATCH: Caching Utilities (robust, writable path) ---
 import pickle
+
+def _choose_cache_dir() -> str:
+    candidates = []
+    for key in ("ZAN_CACHE_DIR", "CACHE_DIR", "STREAMLIT_CACHE_DIR"):
+        v = os.getenv(key)
+        if v:
+            candidates.append(Path(v))
+    candidates.append(Path(__file__).resolve().parents[2] / ".cache")
+    xdg = os.getenv("XDG_CACHE_HOME")
+    if xdg:
+        candidates.append(Path(xdg) / "zanalytics-pulse")
+    try:
+        candidates.append(Path.home() / ".cache" / "zanalytics-pulse")
+    except Exception:
+        pass
+    candidates.append(Path("/tmp") / "zanalytics-cache")
+    for p in candidates:
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+            testf = p / ".write_test"
+            with open(testf, "w") as f:
+                f.write("ok")
+            try:
+                testf.unlink()
+            except Exception:
+                pass
+            return str(p)
+        except Exception:
+            continue
+    return "/tmp/zanalytics-cache"
+
+_CACHE_DIR = _choose_cache_dir()
+
 def ensure_cache_dir():
-    os.makedirs(".cache", exist_ok=True)
+    try:
+        os.makedirs(_CACHE_DIR, exist_ok=True)
+    except Exception:
+        pass
+
 def auto_cache(key, fetch_fn, refresh=False):
     ensure_cache_dir()
-    cache_file = os.path.join(".cache", f"{key}.pkl")
+    cache_file = os.path.join(_CACHE_DIR, f"{key}.pkl")
     if not refresh and os.path.exists(cache_file):
         with open(cache_file, "rb") as f:
             return pickle.load(f)
@@ -81,7 +118,7 @@ def auto_cache(key, fetch_fn, refresh=False):
 def get_cache_timestamp(key: str):
     """Return modification time of cached file if it exists."""
     ensure_cache_dir()
-    cache_file = os.path.join(".cache", f"{key}.pkl")
+    cache_file = os.path.join(_CACHE_DIR, f"{key}.pkl")
     if os.path.exists(cache_file):
         return datetime.fromtimestamp(os.path.getmtime(cache_file))
     return None
