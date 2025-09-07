@@ -19,6 +19,7 @@ class Pulse3DDashboard:
     def setup_3d_theme(self):
         """Configure dark theme optimized for 3D charts"""
         st.markdown("""
+        <style>
         .stPlotlyChart {
             background-color: #1a1a2e;
             border-radius: 10px;
