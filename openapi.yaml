@@ -214,13 +214,13 @@ paths:
               schema:
                 type: object
                 properties:
-                  sod_equity: { type: number, nullable: true }
-                  daily_profit_pct: { type: number, nullable: true }
-                  daily_risk_pct: { type: number, nullable: true }
-                  target_amount: { type: number, nullable: true }
-                  loss_amount: { type: number, nullable: true }
-                  used_pct: { type: number, nullable: true }
-                  exposure_pct: { type: number, nullable: true }
+                  sod_equity: { type: number, nullable: true, description: Start-of-day equity in account currency }
+                  daily_profit_pct: { type: number, nullable: true, description: Profit target percent for the day }
+                  daily_risk_pct: { type: number, nullable: true, description: Max daily loss percent (risk budget) }
+                  target_amount: { type: number, nullable: true, description: Absolute daily profit target amount }
+                  loss_amount: { type: number, nullable: true, description: Absolute daily loss cap amount }
+                  used_pct: { type: number, nullable: true, description: Daily risk used (0..1 or 0..100) }
+                  exposure_pct: { type: number, nullable: true, description: Current exposure (0..1 or 0..100) }
   /api/v1/orders/market:
     post:
       summary: Place a market order (safe proxy)
@@ -458,7 +458,7 @@ paths:
                         params: { type: object }
   /api/pulse/whispers:
     get:
-      summary: Latest whispers stream
+      summary: Latest whispers list (JSON)
       operationId: getWhispers
       responses: { '200': { description: OK } }
   /api/pulse/whisper/ack:
@@ -494,6 +494,32 @@ paths:
       summary: Human‑readable whisper timeline
       operationId: getWhispersLog
       responses: { '200': { description: OK } }
+  /api/v1/feeds/stream:
+    get:
+      summary: Server-Sent Events stream (whispers, market, mirror)
+      description: |
+        SSE endpoint emitting events: `whisper`, `market`, `mirror`, plus `heartbeat`.
+        Note: GPT Actions cannot consume SSE; use this for browser/dev tools only.
+      operationId: getFeedsStream
+      parameters:
+        - in: query
+          name: topics
+          schema: { type: string, example: "mirror,whispers,market" }
+          description: Comma-separated topics to subscribe to.
+      responses:
+        '200':
+          description: text/event-stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              examples:
+                hello:
+                  summary: Hello event
+                  value: |
+                    event: hello
+                    data: {"ok":true,"topics":["mirror","whispers","market"]}
+        '503': { description: Redis/unavailable }
 components:
   schemas: {}
   securitySchemes:

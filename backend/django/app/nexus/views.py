@@ -1582,6 +1582,74 @@ class MarketRegimeView(views.APIView):
         return Response({'regime': regime, 'score': None, 'features': {'vix_trend': vtr, 'dxy_trend': dtr}})
 
 
+class FeedsStreamView(views.APIView):
+    """Server-Sent Events stream for live feeds and whispers.
+
+    Query param `topics` is a comma-separated list of: mirror, whispers, market.
+    Emits events:
+      - event: mirror, data: {...}
+      - event: whisper, data: {...}
+      - event: market, data: {...}
+      - event: heartbeat every 30s
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        topics = (request.GET.get('topics') or 'mirror,whispers,market').split(',')
+        topics = [t.strip() for t in topics if t.strip()]
+        channels = []
+        if 'whispers' in topics:
+            channels.append('pulse.whispers')
+        if 'market' in topics:
+            channels.append('pulse.feeds')
+        if 'mirror' in topics and 'pulse.feeds' not in channels:
+            channels.append('pulse.feeds')
+
+        r = _redis_client()
+        if r is None:
+            return StreamingHttpResponse((chunk for chunk in ["event: error\n", "data: \"redis unavailable\"\n\n"]), content_type='text/event-stream')
+
+        pubsub = r.pubsub()
+        try:
+            for ch in channels:
+                pubsub.subscribe(ch)
+        except Exception:
+            pass
+
+        def _stream():
+            import time as _t
+            last_hb = _t.time()
+            yield b"event: hello\n"
+            yield f"data: {{\"ok\":true,\"topics\":{json.dumps(topics)} }}\n\n".encode()
+            while True:
+                try:
+                    msg = pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                    now = _t.time()
+                    if msg and msg.get('type') == 'message':
+                        ch = msg.get('channel') or msg.get('pattern')
+                        try:
+                            data = msg.get('data')
+                            if isinstance(data, bytes):
+                                data = data.decode('utf-8', 'ignore')
+                        except Exception:
+                            data = '{}'
+                        ev = 'market' if ch == 'pulse.feeds' else 'whisper'
+                        yield f"event: {ev}\n".encode()
+                        yield f"data: {data}\n\n".encode()
+                    if now - last_hb >= 30:
+                        yield b"event: heartbeat\n"
+                        yield b"data: \"\"\n\n"
+                        last_hb = now
+                except GeneratorExit:
+                    break
+                except Exception:
+                    _t.sleep(0.5)
+        resp = StreamingHttpResponse(_stream(), content_type='text/event-stream')
+        resp['Cache-Control'] = 'no-cache'
+        resp['X-Accel-Buffering'] = 'no'
+        return resp
+
+
 class BehavioralPatternsView(views.APIView):
     """Analyze recent behavioral patterns from Trades and journal signals.
 
@@ -1647,6 +1715,76 @@ class BehavioralPatternsView(views.APIView):
                 patterns['fear_cut_winners']['active'] = avg < 0.5
                 patterns['fear_cut_winners']['count'] = len([e for e in effs if e < 0.5])
                 patterns['fear_cut_winners']['note'] = f"avg eff {avg*100:.0f}%"
+        except Exception:
+            pass
+        # Publish lightweight Whisperer nudges when patterns activate (deduped)
+        try:
+            import time as _t
+            from pulse.rt import publish_whisper, seen_once
+            def _whisper(payload: dict, key: str, ttl: int = 300):
+                try:
+                    if seen_once(f"nudge:{key}", ttl_seconds=ttl):
+                        publish_whisper(payload)
+                except Exception:
+                    pass
+            now = _t.time()
+            # Revenge trading nudge
+            rv = patterns.get('revenge_trading') or {}
+            if rv.get('active'):
+                _whisper({
+                    'id': f'pat-revenge-{int(now)}',
+                    'ts': now,
+                    'category': 'patience',
+                    'severity': 'warn',
+                    'message': 'Quick re-entries after losses detected. Take a 10–15m reset?',
+                    'reasons': [
+                        {'key': 'revenge_count', 'value': int(rv.get('count') or 0)},
+                        {'key': 'note', 'value': rv.get('note') or ''},
+                    ],
+                    'actions': [{'label': 'Start 15-min timer', 'action': 'act_start_timer_15'}],
+                    'ttl_seconds': 600,
+                    'cooldown_key': 'pattern_revenge',
+                    'cooldown_seconds': 300,
+                    'channel': ['dashboard']
+                }, key='pattern:revenge')
+            # FOMO tempo nudge
+            fo = patterns.get('fomo') or {}
+            if fo.get('active'):
+                _whisper({
+                    'id': f'pat-fomo-{int(now)}',
+                    'ts': now,
+                    'category': 'patience',
+                    'severity': 'suggest',
+                    'message': 'Tempo rising (short inter-trade gaps). Slow spacing and wait for A+ setup.',
+                    'reasons': [
+                        {'key': 'fomo_count', 'value': int(fo.get('count') or 0)},
+                        {'key': 'note', 'value': fo.get('note') or ''},
+                    ],
+                    'actions': [{'label': 'Size down next entry', 'action': 'act_size_down'}],
+                    'ttl_seconds': 600,
+                    'cooldown_key': 'pattern_fomo',
+                    'cooldown_seconds': 300,
+                    'channel': ['dashboard']
+                }, key='pattern:fomo')
+            # Fear of cutting winners nudge
+            fw = patterns.get('fear_cut_winners') or {}
+            if fw.get('active'):
+                _whisper({
+                    'id': f'pat-fearcut-{int(now)}',
+                    'ts': now,
+                    'category': 'profit',
+                    'severity': 'suggest',
+                    'message': 'Profit efficiency low. Consider partials and a trailing stop to let winners run.',
+                    'reasons': [
+                        {'key': 'fear_count', 'value': int(fw.get('count') or 0)},
+                        {'key': 'note', 'value': fw.get('note') or ''},
+                    ],
+                    'actions': [{'label': 'Trail 50%', 'action': 'act_trail_50'}],
+                    'ttl_seconds': 600,
+                    'cooldown_key': 'pattern_fear',
+                    'cooldown_seconds': 300,
+                    'channel': ['dashboard']
+                }, key='pattern:fear_cut_winners')
         except Exception:
             pass
         return Response(patterns)

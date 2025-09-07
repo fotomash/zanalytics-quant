@@ -472,6 +472,8 @@ def donut_system_overview(
     patience_ratio: float | None = None,  # -0.5..+0.5 bipolar overlay between middle and inner
     daily_target_norm: float | None = None,
     daily_loss_norm: float | None = None,
+    target_amount: float | None = None,
+    loss_amount: float | None = None,
     size=(300, 300),
 ):
     """Composite system compass as one donut with three rings.
@@ -482,9 +484,21 @@ def donut_system_overview(
     """
     ticks = []
     if daily_target_norm is not None:
-        ticks.append({"ring": "outer", "angle_norm": max(-1.0, min(1.0, float(daily_target_norm))), "color": COL["pos"], "style": "solid", "hover": "Daily target"})
+        ticks.append({
+            "ring": "outer",
+            "angle_norm": max(-1.0, min(1.0, float(daily_target_norm))),
+            "color": COL["pos"],
+            "style": "solid",
+            "hover": f"Target ${target_amount:,.0f}" if target_amount is not None else "Daily target",
+        })
     if daily_loss_norm is not None:
-        ticks.append({"ring": "outer", "angle_norm": max(-1.0, min(1.0, float(daily_loss_norm))), "color": COL["neg"], "style": "solid", "hover": "Daily loss limit"})
+        ticks.append({
+            "ring": "outer",
+            "angle_norm": max(-1.0, min(1.0, float(daily_loss_norm))),
+            "color": COL["neg"],
+            "style": "solid",
+            "hover": f"Loss cap ${loss_amount:,.0f}" if loss_amount is not None else "Daily loss limit",
+        })
 
     # Scale discipline 0..100 to 0..1 and choose color
     inner_val = None
@@ -571,6 +585,8 @@ def donut_session_vitals(
     baseline_equity_usd: float,
     daily_profit_pct: float,
     daily_risk_pct: float,
+    target_amount_usd: float | None = None,
+    loss_amount_usd: float | None = None,
     max_total_dd_pct: float = 10.0,
     since_inception_pct: float | None = None,
     size=(300, 300),
@@ -581,14 +597,26 @@ def donut_session_vitals(
     - Daily P&L Progress (inner): bipolar vs target/limit (-1..+1)
     """
     # Inner: daily PnL bipolar
+    profit_usd = 0.0
     try:
-        pos_scale = max(0.0001, float(daily_profit_pct) / 100.0)
-        neg_scale = max(0.0001, float(daily_risk_pct) / 100.0)
-        delta_ratio = (equity_usd - sod_equity_usd) / sod_equity_usd if sod_equity_usd else 0.0
-        if delta_ratio >= 0:
-            pnl_norm = min(1.0, delta_ratio / pos_scale)
+        profit_usd = (equity_usd - sod_equity_usd)
+    except Exception:
+        profit_usd = 0.0
+    try:
+        # Prefer absolute target/loss amounts when provided
+        if target_amount_usd is not None and loss_amount_usd is not None:
+            if profit_usd >= 0:
+                pnl_norm = min(1.0, (profit_usd / max(1e-9, float(target_amount_usd))))
+            else:
+                pnl_norm = -min(1.0, (abs(profit_usd) / max(1e-9, float(loss_amount_usd))))
         else:
-            pnl_norm = -min(1.0, abs(delta_ratio) / neg_scale)
+            pos_scale = max(0.0001, float(daily_profit_pct) / 100.0)
+            neg_scale = max(0.0001, float(daily_risk_pct) / 100.0)
+            delta_ratio = (equity_usd - sod_equity_usd) / sod_equity_usd if sod_equity_usd else 0.0
+            if delta_ratio >= 0:
+                pnl_norm = min(1.0, delta_ratio / pos_scale)
+            else:
+                pnl_norm = -min(1.0, abs(delta_ratio) / neg_scale)
     except Exception:
         pnl_norm = 0.0
 
@@ -628,6 +656,17 @@ def donut_session_vitals(
     in_deg, _, in_col, in_hover = _unipolar_slice(abs(pnl_norm), cap=1.0, color=COL["pos"])  # use unipolar deg calc
     dirn = "clockwise" if pnl_norm >= 0 else "counterclockwise"
     col = COL["pos"] if pnl_norm >= 0 else COL["neg"]
+    # Build hover text with absolute amounts when available
+    try:
+        if target_amount_usd is not None and loss_amount_usd is not None:
+            if profit_usd >= 0:
+                hover_txt = f"P&L +${profit_usd:,.0f} of +${float(target_amount_usd):,.0f} target"
+            else:
+                hover_txt = f"P&L -${abs(profit_usd):,.0f} of -${float(loss_amount_usd):,.0f} loss cap"
+        else:
+            hover_txt = f"P&L {pnl_norm:+.2f}"
+    except Exception:
+        hover_txt = f"P&L {pnl_norm:+.2f}"
     fig.add_trace(
         go.Pie(
             values=[in_deg, 360 - in_deg],
@@ -638,7 +677,7 @@ def donut_session_vitals(
             marker=dict(colors=[col, COL["track"]]),
             textinfo="none",
             hoverinfo="text",
-            hovertext=[f"P&L {pnl_norm:+.2f}", ""],
+            hovertext=[hover_txt, ""],
             showlegend=False,
             name="pnl_inner",
         )
