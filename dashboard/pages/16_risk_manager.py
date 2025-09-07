@@ -584,8 +584,8 @@ class PulseRiskManager:
         self.connected = False
         self.mt5_available = MT5_AVAILABLE
 
-        # Optional HTTP MT5 bridge (same one used by page 17)
-        self.mt5_url = os.getenv("MT5_URL", "http://mt5:5001")
+        # Optional HTTP MT5 bridge (prefer MT5_API_URL fallback to MT5_URL)
+        self.mt5_url = os.getenv("MT5_URL") or os.getenv("MT5_API_URL", "http://mt5:5001")
         # Annotate source so the UI can state "real MetaTrader account via HTTP bridge"
         self.using_http_bridge = True if self.mt5_url else False
         # status bookkeeping for bottom-of-page status panel (no top-level warnings)

@@ -5,7 +5,10 @@ from dotenv import load_dotenv
 import MetaTrader5 as mt5
 from flasgger import Swagger
 from werkzeug.middleware.proxy_fix import ProxyFix
-from swagger import swagger_config
+try:
+    from swagger import swagger_config
+except Exception:
+    swagger_config = None
 
 # Import routes
 from routes.health import health_bp
@@ -57,7 +60,12 @@ def positions_get_alias():
     return jsonify([p._asdict() for p in positions])
 # ---- end compatibility endpoints ----
 
-swagger = Swagger(app, config=swagger_config)
+try:
+    if swagger_config:
+        swagger = Swagger(app, config=swagger_config)
+except Exception:
+    # Do not block API if Swagger UI fails
+    pass
 
 # Register blueprints
 app.register_blueprint(health_bp)
@@ -77,4 +85,5 @@ if __name__ == '__main__':
             logger.warning("MT5 initialize() returned False; API will still start and attempt lazy init on requests.")
     except Exception as e:
         logger.warning("MT5 initialize() raised %s; API will still start.", e)
+    print(f"[MT5-API] Starting Flask on 0.0.0.0:{port}")
     app.run(host='0.0.0.0', port=port)

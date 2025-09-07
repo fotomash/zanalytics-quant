@@ -460,10 +460,10 @@ services:
       <<: *default-labels
       traefik.enable: true
       traefik.docker.network: traefik-public
-      traefik.http.routers.dashboard-http.rule: Host(`dash.zanalytics.app`)
+      traefik.http.routers.dashboard-http.rule: Host(`dash2.zanalytics.app`)
       traefik.http.routers.dashboard-http.entrypoints: http
       traefik.http.routers.dashboard-http.middlewares: https-redirect
-      traefik.http.routers.dashboard-https.rule: Host(`dash.zanalytics.app`)
+      traefik.http.routers.dashboard-https.rule: Host(`dash2.zanalytics.app`)
       traefik.http.routers.dashboard-https.entrypoints: https
       traefik.http.routers.dashboard-https.tls: true
       traefik.http.routers.dashboard-https.tls.certresolver: le

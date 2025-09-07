@@ -7,12 +7,13 @@ log_message "RUNNING" "07-start-wine-flask.sh"
 log_message "INFO" "Starting Flask server in Wine environment..."
 
 # Run the Flask app using Wine's Python
-wine python /app/app.py &
+# Start Flask inside Wine and capture logs for diagnostics
+wine python /app/app.py >> /var/log/mt5_setup.log 2>&1 &
 
 FLASK_PID=$!
 
 # Give the server some time to start
-sleep 5
+sleep 10
 
 # Check if the Flask server is running
 if ps -p $FLASK_PID > /dev/null; then

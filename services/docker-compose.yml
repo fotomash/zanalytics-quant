@@ -95,6 +95,7 @@ services:
       traefik.http.routers.vnc-mt5-http.rule: Host(`${VNC_DOMAIN}`)
       traefik.http.routers.vnc-mt5-http.entrypoints: http
       traefik.http.routers.vnc-mt5-http.middlewares: https-redirect
+      traefik.http.routers.vnc-mt5-http.service: vnc-mt5-service
 
       traefik.http.routers.vnc-mt5-https.rule: Host(`${VNC_DOMAIN}`)
       traefik.http.routers.vnc-mt5-https.entrypoints: https
@@ -105,9 +106,46 @@ services:
       traefik.http.services.vnc-mt5-service.loadbalancer.server.port: 3000
 
       # Router for api.mt5.${domain} (Port 5001)
+      x-traefik.disabled.api-mt5-http.rule: Host(`${API_DOMAIN}`)
+      x-traefik.disabled.api-mt5-http.entrypoints: http
+      x-traefik.disabled.api-mt5-http.middlewares: https-redirect
+      x-traefik.disabled.api-mt5-http.service: api-mt5-service
+
+      x-traefik.disabled.api-mt5-https.rule: Host(`${API_DOMAIN}`)
+      x-traefik.disabled.api-mt5-https.entrypoints: https
+      x-traefik.disabled.api-mt5-https.tls: true
+      x-traefik.disabled.api-mt5-https.tls.certresolver: le
+      x-traefik.disabled.api-mt5-https.service: api-mt5-service
+
+      # API routing moved to dedicated mt5-api service
+      x-traefik.disabled.api-mt5-service.loadbalancer.server.port: 8000
+    logging: *default-logging
+    depends_on:
+      - traefik
+
+  mt5-api:
+    image: python:3.11-slim
+    container_name: mt5-api
+    working_dir: /app
+    volumes:
+      - ./backend/mt5_api:/app
+    command: sh -lc "pip install --no-cache-dir fastapi uvicorn && uvicorn app:app --host 0.0.0.0 --port 5001"
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - traefik-public
+      - default
+    labels:
+      <<: *default-labels
+      traefik.enable: true
+      traefik.docker.network: traefik-public
+
+      # API router bound to API_DOMAIN
       traefik.http.routers.api-mt5-http.rule: Host(`${API_DOMAIN}`)
       traefik.http.routers.api-mt5-http.entrypoints: http
       traefik.http.routers.api-mt5-http.middlewares: https-redirect
+      traefik.http.routers.api-mt5-http.service: api-mt5-service
 
       traefik.http.routers.api-mt5-https.rule: Host(`${API_DOMAIN}`)
       traefik.http.routers.api-mt5-https.entrypoints: https
@@ -116,9 +154,6 @@ services:
       traefik.http.routers.api-mt5-https.service: api-mt5-service
 
       traefik.http.services.api-mt5-service.loadbalancer.server.port: 5001
-    logging: *default-logging
-    depends_on:
-      - traefik
 
   postgres:
     image: postgres:15-alpine
@@ -540,10 +575,10 @@ services:
       <<: *default-labels
       traefik.enable: true
       traefik.docker.network: traefik-public
-      traefik.http.routers.dashboard-http.rule: Host(`dash.zanalytics.app`)
+      traefik.http.routers.dashboard-http.rule: Host(`dash2.zanalytics.app`)
       traefik.http.routers.dashboard-http.entrypoints: http
       traefik.http.routers.dashboard-http.middlewares: https-redirect
-      traefik.http.routers.dashboard-https.rule: Host(`dash.zanalytics.app`)
+      traefik.http.routers.dashboard-https.rule: Host(`dash2.zanalytics.app`)
       traefik.http.routers.dashboard-https.entrypoints: https
       traefik.http.routers.dashboard-https.tls: true
       traefik.http.routers.dashboard-https.tls.certresolver: le
