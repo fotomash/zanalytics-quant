@@ -679,6 +679,17 @@ services:
     networks:
       - default
 
+  market-fetcher:
+    image: curlimages/curl:8.8.0
+    container_name: market-fetcher
+    command: ["/bin/sh", "-lc", "while true; do curl -fsS http://django:8000/api/v1/market/fetch || true; sleep 300; done"]
+    depends_on:
+      django:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - default
+
 volumes:
   traefik-public-certificates: # Persistent volume for certificates
   grafana-data: {}

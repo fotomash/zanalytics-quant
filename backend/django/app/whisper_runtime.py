@@ -60,9 +60,11 @@ def ack_whisper(body: bytes) -> Dict[str, Any]:
     r = _redis()
     if r is None:
         _inmem.append({"ack": rec})
+        _inmem.append({"log": rec})
         return {"ok": True}
     try:
         r.rpush("whisper-acks", json.dumps(rec))
+        r.rpush("whisper-log", json.dumps({"ts": rec["ts"], "text": f"ACK: {rec.get('id','')} – {rec.get('reason','')}"}))
         return {"ok": True}
     except Exception:
         return {"ok": False}
@@ -83,10 +85,12 @@ def act_on_whisper(body: bytes) -> Dict[str, Any]:
     r = _redis()
     if r is None:
         _inmem.append({"act": rec})
+        _inmem.append({"log": rec})
         return {"ok": True}
     try:
         r.rpush("whisper-actions", json.dumps(rec))
+        label = rec.get('action') or 'act'
+        r.rpush("whisper-log", json.dumps({"ts": rec["ts"], "text": f"ACT: {rec.get('id','')} – {label}"}))
         return {"ok": True}
     except Exception:
         return {"ok": False}
-

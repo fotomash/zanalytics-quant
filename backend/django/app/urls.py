@@ -4,7 +4,7 @@ from django.http import JsonResponse
 from app.nexus.views import Healthz
 from .api.views_wyckoff import wyckoff_score, wyckoff_health
 from app import pulse_views
-from .whisper_views import whisper_stream, whisper_ack, whisper_act
+from .whisper_views import whisper_stream, whisper_ack, whisper_act, whisper_log
 
 def health(request):
     return JsonResponse({"status": "ok"}, status=200)
@@ -36,4 +36,5 @@ urlpatterns += [
     path('api/pulse/whispers', whisper_stream, name='whispers_stream'),
     path('api/pulse/whisper/ack', whisper_ack, name='whisper_ack'),
     path('api/pulse/whisper/act', whisper_act, name='whisper_act'),
+    path('api/pulse/whispers/log', whisper_log, name='whisper_log'),
 ]

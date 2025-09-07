@@ -21,6 +21,7 @@ from dashboard.components.ui_concentric import donut_system_overview, donut_sess
 from dashboard.components.behavioral_compass import make_behavioral_compass
 from dashboard.pages.components.profit_horizon_panel import render_profit_horizon
 from dashboard.pages.components.whisper_panel import render_whisper_panel
+from dashboard.pages.components.whisper_timeline import render_whisper_timeline
 from dashboard.pages.components.discipline_posture_panel import render_discipline_posture_panel
 from dashboard.pages.components.market_header import render_market_header
 from datetime import timedelta as _td
@@ -1125,6 +1126,19 @@ def _render_top_three_donuts(account_info: Dict):
         'eff_trend_15m': 0,
     }
 
+    # Pre‑Flight Checklist (sidebar, non-blocking)
+    today_key = f"adv19_preflight::{datetime.now().strftime('%Y-%m-%d')}"
+    with st.sidebar.expander("🛫 Pre‑Flight Checklist", expanded=not st.session_state.get(today_key, False)):
+        st.caption("Confirm before trading starts")
+        c1 = st.checkbox("News checked", key=f"pf_news_{today_key}")
+        c2 = st.checkbox("Reviewed yesterday", key=f"pf_review_{today_key}")
+        c3 = st.checkbox("Focus: Patience", key=f"pf_focus_{today_key}")
+        c4 = st.checkbox("Risk controls set", key=f"pf_risk_{today_key}")
+        all_ok = c1 and c2 and c3 and c4
+        if st.button("Start Session", key=f"pf_btn_{today_key}", disabled=not all_ok):
+            st.session_state[today_key] = True
+            st.success("Session ready")
+
     # Two primary donuts: Session Vitals and Behavioral Compass
     st.subheader("🫀 Session Vitals • 🧭 Behavioral Compass")
     try:
@@ -1180,6 +1194,9 @@ def _render_top_three_donuts(account_info: Dict):
     st.markdown("---")
     st.subheader("🫢 The Whisperer")
     render_whisper_panel(api=os.getenv("DJANGO_API_URL", "http://django:8000").rstrip('/') + "/api/pulse/whispers")
+    st.markdown("---")
+    st.subheader("Whisperer Timeline")
+    render_whisper_timeline(limit=60)
     st.markdown("---")
     st.subheader("⏳ Profit Horizon")
     render_profit_horizon(limit=20)
