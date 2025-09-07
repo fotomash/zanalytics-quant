@@ -640,9 +640,14 @@ def setup_zanflow_page():
         parquet_ok = False
 
     if "data_mode" not in st.session_state:
-        st.session_state["data_mode"] = "Database" if db_ok else ("Live" if bridge_ok else "Parquet")
+        # Prefer Live by default; fall back to Database; then Parquet
+        st.session_state["data_mode"] = "Live" if bridge_ok else ("Database" if db_ok else "Parquet")
 
-    data_mode_choice = st.sidebar.radio("Feed", ["Database", "Live", "Parquet"], index=["Database","Live","Parquet"].index(st.session_state["data_mode"]))
+    data_mode_choice = st.sidebar.radio(
+        "Feed",
+        ["Live", "Database", "Parquet"],
+        index=["Live", "Database", "Parquet"].index(st.session_state["data_mode"]) if st.session_state.get("data_mode") in ["Live","Database","Parquet"] else 0,
+    )
     st.session_state["data_mode"] = data_mode_choice
     if data_mode_choice == "Live":
         st.caption("🔴 LIVE feed via MetaTrader HTTP bridge")

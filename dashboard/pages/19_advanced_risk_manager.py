@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from dashboard.components.ui_concentric import concentric_ring
 from dashboard.components.ui_concentric import donut_system_overview, donut_session_vitals
 from dashboard.components.behavioral_compass import make_behavioral_compass
+from dashboard.components.ui_tri_vitals import fig_behavior_concentric_from_mirror
 from dashboard.utils.plotly_donuts import bipolar_donut, oneway_donut, behavioral_score_from_mirror
 from dashboard.pages.components.profit_horizon_panel import render_profit_horizon
 from dashboard.pages.components.whisper_panel import render_whisper_panel
@@ -1356,14 +1357,8 @@ def _render_top_three_donuts(account_info: Dict):
         pass
     c_left, c_right = st.columns(2)
     with c_left:
-        fig_compass = make_behavioral_compass(
-            discipline=ms.get('discipline') or 100,
-            patience_ratio=ms.get('patience_ratio') or 0,
-            efficiency=ms.get('efficiency') or 0,
-            conviction_hi_win=ms.get('conviction_hi_win') or 0,
-            conviction_lo_loss=ms.get('conviction_lo_loss') or 0,
-            pnl_norm=pnl_ratio,
-            title="Behavioral Compass",
+        fig_compass = fig_behavior_concentric_from_mirror(
+            ms or {}, pnl_norm=pnl_ratio, title="Behavioral Compass",
             subtitle="Keep red covered; tempo in check",
         )
         st.plotly_chart(fig_compass, use_container_width=True, config={'displayModeBar': False})

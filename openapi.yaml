@@ -73,20 +73,18 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  patience_ratio: { type: number, nullable: true }
-                  discipline: { type: number, nullable: true }
-                  efficiency: { type: number, nullable: true }
-                  conviction_hi_win: { type: number, nullable: true }
-                  conviction_lo_loss: { type: number, nullable: true }
-                  pnl_norm: { type: number, nullable: true }
-                  pnl_today: { type: number, nullable: true }
+                $ref: '#/components/schemas/MirrorState'
   /api/v1/discipline/summary:
     get:
       summary: Discipline daily/7‑day summary with events
       operationId: getDisciplineSummary
-      responses: { '200': { description: OK } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisciplineSummary'
   /api/v1/profit-horizon:
     get:
       summary: Profit Horizon data (last N closed trades)
@@ -564,6 +562,51 @@ paths:
                     data: {"ok":true,"topics":["mirror","whispers","market"]}
         '503': { description: Redis/unavailable }
 components:
+  schemas:
+    MirrorState:
+      type: object
+      additionalProperties: false
+      properties:
+        patience_ratio: { type: number, nullable: true, description: Tempo vs baseline (-0.5..+0.5) }
+        discipline: { type: number, nullable: true, description: 0..100 }
+        efficiency: { type: number, nullable: true, description: 0..100 }
+        conviction_hi_win: { type: number, nullable: true, description: 0..100 }
+        conviction_lo_loss: { type: number, nullable: true, description: 0..100 }
+        pnl_norm: { type: number, nullable: true, description: -1..+1 vs daily target/loss }
+        pnl_today: { type: number, nullable: true }
+        discipline_deltas:
+          type: array
+          items:
+            type: object
+            properties:
+              kind: { type: string }
+              delta: { type: number }
+              ts: { type: string }
+        patience_median_min: { type: number, nullable: true }
+        patience_p25_min: { type: number, nullable: true }
+        patience_p75_min: { type: number, nullable: true }
+
+    DisciplineSummary:
+      type: object
+      properties:
+        today: { type: number, nullable: true }
+        yesterday: { type: number, nullable: true }
+        seven_day:
+          type: array
+          items:
+            type: object
+            required: [date, score]
+            properties:
+              date: { type: string, format: date }
+              score: { type: number }
+        events_today:
+          type: array
+          items:
+            type: object
+            properties:
+              ts: { type: string }
+              type: { type: string }
+              meta: { type: object }
   schemas: {}
   securitySchemes:
     pulseKey:

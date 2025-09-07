@@ -15,6 +15,8 @@ from .serializers import (
     BarSerializer,
     PsychologicalStateSerializer,
     JournalEntrySerializer,
+    MirrorStateSerializer,
+    DisciplineSummarySerializer,
 )
 from .filters import TradeFilter, TickFilter, BarFilter
 
@@ -360,7 +362,11 @@ class DashboardDataView(views.APIView):
             "recent_journal": recent_journal_payload,
             "policies": load_policies(),
         }
-        return Response(payload)
+        try:
+            data = MirrorStateSerializer(payload).data
+        except Exception:
+            data = payload
+        return Response(data)
 
 
 class DisciplineSummaryView(views.APIView):
@@ -429,7 +435,11 @@ class DisciplineSummaryView(views.APIView):
             'seven_day': seven,
             'events_today': events_today,
         }
-        return Response(payload)
+        try:
+            data = DisciplineSummarySerializer(payload).data
+        except Exception:
+            data = payload
+        return Response(data)
 
 
 class JournalEntryView(views.APIView):

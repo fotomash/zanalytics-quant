@@ -230,31 +230,31 @@ class ZanalyticsDashboard:
             st.session_state.chart_theme = 'plotly_dark'
 
     def fetch_bar_data(self, symbol: str, interval: str = "M15", limit: int = 200) -> pd.DataFrame:
-        """Retrieve bars preferably from Postgres, fallback to MT5 bridge, then enrich."""
+        """Retrieve bars from Live MT5 bridge first, fallback to Postgres, then enrich."""
         df = pd.DataFrame()
-        # 1) Try database
-        if db_engine is not None:
-            try:
-                q = _sql_text(
-                    """
-                    SELECT ts, open, high, low, close, volume
-                    FROM bars
-                    WHERE symbol = :sym AND timeframe = :tf
-                    ORDER BY ts DESC
-                    LIMIT :lim
-                    """
-                )
-                df = pd.read_sql(q, db_engine, params={"sym": symbol, "tf": interval, "lim": limit})
-                if not df.empty:
-                    df = df.sort_values("ts")
-            except Exception:
-                df = pd.DataFrame()
-        # 2) Fallback: bridge
+        # 1) Try Live bridge first for freshest data
+        try:
+            df = self.mt5_client.get_bars(symbol, interval, limit)
+        except Exception:
+            df = pd.DataFrame()
+        # 2) Fallback to database if live is empty
         if df is None or df.empty:
-            try:
-                df = self.mt5_client.get_bars(symbol, interval, limit)
-            except Exception:
-                df = pd.DataFrame()
+            if db_engine is not None:
+                try:
+                    q = _sql_text(
+                        """
+                        SELECT ts, open, high, low, close, volume
+                        FROM bars
+                        WHERE symbol = :sym AND timeframe = :tf
+                        ORDER BY ts DESC
+                        LIMIT :lim
+                        """
+                    )
+                    df = pd.read_sql(q, db_engine, params={"sym": symbol, "tf": interval, "lim": limit})
+                    if not df.empty:
+                        df = df.sort_values("ts")
+                except Exception:
+                    df = pd.DataFrame()
         # 3) Enrich and return
         try:
             return enrich_ticks(df)
