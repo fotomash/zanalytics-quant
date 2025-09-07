@@ -4,6 +4,8 @@ import requests
 import plotly.graph_objects as go
 from datetime import datetime
 import time
+import os
+from dashboard.components.ui_concentric import concentric_ring
 
 # Title and layout
 st.set_page_config(
@@ -14,6 +16,72 @@ st.set_page_config(
 
 st.title("📡 Wyckoff Advanced Terminal")
 st.markdown("Styled real-time chart with Wyckoff overlays and advanced volume/price interaction.")
+
+# Quick concentric session ring under the header (live endpoints)
+try:
+    base = os.getenv('DJANGO_API_URL', 'http://django:8000').rstrip('/')
+    acct = requests.get(f"{base}/api/v1/account/info", timeout=1.2).json()
+    risk = requests.get(f"{base}/api/v1/account/risk", timeout=1.2).json()
+    trade = requests.get(f"{base}/api/v1/feed/trade", timeout=1.2).json()
+    equity = requests.get(f"{base}/api/v1/feed/equity", timeout=1.2).json()
+
+    eq = float(acct.get('equity') or 0.0)
+    sod = float(risk.get('sod_equity') or acct.get('balance') or eq or 0.0)
+    pnl_today = eq - sod
+    target = float(risk.get('target_amount') or 0.0)
+    loss = float(risk.get('loss_amount') or 0.0)
+
+    outer = None
+    if pnl_today >= 0 and target > 0:
+        outer = min(1.0, pnl_today / target)
+    elif pnl_today < 0 and loss > 0:
+        outer = -min(1.0, abs(pnl_today) / loss)
+
+    realized = trade.get('realized_usd') if isinstance(trade, dict) else None
+    unreal = trade.get('unrealized_usd') if isinstance(trade, dict) else None
+    cap_val = max(1.0, abs((realized or 0)) + abs((unreal or 0)))
+    left = (abs(unreal) / cap_val) if isinstance(unreal, (int, float)) and cap_val > 0 else 0.0
+    right = (abs(realized) / cap_val) if isinstance(realized, (int, float)) and cap_val > 0 else 0.0
+
+    exp = equity.get('exposure_pct') if isinstance(equity, dict) else None
+    if isinstance(exp, (int, float)) and exp > 1:
+        exp = exp / 100.0
+
+    # Build target/loss markers for outer ring parity with page 04
+    ticks = []
+    if target and target > 0:
+        ticks.append({
+            "ring": "outer",
+            "angle_norm": 1.0,
+            "color": "#22C55E",
+            "style": "solid",
+            "hover": f"Daily target ${target:,.0f}",
+        })
+    if loss and loss > 0:
+        ticks.append({
+            "ring": "outer",
+            "angle_norm": -1.0,
+            "color": "#EF4444",
+            "style": "solid",
+            "hover": f"Daily loss cap ${loss:,.0f}",
+        })
+
+    fig_ring = concentric_ring(
+        center_title=f"{eq:,.0f}",
+        center_value=f"{pnl_today:+,.0f}",
+        caption="Equity • P&L today",
+        outer_bipolar=outer,
+        outer_cap=1.0,
+        middle_mode="split",
+        middle_split=(left, right),
+        inner_unipolar=exp or 0.0,
+        inner_cap=1.0,
+        size=(280, 280),
+        ticks=ticks,
+    )
+    st.plotly_chart(fig_ring, use_container_width=True, config={'displayModeBar': False})
+except Exception:
+    pass
 
 # Symbol selector
 symbol = st.selectbox("Choose Symbol", ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"], index=0)

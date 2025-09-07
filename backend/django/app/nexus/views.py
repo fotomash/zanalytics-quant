@@ -716,11 +716,27 @@ class FeedBalanceView(views.APIView):
         except Exception:
             equity_prev = 0.0
 
+        # Optional: compute YTD % from a cached baseline if available
+        pnl_ytd_pct = None
+        try:
+            r = _redis_client()
+            if r is not None:
+                key = f"balance:ytd:baseline:{datetime.now().year}"
+                base = r.get(key)
+                if base is None and balance:
+                    r.setex(key, 180*24*3600, str(balance))
+                elif base is not None:
+                    b = float(base)
+                    if b > 0:
+                        pnl_ytd_pct = ((balance - b) / b) * 100.0
+        except Exception:
+            pass
+
         payload = {
             "balance_usd": balance,
             "pnl_total_pct": None,
             "pnl_inception_momentum_pct": None,
-            "pnl_ytd_pct": None,
+            "pnl_ytd_pct": pnl_ytd_pct,
             "markers": {
                 "inception": None,
                 "prev_close": equity_prev or None,
@@ -728,7 +744,7 @@ class FeedBalanceView(views.APIView):
                 "atl_balance": None,
             },
             "awaiting": {
-                "pnl_ytd_pct": True,
+                "pnl_ytd_pct": pnl_ytd_pct is None,
                 "pnl_inception_momentum_pct": True,
             },
         }
@@ -744,14 +760,43 @@ class FeedEquityView(views.APIView):
         sod = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
         closed_today = Trade.objects.filter(close_time__gte=sod, close_time__isnull=False)
         pnl_today = sum([t.pnl or 0 for t in closed_today])
+        # Pull account risk envelope for targets/exposure if available
+        daily_target = None
+        daily_loss = None
+        risk_used = None
+        exposure = None
+        try:
+            base = os.getenv('DJANGO_API_URL', 'http://django:8000').rstrip('/')
+            r = requests.get(f"{base}/api/v1/account/risk", timeout=1.2)
+            if r.ok:
+                risk = r.json() or {}
+                daily_target = risk.get('target_amount')
+                daily_loss = risk.get('loss_amount')
+                ru = risk.get('used_pct')
+                ex = risk.get('exposure_pct')
+                if isinstance(ru, (int, float)):
+                    risk_used = float(ru if ru <= 1 else ru/100.0)
+                if isinstance(ex, (int, float)):
+                    exposure = float(ex if ex <= 1 else ex/100.0)
+        except Exception:
+            pass
+        pct_to_target = None
+        try:
+            if pnl_today >= 0 and daily_target and daily_target > 0:
+                pct_to_target = min(1.0, float(pnl_today) / float(daily_target))
+            elif pnl_today < 0 and daily_loss and daily_loss > 0:
+                pct_to_target = -min(1.0, abs(float(pnl_today)) / float(daily_loss))
+        except Exception:
+            pct_to_target = None
+
         payload = {
             "session_pnl": pnl_today,
-            "pct_to_target": None,
-            "risk_used_pct": None,
-            "exposure_pct": None,
+            "pct_to_target": pct_to_target,
+            "risk_used_pct": risk_used,
+            "exposure_pct": exposure,
             "markers": {
-                "daily_target": None,
-                "daily_loss_limit": None,
+                "daily_target": daily_target,
+                "daily_loss_limit": daily_loss,
                 "account_drawdown_hard": None,
             },
         }
@@ -808,11 +853,45 @@ class FeedTradeView(views.APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+        from django.utils import timezone
+        sod = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        realized = 0.0
+        try:
+            realized = float(sum([(t.pnl or 0.0) for t in Trade.objects.filter(close_time__gte=sod)]))
+        except Exception:
+            realized = 0.0
+        # Unrealized from positions proxy (best-effort)
+        unrealized = None
+        try:
+            base = os.getenv('DJANGO_API_URL', 'http://django:8000').rstrip('/')
+            r = requests.get(f"{base}/api/v1/account/positions", timeout=1.2)
+            if r.ok:
+                arr = r.json() or []
+                if isinstance(arr, list):
+                    unrealized = float(sum([float(p.get('pnl') or 0.0) for p in arr]))
+        except Exception:
+            unrealized = None
+        # Profit efficiency: ratio of realized vs sum of positive peaks (ProfitHorizon logic)
+        eff = None
+        try:
+            closed = Trade.objects.exclude(close_time__isnull=True).order_by('-close_time')[:50]
+            total_peak = 0.0
+            total_pnl = 0.0
+            for t in closed:
+                pnlv = float(t.pnl or 0)
+                peak = float(t.max_profit or 0)
+                if peak > 0 and pnlv > 0:
+                    total_peak += peak
+                    total_pnl += pnlv
+            if total_peak > 0:
+                eff = total_pnl / total_peak
+        except Exception:
+            eff = None
         payload = {
             "pnl_day_vs_goal": None,
-            "realized_usd": None,
-            "unrealized_usd": None,
-            "profit_efficiency": None,
+            "realized_usd": realized,
+            "unrealized_usd": unrealized,
+            "profit_efficiency": eff,
             "eff_trend_15m": 0,
         }
         _publish_feed("trade", payload)

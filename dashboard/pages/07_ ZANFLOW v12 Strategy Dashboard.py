@@ -29,22 +29,10 @@ warnings.filterwarnings('ignore')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Load default parquet directory from Streamlit secrets (./.streamlit/secrets.toml)
-# ---------------------------------------------------------------------------
-try:
-    DEFAULT_DATA_FOLDER = st.secrets.get(
-        "parquet_dir",
-        "/Users/tom/Documents/_trade/_exports/_tick/parquet/"
-    )
-except Exception:
-    DEFAULT_DATA_FOLDER = "/Users/tom/Documents/_trade/_exports/_tick/parquet/"
-
-
-PARQUET_DATA_DIR = DEFAULT_DATA_FOLDER  # for external modules / clarity
+# Parquet directory support removed from the UI; live/database only
 
 # ============================================================================
-# DATA LAYER: Live MT5 HTTP feed (optional) + Parquet fallback
+# DATA LAYER: Live MT5 HTTP feed (primary) + Database fallback
 # ============================================================================
 import requests, threading
 import time as _time
@@ -69,7 +57,8 @@ def get_bridge_base() -> str:
     return str(base or "").rstrip("/")
 
 def get_parquet_dir() -> str:
-    return st.session_state.get("zan_parquet_dir") or PARQUET_DATA_DIR
+    # Retained for compatibility; not shown in UI
+    return st.session_state.get("zan_parquet_dir") or os.getenv("PARQUET_DATA_DIR", "")
 
 # --- Optional: Database + Redis cache configuration ---
 DB_URL = os.getenv("DB_URL") or os.getenv("DATABASE_URL")
@@ -632,21 +621,14 @@ def setup_zanflow_page():
         bridge_ok = bool(r.ok)
     except Exception:
         bridge_ok = False
-    parquet_ok = False
-    try:
-        p = Path(get_parquet_dir())
-        parquet_ok = p.exists() and any(p.glob("**/*.parquet"))
-    except Exception:
-        parquet_ok = False
-
     if "data_mode" not in st.session_state:
-        # Prefer Live by default; fall back to Database; then Parquet
-        st.session_state["data_mode"] = "Live" if bridge_ok else ("Database" if db_ok else "Parquet")
+        # Prefer Live by default; fall back to Database
+        st.session_state["data_mode"] = "Live" if bridge_ok else ("Database" if db_ok else "Live")
 
     data_mode_choice = st.sidebar.radio(
         "Feed",
-        ["Live", "Database", "Parquet"],
-        index=["Live", "Database", "Parquet"].index(st.session_state["data_mode"]) if st.session_state.get("data_mode") in ["Live","Database","Parquet"] else 0,
+        ["Live", "Database"],
+        index=["Live", "Database"].index(st.session_state["data_mode"]) if st.session_state.get("data_mode") in ["Live","Database"] else 0,
     )
     st.session_state["data_mode"] = data_mode_choice
     if data_mode_choice == "Live":
@@ -685,39 +667,23 @@ def setup_zanflow_page():
             autoref = st.session_state.get("live_autorefresh", False)
             st.caption(f"Auto-refresh: {'ON' if autoref else 'OFF'}")
 
-        current_dir = get_parquet_dir()
-        dir_input = st.text_input("Parquet Directory", value=current_dir, placeholder="/data/parquet")
-        if dir_input and dir_input.strip() != current_dir:
-            st.session_state["zan_parquet_dir"] = dir_input.strip()
-        d1, d2 = st.columns([1,1])
-        with d1:
-            if st.button("Test Directory", use_container_width=True):
-                p = Path(get_parquet_dir())
-                if not p.exists():
-                    st.error("Directory not found")
-                else:
-                    try:
-                        files = list(p.glob("*.parquet"))[:3]
-                        st.success(f"Found {len(files)} parquet file(s)")
-                    except Exception as e:
-                        st.error(f"List error: {e}")
-        with d2:
-            st.caption(f"Active: {get_parquet_dir()}")
+        # Parquet directory controls removed
 
     # Status badges
     st.sidebar.markdown("### Sources (status)")
     st.sidebar.markdown(f"{'✅' if db_ok else '⚠️'} Database")
     st.sidebar.markdown(f"{'✅' if bridge_ok else '⚠️'} MT5 Bridge")
-    st.sidebar.markdown(f"{'✅' if parquet_ok else '⚠️'} Parquet Dir")
 
 
 # --- Helper: Show current mode as badge in headers ---
 def live_mode_badge():
-    mode = st.session_state.get("data_mode", "Parquet")
+    mode = st.session_state.get("data_mode", "Live")
     if mode == "Live":
-        st.markdown("**Mode:** 🔴 LIVE", unsafe_allow_html=True)
+        st.markdown("<span style='font-weight:700;color:#22C55E'>Source: LIVE</span>", unsafe_allow_html=True)
+    elif mode == "Database":
+        st.markdown("<span style='font-weight:700;color:#3B82F6'>Source: DATABASE</span>", unsafe_allow_html=True)
     else:
-        st.markdown("**Mode:** 📁 Parquet", unsafe_allow_html=True)
+        st.markdown("<span style='font-weight:700;color:#9CA3AF'>Source: UNKNOWN</span>", unsafe_allow_html=True)
 
 # ============================================================================
 # ZANFLOW v12 STRATEGY ENGINES
@@ -1837,6 +1803,8 @@ def main():
             <p><strong>INSTITUTIONAL GRADE STRATEGY IMPLEMENTATION</strong></p>
         </div>
     """, unsafe_allow_html=True)
+    # Source badge under header
+    live_mode_badge()
 
     # Sidebar configuration (add data folder selection)
     with st.sidebar:
@@ -1863,72 +1831,26 @@ def main():
             except Exception:
                 symbols_found = []
 
-        st.markdown("### 💱 Trading Pair")
-        if data_mode == "Parquet":
-            selected_symbol = st.selectbox(
-                "💱 Select Pair",
-                options=symbols_found or ["<No pairs found>"],
-                index=0,
-                help="Choose a trading pair detected in the data folder"
-            )
-            if not symbols_found:
-                st.warning("No symbol folders found. Check the directory or set Sources override.")
-                return
-        else:
-            selected_symbol = st.text_input("Symbol", value="EURUSD", help="Enter instrument symbol for Live/Database")
+        st.markdown("### 💱 Instrument")
+        selected_symbol = st.text_input("Symbol", value="EURUSD", help="Enter instrument symbol for Live/Database")
     # Load data
     with st.spinner("🔄 Loading ZANFLOW v12 data..."):
         try:
-            # Dynamically discover parquet files within the symbol subfolder
-            if st.session_state.get("data_mode") == "Parquet" and selected_symbol.startswith("<"):
-                st.info("Select a valid symbol once data is available.")
-                return
+            # Live or Database: construct data from feeds
             data = {}
-            if st.session_state.get("data_mode") == "Parquet":
-                symbol_dir = os.path.join(data_folder, selected_symbol)
-                parquet_files = glob.glob(os.path.join(symbol_dir, f'{selected_symbol}_*.parquet'))
-                timeframes = {}
-                tf_pattern = re.compile(fr'{selected_symbol}_(\d+(?:min|h|d))\.parquet', re.IGNORECASE)
-                for pf in parquet_files:
-                    match = tf_pattern.search(Path(pf).name)
-                    if match:
-                        tf = match.group(1).lower()
-                        timeframes[tf] = pf
-
-                if not timeframes:
-                    st.error(f"❌ No {selected_symbol} parquet files found in **{symbol_dir}**. "
-                             "Please verify the location or adjust the Data Location above.")
-                    return
-
-                for tf, filename in timeframes.items():
-                    try:
-                        df = pd.read_parquet(filename)
-                        if 'timestamp' in df.columns:
-                            df['timestamp'] = pd.to_datetime(df['timestamp'])
-                            df.set_index('timestamp', inplace=True)
-                        df.columns = df.columns.str.lower()
-                        required_cols = ['open', 'high', 'low', 'close']
-                        if not all(col in df.columns for col in required_cols):
-                            st.warning(f"Missing required columns in {filename}")
-                            continue
+            tfs = ["1min", "5min", "15min", "1h"]
+            for tf in tfs:
+                try:
+                    if st.session_state.get("data_mode") == "Database":
+                        df = load_db_candles(selected_symbol, tf, lookback="2D")
+                    else:
+                        df = _get_live_feed().get_candles(selected_symbol, timeframe=tf, lookback="2D")
+                    if isinstance(df, pd.DataFrame) and not df.empty:
+                        # Normalize columns (ensure lower-case)
+                        df.columns = [c.lower() for c in df.columns]
                         data[tf] = df
-                    except Exception as e:
-                        st.warning(f"Could not load {filename}: {e}")
-            else:
-                # Live or Database: construct data from feeds
-                tfs = ["1min", "5min", "15min", "1h"]
-                for tf in tfs:
-                    try:
-                        if st.session_state.get("data_mode") == "Database":
-                            df = load_db_candles(selected_symbol, tf, lookback="2D")
-                        else:
-                            df = _get_live_feed().get_candles(selected_symbol, timeframe=tf, lookback="2D")
-                        if isinstance(df, pd.DataFrame) and not df.empty:
-                            # Normalize columns (ensure lower-case)
-                            df.columns = [c.lower() for c in df.columns]
-                            data[tf] = df
-                    except Exception as e:
-                        continue
+                except Exception:
+                    continue
 
         except Exception as e:
             st.error(f"Error loading data: {e}")
