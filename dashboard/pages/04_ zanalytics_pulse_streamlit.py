@@ -184,49 +184,81 @@ st.divider()
 # Main Dashboard Layout
 col_left, col_center, col_right = st.columns([1.5, 2, 1.5])
 
-# LEFT COLUMN - Behavioral Compass
-with col_left:
-    st.markdown("### 🎯 Behavioral Compass")
-    
-    # Create the donut chart for behavioral metrics
-    fig = go.Figure()
-    
-    # Behavioral metrics with colors
+    # --- Behavioral Compass (concentric, center-locked rings) ---
+    # Pull live values from mirror API when present; fall back to session_state
+    def _get_mirror_pct(key: str, default_val: float) -> float:
+        try:
+            if isinstance(mirror, dict) and key in mirror:
+                v = mirror.get(key)
+                # accept {value: x} or raw number
+                if isinstance(v, dict) and "value" in v:
+                    return float(v["value"])
+                return float(v)
+        except Exception:
+            pass
+        return float(default_val)
+
     metrics = [
-        {'name': 'Discipline', 'value': st.session_state.discipline_score, 'color': '#22C55E'},
-        {'name': 'Patience', 'value': st.session_state.patience_index, 'color': '#3B82F6'},
-        {'name': 'Efficiency', 'value': st.session_state.profit_efficiency, 'color': '#06B6D4'},
-        {'name': 'Conviction', 'value': st.session_state.conviction_rate, 'color': '#8B5CF6'}
+        {"name": "Discipline", "value": _get_mirror_pct("discipline", st.session_state.discipline_score), "color": "#22C55E"},
+        {"name": "Patience",   "value": _get_mirror_pct("patience",   st.session_state.patience_index),   "color": "#3B82F6"},
+        {"name": "Efficiency", "value": _get_mirror_pct("efficiency", st.session_state.profit_efficiency),"color": "#06B6D4"},
+        {"name": "Conviction", "value": _get_mirror_pct("conviction", st.session_state.conviction_rate),  "color": "#8B5CF6"},
     ]
-    
-    # Create concentric donut rings
+
+    # Concentric geometry: keep the same center for all traces, vary domain size to set radius,
+    # and adjust `hole` so the **visual** band thickness is constant.
+    fig = go.Figure()
+    sizes = [1.00, 0.82, 0.64, 0.46]          # outer → inner radius as a fraction of the full plot area
+    band_px_ratio = 0.16                      # target ring thickness relative to each ring's radius
+    track_color = "rgba(31,41,55,0.30)"       # subtle background/track
+    start_at_noon = 90                        # 12 o'clock
     for i, metric in enumerate(metrics):
+        s = sizes[i]
+        off = (1.0 - s) / 2.0                 # keep the same center (0.5, 0.5)
+        # Maintain approx. constant band thickness visually by adapting hole to the ring radius
+        hole = max(0.0, min(0.95, 1.0 - band_px_ratio))
+        # BACKGROUND TRACK (full 100%)
         fig.add_trace(go.Pie(
-            values=[metric['value'], 100-metric['value']],
-            labels=[metric['name'], ''],
-            hole=0.4 + i*0.1,
-            marker=dict(colors=[metric['color'], 'rgba(31, 41, 55, 0.3)']),
-            textinfo='none',
-            hovertemplate=f"{metric['name']}: {metric['value']}%<extra></extra>",
+            values=[100],
+            labels=[""],
+            hole=hole,
+            rotation=start_at_noon,
+            direction="clockwise",
+            marker=dict(colors=[track_color]),
+            textinfo="none",
             showlegend=False,
-            domain=dict(x=[0.1*i, 1-0.1*i], y=[0.1*i, 1-0.1*i])
+            sort=False,
+            domain=dict(x=[off, 1.0 - off], y=[off, 1.0 - off]),
         ))
-    
-    # Add center text
+        # ACTUAL VALUE
+        val = max(0.0, min(100.0, float(metric["value"])))
+        fig.add_trace(go.Pie(
+            values=[val, 100 - val],
+            labels=[metric["name"], ""],
+            hole=hole,
+            rotation=start_at_noon,
+            direction="clockwise",
+            marker=dict(colors=[metric["color"], "rgba(0,0,0,0)"]),
+            textinfo="none",
+            hovertemplate=f"{metric['name']}: {{%}}%&lt;extra&gt;&lt;/extra&gt;",
+            showlegend=False,
+            sort=False,
+            domain=dict(x=[off, 1.0 - off], y=[off, 1.0 - off]),
+        ))
+
+    # Center label (overall average)
+    overall = int(np.mean([m["value"] for m in metrics if isinstance(m.get("value"), (int, float))]))
     fig.add_annotation(
-        text=f"<b>{int(np.mean([m['value'] for m in metrics]))}%</b><br>Overall",
-        x=0.5, y=0.5,
-        font=dict(size=20, color='white'),
-        showarrow=False
+        text=f"<b>{overall}%</b><br>Overall",
+        x=0.5, y=0.5, showarrow=False,
+        font=dict(size=20, color="#ffffff")
     )
-    
     fig.update_layout(
         height=300,
         margin=dict(t=0, b=0, l=0, r=0),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)'
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)"
     )
-    
     st.plotly_chart(fig, use_container_width=True)
     
     # Behavioral Metrics Details
