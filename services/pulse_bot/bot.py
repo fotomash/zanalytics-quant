@@ -1,11 +1,38 @@
 import os
+import sys
 import asyncio
+import importlib.util
 from datetime import datetime
 from typing import Optional
 
-from pulse_kernel import PulseKernel
+# Robust import of PulseKernel regardless of PYTHONPATH/cwd
+try:
+    from pulse_kernel import PulseKernel
+except Exception:
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    candidates = [
+        os.path.join(repo_root, "pulse_kernel.py"),
+        os.path.join(repo_root, "core", "pulse_kernel.py"),
+        os.path.join(repo_root, "_new", "pulse_kernel.py"),
+    ]
+    loaded = False
+    for path in candidates:
+        if os.path.exists(path):
+            try:
+                spec = importlib.util.spec_from_file_location("pulse_kernel", path)
+                if spec and spec.loader:
+                    mod = importlib.util.module_from_spec(spec)
+                    sys.modules["pulse_kernel"] = mod
+                    spec.loader.exec_module(mod)
+                    PulseKernel = getattr(mod, "PulseKernel")  # type: ignore
+                    loaded = True
+                    break
+            except Exception:
+                continue
+    if not loaded:
+        raise ModuleNotFoundError("Cannot locate pulse_kernel.py in repo root or core/")
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 import requests
 import json
 import threading
@@ -182,6 +209,18 @@ async def cmd_protect_trail(msg: Message):
     await msg.answer(resp)
 
 
+def _build_inline_kb(actions):
+    try:
+        buttons = []
+        for a in actions or []:
+            label = a.get('label') or 'Action'
+            action = a.get('action') or 'ignore'
+            buttons.append([InlineKeyboardButton(text=label, callback_data=action)])
+        return InlineKeyboardMarkup(inline_keyboard=buttons) if buttons else None
+    except Exception:
+        return None
+
+
 def _redis_alert_loop(bot: Bot):
     """Background loop to forward 'telegram-alerts' to whitelisted chats."""
     if redis is None:
@@ -204,11 +243,13 @@ def _redis_alert_loop(bot: Bot):
                 text = data.get("text") or ""
                 if not text:
                     continue
+                # Build keyboard if actions provided
+                kb = _build_inline_kb(data.get('actions'))
                 # Broadcast to whitelisted chats or skip if none
                 chats = CHAT_WHITELIST or set()
                 for chat_id in chats:
                     try:
-                        asyncio.run(bot.send_message(chat_id=chat_id, text=text))
+                        asyncio.run(bot.send_message(chat_id=chat_id, text=text, reply_markup=kb))
                     except Exception:
                         continue
             time.sleep(0.1)
@@ -229,6 +270,16 @@ async def main():
     dp.message.register(cmd_break, F.text.regexp(r"^/break(\s+\d+)?$"))
     dp.message.register(cmd_protect_be, F.text.regexp(r"^/protect_be(\s+\d+)$"))
     dp.message.register(cmd_protect_trail, F.text.regexp(r"^/protect_trail(\s+\d+(\s+\d*\.?\d+)?)$"))
+    
+    # Callback handlers for inline actions
+    async def cb_handler(cb: CallbackQuery):
+        if not CHAT_WHITELIST or str(cb.message.chat.id) in CHAT_WHITELIST:
+            action = cb.data
+            # Inline actions are generic; for now just acknowledge
+            await cb.answer(f"Received: {action}")
+        else:
+            await cb.answer("Not authorized", show_alert=True)
+    dp.callback_query.register(cb_handler)
 
     # Start Redis alert forwarder in background
     if redis is not None and CHAT_WHITELIST:
@@ -239,3 +290,10 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+def format_telegram(w: dict) -> str:
+    lines = [f"🫢 *The Whisperer*\n{w.get('message','')}"]
+    reasons = w.get("reasons") or []
+    if reasons:
+        top = ", ".join([f"{r.get('key')}={r.get('value')}" for r in reasons[:3]])
+        lines.append(f"_Why_: {top}")
+    return "\n".join(lines)

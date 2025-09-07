@@ -329,6 +329,17 @@ class DashboardDataView(views.APIView):
                             }
                             rcli.publish('telegram-alerts', json.dumps(msg))
                             rcli.setex(cache_key, 6*60*60, "1")  # 6 hours TTL
+                            # Also append to today's discipline events list for trajectory markers
+                            try:
+                                ev_key = f"events:discipline:{timezone.now().strftime('%Y%m%d')}"
+                                rcli.rpush(ev_key, json.dumps({
+                                    'ts': timezone.now().isoformat(),
+                                    'type': 'profit_milestone',
+                                    'pnl': profit_val,
+                                }))
+                                rcli.expire(ev_key, 10*24*3600)
+                            except Exception:
+                                pass
                     except Exception:
                         pass
         except Exception:
@@ -345,6 +356,75 @@ class DashboardDataView(views.APIView):
             "opportunities": opportunities,
             "recent_journal": recent_journal_payload,
             "policies": load_policies(),
+        }
+        return Response(payload)
+
+
+class DisciplineSummaryView(views.APIView):
+    """Compute and persist discipline metrics and events (7d).
+
+    Returns:
+      - today: score 0..100
+      - yesterday: score 0..100 (if available)
+      - seven_day: list of {date, score}
+      - events_today: list of {ts, type, meta}
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        # Dependencies
+        dj_url = os.getenv("DJANGO_API_URL", "http://django:8000")
+        today = timezone.now().date()
+        key_score = f"discipline:{today.strftime('%Y%m%d')}"
+        key_series = "discipline:series:7d"
+        events_key = f"events:discipline:{today.strftime('%Y%m%d')}"
+        score_today = None
+        seven = []
+        events_today = []
+        # Pull risk summary to compute score
+        risk_summary = {}
+        try:
+            rs = requests.get(f"{dj_url}/api/pulse/risk/summary", timeout=2)
+            if rs.ok:
+                risk_summary = rs.json() or {}
+        except Exception:
+            risk_summary = {}
+        # Compute score
+        try:
+            used = float(risk_summary.get('daily_risk_used', 0) or 0)
+            warnings = risk_summary.get('warnings', []) or []
+            score_today = max(0.0, min(100.0, 100.0 - min(40.0, used) - (len(warnings) * 8.0)))
+        except Exception:
+            score_today = 100.0
+        # Persist in Redis and build 7d series
+        if redis_lib is not None:
+            try:
+                rurl = os.getenv('REDIS_URL')
+                if rurl:
+                    rcli = redis_lib.from_url(rurl)
+                else:
+                    rcli = redis_lib.Redis(host=os.getenv('REDIS_HOST','redis'), port=int(os.getenv('REDIS_PORT',6379)))
+                rcli.setex(key_score, 48*3600, str(score_today))
+                # Append/update rolling series
+                series_raw = rcli.lrange(key_series, 0, -1) or []
+                # ensure unique per day by rewriting last if same date
+                today_iso = today.isoformat()
+                new_entry = json.dumps({'date': today_iso, 'score': score_today})
+                if series_raw:
+                    last = json.loads(series_raw[-1])
+                    if last.get('date') == today_iso:
+                        rcli.rpop(key_series)
+                rcli.rpush(key_series, new_entry)
+                rcli.ltrim(key_series, -7, -1)
+                seven = [json.loads(x) for x in rcli.lrange(key_series, 0, -1)]
+                events_today = [json.loads(x) for x in rcli.lrange(events_key, 0, -1)]
+            except Exception:
+                pass
+        payload = {
+            'today': score_today,
+            'yesterday': seven[-2]['score'] if len(seven) >= 2 else None,
+            'seven_day': seven,
+            'events_today': events_today,
         }
         return Response(payload)
 
@@ -512,6 +592,45 @@ class ProtectPositionView(views.APIView):
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class PositionsPartialCloseView(views.APIView):
+    """Close part of a position via MT5 bridge.
+
+    POST JSON:
+      - ticket (int)
+      - symbol (str)
+      - fraction (float 0..1)
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        api_token = os.getenv("DJANGO_API_TOKEN", "").strip().strip('"')
+        if api_token:
+            auth = request.headers.get("Authorization", "")
+            x_token = request.headers.get("X-API-Token", "")
+            valid = False
+            if auth.startswith("Token ") and auth.split(" ", 1)[1] == api_token:
+                valid = True
+            if x_token and x_token == api_token:
+                valid = True
+            if not valid:
+                return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        data = request.data or {}
+        try:
+            ticket = int(data.get('ticket'))
+            symbol = str(data.get('symbol'))
+            fraction = float(data.get('fraction'))
+        except Exception:
+            return Response({"error": "ticket, symbol, fraction required"}, status=status.HTTP_400_BAD_REQUEST)
+        mt5_base = os.getenv("MT5_URL") or os.getenv("MT5_API_URL") or "http://mt5:5001"
+        try:
+            r = requests.post(f"{mt5_base.rstrip('/')}/partial_close", json={'ticket': ticket, 'symbol': symbol, 'fraction': fraction}, timeout=6.0)
+            if r.ok and isinstance(r.json(), dict) and r.json().get('ok'):
+                return Response(r.json())
+            return Response({'error': 'partial_close_failed', 'detail': getattr(r, 'text', '')}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
+
 class Healthz(View):
     """Ultra-light health endpoint that avoids ORM to prevent startup failures."""
     def get(self, request):
@@ -528,3 +647,157 @@ class Healthz(View):
             "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
         return JsonResponse(payload, status=200 if db_ok else 503)
+
+
+# ------------------- Minimal Feed Endpoints (spec) -------------------
+from rest_framework.permissions import AllowAny  # already imported but kept explicit
+
+
+def _redis_client():
+    if redis_lib is None:
+        return None
+    try:
+        if os.getenv("REDIS_URL"):
+            return redis_lib.from_url(os.getenv("REDIS_URL"))
+        return redis_lib.Redis(host=os.getenv("REDIS_HOST", "redis"), port=int(os.getenv("REDIS_PORT", 6379)))
+    except Exception:
+        return None
+
+
+def _publish_feed(kind: str, payload: dict) -> None:
+    r = _redis_client()
+    if r is None:
+        return
+    try:
+        doc = {"kind": kind, "ts": int(time.time()), "data": payload}
+        r.publish("pulse.feeds", json.dumps(doc))
+    except Exception:
+        pass
+
+
+class FeedBalanceView(views.APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        mt5_base = (
+            os.getenv("MT5_URL")
+            or os.getenv("MT5_API_URL")
+            or "http://mt5:5001"
+        )
+        account_info = {}
+        try:
+            r = requests.get(f"{str(mt5_base).rstrip('/')}/account_info", timeout=1.5)
+            if r.ok:
+                account_info = r.json() or {}
+                if isinstance(account_info, list) and account_info:
+                    account_info = account_info[0]
+        except Exception:
+            account_info = {}
+
+        try:
+            balance = float(account_info.get("balance") or account_info.get("Balance") or 0.0)
+        except Exception:
+            balance = 0.0
+        try:
+            equity_prev = float(account_info.get("equity_prev") or 0.0)
+        except Exception:
+            equity_prev = 0.0
+
+        payload = {
+            "balance_usd": balance,
+            "pnl_total_pct": None,
+            "pnl_inception_momentum_pct": None,
+            "pnl_ytd_pct": None,
+            "markers": {
+                "inception": None,
+                "prev_close": equity_prev or None,
+                "ath_balance": None,
+                "atl_balance": None,
+            },
+            "awaiting": {
+                "pnl_ytd_pct": True,
+                "pnl_inception_momentum_pct": True,
+            },
+        }
+        _publish_feed("balance", payload)
+        return Response(payload)
+
+
+class FeedEquityView(views.APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from django.utils import timezone
+        sod = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        closed_today = Trade.objects.filter(close_time__gte=sod, close_time__isnull=False)
+        pnl_today = sum([t.pnl or 0 for t in closed_today])
+        payload = {
+            "session_pnl": pnl_today,
+            "pct_to_target": None,
+            "risk_used_pct": None,
+            "exposure_pct": None,
+            "markers": {
+                "daily_target": None,
+                "daily_loss_limit": None,
+                "account_drawdown_hard": None,
+            },
+        }
+        _publish_feed("equity", payload)
+        return Response(payload)
+
+
+class FeedTradeView(views.APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        payload = {
+            "pnl_day_vs_goal": None,
+            "realized_usd": None,
+            "unrealized_usd": None,
+            "profit_efficiency": None,
+            "eff_trend_15m": 0,
+        }
+        _publish_feed("trade", payload)
+        return Response(payload)
+
+
+class FeedBehaviorView(views.APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        latest_psych = PsychologicalState.objects.order_by('-timestamp').first()
+        discipline = getattr(latest_psych, 'discipline_score', None) if latest_psych else None
+        eff = getattr(latest_psych, 'profit_efficiency', None) if latest_psych else None
+        payload = {
+            "discipline_score": discipline,
+            "patience_index_dev": None,
+            "profit_efficiency": eff,
+            "conviction": {"high_win": None, "low_win": None},
+        }
+        _publish_feed("behavior", payload)
+        return Response(payload)
+
+
+class ProfitHorizonView(views.APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            limit = int(request.GET.get("limit", "20"))
+        except Exception:
+            limit = 20
+        qs = Trade.objects.exclude(close_time__isnull=True).order_by('-close_time')[:limit]
+        out = []
+        for t in qs:
+            try:
+                dur = int(((t.close_time - t.entry_time).total_seconds()) // 60) if t.entry_time and t.close_time else None
+            except Exception:
+                dur = None
+            out.append({
+                "id": str(t.id),
+                "dur_min": dur,
+                "pnl_r": None,
+                "peak_r": None,
+            })
+        _publish_feed("profit-horizon", {"items": out})
+        return Response(out)

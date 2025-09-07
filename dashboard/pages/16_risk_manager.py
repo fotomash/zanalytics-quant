@@ -1478,6 +1478,15 @@ def main():
             f"${equity:,.2f}",
             f"{equity_change:.2f}%"
         )
+        # Bridge status badge (Live/Stub)
+        try:
+            base = os.getenv('MT5_URL') or os.getenv('MT5_API_URL')
+            if base:
+                r = requests.get(f"{base.rstrip('/')}/account_info", timeout=1.0)
+                live = r.ok and isinstance(r.json(), dict) and str(r.json().get('login','')).lower() != 'placeholder' and r.json().get('source') != 'stub'
+                st.caption(f"Bridge: {'🟢 Live' if live else '🟡 Stub'} • {base}")
+        except Exception:
+            pass
 
     with col3:
         margin_level = account_info.get('margin_level', 0)

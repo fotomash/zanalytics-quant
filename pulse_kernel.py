@@ -19,7 +19,11 @@ from redis.exceptions import RedisError
 from confluent_kafka import Producer
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from app.components.risk_enforcer import RiskEnforcer
+# Support multiple runtime layouts (repo vs. packaged API image)
+try:
+    from components.risk_enforcer import RiskEnforcer  # repo layout
+except Exception:  # pragma: no cover
+    from risk_enforcer import RiskEnforcer            # packaged image layout
 
 logger = logging.getLogger(__name__)
 

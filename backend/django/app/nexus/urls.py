@@ -7,12 +7,19 @@ from .views import (
     SendMarketOrderView,
     ModifySLTPView,
     ProtectPositionView,
+    DisciplineSummaryView,
+    PositionsPartialCloseView,
     TickViewSet,
     BarViewSet,
     SymbolListView,
     TimeframeListView,
     DashboardDataView,
     JournalEntryView,
+    FeedBalanceView,
+    FeedEquityView,
+    FeedTradeView,
+    FeedBehaviorView,
+    ProfitHorizonView,
 )
 
 # --- Minimal, dependency-free Pulse endpoints (stubs) ---
@@ -61,5 +68,13 @@ urlpatterns = [
     path('symbols/', SymbolListView.as_view(), name='symbols'),
     path('timeframes/', TimeframeListView.as_view(), name='timeframes'),
     path('dashboard-data/', DashboardDataView.as_view(), name='dashboard-data'),
+    path('discipline/summary', DisciplineSummaryView.as_view(), name='discipline-summary'),
+    path('positions/partial_close', PositionsPartialCloseView.as_view(), name='positions-partial-close'),
     path('journal/', JournalEntryView.as_view(), name='journal'),
+    # Feeds (spec)
+    path('feed/balance', FeedBalanceView.as_view(), name='feed-balance'),
+    path('feed/equity', FeedEquityView.as_view(), name='feed-equity'),
+    path('feed/trade', FeedTradeView.as_view(), name='feed-trade'),
+    path('feed/behavior', FeedBehaviorView.as_view(), name='feed-behavior'),
+    path('profit-horizon', ProfitHorizonView.as_view(), name='profit-horizon'),
 ]

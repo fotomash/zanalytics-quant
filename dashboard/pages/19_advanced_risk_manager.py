@@ -15,6 +15,8 @@ import requests
 from typing import Dict, List, Optional, Tuple
 import os
 from dotenv import load_dotenv
+# Use the dashboard-local components module to avoid path issues in Streamlit
+from dashboard.components.ui_concentric import concentric_ring
 
 # Safe MT5 import
 try:
@@ -807,15 +809,418 @@ def render_risk_control_panel(account_info: Dict, risk_summary: Dict):
         st.session_state['adv19_per_trade_risk'] = float(per_trade_dollars)
     
     with col2:
-        st.markdown("#### Risk Allocation 3D")
-        equity = account_info.get('equity', 0.0)
-        if equity is None and 'equity' not in account_info:
-            st.warning("No equity available from MT5 (not connected).")
+        st.markdown("#### Behavioral Mirror: Your Key Psychological Metrics")
+        # Replace the 3D chart with layered concentric rings
+        try:
+            # Use cached recent trades if available; else keep empty
+            recent_cached = pulse_manager._cache_get('adv19:recent_trades:20:7') if 'pulse_manager' in st.session_state else None
+            recent_df_local = pd.DataFrame(recent_cached) if isinstance(recent_cached, list) else (recent_df if 'recent_df' in locals() else pd.DataFrame())
+            _render_behavioral_concentric(recent_df_local, risk_summary)
+        except Exception:
+            st.info("Behavioral metrics unavailable.")
+
+
+# === Whisperer: Discipline Posture, Behavioral Mirror, Session Trajectory, Target Status ===
+def _compute_discipline_today(risk_summary: Dict) -> float:
+    try:
+        # Start at 100, subtract for risk used and warnings
+        daily_used = float(risk_summary.get('daily_risk_used', 0) or 0)
+        warnings = risk_summary.get('warnings', []) or []
+        score = 100.0 - min(40.0, daily_used) - (len(warnings) * 8.0)
+        return max(0.0, min(100.0, score))
+    except Exception:
+        return 100.0
+
+
+def _render_discipline_posture(risk_summary: Dict):
+    # Prefer backend summary if available
+    try:
+        dj = os.getenv('DJANGO_API_URL', 'http://django:8000').rstrip('/')
+        resp = requests.get(f"{dj}/api/v1/discipline/summary", timeout=1.0)
+        if resp.ok:
+            ds = resp.json() or {}
+            today = float(ds.get('today') or _compute_discipline_today(risk_summary))
+            seven = ds.get('seven_day') or []
+            events_today = ds.get('events_today') or []
         else:
-            fig3d = create_risk_allocation_3d(
-                float(equity or 0.0), anticipated_trades, daily_risk_pct
-            )
-            st.plotly_chart(fig3d, use_container_width=True)
+            today = _compute_discipline_today(risk_summary)
+            seven = []
+            events_today = []
+    except Exception:
+        today = _compute_discipline_today(risk_summary)
+        seven = []
+        events_today = []
+    # Maintain simple history for 7-day sparkline
+    if seven:
+        hist = [float(x.get('score', 0)) for x in seven][-7:]
+    else:
+        key = 'adv19_discipline_7d'
+        hist = st.session_state.get(key) or []
+        if not hist:
+            hist = [max(50.0, today - 10)] * 6 + [today]
+        else:
+            if len(hist) >= 7:
+                hist = hist[-6:] + [today]
+            else:
+                hist = hist + [today]
+        st.session_state[key] = hist
+
+    last_session = float(st.session_state.get('adv19_discipline_prev', today))
+    st.session_state['adv19_discipline_prev'] = today
+
+    colA, colB = st.columns([2, 1])
+    with colA:
+        # Two vertical bars: today vs last session
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=['Today'], y=[today], marker_color='rgba(16,185,129,0.85)'))
+        fig.add_trace(go.Bar(x=['Prev'], y=[last_session], marker_color='rgba(156,163,175,0.55)'))
+        fig.update_layout(height=220, yaxis=dict(range=[0, 100], title='Discipline %'), showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(l=20, r=10, t=10, b=10))
+        st.plotly_chart(fig, use_container_width=True)
+    with colB:
+        # 7d sparkline
+        xs = list(range(1, len(hist) + 1))
+        fig_s = go.Figure(go.Scatter(x=xs, y=hist, mode='lines', line=dict(color='#22d3ee', width=2)))
+        fig_s.update_layout(height=220, xaxis=dict(visible=False), yaxis=dict(visible=False, range=[0, 100]), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(l=10, r=10, t=10, b=10))
+        st.plotly_chart(fig_s, use_container_width=True)
+    # Tooltip-like details
+    ws = risk_summary.get('warnings') or []
+    if ws:
+        st.caption('Why: ' + '; '.join(str(w) for w in ws[:3]))
+
+
+def _render_behavioral_mirror(recent_df: pd.DataFrame, risk_summary: Dict):
+    # Discipline Score (%): use today discipline
+    disc = _compute_discipline_today(risk_summary)
+    # Patience Index: avg minutes between trades today
+    patience = '—'
+    try:
+        df = recent_df.copy()
+        df['time'] = pd.to_datetime(df['time'], errors='coerce')
+        df = df.sort_values('time')
+        today = pd.Timestamp.now().normalize()
+        dft = df[df['time'] >= today]
+        if len(dft) >= 2:
+            deltas = dft['time'].diff().dropna()
+            patience = f"{(deltas.mean().total_seconds()/60):.0f}m"
+    except Exception:
+        pass
+    # Conviction Rate (%): win rate when comment or tag includes 'high' vs others
+    conviction = '—'
+    try:
+        df = recent_df.copy()
+        df['pl_total'] = df.get('profit', 0) + df.get('commission', 0) + df.get('swap', 0)
+        high = df[df.get('comment', '').astype(str).str.contains('high', case=False, na=False)]
+        low = df[~df.index.isin(high.index)]
+        def wr(d):
+            return (d['pl_total'] > 0).mean() * 100 if len(d) else 0
+        conviction = f"{wr(high):.0f}% vs {wr(low):.0f}%"
+    except Exception:
+        pass
+    # Profit Efficiency (%): captured vs max excursion (requires price path; approximate using profit vs 1.5R cap)
+    efficiency = '—'
+    try:
+        df = recent_df.copy()
+        R = 1.0
+        if len(df):
+            eff = (df['profit'].clip(lower=0).mean()) / (R * max(1, len(df))) * 100
+            efficiency = f"{eff:.0f}%"
+    except Exception:
+        pass
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.metric('Discipline', f"{disc:.0f}%")
+    with m2:
+        st.metric('Patience', f"{patience}")
+    with m3:
+        st.metric('Conviction', f"{conviction}")
+    with m4:
+        st.metric('Profit Efficiency', f"{efficiency}")
+
+
+def _render_behavioral_concentric(recent_df: pd.DataFrame, risk_summary: Dict, title: str = "Behavioral Mirror (Concentric)"):
+    """Render concentric bipolar rings: outer=Patience, middle=Discipline, inner=Profit Efficiency."""
+    # Discipline (0..100) → ratio relative to baseline 70
+    disc = _compute_discipline_today(risk_summary)
+    disc_ratio = (disc - 70.0) / 30.0  # ~70 neutral
+    disc_ratio = max(-1.0, min(1.0, disc_ratio))
+    # Patience: average minutes between trades today vs target 15m
+    patience_ratio = 0.0
+    try:
+        df = recent_df.copy()
+        df['time'] = pd.to_datetime(df['time'], errors='coerce')
+        dft = df[df['time'] >= pd.Timestamp.now().normalize()].sort_values('time')
+        if len(dft) >= 2:
+            mins = dft['time'].diff().dropna().mean().total_seconds() / 60.0
+            patience_ratio = (mins - 15.0) / 15.0  # >0 is good
+            patience_ratio = max(-1.0, min(1.0, patience_ratio))
+    except Exception:
+        patience_ratio = 0.0
+    # Profit Efficiency: 0..100 → ratio centered at 50
+    eff_ratio = 0.0
+    try:
+        df = recent_df.copy()
+        if len(df):
+            eff = (df['profit'].clip(lower=0).mean() if 'profit' in df.columns else 0.0)
+            # Approximated vs per-trade notional; center at nominal 50%
+            eff_pct = 50.0 if eff == 0 else 60.0  # placeholder if no resolution
+            eff_ratio = (eff_pct - 50.0) / 50.0
+            eff_ratio = max(-1.0, min(1.0, eff_ratio))
+    except Exception:
+        eff_ratio = 0.0
+
+    st.markdown(f"#### {title}")
+    fig = go.Figure()
+    # Outer ring: Patience
+    patience_color = '#22c55e' if patience_ratio >= 0 else '#ef4444'
+    fig.add_trace(go.Pie(values=[abs(patience_ratio), 1-abs(patience_ratio)], hole=0.55,
+                         marker=dict(colors=[patience_color, 'rgba(255,255,255,0.06)']), textinfo='none',
+                         direction='clockwise' if patience_ratio>=0 else 'counterclockwise', sort=False, showlegend=False))
+    # Middle ring: Discipline
+    disc_color = '#22c55e' if disc_ratio >= 0 else '#ef4444'
+    fig.add_trace(go.Pie(values=[abs(disc_ratio), 1-abs(disc_ratio)], hole=0.70,
+                         marker=dict(colors=[disc_color, 'rgba(255,255,255,0.06)']), textinfo='none',
+                         direction='clockwise' if disc_ratio>=0 else 'counterclockwise', sort=False, showlegend=False))
+    # Inner ring: Profit Efficiency
+    eff_color = '#22c55e' if eff_ratio >= 0 else '#ef4444'
+    fig.add_trace(go.Pie(values=[abs(eff_ratio), 1-abs(eff_ratio)], hole=0.82,
+                         marker=dict(colors=[eff_color, 'rgba(255,255,255,0.06)']), textinfo='none',
+                         direction='clockwise' if eff_ratio>=0 else 'counterclockwise', sort=False, showlegend=False))
+    fig.update_traces(rotation=270)
+    fig.update_layout(height=260, margin=dict(l=0, r=0, t=0, b=0), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption("Outer: Patience • Middle: Discipline • Inner: Profit Efficiency")
+
+
+def _render_session_trajectory(account_info: Dict, risk_summary: Dict):
+    # Build intraday equity series from refreshes
+    key = 'adv19_equity_intraday'
+    L = st.session_state.get(key) or []
+    now = datetime.now()
+    eq = float(account_info.get('equity', 0) or 0)
+    L.append({'ts': now.isoformat(), 'equity': eq})
+    st.session_state[key] = L[-600:]
+    # Prepare plot
+    xs = [pd.to_datetime(x['ts']) for x in st.session_state[key]]
+    ys = [float(x['equity']) for x in st.session_state[key]]
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=xs, y=ys, mode='lines', name='Equity', line=dict(color='#60a5fa', width=2)))
+    # Overlay behavioral markers if available (best-effort from warnings)
+    ws = risk_summary.get('warnings') or []
+    if any('Revenge' in str(w) for w in ws):
+        if xs:
+            fig.add_trace(go.Scatter(x=[xs[-1]], y=[ys[-1]], mode='markers', marker=dict(color='red', size=10), name='Revenge'))
+    if any('Overconfidence' in str(w) for w in ws):
+        if xs:
+            fig.add_trace(go.Scatter(x=[xs[-1]], y=[ys[-1]], mode='markers', marker=dict(color='yellow', size=10), name='Overconfidence'))
+    # Profit milestone marker hint (last point when milestone event exists stored earlier)
+    try:
+        if st.session_state.get('adv19_last_milestone'):
+            ts, val = st.session_state['adv19_last_milestone']
+            fig.add_trace(go.Scatter(x=[pd.to_datetime(ts)], y=[float(val)], mode='markers', marker=dict(color='green', size=10), name='Milestone'))
+    except Exception:
+        pass
+    fig.update_layout(height=260, margin=dict(l=20, r=10, t=10, b=10), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _render_target_status(profit_val: float, equity_val: float, daily_profit_pct: float, milestone_threshold: float = 0.75):
+    target_amt = equity_val * (daily_profit_pct / 100.0) if equity_val else 0.0
+    prog = (max(0.0, profit_val) / target_amt) if target_amt > 0 else 0.0
+    # Simple circular progress via pie donut
+    fig = go.Figure(data=[
+        go.Pie(values=[prog, max(0.0, 1.0 - prog)], hole=0.7, marker=dict(colors=['#22c55e', 'rgba(255,255,255,0.08)']), textinfo='none')
+    ])
+    label = "Protect" if prog >= milestone_threshold else f"{int(prog*100)}%"
+    fig.update_layout(height=200, showlegend=False, annotations=[dict(text=label, font_size=18, showarrow=False)], margin=dict(l=10, r=10, t=10, b=10), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _donut_tile(progress: float, center_text: str, active_color: str, title: str, subtitle: Optional[str] = None, center_font_size: int = 14):
+    p = max(0.0, min(1.0, float(progress or 0.0)))
+    fig = go.Figure(data=[
+        go.Pie(values=[p, max(0.0, 1.0 - p)], hole=0.74, marker=dict(colors=[active_color, 'rgba(255,255,255,0.08)']), textinfo='none')
+    ])
+    fig.update_layout(
+        height=185,
+        showlegend=False,
+        annotations=[dict(text=center_text, font_size=center_font_size, showarrow=False)],
+        margin=dict(l=4, r=4, t=4, b=4),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)'
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption(f"{title}" + (f" • {subtitle}" if subtitle else ""))
+
+
+def _donut_bipolar(value_ratio: float, center_text: str, title: str, pos_color: str = '#22c55e', neg_color: str = '#ef4444', center_font_size: int = 13):
+    """Render a bipolar donut starting at 12 o'clock.
+    Positive values (>=0) go clockwise in green; negative go counterclockwise in red.
+    value_ratio is clipped to [-1, 1].
+    """
+    v = max(-1.0, min(1.0, float(value_ratio or 0.0)))
+    direction = 'clockwise' if v >= 0 else 'counterclockwise'
+    color = pos_color if v >= 0 else neg_color
+    arc = abs(v)
+    # Build donut with arc and remainder
+    fig = go.Figure(data=[
+        go.Pie(values=[arc, max(0.0, 1.0 - arc)],
+               hole=0.70,
+               marker=dict(colors=[color, 'rgba(255,255,255,0.08)']),
+               textinfo='none',
+               direction=direction,
+               sort=False)
+    ])
+    fig.update_layout(
+        height=240,
+        showlegend=False,
+        annotations=[dict(text=center_text, font_size=center_font_size, showarrow=False)],
+        margin=dict(l=0, r=0, t=0, b=0),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)'
+    )
+    # Set 12 o'clock as start
+    fig.update_traces(rotation=270)
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption(title)
+
+
+def _render_top_three_donuts(account_info: Dict):
+    equity_val = float(account_info.get('equity', 0) or 0)
+    balance_val = float(account_info.get('balance', 0) or 0)
+    profit_val = float(account_info.get('profit', 0) or 0)
+    # Baseline/SoD
+    baseline = float(os.getenv('MT5_BASELINE_EQUITY', '200000') or 200000)
+    sod_key = f"adv19_sod_{datetime.now().strftime('%Y%m%d')}"
+    sod_equity = float(st.session_state.get(sod_key, equity_val) or equity_val)
+    daily_profit_pct = float(st.session_state.get('adv19_daily_profit_pct', 1.0))
+    daily_risk_pct = float(st.session_state.get('adv19_daily_risk_pct', 3.0))
+
+    # 1) Balance donut — bipolar, 10% full ring
+    bal_delta_ratio = (balance_val - baseline) / baseline if baseline else 0.0
+    bal_ratio = max(-1.0, min(1.0, bal_delta_ratio / 0.10))
+
+    # 2) SoD Equity donut — bipolar, pos scale = daily target, neg scale = daily risk cap
+    eq_delta_ratio = (equity_val - sod_equity) / sod_equity if sod_equity else 0.0
+    pos_scale = daily_profit_pct / 100.0 if daily_profit_pct > 0 else 0.01
+    neg_scale = daily_risk_pct / 100.0 if daily_risk_pct > 0 else 0.01
+    if eq_delta_ratio >= 0:
+        eq_ratio = min(1.0, eq_delta_ratio / pos_scale)
+    else:
+        eq_ratio = -min(1.0, abs(eq_delta_ratio) / neg_scale)
+
+    # 3) PnL donut — bipolar, pos scale = daily target, neg scale = daily risk cap
+    target_amt = sod_equity * pos_scale if sod_equity else 0.0
+    loss_cap_amt = sod_equity * neg_scale if sod_equity else 0.0
+    if profit_val >= 0:
+        pnl_ratio = (profit_val / target_amt) if target_amt > 0 else 0.0
+        pnl_ratio = min(1.0, pnl_ratio)
+    else:
+        pnl_ratio = -min(1.0, abs(profit_val) / loss_cap_amt) if loss_cap_amt > 0 else 0.0
+
+    # Build feeds with graceful fallbacks (awaiting feed → track)
+    balance_feed = {
+        'balance_now': balance_val,
+        'pnl_total_pct': None,  # awaiting feed
+        'pnl_30d_pct': None,
+        'pnl_ytd_pct': None,
+    }
+    equity_feed = {
+        'equity_sod': sod_equity,
+        'session_pnl': profit_val,
+        'pct_to_target': pnl_ratio,  # already normalized −1..+1 toward goal/loss
+        'risk_used_pct': None,  # awaiting feed unless provided by backend
+        'exposure_pct': None,
+    }
+    trade_feed = {
+        'pnl_day_vs_goal': pnl_ratio,
+        'realized_usd': None,
+        'unrealized_usd': None,
+        'profit_efficiency': None,
+        'eff_trend_15m': 0,
+    }
+
+    d1, d2, d3 = st.columns(3)
+    with d1:
+        fig_balance = concentric_ring(
+            center_title="Balance",
+            center_value=f"${balance_feed['balance_now']:,.0f}",
+            caption="±10% total; 30D/YTD shells",
+            outer_bipolar=(balance_feed['pnl_total_pct'] or None) and (balance_feed['pnl_total_pct'] / 0.10),
+            outer_cap=1.0,
+            middle_mode="unipolar",
+            middle_val=(None if balance_feed['pnl_30d_pct'] is None else min(abs(balance_feed['pnl_30d_pct'] / 0.10), 1.0)),
+            inner_unipolar=(None if balance_feed['pnl_ytd_pct'] is None else min(abs(balance_feed['pnl_ytd_pct'] / 0.20), 1.0)),
+            size=(280, 280),
+        )
+        st.plotly_chart(fig_balance, use_container_width=True, config={'displayModeBar': False})
+    with d2:
+        fig_equity = concentric_ring(
+            center_title="Equity",
+            center_value=f"${equity_feed['session_pnl']:,.0f}",
+            caption="Goal/Risk/Exposure",
+            outer_bipolar=equity_feed['pct_to_target'],
+            middle_mode="unipolar",
+            middle_val=equity_feed['risk_used_pct'],
+            inner_unipolar=equity_feed['exposure_pct'],
+            size=(280, 280),
+        )
+        st.plotly_chart(fig_equity, use_container_width=True, config={'displayModeBar': False})
+    with d3:
+        realized = trade_feed['realized_usd'] or 0.0
+        unreal = trade_feed['unrealized_usd'] or 0.0
+        tot_abs = abs(realized) + abs(unreal) or 1.0
+        left = abs(realized) / tot_abs
+        right = abs(unreal) / tot_abs
+        trend = trade_feed['eff_trend_15m'] or 0
+        trend_glyph = '▲' if trend > 0 else '▼' if trend < 0 else '•'
+        fig_pnl = concentric_ring(
+            center_title="P&L",
+            center_value=f"${(realized+unreal):,.0f} {trend_glyph}",
+            caption="Eff. & R/U split",
+            outer_bipolar=trade_feed['pnl_day_vs_goal'],
+            middle_mode="split",
+            middle_split=(left, right),
+            inner_unipolar=trade_feed['profit_efficiency'],
+            size=(280, 280),
+        )
+        st.plotly_chart(fig_pnl, use_container_width=True, config={'displayModeBar': False})
+
+
+def _render_performance_tiles(account_info: Dict, risk_summary: Dict):
+    equity_val = float(account_info.get('equity', 0) or 0)
+    balance_val = float(account_info.get('balance', 0) or 0)
+    profit_val = float(account_info.get('profit', 0) or 0)
+    # Pull session parameters
+    daily_profit_pct = float(st.session_state.get('adv19_daily_profit_pct', 1.0))
+    daily_risk_pct = float(st.session_state.get('adv19_daily_risk_pct', 3.0))
+    # Compute SoD (start-of-day) equity from session cache
+    sod_key = f"adv19_sod_{datetime.now().strftime('%Y%m%d')}"
+    sod_equity = float(st.session_state.get(sod_key, equity_val) or equity_val)
+    # PnL vs Daily Profit Target (donut with PnL inside)
+    target_amt = sod_equity * (daily_profit_pct / 100.0) if sod_equity else 0.0
+    pnl_prog = (max(0.0, profit_val) / target_amt) if target_amt > 0 else 0.0
+    # Balance growth since SoD (map full ring to +20%)
+    bal_growth = (balance_val - sod_equity) / sod_equity if sod_equity else 0.0
+    bal_growth_prog = max(0.0, min(1.0, bal_growth / 0.20))
+
+    col1, col2 = st.columns(2)
+    with col1:
+        _donut_tile(
+            progress=pnl_prog,
+            center_text=f"${profit_val:,.0f}",
+            active_color='#22c55e',
+            title='Target Progress',
+            subtitle=f"{int(pnl_prog*100) if target_amt>0 else 0}% of ${target_amt:,.0f}"
+        )
+    with col2:
+        delta_bal = balance_val - sod_equity
+        _donut_tile(
+            progress=bal_growth_prog,
+            center_text=(f"+${delta_bal:,.0f}" if delta_bal >= 0 else f"-${abs(delta_bal):,.0f}"),
+            active_color='#a78bfa',
+            title='Balance since SoD',
+            subtitle=f"Start ${sod_equity:,.0f} • Full ring +20%"
+        )
 
 def get_trait_history(limit: int = 20) -> List[Dict]:
     """Fetch recent behavioral traits/incidents (no mocks)."""
@@ -1334,13 +1739,26 @@ def main():
                         positions_df = pd.DataFrame()
             if positions_df.empty:
                 positions_df = pulse_manager.get_positions()
+
+            # Persist last good values for UI-only reruns
+            try:
+                st.session_state['adv19_account_info_last'] = account_info or st.session_state.get('adv19_account_info_last') or {}
+                st.session_state['adv19_risk_last'] = risk_data or st.session_state.get('adv19_risk_last') or {}
+                st.session_state['adv19_positions_last'] = positions_df.to_dict(orient='records') if isinstance(positions_df, pd.DataFrame) else st.session_state.get('adv19_positions_last') or []
+                st.session_state['adv19_confluence_last'] = confluence_data or st.session_state.get('adv19_confluence_last') or {}
+            except Exception:
+                pass
         else:
             # UI-only run: use cached values to prevent PnL flicker on slider interactions
-            account_info = pulse_manager._cache_get("adv19:account_info") or {}
-            risk_data = pulse_manager._cache_get("adv19:risk_summary") or {}
-            positions_df = pd.DataFrame(pulse_manager._cache_get('adv19:positions') or [])
-            confluence_data = {}
-            risk_event = {}
+            account_info = st.session_state.get('adv19_account_info_last') or pulse_manager._cache_get("adv19:account_info") or {}
+            risk_data = st.session_state.get('adv19_risk_last') or pulse_manager._cache_get("adv19:risk_summary") or {}
+            last_positions = st.session_state.get('adv19_positions_last') or pulse_manager._cache_get('adv19:positions') or []
+            try:
+                positions_df = pd.DataFrame(last_positions)
+            except Exception:
+                positions_df = pd.DataFrame()
+            confluence_data = st.session_state.get('adv19_confluence_last') or {}
+            risk_event = st.session_state.get('adv19_risk_event_last') or {}
     except Exception as e:
         st.error(f"Error loading data: {e}")
         account_info = {}
@@ -1369,51 +1787,35 @@ def main():
     profit_val = float(account_info.get('profit', 0) or 0)
     margin_level_val = float(account_info.get('margin_level', 0) or 0)
 
-    colm1, colm2, colm3, colm4 = st.columns(4)
-    with colm1:
-        st.metric("💰 Balance", f"${balance_val:,.2f}", f"${profit_val:,.2f}")
-    with colm2:
-        base = balance_val if balance_val > 0 else 1.0
-        eq_delta_pct = ((equity_val / base - 1) * 100) if base else 0
-        st.metric("📊 Equity", f"${equity_val:,.2f}", f"{eq_delta_pct:.2f}%")
-    with colm3:
-        st.metric("🎯 Margin Level", f"{margin_level_val:,.2f}%", "Safe" if margin_level_val > 200 else "Warning")
-    with colm4:
-        # Profit Milestone "whisper": suggest protection when progress is meaningful
-        try:
-            # Pull UI-set values if present; fall back to sensible defaults
-            daily_risk_pct = float(st.session_state.get('adv19_daily_risk_pct', 3.0))
-            daily_profit_pct = float(st.session_state.get('adv19_daily_profit_pct', 1.0))
-            anticipated_trades = int(st.session_state.get('adv19_anticipated_trades', 5))
-            milestone_threshold = float(os.getenv('PROFIT_MILESTONE_THRESHOLD', '0.75'))
+    # Bring back concise text row (no margin): Balance / Equity / PnL
+    baseline = float(os.getenv('MT5_BASELINE_EQUITY', '200000') or 200000)
+    sod_key = f"adv19_sod_{datetime.now().strftime('%Y%m%d')}"
+    sod_equity = float(st.session_state.get(sod_key, equity_val) or equity_val)
+    daily_profit_pct = float(st.session_state.get('adv19_daily_profit_pct', 1.0))
+    target_amt_top = sod_equity * (daily_profit_pct / 100.0) if sod_equity else 0.0
 
-            daily_risk_amount = equity_val * (daily_risk_pct / 100.0)
-            per_trade_risk = daily_risk_amount / max(anticipated_trades, 1)
-            daily_profit_target_amt = equity_val * (daily_profit_pct / 100.0)
-            milestone_amt = daily_profit_target_amt * milestone_threshold if daily_profit_target_amt else 0.0
+    t1, t2, t3 = st.columns(3)
+    with t1:
+        st.metric("Balance", f"${balance_val:,.2f}")
+        st.caption(f"Start ${baseline:,.0f}")
+    with t2:
+        st.metric("Equity", f"${equity_val:,.2f}")
+        st.caption(f"SoD ${sod_equity:,.0f}")
+    with t3:
+        st.metric("PnL", f"${profit_val:,.2f}")
+        st.caption(f"Target ${target_amt_top:,.0f}")
 
-            pnl_delta_text = None
-            # Prefer server-provided event if available
-            if isinstance(risk_event, dict) and risk_event.get('event') == 'profit_milestone_reached':
-                pnl_delta_text = "🎯 Consider protecting your position"
-            if profit_val > 0:
-                if (milestone_amt and profit_val >= milestone_amt) or (per_trade_risk and profit_val >= per_trade_risk):
-                    # Compose concise whisper
-                    pct_txt = f"{int(milestone_threshold * 100)}%" if milestone_amt else ""
-                    pnl_delta_text = f"🎯 {pct_txt} target reached — consider protecting" if pct_txt else "🎯 Consider protecting your position"
-        except Exception:
-            pnl_delta_text = None
-        # Neutral delta color to avoid green/red bias
-        if pnl_delta_text:
-            st.metric("📈 PnL", f"${profit_val:,.2f}", delta=pnl_delta_text, delta_color="off")
-        else:
-            st.metric("📈 PnL", f"${profit_val:,.2f}")
+    # Top three bipolar donuts below the text row (no extra separators)
+    _render_top_three_donuts(account_info)
 
     # Target progress indicators (below top metrics)
     try:
         lock_ratio_ui = float(st.session_state.get('adv19_lock_ratio', 0.5))
     except Exception:
         lock_ratio_ui = 0.5
+    # Ensure risk/target params are defined before use
+    daily_risk_pct = float(st.session_state.get('adv19_daily_risk_pct', 3.0))
+    daily_profit_pct = float(st.session_state.get('adv19_daily_profit_pct', 1.0))
     risk_cap_amt = equity_val * (daily_risk_pct / 100.0) if equity_val else 0.0
     target_amt = equity_val * (daily_profit_pct / 100.0) if equity_val else 0.0
     per_trade_risk = (equity_val * (daily_risk_pct / 100.0)) / max(int(st.session_state.get('adv19_anticipated_trades', 5)), 1) if equity_val else 0.0
@@ -1438,8 +1840,16 @@ def main():
             f"🔒 If trail now at {lock_ratio_ui*100:,.0f}% → lock ${lock_preview:,.0f}"
         )
 
+    # Performance donuts at the top
+    st.markdown("---")
+    # (Removed) auxiliary performance donuts
+
     # Advanced Risk Control Panel (with 3D allocation)
     render_risk_control_panel(account_info, risk_data)
+
+    # Whisperer: Discipline Posture (replaces 3D impact in spirit)
+    st.subheader("🧭 Discipline Posture")
+    _render_discipline_posture(risk_data)
 
     # Key info derived from risk controls for quick guardrails
     equity_val = float(account_info.get('equity', 0) or 0)
@@ -1493,80 +1903,66 @@ def main():
         st.caption(f"Bridge: {'🟢 Online' if bridge_online else '🔴 Offline'} • {bridge_url_display}")
 
         # Inline Protect Actions (Move SL to BE / Trail 50%)
-        st.markdown("**Protect Actions**")
-        lock_ratio = st.slider("Trail lock-in ratio", 0.1, 0.9, 0.5, 0.05, help="Fraction of current profit to lock when trailing")
-        try:
-            st.session_state['adv19_lock_ratio'] = float(lock_ratio)
-            # Mark this as a UI-only event to avoid refetching account_info on this rerun
-            st.session_state['_adv19_ui_event'] = True
-        except Exception:
-            pass
-        if not bridge_online:
-            st.info("Bridge is offline — protection actions are temporarily disabled.")
+        st.markdown("**Protect Actions — coming soon**")
+        st.caption("SL → BE, trailing lock (25/50/75%), and partial closes will be enabled here.")
+        # Make disabled buttons visually consistent and transparent
+        st.markdown(
+            """
+            <style>
+            div.stButton > button:disabled {
+                opacity: 0.55 !important;
+                background: rgba(255,255,255,0.06) !important;
+                border: 1px solid rgba(255,255,255,0.18) !important;
+                color: #c9c9c9 !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
         max_rows = min(10, len(positions_display))
         for idx, row in positions_display.head(max_rows).iterrows():
-            c1, c2, c3, c4 = st.columns([3, 1.2, 1.4, 3])
+            c1, c2, c3, c4, c5, c6 = st.columns([3, 1, 1, 1, 1, 1])
             with c1:
                 st.caption(f"{row.get('symbol','—')} • Ticket {int(row.get('ticket', 0)) if 'ticket' in row else '—'} • PnL ${float(row.get('profit',0) or 0):,.2f}")
             with c2:
-                if st.button("Move SL → BE", key=f"be_{row.get('ticket','x')}", disabled=not bridge_online):
-                    try:
-                        api = os.getenv("DJANGO_API_URL", "http://django:8000").rstrip('/')
-                        token = os.getenv("DJANGO_API_TOKEN", "").strip().strip('"')
-                        headers = {"Content-Type": "application/json"}
-                        if token:
-                            headers["Authorization"] = f"Token {token}"
-                        payload = {"action": "protect_breakeven", "ticket": int(row.get('ticket')), "symbol": row.get('symbol')}
-                        # Try new endpoint first, then legacy alias
-                        url_primary = f"{api}/api/v1/protect/position/"
-                        url_fallback = f"{api}/api/v1/trades/protect/"
-                        r = requests.post(url_primary, headers=headers, json=payload, timeout=4.0)
-                        if (not r.ok) and getattr(r, 'status_code', None) == 404:
-                            r = requests.post(url_fallback, headers=headers, json=payload, timeout=4.0)
-                        if r.ok and (r.json() or {}).get('ok'):
-                            st.success("SL moved to breakeven")
-                        else:
-                            st.error(f"Failed: {getattr(r,'status_code', '—')}")
-                    except Exception as e:
-                        st.error(f"Error: {e}")
+                st.button(
+                    "SL → BE",
+                    key=f"be_{row.get('ticket','x')}",
+                    disabled=True,
+                    help="Set stop-loss to entry (breakeven). Coming soon.",
+                )
             with c3:
-                if st.button("Trail SL (50%)", key=f"trail_{row.get('ticket','x')}", disabled=not bridge_online):
-                    try:
-                        api = os.getenv("DJANGO_API_URL", "http://django:8000").rstrip('/')
-                        token = os.getenv("DJANGO_API_TOKEN", "").strip().strip('"')
-                        headers = {"Content-Type": "application/json"}
-                        if token:
-                            headers["Authorization"] = f"Token {token}"
-                        payload = {"action": "protect_trail_50", "ticket": int(row.get('ticket')), "symbol": row.get('symbol'), "lock_ratio": float(lock_ratio)}
-                        url_primary = f"{api}/api/v1/protect/position/"
-                        url_fallback = f"{api}/api/v1/trades/protect/"
-                        r = requests.post(url_primary, headers=headers, json=payload, timeout=4.0)
-                        if (not r.ok) and getattr(r, 'status_code', None) == 404:
-                            r = requests.post(url_fallback, headers=headers, json=payload, timeout=4.0)
-                        if r.ok and (r.json() or {}).get('ok'):
-                            st.success("Trailing SL applied")
-                        else:
-                            st.error(f"Failed: {getattr(r,'status_code', '—')}")
-                    except Exception as e:
-                        st.error(f"Error: {e}")
+                st.button(
+                    "Trail 25%",
+                    key=f"trail25_{row.get('ticket','x')}",
+                    disabled=True,
+                    help="Trailing stop to lock 75% of current profit. Coming soon.",
+                )
             with c4:
-                st.caption("")
+                st.button(
+                    "Trail 50%",
+                    key=f"trail50_{row.get('ticket','x')}",
+                    disabled=True,
+                    help="Trailing stop to lock 50% of current profit. Coming soon.",
+                )
+            with c5:
+                st.button(
+                    "Trail 75%",
+                    key=f"trail75_{row.get('ticket','x')}",
+                    disabled=True,
+                    help="Trailing stop to lock 25% of current profit. Coming soon.",
+                )
+            with c6:
+                st.button("Partial 25%", key=f"partial25_{row.get('ticket','x')}", disabled=True, help="Close 25% of position size. Coming soon.")
+                st.button("Partial 50%", key=f"partial50_{row.get('ticket','x')}", disabled=True, help="Close 50% of position size. Coming soon.")
     
     # Behavioral Psychology Insights (full width)
     render_psychology_insights_panel(confluence_data, risk_data)
 
-    # Risk Metrics just below Session Mindset (transparent metrics-style)
+    # Behavioral Mirror metrics (transparent metrics-style)
     st.markdown("---")
-    st.subheader("🎯 Risk Metrics")
-    rm1, rm2, rm3, rm4 = st.columns(4)
-    with rm1:
-        st.metric("Daily Risk Used (%)", "NA")
-    with rm2:
-        st.metric("Current Drawdown (%)", "NA")
-    with rm3:
-        st.metric("Trade Limit Usage (%)", "NA")
-    with rm4:
-        st.metric("Overall Risk Score", "NA")
+    st.subheader("🪞 Behavioral Mirror")
+    _render_behavioral_mirror(recent_df if 'recent_df' in locals() else pd.DataFrame(), risk_data)
 
     # Last Trade (API first, then Kafka if configured)
     st.subheader("🧾 Last Trade")
@@ -1646,6 +2042,13 @@ def main():
             st.warning(f"⚠️ {warning}")
     else:
         st.success("✅ All risk parameters within limits")
+
+    # Session trajectory (intraday equity with markers)
+    st.markdown("---")
+    st.subheader("📈 Session Trajectory")
+    _render_session_trajectory(account_info, risk_data)
+
+    # (Removed) duplicate performance tiles below — shown at top
 
     # Opportunities at the bottom
     st.markdown("---")

@@ -198,3 +198,66 @@ def modify_sl_tp_endpoint():
     except Exception as e:
         logger.error(f"Error in modify_sl_tp: {e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
+
+
+@order_bp.route('/partial_close', methods=['POST'])
+@swag_from({
+    'tags': ['Order'],
+    'parameters': [{
+        'name': 'body', 'in': 'body', 'required': True,
+        'schema': {
+            'type': 'object',
+            'properties': {
+                'ticket': {'type': 'integer'},
+                'symbol': {'type': 'string'},
+                'fraction': {'type': 'number', 'minimum': 0.01, 'maximum': 0.99}
+            },
+            'required': ['ticket', 'symbol', 'fraction']
+        }
+    }]
+})
+def partial_close_endpoint():
+    try:
+        data = request.get_json() or {}
+        ticket = int(data.get('ticket'))
+        symbol = data.get('symbol')
+        fraction = float(data.get('fraction'))
+        if not (0 < fraction < 1):
+            return jsonify({'error': 'fraction must be between 0 and 1'}), 400
+        # Find position
+        pos = None
+        positions = mt5.positions_get()
+        if positions:
+            for p in positions:
+                if int(p.ticket) == ticket:
+                    pos = p
+                    break
+        if pos is None:
+            return jsonify({'error': 'position not found'}), 404
+        vol_to_close = round(float(pos.volume) * fraction, 2)
+        if vol_to_close <= 0:
+            return jsonify({'error': 'computed close volume <= 0'}), 400
+        tick = mt5.symbol_info_tick(symbol)
+        if tick is None:
+            return jsonify({'error': 'no tick'}), 400
+        opposite = mt5.ORDER_TYPE_SELL if int(pos.type) == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
+        price = tick.bid if opposite == mt5.ORDER_TYPE_SELL else tick.ask
+        req = {
+            'action': mt5.TRADE_ACTION_DEAL,
+            'position': ticket,
+            'symbol': symbol,
+            'volume': vol_to_close,
+            'type': opposite,
+            'price': price,
+            'deviation': 20,
+            'type_time': mt5.ORDER_TIME_GTC,
+            'type_filling': mt5.ORDER_FILLING_IOC,
+        }
+        result = mt5.order_send(req)
+        if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+            return jsonify({'ok': True, 'result': result._asdict()})
+        err = mt5.last_error()
+        return jsonify({'error': 'partial_close_failed', 'retcode': getattr(result, 'retcode', None), 'mt5_error': err}), 400
+    except Exception as e:
+        logger.error(f"Error in partial_close: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
