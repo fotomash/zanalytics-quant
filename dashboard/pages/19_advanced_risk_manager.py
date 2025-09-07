@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 # Use the dashboard-local components module to avoid path issues in Streamlit
 from dashboard.components.ui_concentric import concentric_ring
 from dashboard.components.ui_concentric import donut_system_overview, donut_session_vitals
+from dashboard.components.ui_tri_vitals import make_three_vitals
 from dashboard.components.behavioral_compass import make_behavioral_compass
 from dashboard.pages.components.profit_horizon_panel import render_profit_horizon
 from dashboard.pages.components.whisper_panel import render_whisper_panel
@@ -1253,8 +1254,16 @@ def _render_top_three_donuts(account_info: Dict):
             st.session_state[today_key] = True
             st.success("Session ready")
 
-    # Two primary donuts: Session Vitals and Behavioral Compass
-    st.subheader("🫀 Session Vitals • 🧭 Behavioral Compass")
+    # Move Pulse Decision Surface to the top for at‑a‑glance view
+    st.subheader("🎯 Pulse Decision Surface")
+    try:
+        render_pulse_tiles(pulse_manager)
+    except Exception:
+        st.info("Decision surface unavailable")
+    st.markdown("---")
+
+    # Two primary donuts: Behavioral Compass and Session Vitals (aligned)
+    st.subheader("🧭 Behavioral Compass • 🫀 Session Vitals")
     try:
         ms = safe_api_call("GET", "api/v1/mirror/state") or {}
     except Exception:
@@ -1278,25 +1287,6 @@ def _render_top_three_donuts(account_info: Dict):
         pass
     c_left, c_right = st.columns(2)
     with c_left:
-        # Use API-provided SoD and policy; fallback to sidebar
-        sod_equity_api = risk_env.get('sod_equity')
-        daily_profit_pct_api = risk_env.get('daily_profit_pct')
-        daily_risk_pct_api = risk_env.get('daily_risk_pct')
-        fig_sess = donut_session_vitals(
-            equity_usd=equity_val,
-            sod_equity_usd=(sod_equity_api or sod_equity),
-            baseline_equity_usd=baseline,
-            daily_profit_pct=float(daily_profit_pct_api or daily_profit_pct),
-            daily_risk_pct=float(daily_risk_pct_api or daily_risk_pct),
-            target_amount_usd=(risk_env.get('target_amount') if isinstance(risk_env.get('target_amount'), (int, float)) else None),
-            loss_amount_usd=(risk_env.get('loss_amount') if isinstance(risk_env.get('loss_amount'), (int, float)) else None),
-            max_total_dd_pct=10.0,
-            since_inception_pct=balance_feed.get('pnl_total_pct'),
-            size=(280, 280),
-        )
-        st.plotly_chart(fig_sess, use_container_width=True, config={'displayModeBar': False})
-        st.caption("Outer: Hard Deck • Middle: Daily DD • Inner: P&L")
-    with c_right:
         fig_compass = make_behavioral_compass(
             discipline=ms.get('discipline') or 100,
             patience_ratio=ms.get('patience_ratio') or 0,
@@ -1309,48 +1299,78 @@ def _render_top_three_donuts(account_info: Dict):
         )
         st.plotly_chart(fig_compass, use_container_width=True, config={'displayModeBar': False})
         st.caption("Outer: Discipline • Mid: Patience/Efficiency • Inner: Conviction")
+    with c_right:
+        # Three‑donut Session Vitals
+        try:
+            # live prev_close from balance feed if present
+            bal_feed = safe_api_call('GET', 'api/v1/feed/balance') or {}
+            prev_close = None
+            try:
+                prev_close = (bal_feed.get('markers') or {}).get('prev_close')
+            except Exception:
+                prev_close = None
+            target_amt = risk_env.get('target_amount') if isinstance(risk_env.get('target_amount'), (int, float)) else None
+            loss_amt = risk_env.get('loss_amount') if isinstance(risk_env.get('loss_amount'), (int, float)) else None
+            exposure = (st.session_state.get('adv19_risk_last') or {}).get('exposure_pct')
+            d = int(ms.get('discipline') or 0)
+            p = int(ms.get('patience_ratio') or 0)
+            e = int(ms.get('efficiency') or 0)
+            f1, f2, f3 = make_three_vitals(
+                equity_usd=equity_val, sod_equity_usd=(sod_equity_api or sod_equity), baseline_equity_usd=baseline,
+                target_amount_usd=target_amt, loss_amount_usd=loss_amt,
+                exposure_pct=exposure, prev_close_equity_usd=prev_close,
+                discipline=d, patience=p, efficiency=e, size=280)
+            d1, d2, d3 = st.columns(3)
+            with d1:
+                st.plotly_chart(f1, use_container_width=True, config={'displayModeBar': False})
+                st.caption("Equity vs SoD/Prev Close")
+            with d2:
+                st.plotly_chart(f2, use_container_width=True, config={'displayModeBar': False})
+                st.caption("Exposure • P&L vs target/cap")
+            with d3:
+                st.plotly_chart(f3, use_container_width=True, config={'displayModeBar': False})
+                st.caption("Behavior: Patience • Discipline • Efficiency")
+        except Exception:
+            st.info("Vitals unavailable")
 
-    # Pattern Watch — tiny cockpit status with link to Whisperer
+    # Unified Whisperer block (compass, patterns, vitals, trajectory, whisperer, tiles)
+    # Already rendered compass/vitals above; here render the remainder (patterns, trajectory, whisperer, tiles)
     try:
-        patt = safe_api_call("GET", "api/v1/behavioral/patterns") or {}
+        # Pattern Watch under the donuts
+        try:
+            patt = safe_api_call("GET", "api/v1/behavioral/patterns") or {}
+        except Exception:
+            patt = {}
+        st.subheader("🧩 Pattern Watch")
+        if isinstance(patt, dict) and patt:
+            cols = st.columns(3)
+            def _chip(active, label, note):
+                color = ('#EF4444' if active else '#22C55E')
+                st.markdown(f"<div style='display:inline-block;padding:6px 10px;border-radius:14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:{color}'>{label}: {'ON' if active else 'OK'} {('• '+note) if (note and active) else ''}</div>", unsafe_allow_html=True)
+            with cols[0]:
+                p = patt.get('revenge_trading') or {}
+                _chip(bool(p.get('active')), 'Revenge', p.get('note') or '')
+            with cols[1]:
+                p = patt.get('fomo') or {}
+                _chip(bool(p.get('active')), 'FOMO', p.get('note') or '')
+            with cols[2]:
+                p = patt.get('fear_cut_winners') or {}
+                _chip(bool(p.get('active')), 'Fear (cut winners)', p.get('note') or '')
+        # Session Trajectory (full)
+        st.subheader("📈 Session Trajectory")
+        series = _fetch_equity_series_df()
+        if not series.empty:
+            figT = go.Figure()
+            figT.add_trace(go.Scatter(x=series['time'], y=series['pnl'], mode='lines', name='P&L',
+                                      line=dict(color='#22C55E', width=2), fill='tozeroy',
+                                      fillcolor='rgba(34,197,94,0.1)'))
+            figT.add_hline(y=0, line_dash='dash', line_color='gray', opacity=0.3)
+            figT.update_layout(height=300, margin=dict(t=0,b=20,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(figT, use_container_width=True)
+        else:
+            st.info("No trades today — trajectory will appear once trades close.")
     except Exception:
-        patt = {}
-    if isinstance(patt, dict) and patt:
-        st.markdown("#### 🧠 Pattern Watch")
-        cols = st.columns(3)
-        def _chip(active, label, note):
-            color = ('#EF4444' if active else '#22C55E')
-            st.markdown(f"<div style='display:inline-block;padding:6px 10px;border-radius:14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:{color}'>{label}: {'ON' if active else 'OK'} {('• '+note) if (note and active) else ''}</div>", unsafe_allow_html=True)
-        with cols[0]:
-            p = patt.get('revenge_trading') or {}
-            _chip(bool(p.get('active')), 'Revenge', p.get('note') or '')
-            if p.get('active') and st.button('Nudge: Cooling (10m)', key='pat_rev_cool'):
-                safe_api_call('POST', 'api/pulse/whisper/ack', {'id': 'pattern:revenge', 'reason': 'Cooling 10m suggested'})
-        with cols[1]:
-            p = patt.get('fomo') or {}
-            _chip(bool(p.get('active')), 'FOMO', p.get('note') or '')
-            if p.get('active') and st.button('Nudge: Slow Tempo', key='pat_fomo_slow'):
-                safe_api_call('POST', 'api/pulse/whisper/ack', {'id': 'pattern:fomo', 'reason': 'Tempo slowed; patience focus'})
-        with cols[2]:
-            p = patt.get('fear_cut_winners') or {}
-            _chip(bool(p.get('active')), 'Fear (cut winners)', p.get('note') or '')
-            if p.get('active') and st.button('Nudge: Let Winner Run', key='pat_fear_run'):
-                safe_api_call('POST', 'api/pulse/whisper/ack', {'id': 'pattern:fear_cut_winners', 'reason': 'Let winner run; partials or trail'})
-        st.caption("See Whisperer for coaching and actions.")
-    # Discipline Posture panel
-    st.subheader("📏 Discipline Posture")
-    render_discipline_posture_panel()
-
-    # Whisper Feed (kept)
-    st.markdown("---")
-    st.subheader("🫢 The Whisperer")
-    render_whisper_panel(api=os.getenv("DJANGO_API_URL", "http://django:8000").rstrip('/') + "/api/pulse/whispers")
-    st.markdown("---")
-    st.subheader("Whisperer Timeline")
-    render_whisper_timeline(limit=60)
-    st.markdown("---")
-    st.subheader("⏳ Profit Horizon")
-    render_profit_horizon(limit=20)
+        pass
 
 
 def _render_performance_tiles(account_info: Dict, risk_summary: Dict):
@@ -1774,9 +1794,29 @@ def _render_unified_whisperer_block(account_info: Dict, risk_env: Dict):
     else:
         st.info("No trades today — trajectory will appear once trades close.")
 
-    # Discipline Posture (placeholder)
+    # Discipline Posture (wired to /api/v1/discipline/summary)
     st.subheader("📊 Discipline Posture")
-    st.info("Awaiting discipline posture feed")
+    try:
+        dsum = safe_api_call('GET', 'api/v1/discipline/summary') or {}
+        today_score = dsum.get('today')
+        series7 = dsum.get('seven_day') or []
+        cdp1, cdp2 = st.columns([1,2])
+        with cdp1:
+            if today_score is not None:
+                st.metric("Today", f"{float(today_score):.0f}%")
+        with cdp2:
+            if isinstance(series7, list) and series7:
+                import pandas as _pd
+                df7 = _pd.DataFrame(series7)
+                if 'date' in df7 and 'score' in df7:
+                    df7['date'] = _pd.to_datetime(df7['date'], errors='coerce')
+                    figD = go.Figure(go.Bar(x=df7['date'], y=df7['score'], marker_color=['#22C55E' if x>=70 else '#FBBF24' if x>=50 else '#EF4444' for x in df7['score']]))
+                    figD.update_layout(height=180, margin=dict(t=10,b=10,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                    st.plotly_chart(figD, use_container_width=True)
+            else:
+                st.caption("No history yet")
+    except Exception:
+        st.info("Discipline summary unavailable")
 
     # The Whisperer (reuse component)
     st.subheader("🤖 The Whisperer")

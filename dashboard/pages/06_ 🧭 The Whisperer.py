@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime
 
 from dashboard.components.ui_concentric import donut_session_vitals
+from dashboard.components.ui_tri_vitals import make_three_vitals
 from dashboard.utils.streamlit_api import (
     safe_api_call,
     render_status_row,
@@ -99,7 +100,7 @@ with colB:
             f"</div>",
             unsafe_allow_html=True)
 
-# Session Vitals (full donut)
+# Session Vitals (three donuts)
 st.subheader("💰 Session Vitals")
 try:
     eq = float(acct.get('equity') or 0)
@@ -107,20 +108,32 @@ try:
     sod = float(risk.get('sod_equity') or bal or eq)
     target_amt = risk.get('target_amount') if isinstance(risk.get('target_amount'), (int, float)) else None
     loss_amt = risk.get('loss_amount') if isinstance(risk.get('loss_amount'), (int, float)) else None
-    daily_profit_pct = float(risk.get('daily_profit_pct') or 0.0)
-    daily_risk_pct = float(risk.get('daily_risk_pct') or 0.0)
-    fig_sess = donut_session_vitals(
-        equity_usd=eq,
-        sod_equity_usd=sod,
-        baseline_equity_usd=bal or sod,
-        daily_profit_pct=daily_profit_pct,
-        daily_risk_pct=daily_risk_pct,
-        target_amount_usd=target_amt,
-        loss_amount_usd=loss_amt,
-        size=(280, 280),
-    )
-    st.plotly_chart(fig_sess, use_container_width=True, config={'displayModeBar': False})
-    st.caption("Outer: Hard Deck • Middle: Daily DD • Inner: P&L vs target/cap")
+    exposure = risk.get('exposure_pct')
+    # previous session close (from balance feed markers if available)
+    bal_feed = safe_api_call('GET', 'api/v1/feed/balance') or {}
+    prev_close = None
+    try:
+        prev_close = (bal_feed.get('markers') or {}).get('prev_close')
+    except Exception:
+        prev_close = None
+    d = int(mirror.get('discipline') or 0)
+    p = int(mirror.get('patience_ratio') or 0)
+    e = int(mirror.get('efficiency') or 0)
+    f1, f2, f3 = make_three_vitals(
+        equity_usd=eq, sod_equity_usd=sod, baseline_equity_usd=bal or sod,
+        target_amount_usd=target_amt, loss_amount_usd=loss_amt,
+        exposure_pct=exposure, prev_close_equity_usd=prev_close,
+        discipline=d, patience=p, efficiency=e, size=280)
+    cV1, cV2, cV3 = st.columns(3)
+    with cV1:
+        st.plotly_chart(f1, use_container_width=True, config={'displayModeBar': False})
+        st.caption("Equity vs SoD/Prev Close")
+    with cV2:
+        st.plotly_chart(f2, use_container_width=True, config={'displayModeBar': False})
+        st.caption("Exposure • P&L vs target/cap")
+    with cV3:
+        st.plotly_chart(f3, use_container_width=True, config={'displayModeBar': False})
+        st.caption("Behavior: Patience • Discipline • Efficiency")
 except Exception:
     st.info("Vitals unavailable")
 
@@ -137,13 +150,28 @@ if not series.empty:
 else:
     st.info("No trades today — trajectory will appear once trades close.")
 
-# Discipline Posture (awaiting a dedicated feed; placeholder structure)
+# Discipline Posture (wired to /api/v1/discipline/summary)
 st.subheader("📊 Discipline Posture")
 try:
-    # If historical discipline becomes available, render real bars; else info
-    st.info("Awaiting discipline posture feed")
+    dsum = safe_api_call('GET', 'api/v1/discipline/summary') or {}
+    today_score = dsum.get('today')
+    series7 = dsum.get('seven_day') or []
+    cdp1, cdp2 = st.columns([1,2])
+    with cdp1:
+        if today_score is not None:
+            st.metric("Today", f"{float(today_score):.0f}%")
+    with cdp2:
+        if isinstance(series7, list) and series7:
+            df7 = pd.DataFrame(series7)
+            if 'date' in df7 and 'score' in df7:
+                df7['date'] = pd.to_datetime(df7['date'], errors='coerce')
+                figD = go.Figure(go.Bar(x=df7['date'], y=df7['score'], marker_color=['#22C55E' if x>=70 else '#FBBF24' if x>=50 else '#EF4444' for x in df7['score']]))
+                figD.update_layout(height=180, margin=dict(t=10,b=10,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                st.plotly_chart(figD, use_container_width=True)
+        else:
+            st.caption("No history yet")
 except Exception:
-    pass
+    st.info("Discipline summary unavailable")
 
 # Whisperer with Quick Actions
 st.subheader("🤖 The Whisperer")
@@ -282,7 +310,10 @@ with bc4:
 st.subheader("🗂️ Trade History")
 try:
     syms = fetch_symbols() or []
-    c1, c2, c3, c4, c5 = st.columns([1,1,1,1,1])
+    c0, c1, c2, c3, c4, c5 = st.columns([1,1,1,1,1,1])
+    with c0:
+        from datetime import date, timedelta
+        last_n = st.number_input("Last N days", min_value=0, max_value=365, value=0, step=1, help="0 = disabled; else overrides From date", key='uh_lastn')
     with c1:
         sel_sym = st.selectbox("Symbol", ['All'] + syms)
         sym = None if sel_sym == 'All' else sel_sym
@@ -294,15 +325,37 @@ try:
         pmin = st.number_input("Min PnL", value=0.0, step=10.0, format="%f", key='uh_pmin')
     with c5:
         pmax = st.number_input("Max PnL", value=0.0, step=10.0, format="%f", key='uh_pmax')
+    # Apply preset last N days if set
+    df_str_from = (dfrom.isoformat() if dfrom else None)
+    df_str_to = (dto.isoformat() if dto else None)
+    if last_n and last_n > 0:
+        try:
+            df_str_from = (date.today() - timedelta(days=int(last_n))).isoformat()
+        except Exception:
+            pass
+
     data = fetch_trade_history_filtered(
         symbol=sym,
-        date_from=(dfrom.isoformat() if dfrom else None),
-        date_to=(dto.isoformat() if dto else None),
+        date_from=df_str_from,
+        date_to=df_str_to,
         pnl_min=(pmin if pmin != 0.0 else None),
         pnl_max=(pmax if pmax != 0.0 else None),
     )
     dfh = pd.DataFrame(data)
     if not dfh.empty:
+        # Quick stats row
+        try:
+            pnl_series = pd.to_numeric(dfh.get('pnl'), errors='coerce').fillna(0.0)
+            total = len(dfh)
+            wins = int((pnl_series > 0).sum())
+            winrate = (wins/total*100.0) if total else 0.0
+            avg_pnl = float(pnl_series.mean()) if total else 0.0
+            cst1, cst2, cst3 = st.columns(3)
+            cst1.metric("Trades", f"{total}")
+            cst2.metric("Win Rate", f"{winrate:.0f}%")
+            cst3.metric("Avg PnL", f"${avg_pnl:,.2f}")
+        except Exception:
+            pass
         if 'ts' in dfh.columns:
             dfh['ts'] = pd.to_datetime(dfh['ts'], errors='coerce')
         cols = [c for c in ['id','ts','symbol','direction','entry','exit','pnl','status'] if c in dfh.columns]
