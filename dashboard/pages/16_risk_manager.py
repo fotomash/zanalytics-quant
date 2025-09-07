@@ -83,7 +83,7 @@ st.markdown(f"""
         box-shadow: 0 4px 32px 0 rgba(12,10,30,0.16);
     }}
     .market-card {{
-        background: rgba(26, 29, 58, 0.55);
+        background: rgba(26, 29, 58, 0.35);
         border-radius: 14px;
         padding: 24px 24px 14px 24px;
         border: 1.2px solid rgba(255,255,255,0.10);
@@ -91,18 +91,23 @@ st.markdown(f"""
         box-shadow: 0 2px 14px 0 rgba(0,0,0,0.23);
     }}
     .pulse-tile {{
-        background: rgba(26, 29, 58, 0.55);
+        background: rgba(26, 29, 58, 0.18);
         color: #eaeaea;
         padding: 1rem;
         border-radius: 0.75rem;
-        border: 1px solid rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.08);
         margin: 0.5rem 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        backdrop-filter: blur(3px);
     }}
     .metric-card {{
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1.5rem;
-        border-radius: 1rem;
-        color: white;
+        background: rgba(255,255,255,0.06);
+        padding: 1.1rem 1.3rem;
+        border-radius: 12px;
+        color: #eaeaea;
+        border: 1px solid rgba(255,255,255,0.08);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.20);
+        backdrop-filter: blur(2px);
     }}
     .risk-metric {{
         padding: 1rem;
@@ -628,42 +633,86 @@ class PulseRiskManager:
             return False
 
     def get_account_info(self) -> Dict:
-        """Get account information with fallback"""
-        if not self.connected:
-            if not self.connect():
-                # Try HTTP MT5 bridge (page 17 style)
-                try:
-                    r = requests.get(f"{self.mt5_url}/account_info", timeout=2.0)
-                    if r.ok:
-                        data = r.json() or {}
-                        if isinstance(data, dict) and data:
-                            self.bridge_available = True
-                            return data
-                    else:
-                        self.status_messages.append(f"HTTP bridge /account_info returned {r.status_code}")
-                except Exception as e:
-                    self.status_messages.append(f"HTTP bridge error: {e}")
+        """Get account information. No mocks; only real sources."""
+        # Try HTTP MT5 bridge first
+        if self.mt5_url:
+            try:
+                r = requests.get(f"{self.mt5_url}/account_info", timeout=2.0)
+                if r.ok:
+                    data = r.json() or {}
+                    if isinstance(data, dict) and data:
+                        self.bridge_available = True
+                        return data
+                else:
+                    self.status_messages.append(f"HTTP bridge /account_info returned {r.status_code}")
+            except Exception as e:
+                self.status_messages.append(f"HTTP bridge error: {e}")
+        # Try native MT5 if available and credentials are set
+        if self.mt5_available and all([self.mt5_login, self.mt5_password, self.mt5_server]):
+            try:
+                if not self.connected:
+                    if mt5.initialize() and mt5.login(login=int(self.mt5_login), password=self.mt5_password, server=self.mt5_server):
+                        self.connected = True
+                if self.connected:
+                    ai = mt5.account_info()
+                    if ai:
+                        return {
+                            'login': ai.login,
+                            'server': ai.server,
+                            'balance': ai.balance,
+                            'equity': ai.equity,
+                            'margin': ai.margin,
+                            'free_margin': ai.margin_free,
+                            'margin_level': ai.margin_level,
+                            'profit': ai.profit,
+                            'leverage': ai.leverage,
+                            'currency': ai.currency,
+                            'name': ai.name,
+                            'company': ai.company,
+                        }
+            except Exception as e:
+                self.status_messages.append(f"MT5 native error: {e}")
+        # No data available
+        return {}
 
-                # Final fallback: MOCK that honors the global baseline (prevents 10k/200k flicker)
-                try:
-                    _baseline = float(os.getenv("MT5_BASELINE_EQUITY") or os.getenv("PULSE_BASELINE_EQUITY") or os.getenv("STARTING_EQUITY", "200000"))
-                except Exception:
-                    _baseline = 200000.0
-                _ccy = os.getenv("MT5_BASELINE_CCY", "USD")
-                return {
-                    'login': 'MOCK',
-                    'server': 'MOCK-SERVER',
-                    'balance': _baseline,
-                    'equity': _baseline,
-                    'margin': 0.00,
-                    'free_margin': _baseline,
-                    'margin_level': 0.00,
-                    'profit': 0.00,
-                    'leverage': 100,
-                    'currency': _ccy,
-                    'name': 'Mock Account',
-                    'company': 'Mock Broker',
-                }
+    def get_positions(self) -> pd.DataFrame:
+        """Get all open positions with error handling"""
+        # Try HTTP MT5 bridge if available
+        try:
+            if self.mt5_url:
+                r = requests.get(f"{self.mt5_url}/positions_get", timeout=2.0)
+                if r.ok:
+                    self.bridge_available = True
+                    data = r.json() or []
+                    if isinstance(data, list) and data:
+                        df = pd.DataFrame(data)
+                        # Normalize time columns if present
+                        for col in ("time", "time_update"):
+                            if col in df.columns:
+                                try:
+                                    df[col] = pd.to_datetime(df[col])
+                                except Exception:
+                                    pass
+                        return df
+        except Exception:
+            pass
+        # Try native MT5 if connected/available
+        try:
+            if self.mt5_available:
+                if not self.connected and self.mt5_login and self.mt5_password and self.mt5_server:
+                    if mt5.initialize() and mt5.login(login=int(self.mt5_login), password=self.mt5_password, server=self.mt5_server):
+                        self.connected = True
+                if self.connected:
+                    positions = mt5.positions_get()
+                    if positions is None or len(positions) == 0:
+                        return pd.DataFrame()
+                    df = pd.DataFrame(list(positions), columns=positions[0]._asdict().keys())
+                    df['time'] = pd.to_datetime(df['time'], unit='s')
+                    df['time_update'] = pd.to_datetime(df['time_update'], unit='s')
+                    return df
+        except Exception:
+            pass
+        return pd.DataFrame()
 st.markdown("""
 <style>
 .psychology-insight {
@@ -730,120 +779,7 @@ def make_drawdown_bar(used_frac: float, dd_pct: float, cap_pct: float) -> go.Fig
     )
     return fig
 
-        try:
-            account_info = mt5.account_info()
-            if account_info is None:
-                return {}
-
-            return {
-                'login': account_info.login,
-                'server': account_info.server,
-                'balance': account_info.balance,
-                'equity': account_info.equity,
-                'margin': account_info.margin,
-                'free_margin': account_info.margin_free,
-                'margin_level': account_info.margin_level,
-                'profit': account_info.profit,
-                'leverage': account_info.leverage,
-                'currency': account_info.currency,
-                'name': account_info.name,
-                'company': account_info.company,
-            }
-        except Exception as e:
-            st.error(f"Error getting account info: {e}")
-            return {}
-
-    def get_positions(self) -> pd.DataFrame:
-        """Get all open positions with error handling"""
-        if not self.connected:
-            # Try HTTP MT5 bridge (page 17 style)
-            try:
-                r = requests.get(f"{self.mt5_url}/positions_get", timeout=2.0)
-                if r.ok:
-                    self.bridge_available = True
-                    data = r.json() or []
-                    if isinstance(data, list) and data:
-                        df = pd.DataFrame(data)
-                        # Normalize time columns if present
-                        for col in ("time", "time_update"):
-                            if col in df.columns:
-                                try:
-                                    df[col] = pd.to_datetime(df[col])
-                                except Exception:
-                                    pass
-                        return df
-            except Exception:
-                pass
-            return pd.DataFrame()
-    def get_recent_trades(self, limit: int = 10, days: int = 7) -> pd.DataFrame:
-        """
-        Pull recent trades from the HTTP bridge (same endpoints as page 17).
-        Falls back to mock if the bridge is unavailable.
-        """
-        # Try HTTP bridge endpoints
-        if self.mt5_url:
-            candidates = [
-                f"history_deals_get?days={days}&limit={limit}",
-                f"history_orders_get?days={days}&limit={limit}",
-                f"history_deals_get?from={(datetime.now()-timedelta(days=days)).isoformat()}&to={datetime.now().isoformat()}&limit={limit}"
-            ]
-            for ep in candidates:
-                try:
-                    r = requests.get(f"{self.mt5_url}/{ep}", timeout=2.0)
-                    if r.ok:
-                        data = r.json() or []
-                        if isinstance(data, list) and data:
-                            self.bridge_available = True
-                            df = pd.DataFrame(data)
-                            # normalize time column
-                            time_cols = [c for c in ["time", "time_msc", "time_done", "time_close"] if c in df.columns]
-                            if time_cols:
-                                col = time_cols[0]
-                                try:
-                                    df["time"] = pd.to_datetime(df[col], unit="s", errors="coerce")
-                                except Exception:
-                                    df["time"] = pd.to_datetime(df[col], errors="coerce")
-                            elif "timestamp" in df.columns:
-                                df["time"] = pd.to_datetime(df["timestamp"], errors="coerce")
-                            # humanize type
-                            if "type" in df.columns:
-                                df["type"] = df["type"].replace({0: "BUY", 1: "SELL", 2: "BUY", 3: "SELL"})
-                            # select a friendly subset (no ticket/order ids)
-                            cols = [c for c in ["time","symbol","type","volume","price","price_open","price_current","profit","commission","swap","comment"] if c in df.columns]
-                            if "time" in cols:
-                                df = df.sort_values("time", ascending=False)
-                            return df[cols].head(limit) if cols else df.head(limit)
-                    else:
-                        self.status_messages.append(f"HTTP bridge /{ep} returned {r.status_code}")
-                except Exception as e:
-                    self.status_messages.append(f"HTTP bridge error on {ep}: {e}")
-        # Fallback mock
-        mock = []
-        symbols = ["EURUSD","GBPUSD","USDJPY","XAUUSD"]
-        for i in range(min(limit, 8)):
-            mock.append({
-                "time": datetime.now() - timedelta(hours=i*3 + np.random.randint(0,2)),
-                "symbol": np.random.choice(symbols),
-                "type": np.random.choice(["BUY","SELL"]),
-                "volume": round(np.random.uniform(0.05, 1.00), 2),
-                "price": round(np.random.uniform(1.05, 1.35), 5),
-                "profit": round(np.random.uniform(-350, 420), 2),
-                "comment": "mock"
-            })
-        return pd.DataFrame(mock)
-
-        try:
-            positions = mt5.positions_get()
-            if positions is None or len(positions) == 0:
-                return pd.DataFrame()
-
-            df = pd.DataFrame(list(positions), columns=positions[0]._asdict().keys())
-            df['time'] = pd.to_datetime(df['time'], unit='s')
-            df['time_update'] = pd.to_datetime(df['time_update'], unit='s')
-            return df
-        except Exception as e:
-            st.error(f"Error getting positions: {e}")
-            return pd.DataFrame()
+    
 
     def get_mt5_data(self, endpoint: str) -> Optional[Dict]:
         """Query the MT5 HTTP bridge (same style as page 17)."""
@@ -891,72 +827,19 @@ def make_drawdown_bar(used_frac: float, dd_pct: float, cap_pct: float) -> go.Fig
         return pd.DataFrame()
 
     def get_confluence_score(self) -> Dict:
-        """Get confluence score from Pulse API with fallback"""
+        """Get confluence score from Pulse API. No mocks."""
         result = safe_api_call("POST", "score/peek", {})
-        
-        if "error" in result:
-            # Return mock data for development
-            return {
-                "score": np.random.randint(60, 90),
-                "grade": "High",
-                "reasons": [
-                    "SMC Break of Structure confirmed",
-                    "Wyckoff accumulation phase detected",
-                    "Volume divergence present"
-                ],
-                "component_scores": {
-                    "smc": 85,
-                    "wyckoff": 78,
-                    "technical": 72
-                }
-            }
-        
-        return result
+        return result if isinstance(result, dict) else {}
 
     def get_risk_summary(self) -> Dict:
-        """Get risk summary from Pulse API with fallback"""
+        """Get risk summary from Pulse API. No mocks."""
         result = safe_api_call("GET", "risk/summary")
-        
-        if "error" in result:
-            # Return mock data
-            return {
-                "daily_risk_used": 15.0,
-                "risk_left": 85.0,
-                "trades_left": 3,
-                "status": "Stable",
-                "warnings": []
-            }
-        
-        return result
+        return result if isinstance(result, dict) else {}
 
     def get_top_opportunities(self, n: int = 3) -> List[Dict]:
-        """Get top trading opportunities with fallback"""
+        """Get top trading opportunities. No mocks."""
         result = safe_api_call("GET", f"signals/top?n={n}")
-        
-        if "error" in result or not isinstance(result, list):
-            # Return mock opportunities
-            symbols = ['EURUSD', 'GBPUSD', 'USDJPY', 'XAUUSD']
-            opportunities = []
-            
-            for i in range(n):
-                symbol = symbols[i % len(symbols)]
-                opportunities.append({
-                    "symbol": symbol,
-                    "score": np.random.randint(70, 95),
-                    "rr": round(np.random.uniform(1.5, 3.0), 1),
-                    "bias": np.random.choice(["Bull", "Bear"]),
-                    "sl": f"{np.random.uniform(1.0900, 1.1100):.4f}" if symbol == "EURUSD" else "TBD",
-                    "tp": f"{np.random.uniform(1.1100, 1.1300):.4f}" if symbol == "EURUSD" else "TBD",
-                    "reasons": [
-                        "Strong momentum detected",
-                        "Key level break confirmed",
-                        "Volume supporting move"
-                    ]
-                })
-            
-            return sorted(opportunities, key=lambda x: x['score'], reverse=True)
-        
-        return result
+        return result if isinstance(result, list) else []
 
 def create_gauge_chart(value: float, title: str, max_value: float = 100) -> go.Figure:
     """Create a gauge chart for risk metrics"""
@@ -1044,7 +927,14 @@ def render_pulse_tiles(pulse_manager: PulseRiskManager):
     
     # Risk Remaining Tile
     with col3:
-        risk_data = pulse_manager.get_risk_summary()
+        try:
+            if hasattr(pulse_manager, "get_risk_summary"):
+                risk_data = pulse_manager.get_risk_summary()
+            else:
+                rd = safe_api_call("GET", "risk/summary")
+                risk_data = rd if isinstance(rd, dict) else {}
+        except Exception:
+            risk_data = {}
         risk_remaining = risk_data.get("risk_left", 0)
         
         st.markdown(f"""
@@ -1138,8 +1028,8 @@ def main():
     st.title("🎯 Zanalytics Pulse - Risk Management Dashboard")
     st.markdown("### Behavioral-First Risk Management with Real-Time MT5 Integration")
 
-    # Initialize Pulse Risk Manager
-    if 'pulse_manager' not in st.session_state:
+    # Initialize Pulse Risk Manager (ensure this page's manager, not advanced)
+    if 'pulse_manager' not in st.session_state or not isinstance(st.session_state.pulse_manager, PulseRiskManager):
         st.session_state.pulse_manager = PulseRiskManager()
 
     pulse_manager = st.session_state.pulse_manager
@@ -1179,8 +1069,8 @@ def main():
         daily_risk_pct = float(st.session_state.get("daily_risk_pct", float(os.getenv("DAILY_RISK_PCT","3.0"))))
         anticipated_positions = int(st.session_state.get("anticipated_positions", int(os.getenv("ANTICIPATED_POS","5"))))
         limits = calc_allowed_losses(sod_equity, daily_risk_pct, anticipated_positions)
-        st.session_state["risk_limits:max_loss_today"] = limits["max_loss_today"]
-        st.session_state["risk_limits:max_loss_per_trade"] = limits["max_loss_per_trade"]
+        st.session_state["risk_limits:max_loss_today"] = limits["daily_cap"]
+        st.session_state["risk_limits:max_loss_per_trade"] = limits["per_trade_cap"]
 
         # Equity series for tiles
         eq_now = float(acct.get("equity") or 0.0)
@@ -1202,9 +1092,9 @@ def main():
         with c3:
             st.metric("Current Equity", fmt_ccy(eq_now, ccy), delta=f"{((eq_now / (sod_equity or eq_now) - 1) * 100):.2f}% vs. SOD" if sod_equity else "—")
         with c4:
-            st.metric("Max Allowed Loss Today", fmt_ccy(limits["max_loss_today"], ccy), delta=f"{daily_risk_pct:.1f}% of SOD")
+            st.metric("Max Allowed Loss Today", fmt_ccy(limits["daily_cap"], ccy), delta=f"{daily_risk_pct:.1f}% of SOD")
         with c5:
-            st.metric("Max Loss / Trade", fmt_ccy(limits["max_loss_per_trade"], ccy), delta=f"{anticipated_positions} anticipated")
+            st.metric("Max Loss / Trade", fmt_ccy(limits["per_trade_cap"], ccy), delta=f"{anticipated_positions} anticipated")
         st.caption(f"Starting Equity Baseline: {fmt_ccy(baseline_equity, ccy)}")
 
         # Session Drawdown vs Daily Cap  +  Per-Trade Risk Suggestion
@@ -1301,19 +1191,35 @@ def main():
         time.sleep(refresh_interval)
         st.rerun()
 
-    # Get account information and risk status
+    # Get account information and risk status (robust to missing methods)
     try:
         account_info = pulse_manager.get_account_info()
-        positions_df = pulse_manager.get_positions()
-        risk_data = pulse_manager.get_risk_summary()
     except Exception as e:
-        st.error(f"Error loading data: {e}")
+        st.error(f"Error loading account: {e}")
         account_info = {}
+    try:
+        positions_df = pulse_manager.get_positions() if hasattr(pulse_manager, 'get_positions') else pd.DataFrame()
+    except Exception as e:
+        st.error(f"Error loading positions: {e}")
         positions_df = pd.DataFrame()
+    try:
+        if hasattr(pulse_manager, 'get_risk_summary'):
+            risk_data = pulse_manager.get_risk_summary()
+        else:
+            rd = safe_api_call("GET", "risk/summary")
+            risk_data = rd if isinstance(rd, dict) else {}
+    except Exception as e:
+        st.error(f"Error loading risk summary: {e}")
         risk_data = {}
 
     # --- Account stats & history snapshot ---
-    recent_trades_df = pulse_manager.get_recent_trades(limit=50, days=7)
+    try:
+        if hasattr(pulse_manager, 'get_recent_trades'):
+            recent_trades_df = pulse_manager.get_recent_trades(limit=50, days=7)
+        else:
+            recent_trades_df = fetch_recent_trades_fallback(pulse_manager, limit=50, days=7)
+    except Exception:
+        recent_trades_df = fetch_recent_trades_fallback(pulse_manager, limit=50, days=7)
     sod_equity = get_sod_equity(pulse_manager, account_info)
     baseline_equity = float(os.getenv("STARTING_EQUITY", "200000") or 200000)
     acct_ccy = account_info.get("currency", "USD")
@@ -1594,3 +1500,47 @@ try:
 except Exception as _e:
     # Keep page resilient
     pass
+def fetch_recent_trades_fallback(pulse_manager=None, limit: int = 10, days: int = 7) -> pd.DataFrame:
+    """Fetch recent trades via MT5 HTTP bridge directly if manager method is unavailable."""
+    mt5_url = None
+    try:
+        if pulse_manager is not None and hasattr(pulse_manager, 'mt5_url') and pulse_manager.mt5_url:
+            mt5_url = pulse_manager.mt5_url
+    except Exception:
+        mt5_url = None
+    if not mt5_url:
+        mt5_url = os.getenv("MT5_URL", "http://mt5:5001")
+
+    candidates = [
+        f"history_deals_get?days={days}&limit={limit}",
+        f"history_orders_get?days={days}&limit={limit}",
+        f"history_deals_get?from={(datetime.now()-timedelta(days=days)).isoformat()}&to={datetime.now().isoformat()}&limit={limit}",
+    ]
+    for ep in candidates:
+        try:
+            r = requests.get(f"{mt5_url}/{ep}", timeout=2.0)
+            if not r.ok:
+                continue
+            data = r.json() or []
+            if not isinstance(data, list) or not data:
+                continue
+            df = pd.DataFrame(data)
+            # normalize time column
+            time_cols = [c for c in ["time", "time_msc", "time_done", "time_close"] if c in df.columns]
+            if time_cols:
+                col = time_cols[0]
+                try:
+                    df["time"] = pd.to_datetime(df[col], unit="s", errors="coerce")
+                except Exception:
+                    df["time"] = pd.to_datetime(df[col], errors="coerce")
+            elif "timestamp" in df.columns:
+                df["time"] = pd.to_datetime(df["timestamp"], errors="coerce")
+            if "type" in df.columns:
+                df["type"] = df["type"].replace({0: "BUY", 1: "SELL", 2: "BUY", 3: "SELL"})
+            cols = [c for c in ["time","ticket","symbol","type","volume","price","price_open","price_current","profit","commission","swap","comment"] if c in df.columns]
+            if "time" in cols:
+                df = df.sort_values("time", ascending=False)
+            return df[cols].head(limit) if cols else df.head(limit)
+        except Exception:
+            continue
+    return pd.DataFrame()
