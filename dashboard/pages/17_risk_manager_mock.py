@@ -26,11 +26,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Helper for background image
-def get_base64_image(path):
-    with open(path, "rb") as f:
-        data = f.read()
-    return base64.b64encode(data).decode()
+# Helper for background image (cached)
+@st.cache_data(ttl=3600)
+def get_base64_image(path: str) -> str:
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+        return base64.b64encode(data).decode()
+    except Exception:
+        return ""
 
 # CSS and background (copied from Macro Intelligence page)
 img_base64 = get_base64_image("./pages/image_af247b.jpg")
@@ -78,7 +82,7 @@ class RiskManager:
     def get_mt5_data(self, endpoint: str) -> Optional[Dict]:
         """Get data from MT5 API"""
         try:
-            response = requests.get(f"{self.mt5_url}/{endpoint}", timeout=2)
+            response = requests.get(f"{self.mt5_url}/{endpoint}", timeout=0.8)
             if response.status_code == 200:
                 return response.json()
         except:
@@ -311,26 +315,6 @@ def main():
 
     st.title("🛡️ Risk Management Dashboard")
 
-    # Data-source banner: show account number and broker if available
-    acct_info = {}
-    try:
-        if 'risk_manager_17' in st.session_state:
-            acct_info = st.session_state.risk_manager_17.get_account_info()
-    except Exception:
-        acct_info = {}
-    login = acct_info.get('login')
-    broker = acct_info.get('server') or acct_info.get('company')
-    if login:
-        st.markdown(
-            f'''
-            <div class="market-card" style="text-align:center;">
-                <span style="background: #99ffd0; color:#181818; padding:8px 14px; border-radius:12px; font-weight:800;">
-                    Account {login} • {broker or '—'}
-                </span>
-            </div>
-            ''',
-            unsafe_allow_html=True
-        )
     st.markdown("### Real-time Account Monitoring & Risk Control")
 
     # Initialize Risk Manager
@@ -338,6 +322,11 @@ def main():
         st.session_state.risk_manager_17 = RiskManager()
     
     risk_manager = st.session_state.risk_manager_17
+
+    # Fetch key data early (once) to avoid repeated bridge calls
+    account_info = risk_manager.get_account_info()
+    positions_df = risk_manager.get_positions()
+    risk_metrics = risk_manager.calculate_risk_metrics(account_info, positions_df)
 
     # Sidebar
     with st.sidebar:
@@ -361,20 +350,23 @@ def main():
         max_drawdown = st.slider("Max Drawdown %", 5.0, 20.0, 10.0)
         max_positions = st.number_input("Max Positions", 1, 20, 5)
 
-        # Data source indicator
+        # Data source indicator (no default tick call; on-demand fetch)
         st.header("📡 Data Source")
-        tick_data = risk_manager.get_tick_data()
-        if tick_data:
+        is_real = bool(account_info) and account_info.get('server')
+        if is_real:
             st.success("✅ Real MetaTrader account (HTTP bridge)")
-            with st.expander("Latest Tick", expanded=False):
-                st.json(tick_data)
+            with st.expander("Latest Tick (on demand)", expanded=False):
+                if st.button("Fetch Latest Tick", key="fetch_tick"):
+                    t = risk_manager.get_tick_data()
+                    st.json(t or {})
         else:
             st.warning("⚠️ Using mock data (bridge unavailable)")
 
-    # Get data
-    account_info = risk_manager.get_account_info()
-    positions_df = risk_manager.get_positions()
-    risk_metrics = risk_manager.calculate_risk_metrics(account_info, positions_df)
+    # Data already fetched above
+
+    # Optional minimal source caption
+    if account_info.get('login'):
+        st.caption(f"Bridge: Online • Server: {account_info.get('server') or '—'}")
 
     # Top metrics
     col1, col2, col3, col4, col5 = st.columns(5)
@@ -455,35 +447,30 @@ def main():
     else:
         st.info("No recent trades returned by the bridge.")
 
-    # Historical chart
+    # Historical chart (lazy load to speed initial render)
     st.markdown("---")
-    st.subheader("📈 Historical Metrics")
-
-    historical_df = risk_manager.get_historical_metrics(24)
-
-    if not historical_df.empty:
-        # Create tabs
-        tab1, tab2 = st.tabs(["Risk Score", "Equity"])
-
-        with tab1:
-            fig = px.line(
-                historical_df,
-                x='timestamp',
-                y='risk_score',
-                title='Risk Score Over Time',
-                labels={'risk_score': 'Risk Score', 'timestamp': 'Time'}
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-        with tab2:
-            fig = px.line(
-                historical_df,
-                x='timestamp',
-                y='equity',
-                title='Equity Over Time',
-                labels={'equity': 'Equity ($)', 'timestamp': 'Time'}
-            )
-            st.plotly_chart(fig, use_container_width=True)
+    with st.expander("📈 Historical Metrics", expanded=False):
+        historical_df = risk_manager.get_historical_metrics(24)
+        if not historical_df.empty:
+            tab1, tab2 = st.tabs(["Risk Score", "Equity"])
+            with tab1:
+                fig = px.line(
+                    historical_df,
+                    x='timestamp',
+                    y='risk_score',
+                    title='Risk Score Over Time',
+                    labels={'risk_score': 'Risk Score', 'timestamp': 'Time'}
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            with tab2:
+                fig = px.line(
+                    historical_df,
+                    x='timestamp',
+                    y='equity',
+                    title='Equity Over Time',
+                    labels={'equity': 'Equity ($)', 'timestamp': 'Time'}
+                )
+                st.plotly_chart(fig, use_container_width=True)
 
     # Risk warnings
     st.markdown("---")

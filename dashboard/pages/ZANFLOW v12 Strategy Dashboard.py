@@ -23,6 +23,7 @@ import os
 import glob
 import re
 from collections import defaultdict, deque
+from utils.session_mindset import render_session_mindset_panel as render_session_mindset_panel_shared
 
 warnings.filterwarnings('ignore')
 logging.basicConfig(level=logging.INFO)
@@ -1995,9 +1996,14 @@ def main():
                             </div>
                         """, unsafe_allow_html=True)
 
-            # ZBAR Logs
-            if show_zbar_logs and analysis_results['zbar_logs']:
-                st.subheader("🧠 Session Mindset")
+            # Session Mindset (formerly ZBAR Logs)
+            if show_zbar_logs:
+                try:
+                    render_session_mindset_panel_shared(os.getenv('DJANGO_API_URL', ''))
+                except Exception:
+                    pass
+                if analysis_results['zbar_logs']:
+                    st.subheader("🧠 Session Mindset")
 
                 for log in analysis_results['zbar_logs'][-5:]:  # Show last 5 logs
                     st.markdown(f"""
@@ -2015,12 +2021,12 @@ def main():
             col1, col2, col3 = st.columns(3)
 
             with col1:
-                if st.button("📄 Export ZBAR Logs"):
+                if st.button("📄 Export Session Mindset Logs"):
                     logs_json = json.dumps(analysis_results['zbar_logs'], indent=2, default=str)
                     st.download_button(
-                        label="Download ZBAR Logs",
+                        label="Download Session Mindset Logs",
                         data=logs_json,
-                        file_name=f"zanflow_v12_zbar_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                        file_name=f"zanflow_v12_session_mindset_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                         mime="application/json"
                     )
 

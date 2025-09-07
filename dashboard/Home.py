@@ -22,6 +22,7 @@ project_root = Path(__file__).resolve().parents[1]
 sys.path.append(str(project_root))
 
 from utils.enrichment import enrich_ticks
+from utils.session_mindset import render_session_mindset_panel as render_session_mindset_panel_shared
 from api_integration.mt5_api_client import Mt5APIClient
 import os
 load_dotenv(dotenv_path=Path(__file__).parents[2] / '.env')
@@ -554,9 +555,9 @@ class ZanalyticsDashboard:
                 st.markdown(f"- {b}")
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # Render Session Mindset panel just under banner
+        # Render shared Session Mindset panel just under banner
         try:
-            render_session_mindset_panel(getattr(self, 'django_api_url', os.getenv('DJANGO_API_URL', '')))
+            render_session_mindset_panel_shared(getattr(self, 'django_api_url', os.getenv('DJANGO_API_URL', '')))
         except Exception:
             pass
         # --- Microstructure 3D Surface Demo (XAUUSD) ---

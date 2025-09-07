@@ -49,6 +49,7 @@ st.set_page_config(
 # --- IMAGE BACKGROUND & STYLING (match Home/Macro pages) ---
 import base64
 
+@st.cache_data(ttl=3600)
 def _get_image_as_base64(path: str):
     try:
         with open(path, "rb") as image_file:
@@ -220,7 +221,7 @@ def _pulse_url(path: str) -> str:
         return f"{DJANGO_API_URL}/api/pulse/{p}"
     return f"{DJANGO_API_URL}/{p}"
 
-def safe_api_call(method: str, path: str, payload: Dict = None, timeout: float = 3.5) -> Dict:
+def safe_api_call(method: str, path: str, payload: Dict = None, timeout: float = 1.2) -> Dict:
     """Safe API call with error handling and fallbacks"""
     try:
         url = _pulse_url(path)
@@ -239,6 +240,60 @@ def safe_api_call(method: str, path: str, payload: Dict = None, timeout: float =
         return {"error": "API connection failed", "url": _pulse_url(path)}
     except Exception as e:
         return {"error": str(e), "url": _pulse_url(path)}
+
+
+def render_api_health_card(pulse_manager: "AdvancedPulseRiskManager") -> None:
+    """Render a compact API Health card for Pulse and MT5 bridge."""
+    # Pulse API health
+    pulse_health = safe_api_call("GET", "pulse/health")
+    pulse_ok = isinstance(pulse_health, dict) and "error" not in pulse_health
+    pulse_status = pulse_health.get("status", "unknown") if isinstance(pulse_health, dict) else "unknown"
+    pulse_lag = pulse_health.get("lag_ms") if isinstance(pulse_health, dict) else None
+
+    # MT5 bridge health
+    mt5_base = getattr(pulse_manager, "mt5_url", None)
+    mt5_ok = False
+    mt5_detail = ""
+    if mt5_base:
+        try:
+            url = f"{str(mt5_base).rstrip('/')}/account_info"
+            r = requests.get(url, timeout=2.5)
+            if r.ok:
+                data = r.json() or {}
+                # consider either dict or list payloads
+                if isinstance(data, list) and data:
+                    data = data[0]
+                mt5_ok = isinstance(data, dict) and bool(data)
+                login = data.get("login") or data.get("Login") or "—"
+                server = data.get("server") or data.get("Server") or ""
+                mt5_detail = f"{login} {server}" if login != "—" else "OK"
+            else:
+                mt5_detail = f"HTTP {r.status_code}"
+        except Exception as e:
+            mt5_detail = f"error: {e}"
+    else:
+        mt5_detail = "no URL"
+
+    # Render card
+    st.markdown("### 🔧 API Health")
+    c1, c2, c3 = st.columns([1.2, 1.2, 2])
+    with c1:
+        st.metric(
+            "Pulse API",
+            "UP" if pulse_ok else "DOWN",
+            f"{pulse_status} | lag {pulse_lag}ms" if pulse_ok and pulse_lag is not None else pulse_status,
+        )
+    with c2:
+        st.metric(
+            "MT5 Bridge",
+            "UP" if mt5_ok else "DOWN",
+            mt5_detail,
+        )
+    with c3:
+        # Show last status messages for quick diagnostics
+        msgs = getattr(pulse_manager, "status_messages", [])
+        if msgs:
+            st.caption("; ".join(msgs[-3:]))
 
 class AdvancedPulseRiskManager:
     """Advanced Risk Manager with behavioral insights"""
@@ -329,11 +384,11 @@ class AdvancedPulseRiskManager:
         # Try HTTP MT5 bridge first
         # Try bridge endpoints across candidates until success
         tried = []
-        for base in [u for u in self._mt5_candidates if u]:
+        for base in [u for u in self._mt5_candidates if u][:3]:
             try:
                 url = f"{str(base).rstrip('/')}/account_info"
                 tried.append(url)
-                r = requests.get(url, timeout=3.5)
+                r = requests.get(url, timeout=0.9)
                 if r.ok:
                     raw = r.json() or {}
                     data = _normalize(raw)
@@ -380,7 +435,7 @@ class AdvancedPulseRiskManager:
         # Try HTTP MT5 bridge if available
         try:
             if self.mt5_url:
-                r = requests.get(f"{str(self.mt5_url).rstrip('/')}/positions_get", timeout=2.0)
+                r = requests.get(f"{str(self.mt5_url).rstrip('/')}/positions_get", timeout=0.9)
                 if r.ok:
                     self.bridge_available = True
                     data = r.json() or []
@@ -415,14 +470,14 @@ class AdvancedPulseRiskManager:
         return pd.DataFrame()
 
     def get_confluence_score(self) -> Dict:
-        """Get confluence score from Pulse API. No mocks."""
-        result = safe_api_call("POST", "score/peek", {})
-        return result if isinstance(result, dict) else {}
+        """Get confluence score from Pulse API (short timeout, tolerate errors)."""
+        result = safe_api_call("POST", "score/peek", {}, timeout=0.9)
+        return result if isinstance(result, dict) and 'error' not in result else {}
 
     def get_risk_summary(self) -> Dict:
-        """Get risk summary from Pulse API. No mocks."""
-        result = safe_api_call("GET", "risk/summary")
-        return result if isinstance(result, dict) else {}
+        """Get risk summary from Pulse API (short timeout)."""
+        result = safe_api_call("GET", "risk/summary", timeout=1.0)
+        return result if isinstance(result, dict) and 'error' not in result else {}
 
     def get_top_opportunities(self, n: int = 3) -> List[Dict]:
         """Get top trading opportunities. No mocks."""
@@ -436,9 +491,9 @@ class AdvancedPulseRiskManager:
             f"history_orders_get?days={days}&limit={limit}",
             f"history_deals_get?from={(datetime.now()-timedelta(days=days)).isoformat()}&to={datetime.now().isoformat()}&limit={limit}",
         ]
-        for ep in eps:
+        for ep in eps[:2]:
             try:
-                r = requests.get(f"{self.mt5_url}/{ep}", timeout=2.0)
+                r = requests.get(f"{self.mt5_url}/{ep}", timeout=0.9)
                 if not r.ok:
                     continue
                 data = r.json() or []
@@ -1018,6 +1073,7 @@ def main():
         err = health_data.get("error") if isinstance(health_data, dict) else "unknown"
         st.caption(f"System Status: offline ({err}) | Last Update: {datetime.now().strftime('%H:%M:%S')}")
 
+
     # Get account information and risk status
     try:
         account_info = pulse_manager.get_account_info()
@@ -1041,20 +1097,10 @@ def main():
             else:
                 st.caption("No status messages available.")
 
-    # Account banner
-    login_banner = account_info.get("login")
-    broker_banner = account_info.get("server") or account_info.get("company")
-    if login_banner:
-        st.markdown(
-            f'''
-            <div class="market-card" style="text-align:center;">
-            <span style="background: #99ffd0; color:#181818; padding:8px 14px; border-radius:12px; font-weight:800;">
-            Account {login_banner} • {broker_banner or '—'}
-            </span>
-            </div>
-            ''',
-            unsafe_allow_html=True
-        )
+    # Minimal Bridge ID line (replace big account bubble)
+    bridge_online = bool(account_info)
+    server_name = account_info.get("server") or os.getenv("MT5_SERVER") or account_info.get("company") or "—"
+    st.caption(f"Bridge: {'Online' if bridge_online else 'Offline'} • Server: {server_name}")
 
     # Top metrics row (concise, at top)
     balance_val = float(account_info.get('balance', 0) or 0)
