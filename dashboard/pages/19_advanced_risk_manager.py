@@ -1154,6 +1154,30 @@ def _render_top_three_donuts(account_info: Dict):
         )
         st.plotly_chart(fig_balance, use_container_width=True, config={'displayModeBar': False})
     with d2:
+        # Build petals from open positions if available in session cache
+        petals = []
+        try:
+            cached_pos = st.session_state.get('adv19_positions_last') or []
+            if isinstance(cached_pos, list) and cached_pos:
+                eq = float(account_info.get('equity', 0) or 0) or 1.0
+                for p in cached_pos[:5]:
+                    try:
+                        side = 'long' if int(p.get('type',0)) == 0 else 'short'
+                    except Exception:
+                        side = str(p.get('type','')).lower()
+                    vol = float(p.get('volume') or 0)
+                    price = float(p.get('price_current') or p.get('price_open') or 0)
+                    notional = abs(vol * price) / eq if eq else 0.0
+                    mins = 0
+                    try:
+                        ts = pd.to_datetime(p.get('time')) if p.get('time') else None
+                        if ts is not None:
+                            mins = int((pd.Timestamp.utcnow().tz_localize(None) - ts.tz_localize(None)).total_seconds() // 60)
+                    except Exception:
+                        mins = 0
+                    petals.append({'side': side, 'notional_pct': max(0.0, min(1.0, notional)), 'minutes_open': mins})
+        except Exception:
+            petals = []
         fig_equity = concentric_ring(
             center_title="Equity",
             center_value=f"${equity_feed['session_pnl']:,.0f}",
@@ -1163,6 +1187,7 @@ def _render_top_three_donuts(account_info: Dict):
             middle_val=equity_feed['risk_used_pct'],
             inner_unipolar=equity_feed['exposure_pct'],
             size=(280, 280),
+            petals=petals,
         )
         st.plotly_chart(fig_equity, use_container_width=True, config={'displayModeBar': False})
     with d3:
@@ -1878,18 +1903,94 @@ def main():
     positions_df = positions_df if 'positions_df' in locals() else pd.DataFrame()
     if isinstance(positions_df, pd.DataFrame) and not positions_df.empty:
         st.subheader("📋 Open Positions")
-        display_cols = [c for c in ['ticket','symbol','type','volume','price_open','price_current','profit','time'] if c in positions_df.columns]
-        positions_display = positions_df[display_cols].copy() if display_cols else positions_df.copy()
-        if 'type' in positions_display.columns:
-            positions_display['type'] = positions_display['type'].map({0: 'BUY', 1: 'SELL'}).fillna(positions_display['type'])
-        def _color_profit(val):
+        # Normalize and format
+        df = positions_df.copy()
+        if 'type' in df.columns:
+            df['type'] = df['type'].map({0: 'BUY', 1: 'SELL'}).fillna(df['type'])
+        for col in ['volume', 'price_open', 'price_current']:
+            if col in df.columns:
+                try:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').round(2)
+                except Exception:
+                    pass
+        # Parse time
+        opened_at = None
+        if 'time' in df.columns:
             try:
-                v = float(val)
+                df['time'] = pd.to_datetime(df['time'], errors='coerce')
             except Exception:
-                return ''
-            return 'color: green' if v > 0 else ('color: red' if v < 0 else '')
-        styled_positions = positions_display.style.applymap(_color_profit, subset=['profit']) if 'profit' in positions_display.columns else positions_display
-        st.dataframe(styled_positions, use_container_width=True)
+                pass
+
+        def _session_for(ts: Optional[pd.Timestamp]) -> str:
+            if ts is None or pd.isna(ts):
+                return '—'
+            hour = int(ts.tz_localize(None).hour)
+            if 7 <= hour < 12:
+                return 'London'
+            if 12 <= hour < 20:
+                return 'New York'
+            return 'Asia'
+
+        def _pct_to_target(row) -> Optional[float]:
+            try:
+                typ = str(row.get('type','')).upper()
+                po = float(row.get('price_open'))
+                pc = float(row.get('price_current'))
+                tp = float(row.get('tp')) if 'tp' in row and row.get('tp') not in (None, '') else None
+                sl = float(row.get('sl')) if 'sl' in row and row.get('sl') not in (None, '') else None
+                if tp and sl:
+                    if typ == 'BUY':
+                        span = tp - po
+                        prog = (pc - po) / span if span else 0.0
+                    else:
+                        span = po - tp
+                        prog = (po - pc) / span if span else 0.0
+                    # Clamp to [-1, 1] by mapping SL to -1, TP to +1 relative to entry
+                    return max(-1.0, min(1.0, prog))
+            except Exception:
+                return None
+            return None
+
+        # Compact cards with hover details
+        for _, row in df.iterrows():
+            sym = row.get('symbol', '—')
+            side = str(row.get('type',''))
+            vol = row.get('volume', '')
+            po = row.get('price_open', '')
+            pc = row.get('price_current', '')
+            pnl = float(row.get('profit', 0) or 0)
+            ts = row.get('time') if 'time' in df.columns else None
+            dur_txt = '—'
+            if ts is not None and not pd.isna(ts):
+                try:
+                    mins = int((pd.Timestamp.utcnow().tz_localize(None) - ts.tz_localize(None)).total_seconds() // 60)
+                    if mins < 60:
+                        dur_txt = f"{mins}m"
+                    else:
+                        dur_txt = f"{mins//60}h {mins%60}m"
+                except Exception:
+                    dur_txt = '—'
+            sess = _session_for(ts if (ts is not None and not pd.isna(ts)) else None)
+            tp = row.get('tp') if 'tp' in df.columns else None
+            sl = row.get('sl') if 'sl' in df.columns else None
+            pct = _pct_to_target(row)
+            pct_txt = f"{int((pct or 0)*100)}%" if pct is not None else '—'
+            pct_col = '#22C55E' if (pct or 0) >= 0 else '#EF4444'
+            # Tooltip content
+            time_disp = ts.strftime('%Y-%m-%d %H:%M') if (ts is not None and not pd.isna(ts)) else '—'
+            tip = (
+                f"Session: {sess}\nOpened: {time_disp}\nEntry: {po} | Now: {pc}\nSL: {sl or '—'} | TP: {tp or '—'}\nTo target: {pct_txt}"
+            )
+            with st.container():
+                col_a, col_b, col_c, col_d = st.columns([3, 1, 1, 1])
+                with col_a:
+                    st.markdown(f"<div title=\"{tip}\"><b>{sym}</b> • {side} • {dur_txt}</div>", unsafe_allow_html=True)
+                with col_b:
+                    st.markdown(f"<div style=\"color:{'green' if pnl>0 else ('red' if pnl<0 else '#aaa')}\">{pnl:+.2f}</div>", unsafe_allow_html=True)
+                with col_c:
+                    st.markdown(f"<div>{vol}</div>", unsafe_allow_html=True)
+                with col_d:
+                    st.markdown(f"<div style=\"color:{pct_col}\">{pct_txt}</div>", unsafe_allow_html=True)
 
         # Bridge status badge (Online/Offline)
         bridge_online = False
@@ -1919,42 +2020,42 @@ def main():
             """,
             unsafe_allow_html=True,
         )
-        max_rows = min(10, len(positions_display))
-        for idx, row in positions_display.head(max_rows).iterrows():
+        max_rows = min(10, len(df))
+        for idx, row in df.head(max_rows).iterrows():
             c1, c2, c3, c4, c5, c6 = st.columns([3, 1, 1, 1, 1, 1])
             with c1:
-                st.caption(f"{row.get('symbol','—')} • Ticket {int(row.get('ticket', 0)) if 'ticket' in row else '—'} • PnL ${float(row.get('profit',0) or 0):,.2f}")
+                st.caption(f"{row.get('symbol','—')} • PnL ${float(row.get('profit',0) or 0):,.2f}")
             with c2:
                 st.button(
                     "SL → BE",
-                    key=f"be_{row.get('ticket','x')}",
+                    key=f"be_{row.get('symbol','x')}_{idx}",
                     disabled=True,
                     help="Set stop-loss to entry (breakeven). Coming soon.",
                 )
             with c3:
                 st.button(
                     "Trail 25%",
-                    key=f"trail25_{row.get('ticket','x')}",
+                    key=f"trail25_{row.get('symbol','x')}_{idx}",
                     disabled=True,
                     help="Trailing stop to lock 75% of current profit. Coming soon.",
                 )
             with c4:
                 st.button(
                     "Trail 50%",
-                    key=f"trail50_{row.get('ticket','x')}",
+                    key=f"trail50_{row.get('symbol','x')}_{idx}",
                     disabled=True,
                     help="Trailing stop to lock 50% of current profit. Coming soon.",
                 )
             with c5:
                 st.button(
                     "Trail 75%",
-                    key=f"trail75_{row.get('ticket','x')}",
+                    key=f"trail75_{row.get('symbol','x')}_{idx}",
                     disabled=True,
                     help="Trailing stop to lock 25% of current profit. Coming soon.",
                 )
             with c6:
-                st.button("Partial 25%", key=f"partial25_{row.get('ticket','x')}", disabled=True, help="Close 25% of position size. Coming soon.")
-                st.button("Partial 50%", key=f"partial50_{row.get('ticket','x')}", disabled=True, help="Close 50% of position size. Coming soon.")
+                st.button("Partial 25%", key=f"partial25_{row.get('symbol','x')}_{idx}", disabled=True, help="Close 25% of position size. Coming soon.")
+                st.button("Partial 50%", key=f"partial50_{row.get('symbol','x')}_{idx}", disabled=True, help="Close 50% of position size. Coming soon.")
     
     # Behavioral Psychology Insights (full width)
     render_psychology_insights_panel(confluence_data, risk_data)

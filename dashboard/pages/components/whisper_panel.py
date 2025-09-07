@@ -1,4 +1,4 @@
-import time
+import os, time
 import requests
 import streamlit as st
 
@@ -15,6 +15,7 @@ def render_whisper_panel(api: str = "http://localhost:8000/api/pulse/whispers"):
         st.info("No whispers yet.")
         return
 
+    dj = os.getenv("DJANGO_API_URL", "http://django:8000").rstrip('/')
     for w in data[:20]:
         with st.container(border=True):
             left, right = st.columns([0.8, 0.2])
@@ -35,8 +36,10 @@ def render_whisper_panel(api: str = "http://localhost:8000/api/pulse/whispers"):
                     act = a.get("action", "")
                     if st.button(label, key=f"{w.get('id','')}:{act}"):
                         try:
-                            st.toast(f"Ack: {label} (journaled)")
-                            # Optional: call ack/act endpoints here
+                            # Journal intent
+                            requests.post(f"{dj}/api/pulse/whisper/ack", json={"id": w.get("id"), "reason": label}, timeout=2)
+                            if act:
+                                requests.post(f"{dj}/api/pulse/whisper/act", json={"id": w.get("id"), "action": act}, timeout=2)
+                            st.toast(f"Ack: {label}")
                         except Exception:
-                            pass
-
+                            st.warning("Could not reach whisper endpoints")

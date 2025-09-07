@@ -18,6 +18,13 @@ import logging
 from redis.exceptions import RedisError
 from confluent_kafka import Producer
 from tenacity import retry, stop_after_attempt, wait_exponential
+try:
+    from whisper_engine import WhisperEngine, State, serialize_whispers
+except Exception:
+    WhisperEngine = None
+    State = None
+    def serialize_whispers(ws):
+        return ws
 
 # Support multiple runtime layouts (repo vs. packaged API image)
 try:
@@ -55,6 +62,18 @@ class PulseKernel:
         self.active_signals = {}
         self.daily_stats = self._init_daily_stats()
         self.behavioral_state = "normal"
+        # Whisper engine (optional)
+        self.whisper = None
+        if WhisperEngine is not None:
+            try:
+                import yaml
+                cfg = yaml.safe_load(open(config_path)) if os.path.exists(config_path) else {}
+            except Exception:
+                cfg = {}
+            try:
+                self.whisper = WhisperEngine(cfg or {})
+            except Exception:
+                self.whisper = None
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     def _send_to_kafka(self, topic: str, message: Dict) -> None:
@@ -76,6 +95,17 @@ class PulseKernel:
             logger.error(f"Kafka delivery failed: {err}")
         else:
             logger.debug(f"Message delivered to {msg.topic()}")
+
+    def _publish_whispers(self, ws_list: List[Dict]) -> None:
+        try:
+            for w in ws_list:
+                self.redis_client.rpush('whispers', json.dumps(w))
+                try:
+                    self.redis_client.publish('pulse.whispers', json.dumps(w))
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning(f"whisper publish error: {e}")
 
     def _load_config(self, config_path: str) -> Dict:
         """Load configuration from YAML file"""
@@ -140,6 +170,28 @@ class PulseKernel:
             
             # Step 6: Publish to UI and Telegram
             await self._publish_decision(decision)
+
+            # Step 7: Evaluate and publish whispers (if engine available)
+            try:
+                if self.whisper is not None and State is not None:
+                    s = State(
+                        confluence=float(confluence_result.get('score', 0) or 0),
+                        confluence_trend_up=True,
+                        patience_index=80.0,
+                        patience_drop_pct=0.0,
+                        loss_streak=int(self.daily_stats.get('losses', 0) or 0),
+                        window_minutes=15,
+                        recent_winrate_similar=0.5,
+                        hard_cooldown_active=False,
+                        risk_budget_used_pct=0.0,
+                        trades_today=int(self.daily_stats.get('trades_count', 0) or 0),
+                        user_id=os.getenv('USER_ID', 'u1'),
+                    )
+                    ws = self.whisper.evaluate(s)
+                    if ws:
+                        self._publish_whispers(serialize_whispers(ws))
+            except Exception as e:
+                logger.warning(f"whisper eval failed: {e}")
             
             return decision
             

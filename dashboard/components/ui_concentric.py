@@ -61,6 +61,8 @@ def concentric_ring(
     # Overlays
     ticks=None,
     cap_dots=True,
+    petals=None,  # list of {side:'long|short', notional_pct:0..1, minutes_open:int}
+    fade_tail=None,  # list of floats in [-1,1] segments indicating recent change
 ):
     fig = go.Figure()
 
@@ -263,6 +265,66 @@ def concentric_ring(
                 fig.add_annotation(x=x1, y=y1, xref="paper", yref="paper",
                                    text=t.get("hover"), showarrow=False, opacity=0.0,
                                    hovertext=t.get("hover"))
+
+    # Position petals (tiny wedgelets around outer perimeter)
+    if petals:
+        # Space petals around the ring without overlap; max 8 petals practical
+        max_wedge = 8.0  # degrees for 100% notional
+        n = len(petals)
+        for i, p in enumerate(petals[:8]):
+            try:
+                notional = max(0.02, min(1.0, float(p.get('notional_pct', 0.1) or 0.1)))
+                side = (p.get('side') or '').lower()
+                minutes = int(p.get('minutes_open', 0) or 0)
+                wedge = max(2.0, notional * max_wedge)
+                # Place evenly
+                start_angle = (rotation_deg + (i * (360.0 / (n or 1)))) % 360
+                # Color and opacity
+                col = COL['pos'] if side == 'long' else COL['neg']
+                opacity = max(0.35, min(0.95, (minutes / 120.0)))  # older -> more opaque
+                fig.add_trace(
+                    go.Pie(
+                        values=[wedge, 360 - wedge],
+                        hole=0.56,  # slightly thinner than outer ring
+                        rotation=start_angle,
+                        sort=False,
+                        direction='clockwise',
+                        marker=dict(colors=[col, 'rgba(0,0,0,0)']),
+                        textinfo='none',
+                        hoverinfo='skip',
+                        showlegend=False,
+                        name=f"petal_{i}",
+                        opacity=opacity,
+                    )
+                )
+            except Exception:
+                continue
+
+    # Fade tail (recent unrealized trend) as 3 short arc segments with decreasing opacity
+    if isinstance(fade_tail, (list, tuple)) and len(fade_tail) > 0:
+        # Use middle ring radius for the tail
+        r = radii['middle']['r_out']
+        segs = list(fade_tail)[:3]
+        for j, seg in enumerate(segs):
+            try:
+                v = float(seg)
+            except Exception:
+                continue
+            # segment length proportional to |v|, direction by sign
+            length_deg = max(6.0, min(30.0, abs(v) * 90.0))
+            # place tail behind the middle arc end
+            end_angle = _final_angle('clockwise', mid_deg if 'mid_deg' in locals() else 0.0, rotation_deg)
+            start = (end_angle - length_deg) if v >= 0 else (end_angle + length_deg)
+            # draw as polyline of 6 short chords
+            steps = 6
+            for k in range(steps):
+                a0 = start + (k * (length_deg/steps)) * (1 if v < 0 else -1)
+                a1 = start + ((k+1) * (length_deg/steps)) * (1 if v < 0 else -1)
+                x0, y0 = _angle_to_xy(a0, r)
+                x1, y1 = _angle_to_xy(a1, r)
+                fig.add_shape(type='line', xref='paper', yref='paper',
+                              x0=x0, y0=y0, x1=x1, y1=y1,
+                              line=dict(color=COL['cyan'], width=2), opacity=max(0.15, 0.5 - j*0.15))
 
     fig.update_layout(
         margin=dict(l=0, r=0, t=0, b=0),

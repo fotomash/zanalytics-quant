@@ -41,17 +41,48 @@ class State:
 
 
 class Cooldowns:
-    """In-memory per-process cooldowns. Replace with Redis in prod."""
+    """Per-process cooldowns with optional Redis persistence for cross-process dedupe."""
     _store: Dict[str, float] = {}
+    _r = None
+
+    @classmethod
+    def _redis(cls):
+        if cls._r is not None:
+            return cls._r
+        try:
+            import os
+            import redis  # type: ignore
+            url = os.getenv("REDIS_URL")
+            if url:
+                cls._r = redis.from_url(url)
+            else:
+                cls._r = redis.Redis(host=os.getenv("REDIS_HOST", "redis"), port=int(os.getenv("REDIS_PORT", 6379)))
+        except Exception:
+            cls._r = None
+        return cls._r
 
     @classmethod
     def hit(cls, key: str) -> bool:
+        # Redis takes precedence
+        r = cls._redis()
+        if r is not None:
+            try:
+                return bool(r.ttl(f"cooldown:{key}") and r.exists(f"cooldown:{key}"))
+            except Exception:
+                pass
         now = time.time()
         until = cls._store.get(key, 0)
         return now < until
 
     @classmethod
     def set(cls, key: str, seconds: int) -> None:
+        r = cls._redis()
+        if r is not None:
+            try:
+                r.setex(f"cooldown:{key}", int(max(1, seconds)), "1")
+                return
+            except Exception:
+                pass
         cls._store[key] = time.time() + seconds
 
 
@@ -238,4 +269,3 @@ class WhisperEngine:
 
 def serialize_whispers(ws: List[Whisper]) -> List[Dict[str, Any]]:
     return [asdict(w) for w in ws]
-
