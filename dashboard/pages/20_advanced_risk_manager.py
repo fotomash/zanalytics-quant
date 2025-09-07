@@ -1841,8 +1841,99 @@ def _render_unified_whisperer_block(account_info: Dict, risk_env: Dict):
     except Exception:
         st.info("Whisperer unavailable")
 
-    # Bottom tiles
+    # Bottom cockpit: three-panel layout + tiles
     st.divider()
+    left_col, center_col, right_col = st.columns([1.2, 1.6, 1.2])
+
+    # LEFT: Psychological + Patterns
+    with left_col:
+        st.markdown("#### 🧠 Psychological State")
+        try:
+            # Behavioral composite from mirror using provided utility
+            bhv_score = behavioral_score_from_mirror(mirror)
+            bhv_ratio = max(0.0, min(1.0, (bhv_score or 0.0) / 100.0))
+            st.plotly_chart(
+                oneway_donut(
+                    title="Behavioral",
+                    frac=bhv_ratio,
+                    start_anchor="top",
+                    center_title=f"{bhv_score:.0f}",
+                    center_sub="composite",
+                ),
+                use_container_width=True,
+            )
+        except Exception:
+            st.info("Behavioral score unavailable")
+
+        # Compact Pattern Watch chips
+        try:
+            st.markdown("**🧩 Pattern Watch**")
+            patt = patt if isinstance(patt, dict) else {}
+            def _chip(active, label, note):
+                color = ('#EF4444' if active else '#22C55E')
+                st.markdown(
+                    f"<div style='display:inline-block;margin:4px 6px 6px 0;padding:6px 12px;border-radius:14px;"
+                    f"background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:{color}'>"
+                    f"{label}: {'ON' if active else 'OK'} {('• '+note) if (note and active) else ''}</div>",
+                    unsafe_allow_html=True,
+                )
+            _chip(bool((patt.get('revenge_trading') or {}).get('active')), 'Revenge', (patt.get('revenge_trading') or {}).get('note') or '')
+            _chip(bool((patt.get('fomo') or {}).get('active')), 'FOMO', (patt.get('fomo') or {}).get('note') or '')
+            _chip(bool((patt.get('fear_cut_winners') or {}).get('active')), 'Fear (cut winners)', (patt.get('fear_cut_winners') or {}).get('note') or '')
+        except Exception:
+            pass
+
+    # CENTER: Session trajectory (compact)
+    with center_col:
+        st.markdown("#### 📈 Session Trajectory")
+        try:
+            series = _fetch_equity_series_df()
+            if not series.empty:
+                figT2 = go.Figure()
+                figT2.add_trace(go.Scatter(
+                    x=series['time'], y=series['pnl'], mode='lines', name='P&L',
+                    line=dict(color='#22C55E', width=2), fill='tozeroy', fillcolor='rgba(34,197,94,0.10)'))
+                figT2.add_hline(y=0, line_dash='dash', line_color='gray', opacity=0.3)
+                figT2.update_layout(height=260, margin=dict(t=0,b=10,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                st.plotly_chart(figT2, use_container_width=True)
+            else:
+                st.info("No trades yet today.")
+        except Exception:
+            st.info("Trajectory unavailable")
+
+    # RIGHT: Target status and quick risk
+    with right_col:
+        st.markdown("#### 🎯 Target Status")
+        try:
+            equity_val = float(account_info.get('equity', 0) or 0)
+            profit_val = float(account_info.get('profit', 0) or 0)
+            daily_profit_pct = float(st.session_state.get('adv19_daily_profit_pct', 1.0))
+            _render_target_status(profit_val, equity_val, daily_profit_pct)
+        except Exception:
+            st.info("Target status unavailable")
+
+        st.markdown("#### 🛡️ Risk Quick View")
+        try:
+            used = risk_env.get('used_pct')
+            exp = risk_env.get('exposure_pct')
+            def _norm(x):
+                if x is None: return None
+                x = float(x)
+                return x if x <= 1.0 else x/100.0
+            used_n = _norm(used)
+            exp_n = _norm(exp)
+            cA, cB = st.columns(2)
+            with cA:
+                st.metric("Risk Used", f"{(used_n*100):.0f}%" if used_n is not None else "—")
+            with cB:
+                st.metric("Exposure", f"{(exp_n*100):.0f}%" if exp_n is not None else "—")
+        except Exception:
+            st.caption("Risk metrics unavailable")
+
+    # Bottom tiles (keep existing content)
+    
+    
+    bc1, bc2, bc3, bc4 = st.columns(4)
     bc1, bc2, bc3, bc4 = st.columns(4)
     with bc1:
         st.markdown("### Trade Quality")
