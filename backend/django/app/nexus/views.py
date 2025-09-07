@@ -749,6 +749,51 @@ class FeedEquityView(views.APIView):
         return Response(payload)
 
 
+class EquitySeriesView(views.APIView):
+    """Intraday equity series derived from closed trades today.
+
+    Returns JSON: { sod_equity?: number, points: [{ ts: ISO8601, pnl: number }] }
+    pnl is cumulative USD P&L for the session (>= 0: profit, < 0: loss).
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from django.utils import timezone
+        sod = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        qs = Trade.objects.filter(close_time__gte=sod, close_time__isnull=False).order_by('close_time')
+        points = []
+        cum = 0.0
+        for t in qs:
+            try:
+                cum += float(t.pnl or 0.0)
+                points.append({
+                    'ts': t.close_time.isoformat() if t.close_time else None,
+                    'pnl': cum,
+                })
+            except Exception:
+                continue
+        # Optional: include SoD equity if available from account risk
+        sod_equity = None
+        try:
+            base = os.getenv('DJANGO_EXTERNAL_BASE') or ''
+            # Prefer internal resolution; fallback to env base if provided
+            from django.urls import reverse
+            url = (base.rstrip('/') + reverse('account-risk')) if base else None
+            if url:
+                r = requests.get(url, timeout=1.0)
+                if r.ok:
+                    data = r.json() or {}
+                    se = data.get('sod_equity')
+                    if isinstance(se, (int, float)):
+                        sod_equity = float(se)
+        except Exception:
+            pass
+        out = {'points': points}
+        if sod_equity is not None:
+            out['sod_equity'] = sod_equity
+        _publish_feed('equity_series', out)
+        return Response(out)
+
 class FeedTradeView(views.APIView):
     permission_classes = [AllowAny]
 
@@ -808,6 +853,37 @@ class ProfitHorizonView(views.APIView):
                 "peak_usd": peak_usd,
             })
         _publish_feed("profit-horizon", {"items": out})
+        return Response(out)
+
+
+class TradeHistoryView(views.APIView):
+    """Simplified trade history for behavioral analysis UIs.
+
+    GET /api/v1/trades/history?symbol=EURUSD
+    Returns: [{ id, ts, symbol, direction, entry, exit, pnl, status }]
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        symbol = request.GET.get('symbol')
+        qs = Trade.objects.all().order_by('-entry_time')
+        if symbol:
+            qs = qs.filter(symbol=str(symbol))
+        out = []
+        for t in qs[:500]:
+            try:
+                out.append({
+                    'id': t.id,
+                    'ts': (t.close_time or t.entry_time).isoformat() if (t.entry_time or t.close_time) else None,
+                    'symbol': t.symbol,
+                    'direction': t.type,
+                    'entry': float(t.entry_price or 0.0),
+                    'exit': float(t.close_price) if t.close_price is not None else None,
+                    'pnl': float(t.pnl) if t.pnl is not None else None,
+                    'status': 'closed' if t.close_time else 'open',
+                })
+            except Exception:
+                continue
         return Response(out)
 
 

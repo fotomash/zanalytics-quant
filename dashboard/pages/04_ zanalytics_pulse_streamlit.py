@@ -4,6 +4,21 @@ import plotly.express as px
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
+import requests
+import os
+from dashboard.utils.streamlit_api import (
+    safe_api_call,
+    fetch_whispers,
+    post_whisper_ack,
+    post_whisper_act,
+    get_trading_menu_options,
+    render_status_row,
+    api_url,
+    start_whisper_sse,
+    drain_whisper_sse,
+    get_sse_status,
+    fetch_trade_history,
+)
 import time
 
 # Page configuration
@@ -131,8 +146,20 @@ def generate_session_trajectory():
 st.markdown("# 🧭 Zanalytics Pulse")
 st.markdown("### Your Behavioral Trading Co-Pilot")
 
+# Live API helpers (align with page 06)
+mini = safe_api_call('GET', 'api/v1/market/mini')
+mirror = safe_api_call('GET', 'api/v1/mirror/state')
+acct = safe_api_call('GET', 'api/v1/account/info')
+risk = safe_api_call('GET', 'api/v1/account/risk')
+whispers_resp = safe_api_call('GET', 'api/pulse/whispers')
+equity_series = safe_api_call('GET', 'api/v1/feed/equity/series')
+
 # Market Context Bar
-market_data = get_market_data()
+market_data = {
+    'vix': (mini.get('vix') or {}).get('value') or 0.0,
+    'dxy': (mini.get('dxy') or {}).get('value') or 0.0,
+    'regime': mini.get('regime') or '—',
+}
 col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
 
 with col1:
@@ -148,7 +175,7 @@ with col3:
     st.metric("Regime", f"{regime_color[market_data['regime']]} {market_data['regime']}")
 
 with col4:
-    st.metric("System Status", "✅ All Systems Operational", "Lag: ~2ms")
+    render_status_row()
 
 st.divider()
 
@@ -380,38 +407,24 @@ with col_center:
     
     st.plotly_chart(fig_discipline, use_container_width=True)
 
-# RIGHT COLUMN - The Whisperer
+# RIGHT COLUMN - The Whisperer (live)
 with col_right:
     st.markdown("### 🤖 The Whisperer")
-    
-    # Generate whispers
-    whispers = [
-        {
-            'time': '09:30:00',
-            'type': 'insight',
-            'message': 'Good morning. Market regime: Neutral. Your win rate in these conditions: 68%'
-        },
-        {
-            'time': '10:15:23',
-            'type': 'warning',
-            'message': 'Position size exceeds plan for B-setup. Discipline Score impacted (-8 pts)'
-        },
-        {
-            'time': '11:00:45',
-            'type': 'success',
-            'message': 'Well done respecting the cooling-off period. Pattern recognition improving.'
-        },
-        {
-            'time': '14:30:12',
-            'type': 'alert',
-            'message': 'Potential revenge trade detected. Your win rate after losses: 42%. Consider stepping back.'
-        },
-        {
-            'time': '15:45:00',
-            'type': 'success',
-            'message': '🎯 Profit target reached! Consider protecting gains. Your efficiency score: 74%'
-        }
-    ]
+    # Start SSE and combine with HTTP polls
+    start_whisper_sse()
+    sse_items = drain_whisper_sse()
+    whispers_raw = whispers_resp.get('whispers') if isinstance(whispers_resp, dict) else []
+    if sse_items:
+        whispers_raw = (whispers_raw or []) + sse_items
+    whispers = []
+    latest_slice = list(reversed((whispers_raw or [])[-25:]))
+    for w in latest_slice:
+        ts = w.get('ts')
+        try:
+            tdisp = datetime.fromtimestamp(float(ts)).strftime('%H:%M:%S') if ts else ''
+        except Exception:
+            tdisp = ''
+        whispers.append({'time': tdisp or datetime.now().strftime('%H:%M:%S'), 'type': (w.get('severity') or 'insight'), 'message': w.get('message') or '', 'id': w.get('id'), 'actions': w.get('actions') or []})
     
     # Whisper feed container (scrollable)
     whisper_container = st.container()
@@ -434,31 +447,50 @@ with col_right:
     
     # Action buttons
     st.markdown("### Quick Actions")
-    
-    col_btn1, col_btn2 = st.columns(2)
-    with col_btn1:
-        if st.button("📝 Add Note", use_container_width=True):
-            st.info("Journal entry added")
-    
-    with col_btn2:
-        if st.button("🔒 Protect Profits", use_container_width=True):
-            st.success("Stop-loss moved to breakeven")
-    
-    if st.button("💬 Open Full Conversation →", use_container_width=True, type="primary"):
-        st.info("Opening Telegram conversation...")
+    if latest_slice:
+        options = []
+        for w in latest_slice[:10]:
+            ts = w.get('ts')
+            try:
+                tdisp = datetime.fromtimestamp(float(ts)).strftime('%H:%M:%S') if ts else ''
+            except Exception:
+                tdisp = ''
+            options.append((f"{tdisp} — {str(w.get('message') or '')[:80]}", w))
+        labels = [o[0] for o in options]
+        sel = st.selectbox("Select whisper", labels, index=0)
+        sel_w = options[labels.index(sel)][1]
+        c1, c2 = st.columns(2)
+        with c1:
+            reason = st.text_input("Ack reason", value="", placeholder="optional")
+            if st.button("✅ Acknowledge", use_container_width=True, key="ack_btn_04"):
+                res = post_whisper_ack(sel_w.get("id"), reason or None)
+                if isinstance(res, dict) and res.get('ok'):
+                    st.success("Acknowledged")
+                else:
+                    st.error(f"Ack failed: {res}")
+        with c2:
+            acts = sel_w.get('actions') or []
+            act_labels = [a.get('label') or a.get('action') for a in acts] or ["act_trail_50", "act_move_sl_be", "act_size_down"]
+            act_values = [a.get('action') for a in acts] or act_labels
+            act_choice = st.selectbox("Action", act_labels, index=0, key="act_sel_04")
+            act_value = act_values[act_labels.index(act_choice)]
+            if st.button("🚀 Act", use_container_width=True, key="act_btn_04"):
+                res = post_whisper_act(sel_w.get("id"), act_value)
+                if isinstance(res, dict) and res.get('ok'):
+                    st.success("Action sent")
+                else:
+                    st.error(f"Act failed: {res}")
+    else:
+        st.info("No whispers yet.")
 
-# Bottom Section - Additional Insights
+# Bottom Section - Additional Insights (no mock values)
 st.divider()
 
 bottom_cols = st.columns(4)
 
 with bottom_cols[0]:
     st.markdown("### Trade Quality")
-    quality_data = pd.DataFrame({
-        'Setup': ['A+', 'B', 'C'],
-        'Count': [12, 8, 3],
-        'Win Rate': [75, 50, 33]
-    })
+    quality_data = pd.DataFrame({'Setup': [], 'Count': []})
     
     fig_quality = go.Figure(go.Bar(
         x=quality_data['Setup'],
@@ -482,14 +514,14 @@ with bottom_cols[0]:
 
 with bottom_cols[1]:
     st.markdown("### Profit Efficiency")
-    st.metric("Captured vs Potential", "74%", "+5%")
-    st.progress(0.74)
-    st.caption("Letting winners run better")
+    st.metric("Captured vs Potential", "—")
+    st.progress(0.0)
+    st.caption("Awaiting feed")
 
 with bottom_cols[2]:
     st.markdown("### Risk Management")
-    st.metric("Avg Risk/Trade", "1.2R")
-    st.metric("Max Exposure", "3.5%", "-0.5%")
+    st.metric("Avg Risk/Trade", "—")
+    st.metric("Max Exposure", "—")
 
 with bottom_cols[3]:
     st.markdown("### Session Momentum")
@@ -498,11 +530,42 @@ with bottom_cols[3]:
     st.progress(momentum/100)
     st.caption("Maintaining discipline")
 
-# Auto-refresh simulation
-placeholder = st.empty()
-if st.button("🔄 Enable Live Updates"):
-    while True:
-        with placeholder.container():
-            st.info("Dashboard updating...")
-        time.sleep(5)
-        st.rerun()
+# Session trajectory from equity series
+st.markdown("### 📈 Session Trajectory")
+try:
+    points = equity_series.get('points') if isinstance(equity_series, dict) else []
+    if points:
+        df = pd.DataFrame(points)
+        df['time'] = pd.to_datetime(df['ts'], errors='coerce')
+        df['pnl'] = pd.to_numeric(df['pnl'], errors='coerce').fillna(0.0)
+        fig_tr = go.Figure(go.Scatter(x=df['time'], y=df['pnl'], mode='lines', name='P&L',
+                                      line=dict(color='#22C55E', width=2), fill='tozeroy',
+                                      fillcolor='rgba(34, 197, 94, 0.1)'))
+        fig_tr.add_hline(y=0, line_dash='dash', line_color='gray', opacity=0.3)
+        fig_tr.update_layout(height=260, margin=dict(t=0,b=20,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(fig_tr, use_container_width=True)
+    else:
+        st.info("No trades today — trajectory will appear once trades close.")
+except Exception:
+    st.info("Trajectory feed unavailable.")
+
+# Trade History (behavioral analysis)
+st.subheader("Trade History")
+sym_opts = ['All', 'XAUUSD', 'EURUSD', 'GBPUSD']
+sel = st.selectbox("Filter by Symbol", sym_opts)
+sym = None if sel == 'All' else sel
+hist = fetch_trade_history(sym)
+try:
+    import pandas as pd
+    df = pd.DataFrame(hist)
+    if not df.empty:
+        if 'ts' in df.columns:
+            df['ts'] = pd.to_datetime(df['ts'], errors='coerce')
+        cols = [c for c in ['id','ts','symbol','direction','entry','exit','pnl','status'] if c in df.columns]
+        st.dataframe(df[cols], use_container_width=True, height=300)
+        csv = df[cols].to_csv(index=False).encode('utf-8')
+        st.download_button("Export to CSV", csv, "trade_history.csv", "text/csv")
+    else:
+        st.info("No trade history available yet.")
+except Exception:
+    st.info("History unavailable.")

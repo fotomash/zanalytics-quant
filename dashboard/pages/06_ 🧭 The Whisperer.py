@@ -6,6 +6,17 @@ from datetime import datetime, timedelta
 import time
 import os
 import requests
+from dashboard.utils.streamlit_api import (
+    safe_api_call,
+    fetch_whispers,
+    post_whisper_ack,
+    post_whisper_act,
+    get_trading_menu_options,
+    render_status_row,
+    start_whisper_sse,
+    drain_whisper_sse,
+    get_sse_status,
+)
 
 # Page configuration
 st.set_page_config(
@@ -41,36 +52,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# API helpers (minimal, mirrors page 19 behavior)
-DJANGO_API_URL = os.getenv("DJANGO_API_URL", "http://django:8000").rstrip('/')
-
-def _api_url(path: str) -> str:
-    p = path.lstrip('/')
-    if p.startswith('api/'):
-        return f"{DJANGO_API_URL}/{p}"
-    if p.startswith(('pulse/', 'risk/', 'score/', 'signals/')):
-        p2 = p.split('/', 1)
-        if p2 and p2[0] == 'pulse' and len(p2) > 1:
-            p = p2[1]
-        return f"{DJANGO_API_URL}/api/pulse/{p}"
-    return f"{DJANGO_API_URL}/{p}"
-
-def safe_api_call(method: str, path: str, payload: dict | None = None, timeout: float = 1.2) -> dict:
-    try:
-        url = _api_url(path)
-        if method.upper() == 'GET':
-            r = requests.get(url, timeout=timeout)
-        else:
-            r = requests.post(url, json=payload or {}, timeout=timeout)
-        if r.status_code == 200:
-            return r.json()
-        return {"error": f"HTTP {r.status_code}", "url": url}
-    except requests.exceptions.Timeout:
-        return {"error": "API timeout", "url": _api_url(path)}
-    except requests.exceptions.ConnectionError:
-        return {"error": "API connection failed", "url": _api_url(path)}
-    except Exception as e:
-        return {"error": str(e), "url": _api_url(path)}
+"""Live Whisperer page using shared API helpers."""
 
 # Initialize session state
 if 'discipline_score' not in st.session_state:
@@ -104,9 +86,12 @@ def _fetch_patterns() -> dict:
     return data if isinstance(data, dict) else {}
 
 def _fetch_whispers() -> list[dict]:
-    data = safe_api_call('GET', 'api/pulse/whispers') or {}
-    arr = data.get('whispers') if isinstance(data, dict) else []
-    return arr if isinstance(arr, list) else []
+    return fetch_whispers()
+
+def _fetch_equity_series() -> list[dict]:
+    data = safe_api_call('GET', 'api/v1/feed/equity/series') or {}
+    pts = data.get('points') if isinstance(data, dict) else []
+    return pts if isinstance(pts, list) else []
 
 def _session_trajectory():
     hours = pd.date_range(start='2025-01-01 09:30', end='2025-01-01 16:00', freq='15min')
@@ -130,12 +115,21 @@ def _session_trajectory():
 
 # Auto-refresh toggle (best-effort)
 live = st.sidebar.checkbox("Live refresh", value=False, help="Auto‑refresh every 5s")
+if live:
+    try:
+        from streamlit_autorefresh import st_autorefresh  # type: ignore
+        st_autorefresh(interval=5000, key="whisp_autoref")
+    except Exception:
+        pass
 try:
     if live:
         from streamlit_autorefresh import st_autorefresh  # type: ignore
         st_autorefresh(interval=5000, key="whisp_autoref")
 except Exception:
     pass
+
+# Start SSE for whispers (non-blocking)
+start_whisper_sse()
 
 # Fetch live data (with graceful fallbacks)
 mini = _fetch_market_mini()
@@ -145,6 +139,7 @@ bal, eq, sod_eq, pnl_usd = _fetch_account()
 # Header
 st.markdown("# 🧭 The Whisperer")
 st.caption("Behavioral co‑pilot for disciplined execution")
+render_status_row()
 
 mkt = {
     'vix': (mini.get('vix') or {}).get('value') or 14.8,
@@ -242,17 +237,21 @@ with col_center:
             unsafe_allow_html=True)
 
     st.markdown("### 📈 Session Trajectory")
-    T = _session_trajectory()
+    series = _fetch_equity_series()
+    if series:
+        T = pd.DataFrame(series)
+        try:
+            T['time'] = pd.to_datetime(T['ts'], errors='coerce')
+        except Exception:
+            T['time'] = pd.to_datetime('now')
+        T['pnl'] = pd.to_numeric(T['pnl'], errors='coerce').fillna(0.0)
+    else:
+        T = pd.DataFrame({'time': [pd.to_datetime('now')], 'pnl': [0.0]})
     figT = go.Figure()
     figT.add_trace(go.Scatter(x=T['time'], y=T['pnl'], mode='lines', name='P&L',
                               line=dict(color='#22C55E', width=2), fill='tozeroy',
                               fillcolor='rgba(34,197,94,0.1)'))
-    for typ, col in { 'revenge':'#EF4444', 'overconfidence':'#FBBF24', 'milestone':'#22C55E' }.items():
-        S = T[T['events'] == typ]
-        if not S.empty:
-            figT.add_trace(go.Scatter(x=S['time'], y=S['pnl'], mode='markers', name=typ.capitalize(),
-                                      marker=dict(size=12, color=col, symbol='circle'),
-                                      hovertemplate=f"{typ.capitalize()} Event<br>P&L: %{{y:.2f}}<extra></extra>"))
+    # Behavioral markers could be layered when event data is available.
     figT.add_hline(y=0, line_dash='dash', line_color='gray', opacity=0.3)
     figT.update_layout(height=300, margin=dict(t=0,b=20,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)',
                        plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(showgrid=False, color='#9CA3AF', tickformat='%H:%M'),
@@ -277,19 +276,25 @@ with col_center:
 # RIGHT — The Whisperer (live list, best-effort)
 with col_right:
     st.markdown("### 🤖 The Whisperer")
-    whispers_raw = _fetch_whispers()
+    # Pull SSE whispers and merge with HTTP latest
+    sse_items = drain_whisper_sse()
+    base_list = _fetch_whispers()
+    whispers_raw = base_list + sse_items if sse_items else base_list
     whispers = []
-    for w in reversed(whispers_raw[-25:]):
+    latest_slice = list(reversed((whispers_raw or [])[-25:]))
+    for w in latest_slice:
         typ = (w.get('severity') or 'insight').lower()
         ts = w.get('ts')
         try:
             tdisp = datetime.fromtimestamp(float(ts)).strftime('%H:%M:%S') if ts else ''
         except Exception:
             tdisp = ''
-        whispers.append({'time': tdisp or datetime.now().strftime('%H:%M:%S'), 'type': typ, 'message': w.get('message') or ''})
+        whispers.append({'time': tdisp or datetime.now().strftime('%H:%M:%S'), 'type': typ, 'message': w.get('message') or '', 'id': w.get('id'), 'actions': w.get('actions') or []})
     wc = st.container()
     with wc:
         icons = {'insight': '💡', 'warning': '⚠️', 'success': '✅', 'alert': '🚨'}
+        sse_badge = get_sse_status()
+        st.caption(f"Whisper Stream: {('✅ connected' if sse_badge=='connected' else '⚠️ fallback')} ")
         html = ["<div style='max-height:400px; overflow:auto'>"]
         for w in whispers:
             html.append(
@@ -305,15 +310,43 @@ with col_right:
         st.markdown("\n".join(html), unsafe_allow_html=True)
 
     st.markdown("### Quick Actions")
-    qb1, qb2 = st.columns(2)
-    with qb1:
-        if st.button("📝 Add Note", use_container_width=True):
-            st.info("Journal entry added (demo)")
-    with qb2:
-        if st.button("🔒 Protect Profits", use_container_width=True):
-            st.success("Stop-loss moved to breakeven (demo)")
-    if st.button("💬 Open Full Conversation →", use_container_width=True, type="primary"):
-        st.info("Opening Telegram conversation… (demo)")
+    if latest_slice:
+        # Build selector for recent whispers
+        options = []
+        for w in latest_slice[:10]:
+            ts = w.get('ts')
+            try:
+                tdisp = datetime.fromtimestamp(float(ts)).strftime('%H:%M:%S') if ts else ''
+            except Exception:
+                tdisp = ''
+            label = f"{tdisp} — {str(w.get('message') or '')[:80]}"
+            options.append((label, w))
+        labels = [o[0] for o in options]
+        sel = st.selectbox("Select whisper", labels, index=0)
+        sel_w = options[labels.index(sel)][1]
+        c1, c2 = st.columns(2)
+        with c1:
+            reason = st.text_input("Ack reason", value="", placeholder="optional")
+            if st.button("✅ Acknowledge", use_container_width=True, key="ack_btn"):
+                res = post_whisper_ack(sel_w.get("id"), reason or None)
+                if isinstance(res, dict) and res.get('ok'):
+                    st.success("Acknowledged")
+                else:
+                    st.error(f"Ack failed: {res}")
+        with c2:
+            acts = sel_w.get('actions') or []
+            act_labels = [a.get('label') or a.get('action') for a in acts] or ["act_trail_50", "act_move_sl_be", "act_size_down"]
+            act_values = [a.get('action') for a in acts] or act_labels
+            act_choice = st.selectbox("Action", act_labels, index=0, key="act_sel")
+            act_value = act_values[act_labels.index(act_choice)]
+            if st.button("🚀 Act", use_container_width=True, key="act_btn"):
+                res = post_whisper_act(sel_w.get("id"), act_value)
+                if isinstance(res, dict) and res.get('ok'):
+                    st.success("Action sent")
+                else:
+                    st.error(f"Act failed: {res}")
+    else:
+        st.info("No whispers yet.")
 
 st.divider()
 bc1, bc2, bc3, bc4 = st.columns(4)

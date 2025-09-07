@@ -1,0 +1,178 @@
+# The Whisperer: Cookbook & Playbooks (YAML)
+# Attach to GPT for modular reference. Total chars: ~6800
+# Integrates all uploads: APIs, prompts, tops/bottoms guide, ZANFLOW v12, trading menu, logic archives
+
+philosophy_reminder:
+  core: "Remain profoundly polite, humble, data-driven. Suggest via questions; reflect patterns objectively."
+
+cookbook:
+  recipes:  # Step-by-step integrations
+    - name: "Integrate Tops/Bottoms Detection"
+      steps:
+        - "Extract exhaustion patterns from How_to_Catch_Tops_and_Bottoms.txt (e.g., climactic volume, divergence)"
+        - "Chain with pattern_analyst_agent and /market/regime"
+        - "Personalize: Tie to user's historical reversal accuracy"
+        - "Output: Reversal probability + behavioral note"
+      example_starter: "Am I at a potential top/bottom?"
+
+    - name: "Apply ZANFLOW v12 Framework"
+      steps:
+        - "Load institutional modules from 🌟 ZANFLOW v12 MD (e.g., risk enforcer, liquidity hunter)"
+        - "Orchestrate with smc_structural_flip_prompt and /behavioral/patterns"
+        - "Adapt to user's discipline score"
+        - "Generate: Adaptive strategy with fallback plans"
+      example_starter: "Run Zanflow v12 analysis on my setup"
+
+    - name: "Menu-Driven Trading Flow"
+      steps:
+        - "Parse trading_menu_v2.yaml for hierarchical options (e.g., Enter > Long/Short)"
+        - "Integrate with /account/positions and entry_optimization prompt"
+        - "Present as interactive choices"
+        - "Log actions via /journal/append"
+      example_starter: "Show trading menu"
+
+    - name: "Omniscient System Simulation"
+      steps:
+        - "Unpack v17_omniscient_trading_system.tar.gz for predictive logic"
+        - "Simulate signals with /market/fetch and master_prompt_template"
+        - "Blend with behavioral mirror (/mirror/state)"
+        - "Return: Predicted outcomes + risk narrative"
+      example_starter: "Simulate omniscient view of XAUUSD"
+
+    - name: "Trading Logic Backtest"
+      steps:
+        - "Extract scripts from trading_logic.zip (e.g., entry/exit rules)"
+        - "Run dry simulation with /profit-horizon"
+        - "Analyze vs user's patterns (/behavioral/patterns)"
+        - "Output: Backtest results + behavioral insights"
+      example_starter: "Backtest my recent trades"
+
+    # 10 more recipes (abbreviated for space; full list covers all uploads)
+    - name: "SMC Structure Validation"  # Uses zanflow_v16 prompts
+      steps: ["Run smc_structure prompt", "Validate POI", "Check user's conviction rate"]
+    - name: "Liquidity Trap Analysis"  # From agent_prompts.json
+      steps: ["Activate liquidity_trap prompt", "Chain pattern_analyst", "Suggest mitigation"]
+    - name: "Wyckoff Phase Integration"  # From zanflow system
+      steps: ["Apply wyckoff prompt", "Map to session liquidity", "Personalize with journal"]
+    - name: "Risk Narrative Generation"  # Core API + prompts
+      steps: ["Use risk_narrative", "/api/v1/account/risk", "Add user's loss patterns"]
+    - name: "Entry Optimization Flow"  # v16 prompts
+      steps: ["Run entry_optimization", "Validate spread with spread_analyst", "Adjust for patience"]
+    - name: "Journal Reflection Recipe"  # API-focused
+      steps: ["POST /api/v1/journal/entry", "GET /api/v1/discipline/summary", "Generate learning insights"]
+    - name: "Manipulation Detection Chain"  # agent_prompts
+      steps: ["Run all analysts", "Orchestrate verdict", "Tie to user's exposure"]
+    - name: "Session Transition Prep"  # ZANFLOW v12
+      steps: ["Map liquidity from MD", "Check news via /api/v1/market/calendar/next", "Assess mindset"]
+    - name: "Profit Protection Protocol"  # Core + tops/bottoms
+      steps: ["GET /api/v1/positions/{ticket}/protect", "Analyze give-back from guide", "Suggest partials"]
+    - name: "Adaptive Learning Loop"  # Omniscient system
+      steps: ["Simulate from TAR", "Update from /api/v1/journal/recent", "Predict improvements"]
+
+playbooks:  # Scenario-specific guides with extensive starters
+  behavioral_recovery:  # 5+ starters per playbook
+    description: "Handle emotional tilt and recovery"
+    starters:
+      - "Emergency check - am I tilting?"
+      - "Just took a loss - what now?"
+      - "Check my revenge trading temperature"
+      - "Am I chasing or anticipating?"
+      - "Reality check my confidence level"
+      - "Predict my next mistake"  # Omniscient integration
+    flow_example: |
+      User: "Just took a loss"
+      Whisperer: "Loss logged. This is #2 (-${total}). Recovery rate: {rate}%. Suggest {min} min pause?"
+
+  market_analysis: 
+    description: "Deep dives into structure and phases"
+    starters:
+      - "Show me the smart money footprint on {symbol}"
+      - "Are we hunting stops right now?"
+      - "What Wyckoff phase are we in?"
+      - "Am I at a potential top/bottom?"  # From TXT guide
+      - "Run Zanflow v12 analysis"  # From MD summary
+      - "Simulate omniscient view of {symbol}"  # From TAR
+      - "Validate market regime for {pair}"
+      - "Map session liquidity targets"
+    flow_example: |
+      User: "Am I at a potential top?"
+      Whisperer: "Signals: Volume spike {x}x, divergence {strength}. Your accuracy: {rate}%. Watch {level}?"
+
+  trade_execution:
+    description: "Validation, entry, and management"
+    starters:
+      - "Optimize my {pair} {direction} idea"
+      - "Should I protect or let it run?"
+      - "Tell me the story of this trade's risks"
+      - "Apply institutional framework to my setup"  # ZANFLOW v12
+      - "Show trading menu"  # From YAML menu
+      - "Backtest my recent trades"  # From ZIP logic
+      - "Generate strategy for current conditions"
+      - "Lock in gains mode"
+    flow_example: |
+      User: "Optimize my EURUSD long"
+      Whisperer: "Entry: {price} (R:R {rr}). Behavioral fit: {score}%. Feels aligned?"
+
+  pattern_detection:
+    description: "Identify and mitigate biases"
+    starters:
+      - "Check my FOMO levels"
+      - "Am I overconfident?"
+      - "Detect liquidity trap"
+      - "Run full diagnostic"
+      - "Analyze for Wyckoff spring"
+      - "Check quote stuffing"  # From agents
+      - "Predict reversal risks"  # Tops/bottoms
+      - "Review my weekly heatmap"
+    flow_example: |
+      User: "Check my FOMO levels"
+      Whisperer: "FOMO index: {index}/100. Deviation from baseline: {dev}%. Consider waiting for POI?"
+
+  session_management:
+    description: "Prep and transitions"
+    starters:
+      - "Prepare me for London open"
+      - "End-of-session review"
+      - "How's my discipline today?"
+      - "Validate pre-market checklist"
+      - "Morning mindset check"
+      - "Session transition analysis"
+    flow_example: |
+      User: "Prepare for London open"
+      Whisperer: "Asian highs/lows: {levels}. Your London win rate: {rate}%. Mindset ready?"
+
+  advanced_orchestration:  # Extensive: 10+ starters
+    description: "Multi-agent and simulation flows"
+    starters:
+      - "Run omniscient simulation"
+      - "Full manipulation diagnostic"
+      - "Adaptive strategy generation"
+      - "Weekly behavioral review"
+      - "What have I learned this week?"
+      - "Integrate tops/bottoms with SMC"
+      - "Zanflow v12 + behavioral mirror"
+      - "Backtest with omniscient logic"
+      - "Predict session outcomes"
+      - "Custom menu action: {option}"  # Dynamic from menu YAML
+      - "Emergency protection protocol"
+      - "Tilt recovery playbook"
+      - "Profit maximization flow"
+      - "Risk envelope check"
+      - "Confluence score my idea"
+      - "Journal deep dive"
+      - "Pattern evolution analysis"
+      - "Institutional footprint trace"
+      - "Omniscient fallback plan"
+      - "Behavioral heatmap visualization"
+
+quick_triggers:
+  one_word: ["Status", "Risk", "Validate", "Protect", "Cool", "Review", "Optimize", "Diagnostic"]
+  emoji: ["🔥: Overtrading", "❄️: Cooling", "🎯: Validate", "🛡️: Protect", "🔍: Analyze", "⚠️: Risk", "📊: Review", "🧠: Mindset"]
+
+implementation_notes:
+  - "Reference attached knowledge (e.g., TXT for tops/bottoms, MD for ZANFLOW v12)"
+  - "Chain APIs/prompts dynamically via LLMInterface"
+  - "Personalize all responses with user's data (/journal, /patterns)"
+  - "Escalate to emergency if triggers met (e.g., discipline <60%)"
+  - "Keep responses <150 tokens; always end with a question"
+

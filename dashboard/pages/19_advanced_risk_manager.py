@@ -219,22 +219,24 @@ def _bias_class(score: float) -> str:
         return "bear"
     return "neutral"
 
-# API Configuration
-DJANGO_API_URL = os.getenv("DJANGO_API_URL", "http://django:8000")
-
+# API Configuration (runtime-resolved to honor in‑app override)
 def _pulse_url(path: str) -> str:
     """Normalize paths to pulse endpoints under /api/pulse/"""
+    try:
+        base = (st.session_state.get('adv19_api_base') or os.getenv("DJANGO_API_URL", "http://django:8000")).rstrip('/')
+    except Exception:
+        base = (os.getenv("DJANGO_API_URL", "http://django:8000") or "http://django:8000").rstrip('/')
     p = path.lstrip('/')
     if p.startswith('api/'):
-        return f"{DJANGO_API_URL}/{p}"
+        return f"{base}/{p}"
     # Common pulse endpoints used on this page
     if p.startswith(('pulse/', 'risk/', 'score/', 'signals/')):
         # strip optional leading 'pulse/' then prefix with api/pulse
         p2 = p.split('/', 1)
         if p2 and p2[0] == 'pulse' and len(p2) > 1:
             p = p2[1]
-        return f"{DJANGO_API_URL}/api/pulse/{p}"
-    return f"{DJANGO_API_URL}/{p}"
+        return f"{base}/api/pulse/{p}"
+    return f"{base}/{p}"
 
 def safe_api_call(method: str, path: str, payload: Dict = None, timeout: float = 1.2) -> Dict:
     """Safe API call with error handling and fallbacks"""
@@ -991,18 +993,32 @@ def _render_behavioral_concentric(recent_df: pd.DataFrame, risk_summary: Dict, t
 
 
 def _render_session_trajectory(account_info: Dict, risk_summary: Dict):
-    # Build intraday equity series from refreshes
-    key = 'adv19_equity_intraday'
-    L = st.session_state.get(key) or []
-    now = datetime.now()
-    eq = float(account_info.get('equity', 0) or 0)
-    L.append({'ts': now.isoformat(), 'equity': eq})
-    st.session_state[key] = L[-600:]
-    # Prepare plot
-    xs = [pd.to_datetime(x['ts']) for x in st.session_state[key]]
-    ys = [float(x['equity']) for x in st.session_state[key]]
+    # Prefer live intraday equity series feed; fallback to local trail
+    try:
+        series = safe_api_call("GET", "api/v1/feed/equity/series") or {}
+    except Exception:
+        series = {}
+    pts = series.get('points') if isinstance(series, dict) else []
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=xs, y=ys, mode='lines', name='Equity', line=dict(color='#60a5fa', width=2)))
+    if isinstance(pts, list) and pts:
+        try:
+            xs = [pd.to_datetime(p.get('ts')) for p in pts]
+            ys = [float(p.get('pnl') or 0.0) for p in pts]
+            fig.add_trace(go.Scatter(x=xs, y=ys, mode='lines', name='P&L', line=dict(color='#22c55e', width=2), fill='tozeroy', fillcolor='rgba(34,197,94,0.10)'))
+            fig.add_hline(y=0, line_dash='dash', line_color='gray', opacity=0.3)
+        except Exception:
+            pass
+    else:
+        # Fallback: build local equity breadcrumb (not persisted)
+        key = 'adv19_equity_intraday'
+        L = st.session_state.get(key) or []
+        now = datetime.now()
+        eq = float(account_info.get('equity', 0) or 0)
+        L.append({'ts': now.isoformat(), 'equity': eq})
+        st.session_state[key] = L[-600:]
+        xs = [pd.to_datetime(x['ts']) for x in st.session_state[key]]
+        ys = [float(x['equity']) for x in st.session_state[key]]
+        fig.add_trace(go.Scatter(x=xs, y=ys, mode='lines', name='Equity', line=dict(color='#60a5fa', width=2)))
     # Overlay behavioral markers if available (best-effort from warnings)
     ws = risk_summary.get('warnings') or []
     if any('Revenge' in str(w) for w in ws):
@@ -1020,6 +1036,27 @@ def _render_session_trajectory(account_info: Dict, risk_summary: Dict):
         pass
     fig.update_layout(height=260, margin=dict(l=20, r=10, t=10, b=10), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
     st.plotly_chart(fig, use_container_width=True)
+    # Trade History (behavioral analysis)
+    try:
+        from dashboard.utils.streamlit_api import fetch_trade_history
+        st.subheader("Trade History")
+        sym_opts = ['All', 'XAUUSD', 'EURUSD', 'GBPUSD']
+        sel = st.selectbox("Filter by Symbol", sym_opts, key='hist_sym')
+        sym = None if sel == 'All' else sel
+        data = fetch_trade_history(sym)
+        import pandas as pd
+        df = pd.DataFrame(data)
+        if not df.empty:
+            if 'ts' in df.columns:
+                df['ts'] = pd.to_datetime(df['ts'], errors='coerce')
+            cols = [c for c in ['id','ts','symbol','direction','entry','exit','pnl','status'] if c in df.columns]
+            st.dataframe(df[cols], use_container_width=True, height=300)
+            csv = df[cols].to_csv(index=False).encode('utf-8')
+            st.download_button("Export to CSV", csv, "trade_history.csv", "text/csv")
+        else:
+            st.info("No trade history yet.")
+    except Exception:
+        pass
 
 
 def _render_target_status(profit_val: float, equity_val: float, daily_profit_pct: float, milestone_threshold: float = 0.75):
@@ -1733,6 +1770,29 @@ def main():
                             r = requests.get(f"{test_url}/account_info", timeout=1.2)
                             if r.ok:
                                 st.success("Bridge reachable ✓")
+                            else:
+                                st.error(f"HTTP {r.status_code}")
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+
+        api_current = st.session_state.get('adv19_api_base', '') or (os.getenv('DJANGO_API_URL', ''))
+        with st.expander("Django API Base (override)", expanded=False):
+            api_input = st.text_input("Django API Base URL", value=api_current or '', placeholder="e.g. https://django2.zanalytics.app")
+            c1, c2, _ = st.columns([1,1,4])
+            with c1:
+                if st.button("Apply", key="apply_api_19"):
+                    st.session_state['adv19_api_base'] = (api_input or '').strip() or None
+                    st.success("API base override applied")
+            with c2:
+                if st.button("Test", key="test_api_19"):
+                    base = (api_input or os.getenv('DJANGO_API_URL', '')).strip().rstrip('/')
+                    if not base:
+                        st.warning("No URL to test")
+                    else:
+                        try:
+                            r = requests.get(f"{base}/api/v1/market/mini", timeout=1.2)
+                            if r.ok:
+                                st.success("Django API reachable ✓")
                             else:
                                 st.error(f"HTTP {r.status_code}")
                         except Exception as e:
