@@ -1165,3 +1165,43 @@ class MarketNewsPublisherView(views.APIView):
             return Response({'ok': True})
         except Exception as e:
             return Response({'ok': False, 'error': str(e)}, status=500)
+
+
+class PositionsProxyView(views.APIView):
+    """Proxy positions from MT5 bridge with normalization and safe fallback.
+
+    GET /api/v1/account/positions -> [] on failure.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        base = (
+            os.getenv("MT5_URL")
+            or os.getenv("MT5_API_URL")
+            or "http://mt5:5001"
+        )
+        try:
+            r = requests.get(f"{str(base).rstrip('/')}/positions_get", timeout=2.5)
+            if not r.ok:
+                return Response([], status=200)
+            data = r.json() or []
+            if not isinstance(data, list):
+                return Response([], status=200)
+            # Normalize time fields to ISO strings (if present)
+            out = []
+            for p in data:
+                if not isinstance(p, dict):
+                    continue
+                q = dict(p)
+                for tkey in ("time", "time_update"):
+                    if tkey in q and q[tkey] is not None:
+                        try:
+                            # try milliseconds → ISO
+                            import pandas as _pd
+                            q[tkey] = _pd.to_datetime(int(q[tkey]), unit='s', errors='coerce').isoformat()
+                        except Exception:
+                            pass
+                out.append(q)
+            return Response(out)
+        except Exception:
+            return Response([], status=200)

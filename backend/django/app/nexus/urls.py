@@ -24,6 +24,7 @@ from .views import (
     MarketMiniView,
     MarketFetchView,
     MarketNewsPublisherView,
+    PositionsProxyView,
 )
 
 # --- Minimal, dependency-free Pulse endpoints (stubs) ---
@@ -85,4 +86,5 @@ urlpatterns = [
     path('market/mini', MarketMiniView.as_view(), name='market-mini'),
     path('market/fetch', MarketFetchView.as_view(), name='market-fetch'),
     path('market/news/next', MarketNewsPublisherView.as_view(), name='market-news-next'),
+    path('account/positions', PositionsProxyView.as_view(), name='account-positions'),
 ]

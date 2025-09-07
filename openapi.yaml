@@ -1,0 +1,161 @@
+openapi: 3.0.3
+info:
+  title: Zanalytics Pulse – Whisperer API
+  version: 0.1.0
+  description: |
+    Minimal endpoints used by the dashboard, bot and GPT Actions.
+    Authentication is not required; an optional `X-Pulse-Key` header may be
+    enabled later without breaking this contract.
+servers:
+  - url: http://django:8000
+paths:
+  /api/v1/market/mini:
+    get:
+      summary: Market header mini payload
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vix:
+                    type: object
+                    properties:
+                      series:
+                        type: array
+                        items: { type: number }
+                      value:
+                        type: number
+                  dxy:
+                    type: object
+                    properties:
+                      series:
+                        type: array
+                        items: { type: number }
+                      value:
+                        type: number
+                  news:
+                    type: object
+                    properties:
+                      label: { type: string }
+                      countdown: { type: string, nullable: true }
+                  regime:
+                    type: string
+  /api/v1/market/fetch:
+    get:
+      summary: Fetch VIX/DXY from public source and cache to Redis
+      responses: { '200': { description: OK } }
+  /api/v1/market/news/next:
+    post:
+      summary: Publish next high‑impact news item to Redis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label: { type: string }
+                ts: { type: string, nullable: true, description: ISO8601 timestamp }
+      responses: { '200': { description: OK } }
+  /api/v1/mirror/state:
+    get:
+      summary: Behavioral mirror state
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  patience_ratio: { type: number, nullable: true }
+                  discipline: { type: number, nullable: true }
+                  efficiency: { type: number, nullable: true }
+                  conviction_hi_win: { type: number, nullable: true }
+                  conviction_lo_loss: { type: number, nullable: true }
+                  pnl_norm: { type: number, nullable: true }
+                  pnl_today: { type: number, nullable: true }
+  /api/v1/discipline/summary:
+    get:
+      summary: Discipline daily/7‑day summary with events
+      responses: { '200': { description: OK } }
+  /api/v1/profit-horizon:
+    get:
+      summary: Profit Horizon data (last N closed trades)
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20, minimum: 1, maximum: 100 }
+      responses: { '200': { description: OK } }
+  /api/v1/feed/balance:
+    get:
+      summary: Balance feed (awaiting-friendly)
+      responses: { '200': { description: OK } }
+  /api/v1/feed/equity:
+    get:
+      summary: Equity feed (awaiting-friendly)
+      responses: { '200': { description: OK } }
+  /api/v1/feed/trade:
+    get:
+      summary: Trade feed (awaiting-friendly)
+      responses: { '200': { description: OK } }
+  /api/v1/feed/behavior:
+    get:
+      summary: Behavior feed (awaiting-friendly)
+      responses: { '200': { description: OK } }
+  /api/v1/account/positions:
+    get:
+      summary: Normalized open positions proxy
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+  /api/pulse/whispers:
+    get:
+      summary: Latest whispers stream
+      responses: { '200': { description: OK } }
+  /api/pulse/whisper/ack:
+    post:
+      summary: Acknowledge a whisper
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: { type: string }
+                reason: { type: string, nullable: true }
+      responses: { '200': { description: OK } }
+  /api/pulse/whisper/act:
+    post:
+      summary: Act on a whisper (journal intent)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: { type: string }
+                action: { type: string }
+      responses: { '200': { description: OK } }
+  /api/pulse/whispers/log:
+    get:
+      summary: Human‑readable whisper timeline
+      responses: { '200': { description: OK } }
+components:
+  securitySchemes:
+    pulseKey:
+      type: apiKey
+      name: X-Pulse-Key
+      in: header
+security: []
