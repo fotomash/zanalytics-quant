@@ -191,6 +191,74 @@ def risk_summary(request):
         }, status=500)
 
 @csrf_exempt
+@require_http_methods(["POST"])
+def risk_update(request):
+    """Update live daily stats for the risk enforcer (PnL, trades count, streak).
+
+    Body JSON fields (all optional):
+      - total_pnl: float (USD)
+      - trades_count: int
+      - consecutive_losses: int
+      - cooling_until: ISO8601 string (optional)
+    Returns the current risk_summary payload and publishes to Redis.
+    """
+    try:
+        if not risk_enforcer:
+            return JsonResponse({
+                "error": "Risk enforcer unavailable",
+                "timestamp": datetime.now().isoformat()
+            }, status=503)
+        data = json.loads(request.body or "{}")
+        # Update core stats if present
+        ds = getattr(risk_enforcer, 'core', None).daily_stats if hasattr(risk_enforcer, 'core') else None
+        if ds is None:
+            return JsonResponse({"error": "Enforcer state not available"}, status=500)
+        if 'total_pnl' in data:
+            try:
+                ds['total_pnl'] = float(data['total_pnl'])
+            except Exception:
+                pass
+        if 'trades_count' in data:
+            try:
+                ds['trades_count'] = int(data['trades_count'])
+            except Exception:
+                pass
+        if 'consecutive_losses' in data:
+            try:
+                ds['consecutive_losses'] = int(data['consecutive_losses'])
+            except Exception:
+                pass
+        if 'cooling_until' in data:
+            try:
+                # accept ISO; store raw string or parsed datetime depending on enforcer
+                ds['cooling_until'] = data['cooling_until']
+            except Exception:
+                pass
+
+        # Build current summary via enforcer
+        status_payload = risk_enforcer.get_risk_status()
+        payload = {
+            "risk_left": status_payload.get("risk_remaining_pct", 0),
+            "trades_left": status_payload.get("trades_remaining", 0),
+            "status": status_payload.get("status", "Unknown"),
+            "warnings": status_payload.get("warnings", []),
+            "daily_risk_used": status_payload.get("daily_risk_used", 0),
+            "timestamp": datetime.now().isoformat()
+        }
+        # Publish to Redis for UI
+        try:
+            from app.utils.pulse_bus import publish_risk_summary
+            publish_risk_summary(payload)
+        except Exception:
+            pass
+        return JsonResponse(payload)
+    except json.JSONDecodeError:
+        return HttpResponseBadRequest("Invalid JSON")
+    except Exception as e:
+        logger.error(f"Risk update error: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+@csrf_exempt
 @require_http_methods(["GET"])
 def signals_top(request):
     """Top trading opportunities with explanations"""
