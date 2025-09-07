@@ -253,12 +253,16 @@ class AdvancedPulseRiskManager:
         self.connected = False
         self.mt5_available = MT5_AVAILABLE
         self._last_account_info: Dict = {}
-        # Optional HTTP MT5 bridge (align with page 16) with fallback to MT5_API_URL
-        self.mt5_url = (
-            os.getenv("MT5_URL")
-            or os.getenv("MT5_API_URL")
-            or "http://mt5:5001"
-        )
+        # Optional HTTP MT5 bridge (align with page 16) with robust fallbacks
+        self._mt5_candidates = [
+            os.getenv("MT5_URL"),
+            os.getenv("MT5_API_URL"),
+            os.getenv("MT5_PUBLIC_URL"),
+            "http://mt5:5001",
+            "http://localhost:5001",
+            "http://127.0.0.1:5001",
+        ]
+        self.mt5_url = next((u for u in self._mt5_candidates if u), None)
         self.bridge_available = False
         self.status_messages: List[str] = []
         
@@ -302,73 +306,87 @@ class AdvancedPulseRiskManager:
             return False
 
     def get_account_info(self) -> Dict:
-        """Get account information via MT5 bridge first, then native. No mocks."""
-        # HTTP bridge first
-        if self.mt5_url:
+        """Get account information. No mocks; only real sources (match page 16)."""
+        def _normalize(ai: Dict) -> Dict:
+            """Normalize various bridge shapes: lower-case keys, handle nested/list, coerce numbers."""
+            obj = ai
+            if isinstance(obj, list) and obj:
+                obj = obj[0]
+            if not isinstance(obj, dict):
+                return {}
+            norm = {str(k).lower(): v for k, v in obj.items()}
+            # Coerce common numeric fields to floats when possible
+            for k in [
+                'balance','equity','margin','free_margin','margin_level','profit','leverage'
+            ]:
+                if k in norm and norm[k] is not None:
+                    try:
+                        norm[k] = float(norm[k])
+                    except Exception:
+                        pass
+            # Keep original login/server/company if present
+            return norm
+        # Try HTTP MT5 bridge first
+        # Try bridge endpoints across candidates until success
+        tried = []
+        for base in [u for u in self._mt5_candidates if u]:
             try:
-                url = f"{str(self.mt5_url).rstrip('/')}/account_info"
-                r = requests.get(url, timeout=4.0)
+                url = f"{str(base).rstrip('/')}/account_info"
+                tried.append(url)
+                r = requests.get(url, timeout=3.5)
                 if r.ok:
-                    data = r.json() or {}
-                    if isinstance(data, dict) and data:
+                    raw = r.json() or {}
+                    data = _normalize(raw)
+                    if isinstance(data, dict) and data and 'equity' in data:
                         self.bridge_available = True
-                        self._last_account_info = data
+                        self.mt5_url = base  # lock onto the working base
                         return data
                 else:
                     self.status_messages.append(f"HTTP bridge {url} returned {r.status_code}")
             except Exception as e:
-                self.status_messages.append(f"HTTP bridge error: {e}")
-        # If we have a last good snapshot, reuse it on transient failures (regardless of MT5 connection)
-        try:
-            if self._last_account_info:
-                return self._last_account_info
-        except Exception:
-            pass
-
-        # Try to (re)connect to MT5
-        if not self.connected:
-            self.connect()
-
-        # If connected, pull live account info
-        if self.connected:
+                self.status_messages.append(f"HTTP bridge error @ {base}: {e}")
+        if tried:
+            self.status_messages.append(f"Tried: {', '.join(tried)}")
+        # Try native MT5 if available and credentials are set
+        if self.mt5_available and all([self.mt5_login, self.mt5_password, self.mt5_server]):
             try:
-                account_info = mt5.account_info()
-                if account_info is not None:
-                    info = {
-                        'login': account_info.login,
-                        'server': account_info.server,
-                        'balance': account_info.balance,
-                        'equity': account_info.equity,
-                        'margin': account_info.margin,
-                        'free_margin': account_info.margin_free,
-                        'margin_level': account_info.margin_level,
-                        'profit': account_info.profit,
-                        'leverage': account_info.leverage,
-                        'currency': account_info.currency,
-                        'name': account_info.name,
-                        'company': account_info.company,
-                    }
-                    self._last_account_info = info
-                    return info
+                if not self.connected:
+                    if mt5.initialize() and mt5.login(login=int(self.mt5_login), password=self.mt5_password, server=self.mt5_server):
+                        self.connected = True
+                if self.connected:
+                    ai = mt5.account_info()
+                    if ai:
+                        return {
+                            'login': ai.login,
+                            'server': ai.server,
+                            'balance': ai.balance,
+                            'equity': ai.equity,
+                            'margin': ai.margin,
+                            'free_margin': ai.margin_free,
+                            'margin_level': ai.margin_level,
+                            'profit': ai.profit,
+                            'leverage': ai.leverage,
+                            'currency': ai.currency,
+                            'name': ai.name,
+                            'company': ai.company,
+                        }
             except Exception as e:
-                st.error(f"Error getting account info: {e}")
-
-        # No live data — return last known good real snapshot if available
-        if self._last_account_info:
-            return self._last_account_info
+                self.status_messages.append(f"MT5 native error: {e}")
+        # No data available
         return {}
 
     def get_positions(self) -> pd.DataFrame:
-        """Get all open positions with error handling (HTTP bridge first)."""
-        # HTTP bridge first
-        if self.mt5_url:
-            try:
-                r = requests.get(f"{self.mt5_url}/positions_get", timeout=2.0)
+        """Get all open positions with error handling (match page 16)."""
+        # Try HTTP MT5 bridge if available
+        try:
+            if self.mt5_url:
+                r = requests.get(f"{str(self.mt5_url).rstrip('/')}/positions_get", timeout=2.0)
                 if r.ok:
                     self.bridge_available = True
                     data = r.json() or []
                     if isinstance(data, list) and data:
                         df = pd.DataFrame(data)
+                        # Normalize time columns if present
                         for col in ("time", "time_update"):
                             if col in df.columns:
                                 try:
@@ -376,18 +394,22 @@ class AdvancedPulseRiskManager:
                                 except Exception:
                                     pass
                         return df
-            except Exception:
-                pass
-        # Native MT5
+        except Exception:
+            pass
+        # Try native MT5 if connected/available
         try:
-            if self.connected:
-                positions = mt5.positions_get()
-                if positions is None or len(positions) == 0:
-                    return pd.DataFrame()
-                df = pd.DataFrame(list(positions), columns=positions[0]._asdict().keys())
-                df['time'] = pd.to_datetime(df['time'], unit='s')
-                df['time_update'] = pd.to_datetime(df['time_update'], unit='s')
-                return df
+            if self.mt5_available:
+                if not self.connected and self.mt5_login and self.mt5_password and self.mt5_server:
+                    if mt5.initialize() and mt5.login(login=int(self.mt5_login), password=self.mt5_password, server=self.mt5_server):
+                        self.connected = True
+                if self.connected:
+                    positions = mt5.positions_get()
+                    if positions is None or len(positions) == 0:
+                        return pd.DataFrame()
+                    df = pd.DataFrame(list(positions), columns=positions[0]._asdict().keys())
+                    df['time'] = pd.to_datetime(df['time'], unit='s')
+                    df['time_update'] = pd.to_datetime(df['time_update'], unit='s')
+                    return df
         except Exception:
             pass
         return pd.DataFrame()
@@ -586,12 +608,12 @@ def render_risk_control_panel(account_info: Dict, risk_summary: Dict):
     
     with col2:
         st.markdown("#### Risk Allocation 3D")
-        equity = account_info.get('equity')
-        if equity is None:
+        equity = account_info.get('equity', 0.0)
+        if equity is None and 'equity' not in account_info:
             st.warning("No equity available from MT5 (not connected).")
         else:
             fig3d = create_risk_allocation_3d(
-                float(equity or 0), anticipated_trades, daily_risk_pct
+                float(equity or 0.0), anticipated_trades, daily_risk_pct
             )
             st.plotly_chart(fig3d, use_container_width=True)
 
