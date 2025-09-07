@@ -366,6 +366,96 @@ paths:
                       dxy_trend: { type: number, nullable: true }
                       breadth: { type: number, nullable: true }
                       atr: { type: number, nullable: true }
+  /api/v1/behavioral/patterns:
+    get:
+      summary: Behavioral patterns summary (last 30 days)
+      operationId: getBehavioralPatterns
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  window_days: { type: integer }
+                  revenge_trading:
+                    type: object
+                    properties:
+                      active: { type: boolean }
+                      count: { type: integer }
+                      note: { type: string }
+                  fomo:
+                    type: object
+                    properties:
+                      active: { type: boolean }
+                      count: { type: integer }
+                      note: { type: string }
+                  fear_cut_winners:
+                    type: object
+                    properties:
+                      active: { type: boolean }
+                      count: { type: integer }
+                      note: { type: string }
+  /api/v1/journal/entry:
+    post:
+      summary: Structured journal entry (post-trade reflection)
+      operationId: postJournalEntry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [trade_id]
+              properties:
+                trade_id: { type: integer }
+                confidence: { type: integer, minimum: 0, maximum: 10 }
+                reflection: { type: string }
+                text: { type: string }
+                tags: { type: array, items: { type: string } }
+      responses:
+        '200': { description: OK }
+  /api/v1/session/set_focus:
+    post:
+      summary: Set daily psychological focus
+      operationId: postSessionSetFocus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [focus]
+              properties:
+                focus: { type: string }
+      responses:
+        '200': { description: OK }
+  /api/v1/positions/{ticket}/protect:
+    get:
+      summary: Suggested protection options for an open position
+      operationId: getPositionProtectOptions
+      parameters:
+        - in: path
+          name: ticket
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  actions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        label: { type: string }
+                        action: { type: string }
+                        params: { type: object }
   /api/pulse/whispers:
     get:
       summary: Latest whispers stream
