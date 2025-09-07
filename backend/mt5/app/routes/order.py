@@ -7,6 +7,7 @@ order_bp = Blueprint('order', __name__)
 logger = logging.getLogger(__name__)
 
 @order_bp.route('/order', methods=['POST'])
+@order_bp.route('/send_market_order', methods=['POST'])
 @swag_from({
     'tags': ['Order'],
     'parameters': [
@@ -125,4 +126,75 @@ def send_market_order_endpoint():
     
     except Exception as e:
         logger.error(f"Error in send_market_order: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@order_bp.route('/modify_sl_tp', methods=['POST'])
+@swag_from({
+    'tags': ['Order'],
+    'parameters': [
+        {
+            'name': 'body',
+            'in': 'body',
+            'required': True,
+            'schema': {
+                'type': 'object',
+                'properties': {
+                    'ticket': {'type': 'integer'},
+                    'symbol': {'type': 'string'},
+                    'sl': {'type': 'number'},
+                    'tp': {'type': 'number'}
+                },
+                'required': ['ticket', 'symbol']
+            }
+        }
+    ],
+    'responses': {
+        200: {
+            'description': 'SL/TP modified successfully.',
+            'schema': {'type': 'object'}
+        },
+        400: {'description': 'Bad request or modification failed.'},
+        500: {'description': 'Internal server error.'}
+    }
+})
+def modify_sl_tp_endpoint():
+    """
+    Modify SL/TP of an open position via TRADE_ACTION_SLTP.
+    """
+    try:
+        data = request.get_json() or {}
+        ticket = data.get('ticket')
+        symbol = data.get('symbol')
+        sl = data.get('sl')
+        tp = data.get('tp')
+        if ticket is None or not symbol:
+            return jsonify({"error": "ticket and symbol required"}), 400
+
+        req = {
+            'action': mt5.TRADE_ACTION_SLTP,
+            'position': int(ticket),
+            'symbol': symbol,
+            'deviation': 20,
+            'type_time': mt5.ORDER_TIME_GTC,
+            'type_filling': mt5.ORDER_FILLING_IOC,
+        }
+        if sl is not None:
+            req['sl'] = float(sl)
+        if tp is not None:
+            req['tp'] = float(tp)
+
+        result = mt5.order_send(req)
+        if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+            return jsonify({"ok": True, "result": result._asdict()})
+        # On failure, include MT5 error details
+        err = mt5.last_error()
+        return jsonify({
+            "error": "modify_failed",
+            "retcode": getattr(result, 'retcode', None),
+            "result": getattr(result, '_asdict', lambda: {})(),
+            "mt5_error": err
+        }), 400
+    except Exception as e:
+        logger.error(f"Error in modify_sl_tp: {e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500

@@ -45,13 +45,19 @@ router.register(r'ticks', TickViewSet)
 router.register(r'bars', BarViewSet)
 
 urlpatterns = [
+    # Non-router actions first to avoid router capture (e.g., 'trades/<pk>')
+    path('protect/position/', ProtectPositionView.as_view(), name='protect_position'),
+    # Legacy alias kept before router to avoid capture by 'trades/<pk>'
+    path('trades/protect/', ProtectPositionView.as_view(), name='protect_trade'),
+
+    # Router-backed resources
     path('', include(router.urls)),
+
     # Minimal pulse endpoints under /api/v1/
     path('pulse/health', pulse_health, name='pulse-health-v1'),
     path('pulse/risk/summary', pulse_risk_summary, name='pulse-risk-summary-v1'),
     path('send_market_order/', SendMarketOrderView.as_view(), name='send_market_order'),
     path('modify_sl_tp/', ModifySLTPView.as_view(), name='modify_sl_tp'),
-    path('trades/protect/', ProtectPositionView.as_view(), name='protect_trade'),
     path('symbols/', SymbolListView.as_view(), name='symbols'),
     path('timeframes/', TimeframeListView.as_view(), name='timeframes'),
     path('dashboard-data/', DashboardDataView.as_view(), name='dashboard-data'),

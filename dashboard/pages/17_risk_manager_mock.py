@@ -67,7 +67,13 @@ class RiskManager:
     """Risk Management with MT5 API fallback"""
 
     def __init__(self):
-        self.mt5_url = os.getenv("MT5_URL", "http://mt5:5001")
+        # Candidate bridges: public first, then internal
+        self._mt5_bases = [
+            os.getenv("MT5_URL"),
+            os.getenv("MT5_API_URL"),
+            "http://mt5:5001",
+        ]
+        self.mt5_url = next((u for u in self._mt5_bases if u), "http://mt5:5001")
         self.django_url = os.getenv("DJANGO_URL", "http://django:8000")
 
         # Try to connect to Redis (inside Docker network use service name "redis")
@@ -80,13 +86,19 @@ class RiskManager:
             st.warning(f"Redis not available ({e}) - using local storage")
 
     def get_mt5_data(self, endpoint: str) -> Optional[Dict]:
-        """Get data from MT5 API"""
-        try:
-            response = requests.get(f"{self.mt5_url}/{endpoint}", timeout=0.8)
-            if response.status_code == 200:
-                return response.json()
-        except:
-            pass
+        """Get data from MT5 API with fallback candidates and stub-skip for account_info."""
+        for base in [u for u in self._mt5_bases if u]:
+            try:
+                r = requests.get(f"{base.rstrip('/')}/{endpoint}", timeout=1.0)
+                if r.status_code == 200:
+                    data = r.json()
+                    # If requesting account_info, skip stub/placeholder
+                    if endpoint == "account_info" and isinstance(data, dict):
+                        if str(data.get('login','')).lower() == 'placeholder' or data.get('source') == 'stub':
+                            continue
+                    return data
+            except Exception:
+                continue
         return None
 
     def get_account_info(self) -> Dict:

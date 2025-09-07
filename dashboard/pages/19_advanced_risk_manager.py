@@ -418,16 +418,20 @@ class AdvancedPulseRiskManager:
                         pass
             # Keep original login/server/company if present
             return norm
-        # Try HTTP MT5 bridge first
+        # Try HTTP MT5 bridge first; skip stub/placeholder responses
         # Try bridge endpoints across candidates until success
         tried = []
-        for base in [u for u in self._mt5_candidates if u][:3]:
+        for base in [u for u in self._mt5_candidates if u]:
             try:
                 url = f"{str(base).rstrip('/')}/account_info"
                 tried.append(url)
                 r = requests.get(url, timeout=0.9)
                 if r.ok:
                     raw = r.json() or {}
+                    # Skip obvious stub/placeholder
+                    if isinstance(raw, dict) and (str(raw.get('login','')).lower() == 'placeholder' or raw.get('source') == 'stub'):
+                        self.status_messages.append(f"Skipped stub from {url}")
+                        continue
                     data = _normalize(raw)
                     if isinstance(data, dict) and data and 'equity' in data:
                         self.bridge_available = True
@@ -1295,37 +1299,48 @@ def main():
 
     # Get account information and risk status (prefer fast calls)
     try:
-        # First try a single consolidated API call (if available)
-        dashboard_data = pulse_manager.get_dashboard_data()
-        account_info = dashboard_data.get("account_info") if isinstance(dashboard_data, dict) else None
-        # Prefer 'risk_summary' then 'risk_management'
-        risk_data = dashboard_data.get("risk_summary") if isinstance(dashboard_data, dict) else None
-        if (not isinstance(risk_data, dict)) and isinstance(dashboard_data, dict):
-            risk_data = dashboard_data.get("risk_management")
-        positions_df = pd.DataFrame(dashboard_data.get("open_positions")) if isinstance(dashboard_data, dict) and isinstance(dashboard_data.get("open_positions"), list) else pd.DataFrame()
-        confluence_data = dashboard_data.get("confluence") if isinstance(dashboard_data, dict) else {}
-        risk_event = dashboard_data.get("risk_event") if isinstance(dashboard_data, dict) else {}
+        # If a pure UI event triggered rerun (e.g., slider), avoid network fetch to keep PnL stable
+        ui_event = bool(st.session_state.get('_adv19_ui_event', False))
 
-        # Fallbacks if consolidated endpoint is unavailable
-        if not isinstance(account_info, dict) or not account_info:
-            account_info = pulse_manager._cache_get("adv19:account_info") if fast_mode else None
+        if not ui_event:
+            # First try a single consolidated API call (if available)
+            dashboard_data = pulse_manager.get_dashboard_data()
+            account_info = dashboard_data.get("account_info") if isinstance(dashboard_data, dict) else None
+            # Prefer 'risk_summary' then 'risk_management'
+            risk_data = dashboard_data.get("risk_summary") if isinstance(dashboard_data, dict) else None
+            if (not isinstance(risk_data, dict)) and isinstance(dashboard_data, dict):
+                risk_data = dashboard_data.get("risk_management")
+            positions_df = pd.DataFrame(dashboard_data.get("open_positions")) if isinstance(dashboard_data, dict) and isinstance(dashboard_data.get("open_positions"), list) else pd.DataFrame()
+            confluence_data = dashboard_data.get("confluence") if isinstance(dashboard_data, dict) else {}
+            risk_event = dashboard_data.get("risk_event") if isinstance(dashboard_data, dict) else {}
+
+            # Fallbacks if consolidated endpoint is unavailable
             if not isinstance(account_info, dict) or not account_info:
-                account_info = pulse_manager.get_account_info()
+                account_info = pulse_manager._cache_get("adv19:account_info") if fast_mode else None
+                if not isinstance(account_info, dict) or not account_info:
+                    account_info = pulse_manager.get_account_info()
 
-        if not isinstance(risk_data, dict) or not risk_data:
-            risk_data = pulse_manager._cache_get("adv19:risk_summary") if fast_mode else None
             if not isinstance(risk_data, dict) or not risk_data:
-                risk_data = pulse_manager.get_risk_summary()
+                risk_data = pulse_manager._cache_get("adv19:risk_summary") if fast_mode else None
+                if not isinstance(risk_data, dict) or not risk_data:
+                    risk_data = pulse_manager.get_risk_summary()
 
-        if positions_df.empty:
-            cached_pos = pulse_manager._cache_get('adv19:positions') if fast_mode else None
-            if isinstance(cached_pos, list) and cached_pos:
-                try:
-                    positions_df = pd.DataFrame(cached_pos)
-                except Exception:
-                    positions_df = pd.DataFrame()
-        if positions_df.empty:
-            positions_df = pulse_manager.get_positions()
+            if positions_df.empty:
+                cached_pos = pulse_manager._cache_get('adv19:positions') if fast_mode else None
+                if isinstance(cached_pos, list) and cached_pos:
+                    try:
+                        positions_df = pd.DataFrame(cached_pos)
+                    except Exception:
+                        positions_df = pd.DataFrame()
+            if positions_df.empty:
+                positions_df = pulse_manager.get_positions()
+        else:
+            # UI-only run: use cached values to prevent PnL flicker on slider interactions
+            account_info = pulse_manager._cache_get("adv19:account_info") or {}
+            risk_data = pulse_manager._cache_get("adv19:risk_summary") or {}
+            positions_df = pd.DataFrame(pulse_manager._cache_get('adv19:positions') or [])
+            confluence_data = {}
+            risk_event = {}
     except Exception as e:
         st.error(f"Error loading data: {e}")
         account_info = {}
@@ -1394,6 +1409,35 @@ def main():
         else:
             st.metric("📈 PnL", f"${profit_val:,.2f}")
 
+    # Target progress indicators (below top metrics)
+    try:
+        lock_ratio_ui = float(st.session_state.get('adv19_lock_ratio', 0.5))
+    except Exception:
+        lock_ratio_ui = 0.5
+    risk_cap_amt = equity_val * (daily_risk_pct / 100.0) if equity_val else 0.0
+    target_amt = equity_val * (daily_profit_pct / 100.0) if equity_val else 0.0
+    per_trade_risk = (equity_val * (daily_risk_pct / 100.0)) / max(int(st.session_state.get('adv19_anticipated_trades', 5)), 1) if equity_val else 0.0
+    # Progress to profit target (0..1)
+    prog_target = (max(0.0, profit_val) / target_amt) if target_amt > 0 else 0.0
+    # R achieved relative to per-trade risk
+    r_achieved = (profit_val / per_trade_risk) if per_trade_risk > 0 else 0.0
+    # Drawdown vs daily loss cap
+    dd_prog = (abs(min(0.0, profit_val)) / risk_cap_amt) if risk_cap_amt > 0 else 0.0
+    # Lock preview
+    lock_preview = max(0.0, profit_val) * lock_ratio_ui if profit_val > 0 else 0.0
+
+    st.caption(
+        f"🎯 Target ${target_amt:,.0f} • Progress {prog_target*100:,.0f}% • {r_achieved:,.2f}R"
+    )
+    if profit_val < 0 and risk_cap_amt > 0:
+        st.caption(
+            f"🛑 Drawdown ${abs(profit_val):,.0f} of ${risk_cap_amt:,.0f} cap ({dd_prog*100:,.0f}%)"
+        )
+    if lock_preview > 0:
+        st.caption(
+            f"🔒 If trail now at {lock_ratio_ui*100:,.0f}% → lock ${lock_preview:,.0f}"
+        )
+
     # Advanced Risk Control Panel (with 3D allocation)
     render_risk_control_panel(account_info, risk_data)
 
@@ -1436,6 +1480,77 @@ def main():
             return 'color: green' if v > 0 else ('color: red' if v < 0 else '')
         styled_positions = positions_display.style.applymap(_color_profit, subset=['profit']) if 'profit' in positions_display.columns else positions_display
         st.dataframe(styled_positions, use_container_width=True)
+
+        # Bridge status badge (Online/Offline)
+        bridge_online = False
+        bridge_url_display = getattr(pulse_manager, 'mt5_url', '') or os.getenv('MT5_URL') or os.getenv('MT5_API_URL') or '—'
+        try:
+            if getattr(pulse_manager, 'mt5_url', None):
+                r = requests.get(f"{pulse_manager.mt5_url.rstrip('/')}/health", timeout=1.0)
+                bridge_online = bool(r.ok)
+        except Exception:
+            bridge_online = False
+        st.caption(f"Bridge: {'🟢 Online' if bridge_online else '🔴 Offline'} • {bridge_url_display}")
+
+        # Inline Protect Actions (Move SL to BE / Trail 50%)
+        st.markdown("**Protect Actions**")
+        lock_ratio = st.slider("Trail lock-in ratio", 0.1, 0.9, 0.5, 0.05, help="Fraction of current profit to lock when trailing")
+        try:
+            st.session_state['adv19_lock_ratio'] = float(lock_ratio)
+            # Mark this as a UI-only event to avoid refetching account_info on this rerun
+            st.session_state['_adv19_ui_event'] = True
+        except Exception:
+            pass
+        if not bridge_online:
+            st.info("Bridge is offline — protection actions are temporarily disabled.")
+        max_rows = min(10, len(positions_display))
+        for idx, row in positions_display.head(max_rows).iterrows():
+            c1, c2, c3, c4 = st.columns([3, 1.2, 1.4, 3])
+            with c1:
+                st.caption(f"{row.get('symbol','—')} • Ticket {int(row.get('ticket', 0)) if 'ticket' in row else '—'} • PnL ${float(row.get('profit',0) or 0):,.2f}")
+            with c2:
+                if st.button("Move SL → BE", key=f"be_{row.get('ticket','x')}", disabled=not bridge_online):
+                    try:
+                        api = os.getenv("DJANGO_API_URL", "http://django:8000").rstrip('/')
+                        token = os.getenv("DJANGO_API_TOKEN", "").strip().strip('"')
+                        headers = {"Content-Type": "application/json"}
+                        if token:
+                            headers["Authorization"] = f"Token {token}"
+                        payload = {"action": "protect_breakeven", "ticket": int(row.get('ticket')), "symbol": row.get('symbol')}
+                        # Try new endpoint first, then legacy alias
+                        url_primary = f"{api}/api/v1/protect/position/"
+                        url_fallback = f"{api}/api/v1/trades/protect/"
+                        r = requests.post(url_primary, headers=headers, json=payload, timeout=4.0)
+                        if (not r.ok) and getattr(r, 'status_code', None) == 404:
+                            r = requests.post(url_fallback, headers=headers, json=payload, timeout=4.0)
+                        if r.ok and (r.json() or {}).get('ok'):
+                            st.success("SL moved to breakeven")
+                        else:
+                            st.error(f"Failed: {getattr(r,'status_code', '—')}")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+            with c3:
+                if st.button("Trail SL (50%)", key=f"trail_{row.get('ticket','x')}", disabled=not bridge_online):
+                    try:
+                        api = os.getenv("DJANGO_API_URL", "http://django:8000").rstrip('/')
+                        token = os.getenv("DJANGO_API_TOKEN", "").strip().strip('"')
+                        headers = {"Content-Type": "application/json"}
+                        if token:
+                            headers["Authorization"] = f"Token {token}"
+                        payload = {"action": "protect_trail_50", "ticket": int(row.get('ticket')), "symbol": row.get('symbol'), "lock_ratio": float(lock_ratio)}
+                        url_primary = f"{api}/api/v1/protect/position/"
+                        url_fallback = f"{api}/api/v1/trades/protect/"
+                        r = requests.post(url_primary, headers=headers, json=payload, timeout=4.0)
+                        if (not r.ok) and getattr(r, 'status_code', None) == 404:
+                            r = requests.post(url_fallback, headers=headers, json=payload, timeout=4.0)
+                        if r.ok and (r.json() or {}).get('ok'):
+                            st.success("Trailing SL applied")
+                        else:
+                            st.error(f"Failed: {getattr(r,'status_code', '—')}")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+            with c4:
+                st.caption("")
     
     # Behavioral Psychology Insights (full width)
     render_psychology_insights_panel(confluence_data, risk_data)

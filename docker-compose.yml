@@ -130,6 +130,9 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      - MT5_API_URL=http://mt5:5001
+      - MT5_API_STUB_FALLBACK=1
     networks:
       - traefik-public
       - default
@@ -648,6 +651,30 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - default
+
+  pulse-bot:
+    image: python:3.11-slim
+    container_name: pulse-bot
+    working_dir: /app
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      - DJANGO_API_URL=http://django:8000
+      - DJANGO_API_TOKEN=${DJANGO_API_TOKEN:-}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_WHITELIST=${TELEGRAM_CHAT_WHITELIST:-}
+    command: sh -lc "pip install --no-cache-dir aiogram requests redis && python services/pulse_bot/bot.py"
+    depends_on:
+      django:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
     networks:
       - default
 
