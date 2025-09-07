@@ -1298,3 +1298,451 @@ class JournalRecentView(views.APIView):
                 'text': je.notes or '',
             })
         return Response(out)
+
+
+class AccountRiskView(views.APIView):
+    """Compute session risk envelope using SoD equity and policy percentages.
+
+    Policy is loaded from app.utils.policies (daily_profit_target_pct, max_daily_loss_pct).
+    SoD equity is derived from account info and stored per-day in Redis as sod_equity:YYYYMMDD.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from django.utils import timezone
+        today = timezone.now().strftime('%Y%m%d')
+        r = _redis_client()
+        # Resolve equity via account_info
+        equity = None
+        try:
+            base = os.getenv("MT5_URL") or os.getenv("MT5_API_URL") or "http://mt5:5001"
+            rq = requests.get(f"{str(base).rstrip('/')}/account_info", timeout=1.5)
+            if rq.ok:
+                data = rq.json() or {}
+                if isinstance(data, list) and data:
+                    data = data[0]
+                if isinstance(data, dict):
+                    equity = float(data.get('equity') or data.get('Equity') or 0)
+        except Exception:
+            pass
+        # SoD equity: cached per day
+        sod_equity = None
+        if r is not None:
+            try:
+                raw = r.get(f"sod_equity:{today}")
+                if raw:
+                    sod_equity = float(raw)
+            except Exception:
+                sod_equity = None
+        if sod_equity is None and equity is not None and r is not None:
+            try:
+                r.setex(f"sod_equity:{today}", 48*3600, str(equity))
+                sod_equity = equity
+            except Exception:
+                sod_equity = equity
+        # Policy
+        pol = load_policies() or {}
+        risk_pol = pol.get('risk', {}) if isinstance(pol, dict) else {}
+        daily_profit_pct = float(risk_pol.get('daily_profit_target_pct', 1.0))
+        daily_risk_pct = float(risk_pol.get('max_daily_loss_pct', 3.0))
+        target_amount = (sod_equity or 0) * (daily_profit_pct / 100.0)
+        loss_amount = (sod_equity or 0) * (daily_risk_pct / 100.0)
+        used_pct = None
+        # Compute exposure from open positions: sum(|volume * price_current|)/equity
+        exposure_pct = None
+        try:
+            if equity is not None and sod_equity and loss_amount > 0:
+                if equity < sod_equity:
+                    used_pct = max(0.0, min(1.0, (sod_equity - equity) / loss_amount)) * 100.0
+                elif target_amount > 0:
+                    used_pct = max(0.0, min(1.0, (equity - sod_equity) / target_amount)) * 100.0
+        except Exception:
+            used_pct = None
+        # Exposure computation
+        try:
+            if equity and equity > 0:
+                base = os.getenv("MT5_URL") or os.getenv("MT5_API_URL") or "http://mt5:5001"
+                rp = requests.get(f"{str(base).rstrip('/')}/positions_get", timeout=2.5)
+                if rp.ok:
+                    arr = rp.json() or []
+                    total_notional = 0.0
+                    if isinstance(arr, list):
+                        for p in arr:
+                            try:
+                                vol = float(p.get('volume') or 0)
+                                price = float(p.get('price_current') or p.get('price_open') or 0)
+                                total_notional += abs(vol * price)
+                            except Exception:
+                                continue
+                    exposure_pct = (total_notional / equity) if equity else None
+        except Exception:
+            exposure_pct = None
+
+        return Response({
+            'sod_equity': sod_equity,
+            'daily_profit_pct': daily_profit_pct,
+            'daily_risk_pct': daily_risk_pct,
+            'target_amount': target_amount,
+            'loss_amount': loss_amount,
+            'used_pct': used_pct,
+            'exposure_pct': exposure_pct,
+        })
+
+
+class OrderMarketProxyView(views.APIView):
+    """Place a market order via local order helper (safe proxy)."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        data = request.data or {}
+        symbol = data.get('symbol')
+        volume = data.get('volume')
+        side = (data.get('side') or '').lower()
+        if not symbol or volume is None or side not in ('buy','sell'):
+            return Response({'error': 'symbol, volume, side required'}, status=400)
+        order_type = 'BUY' if side == 'buy' else 'SELL'
+        sl = data.get('sl', 0.0)
+        tp = data.get('tp', 0.0)
+        comment = data.get('comment', '')
+        # Delegate to existing helper
+        try:
+            resp = send_market_order(symbol=symbol, volume=volume, order_type=order_type, sl=sl, tp=tp, deviation=20, comment=comment, magic=0, type_filling='2')
+            ok = bool(resp)
+            return Response({'ok': ok, 'order': resp})
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+class OrderModifyProxyView(views.APIView):
+    """Modify SL/TP for an existing position.
+
+    Note: underlying modify helper expects trade id and ticket; if id is unknown, this may not persist a mutation record.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        data = request.data or {}
+        ticket = data.get('ticket')
+        if ticket is None:
+            return Response({'error': 'ticket required'}, status=400)
+        sl = data.get('sl')
+        tp = data.get('tp')
+        # Best-effort: call bridge partial modify is not available; use helper if possible
+        try:
+            # Use dummy id=0 where unknown
+            resp = modify_sl_tp(id=0, ticket=int(ticket), stop_loss=sl, take_profit=tp)
+            return Response({'ok': bool(resp), 'result': resp})
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+class OrderCloseProxyView(views.APIView):
+    """Close full or partial position via MT5 bridge partial_close endpoint."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        data = request.data or {}
+        try:
+            ticket = int(data.get('ticket'))
+        except Exception:
+            return Response({'error': 'ticket required'}, status=400)
+        fraction = data.get('fraction')
+        try:
+            base = os.getenv("MT5_URL") or os.getenv("MT5_API_URL") or "http://mt5:5001"
+            payload = {'ticket': ticket}
+            if fraction is not None:
+                payload['fraction'] = float(fraction)
+            r = requests.post(f"{str(base).rstrip('/')}/partial_close", json=payload, timeout=6.0)
+            if r.ok:
+                return Response(r.json() if isinstance(r.json(), dict) else {'ok': True})
+            return Response({'error': 'bridge_http', 'status': r.status_code}, status=502)
+        except Exception as e:
+            return Response({'error': str(e)}, status=502)
+
+
+class DisciplineEventsView(views.APIView):
+    """GET discipline ledger for a date from Redis events:discipline:YYYYMMDD."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from django.utils import timezone
+        day = request.GET.get('date') or timezone.now().strftime('%Y-%m-%d')
+        key = f"events:discipline:{day.replace('-','')}"
+        r = _redis_client()
+        out = []
+        if r is not None:
+            try:
+                items = r.lrange(key, 0, -1) or []
+                for b in items:
+                    try:
+                        out.append(json.loads(b))
+                    except Exception:
+                        continue
+            except Exception:
+                out = []
+        return Response(out)
+
+
+class DisciplineEventAppendView(views.APIView):
+    """POST append a discipline ledger event."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        from django.utils import timezone
+        data = request.data or {}
+        kind = data.get('kind')
+        delta = data.get('delta')
+        ts = data.get('ts')
+        if kind is None or delta is None:
+            return Response({'error': 'kind and delta required'}, status=400)
+        day = timezone.now().strftime('%Y-%m-%d')
+        key = f"events:discipline:{day.replace('-','')}"
+        r = _redis_client()
+        if r is None:
+            return Response({'error': 'redis unavailable'}, status=503)
+        try:
+            evt = {'ts': ts or timezone.now().isoformat(), 'kind': str(kind), 'delta': int(delta)}
+            r.rpush(key, json.dumps(evt))
+            return Response({'ok': True})
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+class MarketSymbolsView(views.APIView):
+    """Return a list of available symbols (Bars or Trades)."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        syms = []
+        try:
+            syms = list(Bar.objects.values_list('symbol', flat=True).distinct().order_by('symbol'))
+            if not syms:
+                syms = list(Trade.objects.values_list('symbol', flat=True).distinct().order_by('symbol'))
+        except Exception:
+            syms = []
+        return Response({'symbols': syms})
+
+
+class MarketCalendarNextView(views.APIView):
+    """Return next high-impact events from Redis list market:calendar:next."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            limit = int(request.GET.get('limit', '5'))
+        except Exception:
+            limit = 5
+        r = _redis_client()
+        out = []
+        if r is not None:
+            try:
+                items = r.lrange('market:calendar:next', 0, limit-1) or []
+                for b in items:
+                    try:
+                        out.append(json.loads(b))
+                    except Exception:
+                        continue
+            except Exception:
+                out = []
+        return Response(out)
+
+
+class MarketRegimeView(views.APIView):
+    """Return regime and feature set derived from cached series."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        r = _redis_client()
+        def load_series(key):
+            if r is None:
+                return []
+            try:
+                raw = r.get(key)
+                if raw:
+                    return json.loads(raw)
+            except Exception:
+                return []
+            return []
+        vix = load_series('market:vix:series')
+        dxy = load_series('market:dxy:series')
+        def trend(arr):
+            if not arr or len(arr) < 2:
+                return 0.0
+            try:
+                return (float(arr[-1]) - float(arr[0])) / (abs(float(arr[0])) + 1e-6)
+            except Exception:
+                return 0.0
+        vtr = trend(vix)
+        dtr = trend(dxy)
+        regime = 'Neutral'
+        if vtr > 0.02 or dtr > 0.01:
+            regime = 'Risk-Off / Choppy'
+        elif vtr < -0.02 and dtr < 0.0:
+            regime = 'Risk-On / Trending'
+        return Response({'regime': regime, 'score': None, 'features': {'vix_trend': vtr, 'dxy_trend': dtr}})
+
+
+class BehavioralPatternsView(views.APIView):
+    """Analyze recent behavioral patterns from Trades and journal signals.
+
+    Returns a coarse summary for last 30 days and current active flags.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from django.utils import timezone
+        now = timezone.now()
+        since = now - timezone.timedelta(days=30)
+        patterns = {
+            'window_days': 30,
+            'revenge_trading': {'active': False, 'count': 0, 'note': ''},
+            'fomo': {'active': False, 'count': 0, 'note': ''},
+            'fear_cut_winners': {'active': False, 'count': 0, 'note': ''},
+        }
+        try:
+            # Load recent closed trades
+            qs = Trade.objects.filter(close_time__gte=since).order_by('entry_time')
+            trades = list(qs)
+            # Revenge: sequences of >=2 losses with quick re-entry (< 10 min)
+            rev = 0
+            for i in range(1, len(trades)):
+                prev = trades[i-1]
+                cur = trades[i]
+                try:
+                    prev_loss = (prev.pnl or 0) < 0
+                    gap_min = (cur.entry_time - prev.close_time).total_seconds() / 60.0 if (cur.entry_time and prev.close_time) else 999
+                    if prev_loss and gap_min <= 10:
+                        rev += 1
+                except Exception:
+                    continue
+            patterns['revenge_trading']['count'] = rev
+            patterns['revenge_trading']['active'] = rev >= 1
+            if rev:
+                patterns['revenge_trading']['note'] = f"{rev} quick re-entries after losses"
+            # FOMO: very short inter-trade intervals overall (p25 < 5 min)
+            gaps = []
+            for i in range(1, len(trades)):
+                try:
+                    gaps.append((trades[i].entry_time - trades[i-1].entry_time).total_seconds() / 60.0)
+                except Exception:
+                    continue
+            if gaps:
+                gsorted = sorted(gaps)
+                p25 = gsorted[max(0, int(0.25*(len(gsorted)-1)))]
+                patterns['fomo']['active'] = p25 < 5.0
+                patterns['fomo']['count'] = sum(1 for g in gaps if g < 5.0)
+                patterns['fomo']['note'] = f"p25 gap {p25:.1f}m"
+            # Fear of letting winners run: avg efficiency < 50%
+            effs = []
+            for t in trades:
+                try:
+                    pnl = float(t.pnl or 0)
+                    peak = float(t.max_profit or 0)
+                    if peak > 0 and pnl > 0:
+                        effs.append(max(0.0, min(1.0, pnl/peak)))
+                except Exception:
+                    continue
+            if effs:
+                avg = sum(effs)/len(effs)
+                patterns['fear_cut_winners']['active'] = avg < 0.5
+                patterns['fear_cut_winners']['count'] = len([e for e in effs if e < 0.5])
+                patterns['fear_cut_winners']['note'] = f"avg eff {avg*100:.0f}%"
+        except Exception:
+            pass
+        return Response(patterns)
+
+
+class JournalEntryPostView(views.APIView):
+    """Structured journal entry for post-trade reflection.
+
+    POST JSON: { trade_id, confidence?, reflection?, text?, tags? }
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        data = request.data or {}
+        trade_id = data.get('trade_id')
+        if not trade_id:
+            return Response({'error': 'trade_id required'}, status=400)
+        try:
+            trade = Trade.objects.get(id=trade_id)
+        except Trade.DoesNotExist:
+            return Response({'error': 'Trade not found'}, status=404)
+        conf = data.get('confidence')
+        refl = data.get('reflection') or ''
+        notes = data.get('text') or ''
+        tags = data.get('tags') or []
+        je, _ = JournalEntry.objects.get_or_create(trade=trade)
+        if conf is not None:
+            try:
+                je.pre_trade_confidence = int(conf)
+            except Exception:
+                pass
+        if refl:
+            je.post_trade_feeling = (je.post_trade_feeling or '') + (('\n' if je.post_trade_feeling else '') + refl)
+        if notes:
+            je.notes = (je.notes or '') + (('\n' if je.notes else '') + notes)
+        je.save()
+        return Response({'ok': True, 'id': je.id, 'ts': je.updated_at.isoformat()})
+
+
+class SessionSetFocusView(views.APIView):
+    """Set daily psychological focus in Redis (per-day)."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        from django.utils import timezone
+        focus = (request.data or {}).get('focus')
+        if not focus:
+            return Response({'error': 'focus required'}, status=400)
+        today = timezone.now().strftime('%Y%m%d')
+        r = _redis_client()
+        if r is None:
+            return Response({'error': 'redis unavailable'}, status=503)
+        try:
+            r.setex(f"session:focus:{today}", 48*3600, str(focus))
+            return Response({'ok': True, 'focus': focus})
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+class PositionProtectOptionsView(views.APIView):
+    """Suggest protection options for an open position (ticket).
+
+    Returns a list of actions with labels and suggested params; no execution.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, ticket: int):
+        base = os.getenv("MT5_URL") or os.getenv("MT5_API_URL") or "http://mt5:5001"
+        try:
+            r = requests.get(f"{str(base).rstrip('/')}/positions_get", timeout=2.5)
+            if not r.ok:
+                return Response({'actions': []})
+            data = r.json() or []
+            ps = [p for p in data if int(p.get('ticket', -1)) == int(ticket)] if isinstance(data, list) else []
+            if not ps:
+                return Response({'actions': []})
+            p = ps[0]
+            sym = p.get('symbol')
+            typ = 'BUY' if int(p.get('type', 0)) == 0 else 'SELL'
+            po = float(p.get('price_open') or 0)
+            pc = float(p.get('price_current') or 0)
+            profit = float(p.get('profit') or 0)
+            # Propose options
+            actions = []
+            # Breakeven
+            actions.append({'label': 'Move SL to BE', 'action': 'protect_breakeven', 'params': {'ticket': ticket, 'symbol': sym}})
+            # Trail 50% of current profit (naive, price-space lock)
+            if profit > 0:
+                # Approximate lock price half-way from entry to current favorable
+                if typ == 'BUY':
+                    lock = po + 0.5 * (pc - po)
+                else:
+                    lock = po - 0.5 * (po - pc)
+                actions.append({'label': 'Trail 50%', 'action': 'protect_trail_50', 'params': {'ticket': ticket, 'symbol': sym, 'lock_ratio': 0.5, 'suggested_sl': round(lock, 5)}})
+                actions.append({'label': 'Partial 25%', 'action': 'partial_close_25', 'params': {'ticket': ticket, 'symbol': sym, 'fraction': 0.25}})
+                actions.append({'label': 'Partial 50%', 'action': 'partial_close_50', 'params': {'ticket': ticket, 'symbol': sym, 'fraction': 0.50}})
+            return Response({'actions': actions})
+        except Exception:
+            return Response({'actions': []})

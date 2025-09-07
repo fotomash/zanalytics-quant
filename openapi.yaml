@@ -202,6 +202,170 @@ paths:
                     ts: { type: string }
                     trade_id: { type: integer, nullable: true }
                     text: { type: string }
+  /api/v1/account/risk:
+    get:
+      summary: Session risk envelope and targets
+      operationId: getAccountRisk
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sod_equity: { type: number, nullable: true }
+                  daily_profit_pct: { type: number, nullable: true }
+                  daily_risk_pct: { type: number, nullable: true }
+                  target_amount: { type: number, nullable: true }
+                  loss_amount: { type: number, nullable: true }
+                  used_pct: { type: number, nullable: true }
+                  exposure_pct: { type: number, nullable: true }
+  /api/v1/orders/market:
+    post:
+      summary: Place a market order (safe proxy)
+      operationId: postOrderMarket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [symbol, volume, side]
+              properties:
+                symbol: { type: string }
+                volume: { type: number }
+                side: { type: string, enum: [buy, sell] }
+                sl: { type: number, nullable: true }
+                tp: { type: number, nullable: true }
+                comment: { type: string, nullable: true }
+      responses: { '200': { description: OK } }
+  /api/v1/orders/modify:
+    post:
+      summary: Modify SL/TP for an existing position
+      operationId: postOrderModify
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket]
+              properties:
+                ticket: { type: integer }
+                sl: { type: number, nullable: true }
+                tp: { type: number, nullable: true }
+      responses: { '200': { description: OK } }
+  /api/v1/orders/close:
+    post:
+      summary: Close full or partial position
+      operationId: postOrderClose
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket]
+              properties:
+                ticket: { type: integer }
+                fraction: { type: number, nullable: true, description: 0..1 }
+      responses: { '200': { description: OK } }
+  /api/v1/discipline/events:
+    get:
+      summary: Discipline ledger for a date
+      operationId: getDisciplineEvents
+      parameters:
+        - in: query
+          name: date
+          schema: { type: string, description: YYYY-MM-DD }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    ts: { type: string }
+                    kind: { type: string }
+                    delta: { type: integer }
+  /api/v1/discipline/event:
+    post:
+      summary: Append a discipline ledger event
+      operationId: postDisciplineEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, delta]
+              properties:
+                kind: { type: string }
+                delta: { type: integer }
+                ts: { type: string, nullable: true }
+      responses: { '200': { description: OK } }
+  /api/v1/market/symbols:
+    get:
+      summary: Available symbols list
+      operationId: getMarketSymbols
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  symbols:
+                    type: array
+                    items: { type: string }
+  /api/v1/market/calendar/next:
+    get:
+      summary: Next high-impact calendar events
+      operationId: getMarketCalendarNext
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 5, minimum: 1, maximum: 20 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    ts: { type: string }
+                    label: { type: string }
+                    importance: { type: string }
+                    currency: { type: string }
+  /api/v1/market/regime:
+    get:
+      summary: Market regime signal and features
+      operationId: getMarketRegime
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  regime: { type: string }
+                  score: { type: number, nullable: true }
+                  features:
+                    type: object
+                    properties:
+                      vix_trend: { type: number, nullable: true }
+                      dxy_trend: { type: number, nullable: true }
+                      breadth: { type: number, nullable: true }
+                      atr: { type: number, nullable: true }
   /api/pulse/whispers:
     get:
       summary: Latest whispers stream
