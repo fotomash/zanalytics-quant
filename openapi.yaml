@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: Zanalytics Pulse – Whisperer API
   version: 0.1.0
@@ -7,11 +7,12 @@ info:
     Authentication is not required; an optional `X-Pulse-Key` header may be
     enabled later without breaking this contract.
 servers:
-  - url: http://django:8000
+  - url: https://django2.zanalytics.app
 paths:
   /api/v1/market/mini:
     get:
       summary: Market header mini payload
+      operationId: getMarketMini
       responses:
         '200':
           description: OK
@@ -46,10 +47,12 @@ paths:
   /api/v1/market/fetch:
     get:
       summary: Fetch VIX/DXY from public source and cache to Redis
+      operationId: fetchMarketData
       responses: { '200': { description: OK } }
   /api/v1/market/news/next:
     post:
       summary: Publish next high‑impact news item to Redis
+      operationId: publishNextNews
       requestBody:
         required: true
         content:
@@ -63,6 +66,7 @@ paths:
   /api/v1/mirror/state:
     get:
       summary: Behavioral mirror state
+      operationId: getMirrorState
       responses:
         '200':
           description: OK
@@ -81,10 +85,12 @@ paths:
   /api/v1/discipline/summary:
     get:
       summary: Discipline daily/7‑day summary with events
+      operationId: getDisciplineSummary
       responses: { '200': { description: OK } }
   /api/v1/profit-horizon:
     get:
       summary: Profit Horizon data (last N closed trades)
+      operationId: getProfitHorizon
       parameters:
         - in: query
           name: limit
@@ -93,22 +99,27 @@ paths:
   /api/v1/feed/balance:
     get:
       summary: Balance feed (awaiting-friendly)
+      operationId: getFeedBalance
       responses: { '200': { description: OK } }
   /api/v1/feed/equity:
     get:
       summary: Equity feed (awaiting-friendly)
+      operationId: getFeedEquity
       responses: { '200': { description: OK } }
   /api/v1/feed/trade:
     get:
       summary: Trade feed (awaiting-friendly)
+      operationId: getFeedTrade
       responses: { '200': { description: OK } }
   /api/v1/feed/behavior:
     get:
       summary: Behavior feed (awaiting-friendly)
+      operationId: getFeedBehavior
       responses: { '200': { description: OK } }
   /api/v1/account/positions:
     get:
       summary: Normalized open positions proxy
+      operationId: getAccountPositions
       responses:
         '200':
           description: OK
@@ -121,10 +132,12 @@ paths:
   /api/pulse/whispers:
     get:
       summary: Latest whispers stream
+      operationId: getWhispers
       responses: { '200': { description: OK } }
   /api/pulse/whisper/ack:
     post:
       summary: Acknowledge a whisper
+      operationId: postWhisperAck
       requestBody:
         required: true
         content:
@@ -138,6 +151,7 @@ paths:
   /api/pulse/whisper/act:
     post:
       summary: Act on a whisper (journal intent)
+      operationId: postWhisperAct
       requestBody:
         required: true
         content:
@@ -151,8 +165,10 @@ paths:
   /api/pulse/whispers/log:
     get:
       summary: Human‑readable whisper timeline
+      operationId: getWhispersLog
       responses: { '200': { description: OK } }
 components:
+  schemas: {}
   securitySchemes:
     pulseKey:
       type: apiKey
