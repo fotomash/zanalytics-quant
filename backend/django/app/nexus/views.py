@@ -24,6 +24,7 @@ from app.utils.policies import load_policies
 import os
 import requests
 import json
+import statistics
 
 try:
     import redis as redis_lib  # optional
@@ -793,11 +794,196 @@ class ProfitHorizonView(views.APIView):
                 dur = int(((t.close_time - t.entry_time).total_seconds()) // 60) if t.entry_time and t.close_time else None
             except Exception:
                 dur = None
+            # USD values as fallback; R-multiples require per-trade risk, not stored here
+            pnl_usd = float(t.pnl or 0)
+            peak_usd = float(t.max_profit or 0)
             out.append({
                 "id": str(t.id),
                 "dur_min": dur,
                 "pnl_r": None,
                 "peak_r": None,
+                "pnl_usd": pnl_usd,
+                "peak_usd": peak_usd,
             })
         _publish_feed("profit-horizon", {"items": out})
         return Response(out)
+
+
+class MirrorStateView(views.APIView):
+    """Minimal behavioral mirror state for the concentric dial.
+
+    Returns keys:
+      - patience_ratio (-0.5..+0.5)
+      - discipline (0..100)
+      - conviction (0..100)
+      - efficiency (0..100)
+      - pnl_norm (-1..+1)
+    Any missing metric is omitted or set to null (UI shows neutral track).
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from django.utils import timezone
+        now = timezone.now()
+        sod = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        payload = {}
+
+        # Patience ratio: compare today's inter-trade interval EMA vs simple baseline (last 7 days median)
+        try:
+            last_week = now - timezone.timedelta(days=7)
+            qs_hist = (
+                Trade.objects.filter(entry_time__gte=last_week)
+                .exclude(entry_time__isnull=True)
+                .order_by("entry_time")
+            )
+            times = [t.entry_time for t in qs_hist]
+            deltas_hist = [
+                (times[i] - times[i - 1]).total_seconds() / 60.0 for i in range(1, len(times))
+            ]
+            baseline = statistics.median(deltas_hist) if deltas_hist else None
+
+            qs_today = (
+                Trade.objects.filter(entry_time__gte=sod)
+                .exclude(entry_time__isnull=True)
+                .order_by("entry_time")
+            )
+            times_today = [t.entry_time for t in qs_today]
+            deltas_today = [
+                (times_today[i] - times_today[i - 1]).total_seconds() / 60.0
+                for i in range(1, len(times_today))
+            ]
+            # Simple EMA with alpha=0.2
+            if deltas_today:
+                ema = deltas_today[0]
+                for x in deltas_today[1:]:
+                    ema = 0.2 * x + 0.8 * ema
+            else:
+                ema = None
+            if baseline and ema:
+                ratio = (ema - baseline) / baseline
+                payload["patience_ratio"] = max(-0.5, min(0.5, ratio))
+                # Provide descriptive stats for UI drawers
+                payload["patience_median_min"] = float(ema)
+                if deltas_today:
+                    payload["patience_p25_min"] = float(sorted(deltas_today)[max(0, int(0.25 * (len(deltas_today) - 1)))])
+                    payload["patience_p75_min"] = float(sorted(deltas_today)[max(0, int(0.75 * (len(deltas_today) - 1)))])
+        except Exception:
+            pass
+
+        # Discipline: event-ledger if available in Redis events list; else cached score
+        try:
+            if redis_lib is not None:
+                r = _redis_client()
+                if r is not None:
+                    DISCIPLINE_WEIGHTS = {
+                        "low_confluence_entry": -15,
+                        "override_cooldown": -25,
+                        "size_up_after_loss": -10,
+                        "overtrade_burst": -10,
+                        "closed_winner_early": -5,
+                        "journaled_reason": 2,
+                        "size_down_after_loss": 5,
+                        "respected_cooldown": 5,
+                    }
+                    events_key = f"events:discipline:{now.date().strftime('%Y%m%d')}"
+                    ev_raw = r.lrange(events_key, 0, -1) or []
+                    base = 100
+                    deltas = []
+                    for b in ev_raw:
+                        try:
+                            e = json.loads(b)
+                        except Exception:
+                            e = {}
+                        kind = e.get("kind")
+                        w = int(DISCIPLINE_WEIGHTS.get(kind, 0))
+                        if w:
+                            base += w
+                            deltas.append({"kind": kind, "delta": w, "ts": e.get("ts")})
+                    if deltas:
+                        payload["discipline"] = max(0, min(100, base))
+                        payload["discipline_deltas"] = deltas
+                    if "discipline" not in payload:
+                        key_score = f"discipline:{now.date().strftime('%Y%m%d')}"
+                        raw = r.get(key_score)
+                        if raw:
+                            payload["discipline"] = float(raw)
+        except Exception:
+            pass
+
+        # Conviction: hi-confidence win rate (top) and low-confidence loss rate (bottom) over last N
+        try:
+            N = 20
+            high = (
+                JournalEntry.objects.select_related('trade')
+                .filter(pre_trade_confidence__isnull=False, trade__close_time__isnull=False)
+                .order_by('-created_at')[:N]
+            )
+            hi = [j for j in high if (j.pre_trade_confidence or 0) >= 70]
+            lo = [j for j in high if (j.pre_trade_confidence or 0) <= 30]
+            if hi:
+                wins = sum(1 for j in hi if (j.trade.pnl or 0) > 0)
+                payload["conviction_hi_win"] = int(100.0 * wins / max(1, len(hi)))
+            if lo:
+                losses = sum(1 for j in lo if (j.trade.pnl or 0) < 0)
+                payload["conviction_lo_loss"] = int(100.0 * losses / max(1, len(lo)))
+        except Exception:
+            pass
+
+        # Efficiency: average captured vs peak favorable excursion (last N closed)
+        try:
+            N2 = 20
+            closed = Trade.objects.exclude(close_time__isnull=True).order_by('-close_time')[:N2]
+            ratios = []
+            for t in closed:
+                pnl = float(t.pnl or 0)
+                peak = float(t.max_profit or 0)
+                if peak > 0 and pnl > 0:
+                    ratios.append(max(0.0, min(1.0, pnl / peak)))
+            if ratios:
+                payload["efficiency"] = int(100.0 * (sum(ratios) / len(ratios)))
+        except Exception:
+            pass
+
+        # PnL normalized vs daily target/loss limits
+        try:
+            closed_today = Trade.objects.filter(close_time__gte=sod, close_time__isnull=False)
+            pnl_today = float(sum([t.pnl or 0 for t in closed_today]))
+            # Resolve equity from MT5 bridge (fallback None)
+            mt5_base = (
+                os.getenv("MT5_URL")
+                or os.getenv("MT5_API_URL")
+                or "http://mt5:5001"
+            )
+            eq = None
+            try:
+                r = requests.get(f"{str(mt5_base).rstrip('/')}/account_info", timeout=1.5)
+                if r.ok:
+                    ai = r.json() or {}
+                    if isinstance(ai, list) and ai:
+                        ai = ai[0]
+                    if isinstance(ai, dict):
+                        eq = float(ai.get('equity') or ai.get('Equity') or 0) or None
+            except Exception:
+                eq = None
+            # Load risk policy for daily % caps
+            try:
+                pol = load_policies() or {}
+                risk_pol = pol.get('risk', {}) if isinstance(pol, dict) else {}
+                profit_pct = float(risk_pol.get('daily_profit_target_pct', 1.0))
+                loss_pct = float(risk_pol.get('max_daily_loss_pct', 3.0))
+            except Exception:
+                profit_pct, loss_pct = 1.0, 3.0
+            target_amt = (eq or 0) * (profit_pct / 100.0)
+            loss_amt = (eq or 0) * (loss_pct / 100.0)
+            pnl_norm = None
+            if pnl_today >= 0 and target_amt > 0:
+                pnl_norm = min(1.0, pnl_today / target_amt)
+            elif pnl_today < 0 and loss_amt > 0:
+                pnl_norm = -min(1.0, abs(pnl_today) / loss_amt)
+            payload["pnl_norm"] = pnl_norm
+            payload["pnl_today"] = pnl_today
+        except Exception:
+            pass
+
+        return Response(payload)

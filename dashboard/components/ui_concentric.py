@@ -459,3 +459,224 @@ def donut_pnl(
         cap_dots=True,
     )
     return fig
+
+
+def donut_system_overview(
+    *,
+    equity_usd: float,
+    pnl_day_norm: float | None,
+    pnl_since_inception_pct: float | None = None,
+    risk_used_pct: float | None = None,
+    exposure_pct: float | None = None,
+    discipline_score: float | None = None,
+    patience_ratio: float | None = None,  # -0.5..+0.5 bipolar overlay between middle and inner
+    daily_target_norm: float | None = None,
+    daily_loss_norm: float | None = None,
+    size=(300, 300),
+):
+    """Composite system compass as one donut with three rings.
+
+    - Outer: PnL vs target/limit (bipolar) with ghost from inception P&L
+    - Middle: split ring: left=risk_used (amber), right=exposure (blue)
+    - Inner: psychology (discipline 0..100) unipolar
+    """
+    ticks = []
+    if daily_target_norm is not None:
+        ticks.append({"ring": "outer", "angle_norm": max(-1.0, min(1.0, float(daily_target_norm))), "color": COL["pos"], "style": "solid", "hover": "Daily target"})
+    if daily_loss_norm is not None:
+        ticks.append({"ring": "outer", "angle_norm": max(-1.0, min(1.0, float(daily_loss_norm))), "color": COL["neg"], "style": "solid", "hover": "Daily loss limit"})
+
+    # Scale discipline 0..100 to 0..1 and choose color
+    inner_val = None
+    inner_col = COL["pos"]
+    try:
+        if discipline_score is not None:
+            dv = max(0.0, min(100.0, float(discipline_score))) / 100.0
+            inner_val = dv
+            inner_col = COL["pos"] if dv >= 0.7 else COL["warn"] if dv >= 0.5 else COL["neg"]
+    except Exception:
+        inner_val = None
+
+    # Build split values
+    left = None if risk_used_pct is None else max(0.0, min(1.0, float(risk_used_pct)))
+    right = None if exposure_pct is None else max(0.0, min(1.0, float(exposure_pct)))
+
+    fig = concentric_ring(
+        center_title="System",
+        center_value=f"${equity_usd:,.0f}",
+        caption="PnL • Risk/Expo • Discipline",
+        outer_bipolar=pnl_day_norm,
+        outer_cap=1.0,
+        outer_ghost_bipolar=pnl_since_inception_pct,
+        middle_mode="split",
+        middle_split=(left, right),
+        inner_unipolar=inner_val,
+        inner_cap=1.0,
+        size=size,
+        rotation_deg=270,
+        ticks=ticks,
+        cap_dots=True,
+    )
+    # Patience overlay (thin ring between middle and inner)
+    if patience_ratio is not None:
+        try:
+            p = max(-0.5, min(0.5, float(patience_ratio)))
+            p_mag = abs(p) / 0.5
+            p_dir = "clockwise" if p >= 0 else "counterclockwise"
+            p_col = COL["info"] if p >= 0 else COL["warn"]
+            fig.add_trace(
+                go.Pie(
+                    values=[p_mag * 360.0, 360.0 - p_mag * 360.0],
+                    hole=0.80,
+                    rotation=270,
+                    sort=False,
+                    direction=p_dir,
+                    marker=dict(colors=[p_col, "rgba(0,0,0,0)"]),
+                    textinfo="none",
+                    hoverinfo="skip",
+                    showlegend=False,
+                    name="tempo",
+                    opacity=0.7,
+                )
+            )
+        except Exception:
+            pass
+
+    # Breach collar: subtle red arc when approaching loss limit (>=80% of negative bound)
+    try:
+        if pnl_day_norm is not None and float(pnl_day_norm) <= -0.8:
+            fig.add_trace(
+                go.Pie(
+                    values=[72, 288],  # 20% of ring as collar
+                    hole=0.56,
+                    rotation=270,
+                    sort=False,
+                    direction="counterclockwise",
+                    marker=dict(colors=["rgba(239,68,68,0.25)", "rgba(0,0,0,0)"]),
+                    textinfo="none",
+                    hoverinfo="skip",
+                    showlegend=False,
+                    name="breach_collar",
+                )
+            )
+    except Exception:
+        pass
+    return fig
+
+
+def donut_session_vitals(
+    *,
+    equity_usd: float,
+    sod_equity_usd: float,
+    baseline_equity_usd: float,
+    daily_profit_pct: float,
+    daily_risk_pct: float,
+    max_total_dd_pct: float = 10.0,
+    since_inception_pct: float | None = None,
+    size=(300, 300),
+):
+    """Session Vitals donut with three rings (outer→inner):
+    - Hard Deck (outer): red arc for max total drawdown vs baseline; balance marker
+    - Daily Drawdown (middle): unipolar red showing fraction of daily DD used (0..1)
+    - Daily P&L Progress (inner): bipolar vs target/limit (-1..+1)
+    """
+    # Inner: daily PnL bipolar
+    try:
+        pos_scale = max(0.0001, float(daily_profit_pct) / 100.0)
+        neg_scale = max(0.0001, float(daily_risk_pct) / 100.0)
+        delta_ratio = (equity_usd - sod_equity_usd) / sod_equity_usd if sod_equity_usd else 0.0
+        if delta_ratio >= 0:
+            pnl_norm = min(1.0, delta_ratio / pos_scale)
+        else:
+            pnl_norm = -min(1.0, abs(delta_ratio) / neg_scale)
+    except Exception:
+        pnl_norm = 0.0
+
+    # Middle: daily DD used (0..1)
+    try:
+        dd_used = 0.0
+        if equity_usd < sod_equity_usd and daily_risk_pct > 0:
+            dd_used = (sod_equity_usd - equity_usd) / (sod_equity_usd * (daily_risk_pct / 100.0))
+            dd_used = max(0.0, min(1.0, dd_used))
+    except Exception:
+        dd_used = 0.0
+
+    # Outer: hard deck arc length proportional to max_total_dd_pct
+    try:
+        hd_len = max(0.0, min(1.0, float(max_total_dd_pct) / 100.0))
+    except Exception:
+        hd_len = 0.1
+
+    fig = concentric_ring(
+        center_title="Session",
+        center_value=f"${equity_usd:,.0f}",
+        caption="Hard deck • Daily DD • P&L",
+        outer_bipolar=None,  # we'll overlay a static red arc for hard deck
+        outer_cap=1.0,
+        outer_ghost_bipolar=since_inception_pct,
+        middle_mode="unipolar",
+        middle_val=dd_used,
+        middle_cap=1.0,
+        inner_unipolar=None,  # replaced by bipolar below
+        inner_cap=1.0,
+        size=size,
+        rotation_deg=270,
+        ticks=None,
+        cap_dots=True,
+    )
+    # Replace inner with bipolar P&L
+    in_deg, _, in_col, in_hover = _unipolar_slice(abs(pnl_norm), cap=1.0, color=COL["pos"])  # use unipolar deg calc
+    dirn = "clockwise" if pnl_norm >= 0 else "counterclockwise"
+    col = COL["pos"] if pnl_norm >= 0 else COL["neg"]
+    fig.add_trace(
+        go.Pie(
+            values=[in_deg, 360 - in_deg],
+            hole=0.86,
+            rotation=270,
+            sort=False,
+            direction=dirn,
+            marker=dict(colors=[col, COL["track"]]),
+            textinfo="none",
+            hoverinfo="text",
+            hovertext=[f"P&L {pnl_norm:+.2f}", ""],
+            showlegend=False,
+            name="pnl_inner",
+        )
+    )
+    # Overlay hard deck static red arc
+    fig.add_trace(
+        go.Pie(
+            values=[hd_len * 360.0, 360.0 - hd_len * 360.0],
+            hole=0.58,
+            rotation=270,
+            sort=False,
+            direction="counterclockwise",
+            marker=dict(colors=["rgba(239,68,68,0.35)", "rgba(0,0,0,0)"]),
+            textinfo="none",
+            hoverinfo="text",
+            hovertext=[f"Max DD {max_total_dd_pct:.1f}%", ""],
+            showlegend=False,
+            name="hard_deck",
+        )
+    )
+    # Balance marker on outer edge vs baseline
+    try:
+        bal_ratio = (equity_usd - baseline_equity_usd) / baseline_equity_usd if baseline_equity_usd else 0.0
+        # map to -1..+1 by clamping at ±max_total_dd_pct for red side and +max_total_dd_pct for green
+        ar = max(-1.0, min(1.0, bal_ratio / (max_total_dd_pct / 100.0)))
+        ang = (270 + (abs(ar) * 360.0) * (1 if ar >= 0 else -1)) % 360
+        # draw a small dot
+        def _ang2xy(a, r):
+            import math
+            th = math.radians(90 - a)
+            return 0.5 + r * math.cos(th), 0.5 + r * math.sin(th)
+        x, y = _ang2xy(ang, 0.5)
+        rdot = 0.012
+        fig.add_shape(type="circle", xref="paper", yref="paper",
+                      x0=x - rdot, x1=x + rdot, y0=y - rdot, y1=y + rdot,
+                      line=dict(color=COL["pos"] if ar >= 0 else COL["neg"], width=1),
+                      fillcolor=COL["pos"] if ar >= 0 else COL["neg"], opacity=0.95)
+    except Exception:
+        pass
+
+    return fig

@@ -20,6 +20,7 @@ from .views import (
     FeedTradeView,
     FeedBehaviorView,
     ProfitHorizonView,
+    MirrorStateView,
 )
 
 # --- Minimal, dependency-free Pulse endpoints (stubs) ---
@@ -77,4 +78,5 @@ urlpatterns = [
     path('feed/trade', FeedTradeView.as_view(), name='feed-trade'),
     path('feed/behavior', FeedBehaviorView.as_view(), name='feed-behavior'),
     path('profit-horizon', ProfitHorizonView.as_view(), name='profit-horizon'),
+    path('mirror/state', MirrorStateView.as_view(), name='mirror-state'),
 ]

@@ -17,6 +17,15 @@ import os
 from dotenv import load_dotenv
 # Use the dashboard-local components module to avoid path issues in Streamlit
 from dashboard.components.ui_concentric import concentric_ring
+from dashboard.components.ui_concentric import donut_system_overview, donut_session_vitals
+from dashboard.components.behavioral_compass import make_behavioral_compass
+from dashboard.pages.components.profit_horizon_panel import render_profit_horizon
+from dashboard.pages.components.whisper_panel import render_whisper_panel
+from dashboard.pages.components.market_header import render_market_header
+from datetime import timedelta as _td
+from dashboard.components.behavioral_mirror import make_behavioral_mirror
+from dashboard.pages.components.whisper_panel import render_whisper_panel
+from dashboard.pages.components.profit_horizon_panel import render_profit_horizon
 
 # Safe MT5 import
 try:
@@ -75,6 +84,9 @@ if _img_base64:
     </style>
     """
     st.markdown(_background_style, unsafe_allow_html=True)
+
+# Market Conditions header
+render_market_header()
 # Custom CSS for enhanced styling
 st.markdown("""
 <style>
@@ -759,13 +771,8 @@ def create_psychology_insights(confluence_score: float,
     return insights
 
 def render_risk_control_panel(account_info: Dict, risk_summary: Dict):
-    """Render risk control panel with 3D allocation and adjustable daily risk %."""
-    
-    st.subheader("🎛️ Risk Controls")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
+    """Render risk controls in the sidebar and persist selections."""
+    with st.sidebar.expander("🎛️ Risk Controls", expanded=True):
         st.markdown("#### Risk Parameters")
         # Daily risk percent slider (bring back 0.2% → 3%)
         daily_risk_pct = st.slider(
@@ -807,17 +814,7 @@ def render_risk_control_panel(account_info: Dict, risk_summary: Dict):
         st.session_state['adv19_daily_profit_pct'] = float(daily_profit_pct)
         st.session_state['adv19_anticipated_trades'] = int(anticipated_trades)
         st.session_state['adv19_per_trade_risk'] = float(per_trade_dollars)
-    
-    with col2:
-        st.markdown("#### Behavioral Mirror: Your Key Psychological Metrics")
-        # Replace the 3D chart with layered concentric rings
-        try:
-            # Use cached recent trades if available; else keep empty
-            recent_cached = pulse_manager._cache_get('adv19:recent_trades:20:7') if 'pulse_manager' in st.session_state else None
-            recent_df_local = pd.DataFrame(recent_cached) if isinstance(recent_cached, list) else (recent_df if 'recent_df' in locals() else pd.DataFrame())
-            _render_behavioral_concentric(recent_df_local, risk_summary)
-        except Exception:
-            st.info("Behavioral metrics unavailable.")
+        st.caption("Settings persist across tabs for this session.")
 
 
 # === Whisperer: Discipline Posture, Behavioral Mirror, Session Trajectory, Target Status ===
@@ -1095,27 +1092,15 @@ def _render_top_three_donuts(account_info: Dict):
     daily_profit_pct = float(st.session_state.get('adv19_daily_profit_pct', 1.0))
     daily_risk_pct = float(st.session_state.get('adv19_daily_risk_pct', 3.0))
 
-    # 1) Balance donut — bipolar, 10% full ring
-    bal_delta_ratio = (balance_val - baseline) / baseline if baseline else 0.0
-    bal_ratio = max(-1.0, min(1.0, bal_delta_ratio / 0.10))
-
-    # 2) SoD Equity donut — bipolar, pos scale = daily target, neg scale = daily risk cap
-    eq_delta_ratio = (equity_val - sod_equity) / sod_equity if sod_equity else 0.0
+    # Compute normalized day PnL vs sidebar target/loss
     pos_scale = daily_profit_pct / 100.0 if daily_profit_pct > 0 else 0.01
     neg_scale = daily_risk_pct / 100.0 if daily_risk_pct > 0 else 0.01
-    if eq_delta_ratio >= 0:
-        eq_ratio = min(1.0, eq_delta_ratio / pos_scale)
-    else:
-        eq_ratio = -min(1.0, abs(eq_delta_ratio) / neg_scale)
-
-    # 3) PnL donut — bipolar, pos scale = daily target, neg scale = daily risk cap
     target_amt = sod_equity * pos_scale if sod_equity else 0.0
     loss_cap_amt = sod_equity * neg_scale if sod_equity else 0.0
     if profit_val >= 0:
-        pnl_ratio = (profit_val / target_amt) if target_amt > 0 else 0.0
-        pnl_ratio = min(1.0, pnl_ratio)
+        pnl_ratio = min(1.0, (profit_val / target_amt) if target_amt > 0 else 0.0)
     else:
-        pnl_ratio = -min(1.0, abs(profit_val) / loss_cap_amt) if loss_cap_amt > 0 else 0.0
+        pnl_ratio = -min(1.0, (abs(profit_val) / loss_cap_amt) if loss_cap_amt > 0 else 0.0)
 
     # Build feeds with graceful fallbacks (awaiting feed → track)
     balance_feed = {
@@ -1139,76 +1124,61 @@ def _render_top_three_donuts(account_info: Dict):
         'eff_trend_15m': 0,
     }
 
-    d1, d2, d3 = st.columns(3)
-    with d1:
-        fig_balance = concentric_ring(
-            center_title="Balance",
-            center_value=f"${balance_feed['balance_now']:,.0f}",
-            caption="±10% total; 30D/YTD shells",
-            outer_bipolar=(balance_feed['pnl_total_pct'] or None) and (balance_feed['pnl_total_pct'] / 0.10),
-            outer_cap=1.0,
-            middle_mode="unipolar",
-            middle_val=(None if balance_feed['pnl_30d_pct'] is None else min(abs(balance_feed['pnl_30d_pct'] / 0.10), 1.0)),
-            inner_unipolar=(None if balance_feed['pnl_ytd_pct'] is None else min(abs(balance_feed['pnl_ytd_pct'] / 0.20), 1.0)),
+    # Two primary donuts: Session Vitals and Behavioral Compass
+    st.subheader("🫀 Session Vitals • 🧭 Behavioral Compass")
+    try:
+        ms = safe_api_call("GET", "api/v1/mirror/state") or {}
+    except Exception:
+        ms = {}
+    # Risk/exposure hints from risk summary if available
+    risk_used = None
+    exposure = None
+    try:
+        rs = st.session_state.get('adv19_risk_last') or {}
+        # Attempt to normalize to 0..1 if provided in percent
+        ru = rs.get('daily_risk_used') or rs.get('risk_used_pct')
+        if ru is not None:
+            ru = float(ru)
+            risk_used = ru/100.0 if ru > 1.0 else max(0.0, min(1.0, ru))
+        ex = rs.get('exposure_pct')
+        if ex is not None:
+            ex = float(ex)
+            exposure = ex/100.0 if ex > 1.0 else max(0.0, min(1.0, ex))
+    except Exception:
+        pass
+    c_left, c_right = st.columns(2)
+    with c_left:
+        fig_sess = donut_session_vitals(
+            equity_usd=equity_val,
+            sod_equity_usd=sod_equity,
+            baseline_equity_usd=baseline,
+            daily_profit_pct=daily_profit_pct,
+            daily_risk_pct=daily_risk_pct,
+            max_total_dd_pct=10.0,
+            since_inception_pct=balance_feed.get('pnl_total_pct'),
             size=(280, 280),
         )
-        st.plotly_chart(fig_balance, use_container_width=True, config={'displayModeBar': False})
-    with d2:
-        # Build petals from open positions if available in session cache
-        petals = []
-        try:
-            cached_pos = st.session_state.get('adv19_positions_last') or []
-            if isinstance(cached_pos, list) and cached_pos:
-                eq = float(account_info.get('equity', 0) or 0) or 1.0
-                for p in cached_pos[:5]:
-                    try:
-                        side = 'long' if int(p.get('type',0)) == 0 else 'short'
-                    except Exception:
-                        side = str(p.get('type','')).lower()
-                    vol = float(p.get('volume') or 0)
-                    price = float(p.get('price_current') or p.get('price_open') or 0)
-                    notional = abs(vol * price) / eq if eq else 0.0
-                    mins = 0
-                    try:
-                        ts = pd.to_datetime(p.get('time')) if p.get('time') else None
-                        if ts is not None:
-                            mins = int((pd.Timestamp.utcnow().tz_localize(None) - ts.tz_localize(None)).total_seconds() // 60)
-                    except Exception:
-                        mins = 0
-                    petals.append({'side': side, 'notional_pct': max(0.0, min(1.0, notional)), 'minutes_open': mins})
-        except Exception:
-            petals = []
-        fig_equity = concentric_ring(
-            center_title="Equity",
-            center_value=f"${equity_feed['session_pnl']:,.0f}",
-            caption="Goal/Risk/Exposure",
-            outer_bipolar=equity_feed['pct_to_target'],
-            middle_mode="unipolar",
-            middle_val=equity_feed['risk_used_pct'],
-            inner_unipolar=equity_feed['exposure_pct'],
-            size=(280, 280),
-            petals=petals,
+        st.plotly_chart(fig_sess, use_container_width=True, config={'displayModeBar': False})
+    with c_right:
+        fig_compass = make_behavioral_compass(
+            discipline=ms.get('discipline') or 100,
+            patience_ratio=ms.get('patience_ratio') or 0,
+            efficiency=ms.get('efficiency') or 0,
+            conviction_hi_win=ms.get('conviction_hi_win') or 0,
+            conviction_lo_loss=ms.get('conviction_lo_loss') or 0,
+            pnl_norm=pnl_ratio,
+            title="Behavioral Compass",
+            subtitle="Keep red covered; tempo in check",
         )
-        st.plotly_chart(fig_equity, use_container_width=True, config={'displayModeBar': False})
-    with d3:
-        realized = trade_feed['realized_usd'] or 0.0
-        unreal = trade_feed['unrealized_usd'] or 0.0
-        tot_abs = abs(realized) + abs(unreal) or 1.0
-        left = abs(realized) / tot_abs
-        right = abs(unreal) / tot_abs
-        trend = trade_feed['eff_trend_15m'] or 0
-        trend_glyph = '▲' if trend > 0 else '▼' if trend < 0 else '•'
-        fig_pnl = concentric_ring(
-            center_title="P&L",
-            center_value=f"${(realized+unreal):,.0f} {trend_glyph}",
-            caption="Eff. & R/U split",
-            outer_bipolar=trade_feed['pnl_day_vs_goal'],
-            middle_mode="split",
-            middle_split=(left, right),
-            inner_unipolar=trade_feed['profit_efficiency'],
-            size=(280, 280),
-        )
-        st.plotly_chart(fig_pnl, use_container_width=True, config={'displayModeBar': False})
+        st.plotly_chart(fig_compass, use_container_width=True, config={'displayModeBar': False})
+
+    # Whisper Feed (kept)
+    st.markdown("---")
+    st.subheader("🫢 The Whisperer")
+    render_whisper_panel(api=os.getenv("DJANGO_API_URL", "http://django:8000").rstrip('/') + "/api/pulse/whispers")
+    st.markdown("---")
+    st.subheader("⏳ Profit Horizon")
+    render_profit_horizon(limit=20)
 
 
 def _render_performance_tiles(account_info: Dict, risk_summary: Dict):
@@ -1964,10 +1934,7 @@ def main():
             if ts is not None and not pd.isna(ts):
                 try:
                     mins = int((pd.Timestamp.utcnow().tz_localize(None) - ts.tz_localize(None)).total_seconds() // 60)
-                    if mins < 60:
-                        dur_txt = f"{mins}m"
-                    else:
-                        dur_txt = f"{mins//60}h {mins%60}m"
+                    dur_txt = f"{mins}m"
                 except Exception:
                     dur_txt = '—'
             sess = _session_for(ts if (ts is not None and not pd.isna(ts)) else None)
@@ -1981,16 +1948,21 @@ def main():
             tip = (
                 f"Session: {sess}\nOpened: {time_disp}\nEntry: {po} | Now: {pc}\nSL: {sl or '—'} | TP: {tp or '—'}\nTo target: {pct_txt}"
             )
-            with st.container():
-                col_a, col_b, col_c, col_d = st.columns([3, 1, 1, 1])
-                with col_a:
-                    st.markdown(f"<div title=\"{tip}\"><b>{sym}</b> • {side} • {dur_txt}</div>", unsafe_allow_html=True)
-                with col_b:
-                    st.markdown(f"<div style=\"color:{'green' if pnl>0 else ('red' if pnl<0 else '#aaa')}\">{pnl:+.2f}</div>", unsafe_allow_html=True)
-                with col_c:
-                    st.markdown(f"<div>{vol}</div>", unsafe_allow_html=True)
-                with col_d:
-                    st.markdown(f"<div style=\"color:{pct_col}\">{pct_txt}</div>", unsafe_allow_html=True)
+            # Translucent card row
+            st.markdown(
+                f"""
+                <div style='padding:8px 12px;border-radius:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);backdrop-filter:blur(3px);margin-bottom:6px;' title="{tip}">
+                  <div style='display:flex;align-items:center;justify-content:space-between;'>
+                    <div style='font-weight:600;'>{sym} • {side}</div>
+                    <div style='color:{'green' if pnl>0 else ('red' if pnl<0 else '#aaa')}'>{pnl:+.2f}</div>
+                    <div>{vol}</div>
+                    <div style='color:{pct_col}'>{pct_txt}</div>
+                    <div style='opacity:0.8'>{dur_txt}</div>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
         # Bridge status badge (Online/Offline)
         bridge_online = False
@@ -2057,13 +2029,7 @@ def main():
                 st.button("Partial 25%", key=f"partial25_{row.get('symbol','x')}_{idx}", disabled=True, help="Close 25% of position size. Coming soon.")
                 st.button("Partial 50%", key=f"partial50_{row.get('symbol','x')}_{idx}", disabled=True, help="Close 50% of position size. Coming soon.")
     
-    # Behavioral Psychology Insights (full width)
-    render_psychology_insights_panel(confluence_data, risk_data)
-
-    # Behavioral Mirror metrics (transparent metrics-style)
-    st.markdown("---")
-    st.subheader("🪞 Behavioral Mirror")
-    _render_behavioral_mirror(recent_df if 'recent_df' in locals() else pd.DataFrame(), risk_data)
+    # Behavioral metrics removed per design feedback
 
     # Last Trade (API first, then Kafka if configured)
     st.subheader("🧾 Last Trade")
