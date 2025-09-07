@@ -206,29 +206,39 @@ def _bias_class(score: float) -> str:
 # API Configuration
 DJANGO_API_URL = os.getenv("DJANGO_API_URL", "http://django:8000")
 
-def safe_api_call(method: str, path: str, payload: Dict = None, timeout: float = 2.0) -> Dict:
+def _pulse_url(path: str) -> str:
+    """Normalize paths to pulse endpoints under /api/pulse/"""
+    p = path.lstrip('/')
+    if p.startswith('api/'):
+        return f"{DJANGO_API_URL}/{p}"
+    # Common pulse endpoints used on this page
+    if p.startswith(('pulse/', 'risk/', 'score/', 'signals/')):
+        # strip optional leading 'pulse/' then prefix with api/pulse
+        p2 = p.split('/', 1)
+        if p2 and p2[0] == 'pulse' and len(p2) > 1:
+            p = p2[1]
+        return f"{DJANGO_API_URL}/api/pulse/{p}"
+    return f"{DJANGO_API_URL}/{p}"
+
+def safe_api_call(method: str, path: str, payload: Dict = None, timeout: float = 3.5) -> Dict:
     """Safe API call with error handling and fallbacks"""
     try:
-        url = f"{DJANGO_API_URL}/{path.lstrip('/')}"
-        
+        url = _pulse_url(path)
         if method.upper() == "GET":
             response = requests.get(url, timeout=timeout)
         elif method.upper() == "POST":
             response = requests.post(url, json=payload or {}, timeout=timeout)
         else:
             return {"error": f"Unsupported method: {method}"}
-        
         if response.status_code == 200:
             return response.json()
-        else:
-            return {"error": f"HTTP {response.status_code}"}
-            
+        return {"error": f"HTTP {response.status_code}", "url": url}
     except requests.exceptions.Timeout:
-        return {"error": "API timeout"}
+        return {"error": "API timeout", "url": _pulse_url(path)}
     except requests.exceptions.ConnectionError:
-        return {"error": "API connection failed"}
+        return {"error": "API connection failed", "url": _pulse_url(path)}
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": str(e), "url": _pulse_url(path)}
 
 class AdvancedPulseRiskManager:
     """Advanced Risk Manager with behavioral insights"""
@@ -243,8 +253,12 @@ class AdvancedPulseRiskManager:
         self.connected = False
         self.mt5_available = MT5_AVAILABLE
         self._last_account_info: Dict = {}
-        # Optional HTTP MT5 bridge (align with page 16)
-        self.mt5_url = os.getenv("MT5_URL", "http://mt5:5001")
+        # Optional HTTP MT5 bridge (align with page 16) with fallback to MT5_API_URL
+        self.mt5_url = (
+            os.getenv("MT5_URL")
+            or os.getenv("MT5_API_URL")
+            or "http://mt5:5001"
+        )
         self.bridge_available = False
         self.status_messages: List[str] = []
         
@@ -292,7 +306,8 @@ class AdvancedPulseRiskManager:
         # HTTP bridge first
         if self.mt5_url:
             try:
-                r = requests.get(f"{self.mt5_url}/account_info", timeout=2.0)
+                url = f"{str(self.mt5_url).rstrip('/')}/account_info"
+                r = requests.get(url, timeout=4.0)
                 if r.ok:
                     data = r.json() or {}
                     if isinstance(data, dict) and data:
@@ -300,12 +315,12 @@ class AdvancedPulseRiskManager:
                         self._last_account_info = data
                         return data
                 else:
-                    self.status_messages.append(f"HTTP bridge /account_info returned {r.status_code}")
+                    self.status_messages.append(f"HTTP bridge {url} returned {r.status_code}")
             except Exception as e:
                 self.status_messages.append(f"HTTP bridge error: {e}")
-        # If we were previously connected and have a last good snapshot, reuse it on transient failures
+        # If we have a last good snapshot, reuse it on transient failures (regardless of MT5 connection)
         try:
-            if self.connected and self._last_account_info:
+            if self._last_account_info:
                 return self._last_account_info
         except Exception:
             pass
@@ -973,12 +988,13 @@ def main():
 
     # System health status
     health_data = safe_api_call("GET", "pulse/health")
-    if "error" not in health_data:
+    if isinstance(health_data, dict) and "error" not in health_data:
         status = health_data.get("status", "unknown")
         lag = health_data.get("lag_ms", "—")
         st.caption(f"System Status: {status} | Lag: {lag}ms | Last Update: {datetime.now().strftime('%H:%M:%S')}")
     else:
-        st.caption(f"System Status: offline | Last Update: {datetime.now().strftime('%H:%M:%S')}")
+        err = health_data.get("error") if isinstance(health_data, dict) else "unknown"
+        st.caption(f"System Status: offline ({err}) | Last Update: {datetime.now().strftime('%H:%M:%S')}")
 
     # Get account information and risk status
     try:
@@ -992,6 +1008,15 @@ def main():
         positions_df = pd.DataFrame()
         risk_data = {}
         confluence_data = {}
+
+    # If account info missing, show connection diagnostics
+    if not account_info:
+        with st.expander("Connection Diagnostics", expanded=False):
+            if getattr(pulse_manager, 'status_messages', None):
+                for m in pulse_manager.status_messages[-5:]:
+                    st.caption(f"• {m}")
+            else:
+                st.caption("No status messages available.")
 
     # Account banner
     login_banner = account_info.get("login")
