@@ -15,7 +15,6 @@ import requests
 from typing import Dict, List, Optional, Tuple
 import os
 from dotenv import load_dotenv
-import yfinance as yf
 
 # Safe MT5 import
 try:
@@ -489,13 +488,27 @@ class AdvancedPulseRiskManager:
                     data = r.json() or []
                     if isinstance(data, list) and data:
                         df = pd.DataFrame(data)
-                        # Normalize time columns if present
-                        for col in ("time", "time_update"):
-                            if col in df.columns:
-                                try:
-                                    df[col] = pd.to_datetime(df[col])
-                                except Exception:
-                                    pass
+                        # Normalize time columns if present (seconds/ms/ns or ISO strings)
+                        try:
+                            if 'time_msc' in df.columns:
+                                df['time'] = pd.to_datetime(pd.to_numeric(df['time_msc'], errors='coerce'), unit='ms', errors='coerce')
+                            for col in ("time", "time_update"):
+                                if col not in df.columns:
+                                    continue
+                                s = df[col]
+                                nums = pd.to_numeric(s, errors='coerce')
+                                if nums.notna().any():
+                                    v = float(nums.dropna().iloc[0])
+                                    unit = 's'
+                                    if v > 1e18:
+                                        unit = 'ns'
+                                    elif v > 1e12:
+                                        unit = 'ms'
+                                    df[col] = pd.to_datetime(nums, unit=unit, errors='coerce')
+                                else:
+                                    df[col] = pd.to_datetime(s, errors='coerce')
+                        except Exception:
+                            pass
                         try:
                             self._cache_set(ck, df.to_dict(orient='records'), ttl_seconds=5)
                         except Exception:
@@ -514,8 +527,21 @@ class AdvancedPulseRiskManager:
                     if positions is None or len(positions) == 0:
                         return pd.DataFrame()
                     df = pd.DataFrame(list(positions), columns=positions[0]._asdict().keys())
-                    df['time'] = pd.to_datetime(df['time'], unit='s')
-                    df['time_update'] = pd.to_datetime(df['time_update'], unit='s')
+                    try:
+                        if 'time_msc' in df.columns:
+                            df['time'] = pd.to_datetime(pd.to_numeric(df['time_msc'], errors='coerce'), unit='ms', errors='coerce')
+                        for col in ("time", "time_update"):
+                            if col in df.columns:
+                                nums = pd.to_numeric(df[col], errors='coerce')
+                                v = float(nums.dropna().iloc[0]) if nums.notna().any() else None
+                                unit = 's'
+                                if v is not None and v > 1e18:
+                                    unit = 'ns'
+                                elif v is not None and v > 1e12:
+                                    unit = 'ms'
+                                df[col] = pd.to_datetime(nums if nums.notna().any() else df[col], unit=unit if nums.notna().any() else None, errors='coerce')
+                    except Exception:
+                        pass
                     try:
                         self._cache_set(ck, df.to_dict(orient='records'), ttl_seconds=5)
                     except Exception:
@@ -559,6 +585,17 @@ class AdvancedPulseRiskManager:
             self._cache_set(ck, result, ttl_seconds=5)
             return result
         return {}
+
+    def get_dashboard_data(self) -> Dict:
+        """Fetch consolidated dashboard data from Django API if available.
+        Expected shape: { account_info, risk_management, open_positions, psychological_state, confluence }
+        """
+        data = safe_api_call("GET", "api/v1/dashboard-data/")
+        if isinstance(data, dict) and 'error' not in data:
+            return data
+        # Fallbacks
+        data = safe_api_call("GET", "dashboard-data/")
+        return data if isinstance(data, dict) and 'error' not in data else {}
 
     def get_top_opportunities(self, n: int = 3) -> List[Dict]:
         """Get top trading opportunities. No mocks."""
@@ -730,6 +767,11 @@ def render_risk_control_panel(account_info: Dict, risk_summary: Dict):
             min_value=0.2, max_value=3.0, step=0.1, value=3.0,
             help="Percent of equity you're willing to risk today"
         )
+        daily_profit_pct = st.slider(
+            "Daily Profit Target %",
+            min_value=0.2, max_value=5.0, step=0.1, value=1.0,
+            help="Target gain for the day; walk away once reached"
+        )
         # Anticipated trades slider
         anticipated_trades = st.slider(
             "Anticipated Trades Today",
@@ -753,6 +795,12 @@ def render_risk_control_panel(account_info: Dict, risk_summary: Dict):
         )
         per_trade_dollars *= fine_tune
         st.caption(f"Adjusted per-trade: ${per_trade_dollars:,.0f} (x{fine_tune:.2f})")
+
+        # Persist selections for use elsewhere on the page
+        st.session_state['adv19_daily_risk_pct'] = float(daily_risk_pct)
+        st.session_state['adv19_daily_profit_pct'] = float(daily_profit_pct)
+        st.session_state['adv19_anticipated_trades'] = int(anticipated_trades)
+        st.session_state['adv19_per_trade_risk'] = float(per_trade_dollars)
     
     with col2:
         st.markdown("#### Risk Allocation 3D")
@@ -776,6 +824,11 @@ def get_trait_history(limit: int = 20) -> List[Dict]:
 
 def render_psychology_insights_panel(confluence_data: Dict, risk_summary: Dict):
     """Render session mindset panel"""
+    # Accept None and other shapes gracefully
+    if not isinstance(confluence_data, dict):
+        confluence_data = {}
+    if not isinstance(risk_summary, dict):
+        risk_summary = {}
     
     st.subheader("🧠 SESSION MINDSET")
     
@@ -1084,14 +1137,16 @@ def render_technical_analysis_panel():
     st.subheader("📈 Technical Analysis")
     colA, colB, colC = st.columns([3,1,1])
     with colA:
+        # Use platform symbols as primary labels; map to yfinance tickers internally
         instruments = [
-            ("EUR/USD", "EURUSD=X"),
-            ("GBP/USD", "GBPUSD=X"),
-            ("USD/JPY", "USDJPY=X"),
-            ("GBP/JPY", "GBPJPY=X"),
-            ("EUR/GBP", "EURGBP=X"),
-            ("Gold", "GC=F"),
-            ("S&P 500", "^GSPC"),
+            ("EURUSD", "EURUSD=X"),
+            ("GBPUSD", "GBPUSD=X"),
+            ("USDJPY", "USDJPY=X"),
+            ("EURGBP", "EURGBP=X"),
+            ("XAUUSD", "XAUUSD=X"),  # Spot gold vs USD
+            ("SPX500", "^GSPC"),
+            ("BTCUSD", "BTC-USD"),
+            ("ETHUSD", "ETH-USD"),
         ]
         selected = st.selectbox("Select Instrument", options=instruments, index=0, format_func=lambda x: x[0])
         symbol_label, symbol = selected
@@ -1240,17 +1295,37 @@ def main():
 
     # Get account information and risk status (prefer fast calls)
     try:
-        # Try cache first when fast_mode is on
-        account_info = pulse_manager._cache_get("adv19:account_info") if fast_mode else None
-        if not isinstance(account_info, dict) or not account_info:
-            account_info = pulse_manager.get_account_info()
+        # First try a single consolidated API call (if available)
+        dashboard_data = pulse_manager.get_dashboard_data()
+        account_info = dashboard_data.get("account_info") if isinstance(dashboard_data, dict) else None
+        # Prefer 'risk_summary' then 'risk_management'
+        risk_data = dashboard_data.get("risk_summary") if isinstance(dashboard_data, dict) else None
+        if (not isinstance(risk_data, dict)) and isinstance(dashboard_data, dict):
+            risk_data = dashboard_data.get("risk_management")
+        positions_df = pd.DataFrame(dashboard_data.get("open_positions")) if isinstance(dashboard_data, dict) and isinstance(dashboard_data.get("open_positions"), list) else pd.DataFrame()
+        confluence_data = dashboard_data.get("confluence") if isinstance(dashboard_data, dict) else {}
+        risk_event = dashboard_data.get("risk_event") if isinstance(dashboard_data, dict) else {}
 
-        risk_data = pulse_manager._cache_get("adv19:risk_summary") if fast_mode else None
+        # Fallbacks if consolidated endpoint is unavailable
+        if not isinstance(account_info, dict) or not account_info:
+            account_info = pulse_manager._cache_get("adv19:account_info") if fast_mode else None
+            if not isinstance(account_info, dict) or not account_info:
+                account_info = pulse_manager.get_account_info()
+
         if not isinstance(risk_data, dict) or not risk_data:
-            risk_data = pulse_manager.get_risk_summary()
-        # Defer heavy/optional calls
-        positions_df = pd.DataFrame()
-        confluence_data = {}
+            risk_data = pulse_manager._cache_get("adv19:risk_summary") if fast_mode else None
+            if not isinstance(risk_data, dict) or not risk_data:
+                risk_data = pulse_manager.get_risk_summary()
+
+        if positions_df.empty:
+            cached_pos = pulse_manager._cache_get('adv19:positions') if fast_mode else None
+            if isinstance(cached_pos, list) and cached_pos:
+                try:
+                    positions_df = pd.DataFrame(cached_pos)
+                except Exception:
+                    positions_df = pd.DataFrame()
+        if positions_df.empty:
+            positions_df = pulse_manager.get_positions()
     except Exception as e:
         st.error(f"Error loading data: {e}")
         account_info = {}
@@ -1289,36 +1364,94 @@ def main():
     with colm3:
         st.metric("🎯 Margin Level", f"{margin_level_val:,.2f}%", "Safe" if margin_level_val > 200 else "Warning")
     with colm4:
-        st.metric("📈 PnL", f"${profit_val:,.2f}")
+        # Profit Milestone "whisper": suggest protection when progress is meaningful
+        try:
+            # Pull UI-set values if present; fall back to sensible defaults
+            daily_risk_pct = float(st.session_state.get('adv19_daily_risk_pct', 3.0))
+            daily_profit_pct = float(st.session_state.get('adv19_daily_profit_pct', 1.0))
+            anticipated_trades = int(st.session_state.get('adv19_anticipated_trades', 5))
+            milestone_threshold = float(os.getenv('PROFIT_MILESTONE_THRESHOLD', '0.75'))
 
-    # Advanced Risk Control Panel (with 3D allocation, fixed 3%)
+            daily_risk_amount = equity_val * (daily_risk_pct / 100.0)
+            per_trade_risk = daily_risk_amount / max(anticipated_trades, 1)
+            daily_profit_target_amt = equity_val * (daily_profit_pct / 100.0)
+            milestone_amt = daily_profit_target_amt * milestone_threshold if daily_profit_target_amt else 0.0
+
+            pnl_delta_text = None
+            # Prefer server-provided event if available
+            if isinstance(risk_event, dict) and risk_event.get('event') == 'profit_milestone_reached':
+                pnl_delta_text = "🎯 Consider protecting your position"
+            if profit_val > 0:
+                if (milestone_amt and profit_val >= milestone_amt) or (per_trade_risk and profit_val >= per_trade_risk):
+                    # Compose concise whisper
+                    pct_txt = f"{int(milestone_threshold * 100)}%" if milestone_amt else ""
+                    pnl_delta_text = f"🎯 {pct_txt} target reached — consider protecting" if pct_txt else "🎯 Consider protecting your position"
+        except Exception:
+            pnl_delta_text = None
+        # Neutral delta color to avoid green/red bias
+        if pnl_delta_text:
+            st.metric("📈 PnL", f"${profit_val:,.2f}", delta=pnl_delta_text, delta_color="off")
+        else:
+            st.metric("📈 PnL", f"${profit_val:,.2f}")
+
+    # Advanced Risk Control Panel (with 3D allocation)
     render_risk_control_panel(account_info, risk_data)
+
+    # Key info derived from risk controls for quick guardrails
+    equity_val = float(account_info.get('equity', 0) or 0)
+    daily_risk_pct = float(st.session_state.get('adv19_daily_risk_pct', 3.0))
+    daily_profit_pct = float(st.session_state.get('adv19_daily_profit_pct', 1.0))
+    max_allowed_loss_amt = equity_val * (daily_risk_pct / 100.0)
+    daily_profit_target_amt = equity_val * (daily_profit_pct / 100.0)
+
+    info_cols = st.columns(4)
+    with info_cols[0]:
+        st.metric("Max Allowed Loss (info)", f"${max_allowed_loss_amt:,.0f}", f"{daily_risk_pct:.1f}%")
+    with info_cols[1]:
+        # Start-of-Day equity (session-persisted)
+        sod_key = f"adv19_sod_{datetime.now().strftime('%Y%m%d')}"
+        if sod_key not in st.session_state and equity_val > 0:
+            st.session_state[sod_key] = equity_val
+        sod_equity = float(st.session_state.get(sod_key, equity_val) or 0)
+        st.metric("Start-of-Day Equity", f"${sod_equity:,.0f}")
+    with info_cols[2]:
+        st.metric("Daily Profit Target", f"${daily_profit_target_amt:,.0f}", f"{daily_profit_pct:.1f}%")
+    with info_cols[3]:
+        hit = equity_val >= (sod_equity + daily_profit_target_amt) if (sod_equity and daily_profit_target_amt) else False
+        st.metric("Target Status", "Hit" if hit else "—")
+
+    # Place Open Positions directly below risk controls
+    positions_df = positions_df if 'positions_df' in locals() else pd.DataFrame()
+    if isinstance(positions_df, pd.DataFrame) and not positions_df.empty:
+        st.subheader("📋 Open Positions")
+        display_cols = [c for c in ['ticket','symbol','type','volume','price_open','price_current','profit','time'] if c in positions_df.columns]
+        positions_display = positions_df[display_cols].copy() if display_cols else positions_df.copy()
+        if 'type' in positions_display.columns:
+            positions_display['type'] = positions_display['type'].map({0: 'BUY', 1: 'SELL'}).fillna(positions_display['type'])
+        def _color_profit(val):
+            try:
+                v = float(val)
+            except Exception:
+                return ''
+            return 'color: green' if v > 0 else ('color: red' if v < 0 else '')
+        styled_positions = positions_display.style.applymap(_color_profit, subset=['profit']) if 'profit' in positions_display.columns else positions_display
+        st.dataframe(styled_positions, use_container_width=True)
     
-    # Behavioral Psychology Insights
+    # Behavioral Psychology Insights (full width)
     render_psychology_insights_panel(confluence_data, risk_data)
-    
-    # Divider
-    st.divider()
 
-    # Pulse Decision Surface (optional fetch for confluence/positions)
-    fetch_cols = st.columns([1, 1, 6])
-    with fetch_cols[0]:
-        if st.button("Load Positions", key="load_pos_19") or (fast_mode and isinstance(pulse_manager._cache_get('adv19:positions'), list)):
-            try:
-                # Prefer cached positions if available
-                cached_pos = pulse_manager._cache_get('adv19:positions')
-                positions_df = pd.DataFrame(cached_pos) if isinstance(cached_pos, list) else pulse_manager.get_positions()
-            except Exception:
-                positions_df = pd.DataFrame()
-    with fetch_cols[1]:
-        if st.button("Load Confluence", key="load_conf_19") or (fast_mode and isinstance(pulse_manager._cache_get('adv19:confluence'), dict)):
-            try:
-                confluence_data = pulse_manager._cache_get('adv19:confluence') or pulse_manager.get_confluence_score()
-            except Exception:
-                confluence_data = {}
-
-    render_pulse_tiles(pulse_manager)
-    st.divider()
+    # Risk Metrics just below Session Mindset (transparent metrics-style)
+    st.markdown("---")
+    st.subheader("🎯 Risk Metrics")
+    rm1, rm2, rm3, rm4 = st.columns(4)
+    with rm1:
+        st.metric("Daily Risk Used (%)", "NA")
+    with rm2:
+        st.metric("Current Drawdown (%)", "NA")
+    with rm3:
+        st.metric("Trade Limit Usage (%)", "NA")
+    with rm4:
+        st.metric("Overall Risk Score", "NA")
 
     # Last Trade (API first, then Kafka if configured)
     st.subheader("🧾 Last Trade")
@@ -1381,108 +1514,13 @@ def main():
     else:
         st.info('No recent trades available.')
 
-    # Top metrics row
-    balance_val = float(account_info.get('balance', 0) or 0)
-    equity_val = float(account_info.get('equity', 0) or 0)
-    profit_val = float(account_info.get('profit', 0) or 0)
-    margin_level_val = float(account_info.get('margin_level', 0) or 0)
-    col1, col2, col3, col4, col5 = st.columns(5)
+    # Recent Trades and Behavioral Insights (same width)
 
-    with col1:
-        st.metric("💰 Balance", f"${balance_val:,.2f}", f"${profit_val:,.2f}")
-
-    with col2:
-        equity = equity_val
-        balance = balance_val if balance_val > 0 else 1.0
-        equity_change = ((equity / balance - 1) * 100) if balance > 0 else 0
-        
-        st.metric(
-            "📊 Equity",
-            f"${equity:,.2f}",
-            f"{equity_change:.2f}%"
-        )
-
-    with col3:
-        st.metric("🎯 Margin Level", f"{margin_level_val:,.2f}%", "Safe" if margin_level_val > 200 else "Warning")
-
-    with col4:
-        # Temporarily mark as unavailable per feedback
-        st.metric(
-            "📈 Risk Used",
-            "NA",
-            "NA"
-        )
-
-    with col5:
-        st.metric(
-            "🔢 Open Positions",
-            len(positions_df),
-            f"Max: {risk_data.get('max_trades', 5)}"
-        )
-
-    # Risk metrics (temporarily not available)
+    # Behavioral insights (below recent trades)
     st.markdown("---")
-    st.subheader("🎯 Risk Metrics")
+    render_behavioral_insights(pulse_manager)
 
-    def _na_tile(title: str) -> None:
-        st.markdown(
-            f"""
-            <div class=\"pulse-tile tile-plain\">
-                <h4>{title}</h4>
-                <h2>NA</h2>
-                <p>Not available</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    gauge_col1, gauge_col2, gauge_col3, gauge_col4 = st.columns(4)
-    with gauge_col1:
-        _na_tile("Daily Risk Used (%)")
-    with gauge_col2:
-        _na_tile("Current Drawdown (%)")
-    with gauge_col3:
-        _na_tile("Trade Limit Usage (%)")
-    with gauge_col4:
-        _na_tile("Overall Risk Score")
-
-    # Main content area
-    col1, col2 = st.columns([2, 1])
-
-    with col1:
-        # Trading opportunities
-        render_opportunities(pulse_manager)
-
-        # Open positions table
-        if not positions_df.empty:
-            st.subheader("📋 Open Positions")
-
-            # Format positions dataframe
-            display_cols = ['ticket', 'symbol', 'type', 'volume', 'price_open', 
-                          'price_current', 'profit', 'time']
-            positions_display = positions_df[display_cols].copy()
-            positions_display['type'] = positions_display['type'].map({0: 'BUY', 1: 'SELL'})
-
-            # Color code profit/loss
-            def color_profit(val):
-                color = 'green' if val > 0 else 'red' if val < 0 else 'black'
-                return f'color: {color}'
-
-            styled_positions = positions_display.style.applymap(
-                color_profit, subset=['profit']
-            )
-
-            st.dataframe(styled_positions, use_container_width=True)
-
-    with col2:
-        # Behavioral insights
-        render_behavioral_insights(pulse_manager)
-
-    # Technical Analysis
-    st.markdown("---")
-    render_technical_analysis_panel()
-
-    # Risk warnings
+    # Risk warnings (below risk metrics)
     st.markdown("---")
     st.subheader("⚠️ Risk Warnings")
 
@@ -1493,6 +1531,29 @@ def main():
             st.warning(f"⚠️ {warning}")
     else:
         st.success("✅ All risk parameters within limits")
+
+    # Opportunities at the bottom
+    st.markdown("---")
+    render_opportunities(pulse_manager)
+
+    # Pulse Decision Surface at the very bottom
+    st.markdown("---")
+    st.subheader("🎯 Pulse Decision Surface")
+    fetch_cols = st.columns([1, 1, 6])
+    with fetch_cols[0]:
+        if st.button("Load Positions", key="load_pos_19") or (fast_mode and isinstance(pulse_manager._cache_get('adv19:positions'), list)):
+            try:
+                cached_pos = pulse_manager._cache_get('adv19:positions')
+                positions_df = pd.DataFrame(cached_pos) if isinstance(cached_pos, list) else pulse_manager.get_positions()
+            except Exception:
+                positions_df = pd.DataFrame()
+    with fetch_cols[1]:
+        if st.button("Load Confluence", key="load_conf_19") or (fast_mode and isinstance(pulse_manager._cache_get('adv19:confluence'), dict)):
+            try:
+                confluence_data = pulse_manager._cache_get('adv19:confluence') or pulse_manager.get_confluence_score()
+            except Exception:
+                confluence_data = {}
+    render_pulse_tiles(pulse_manager)
 
     # Footer with last update time
     st.markdown("---")

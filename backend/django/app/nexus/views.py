@@ -19,9 +19,16 @@ from .serializers import (
 from .filters import TradeFilter, TickFilter, BarFilter
 
 from app.utils.api.order import send_market_order, modify_sl_tp
+from app.utils.arithmetics import convert_lots_to_usd, calculate_commission, get_price_at_pnl
 from app.utils.policies import load_policies
 import os
 import requests
+import json
+
+try:
+    import redis as redis_lib  # optional
+except Exception:
+    redis_lib = None
 
 
 class PingView(views.APIView):
@@ -218,10 +225,19 @@ class DashboardDataView(views.APIView):
 
         # Pull pulse_api aggregates via HTTP (internal) with graceful fallbacks
         dj_url = os.getenv("DJANGO_API_URL", "http://django:8000")
+        # MT5 bridge base (public first, then internal)
+        mt5_base = (
+            os.getenv("MT5_URL")
+            or os.getenv("MT5_API_URL")
+            or "http://mt5:5001"
+        )
         confluence = None
         risk_summary = None
         opportunities = []
         recent_journal_payload = []
+        account_info = None
+        open_positions = []
+        risk_event = {}
         try:
             # risk summary
             rs = requests.get(f"{dj_url}/api/pulse/risk/summary", timeout=2)
@@ -229,6 +245,24 @@ class DashboardDataView(views.APIView):
                 risk_summary = rs.json()
         except Exception:
             risk_summary = None
+        # MT5 account info (bridge)
+        try:
+            r = requests.get(f"{str(mt5_base).rstrip('/')}/account_info", timeout=2.5)
+            if r.ok:
+                data = r.json()
+                if isinstance(data, dict) and data:
+                    account_info = data
+        except Exception:
+            account_info = None
+        # MT5 open positions (bridge)
+        try:
+            r = requests.get(f"{str(mt5_base).rstrip('/')}/positions_get", timeout=2.5)
+            if r.ok:
+                data = r.json()
+                if isinstance(data, list):
+                    open_positions = data
+        except Exception:
+            open_positions = []
         try:
             sig = requests.get(f"{dj_url}/api/pulse/signals/top?n=3", timeout=2)
             if sig.ok and isinstance(sig.json(), list):
@@ -249,11 +283,65 @@ class DashboardDataView(views.APIView):
             recent_journal = JournalEntry.objects.select_related('trade').order_by('-updated_at')[:10]
             recent_journal_payload = JournalEntrySerializer(recent_journal, many=True).data
 
+        # ---- Profit Milestone Event (server-side "whisper") ----
+        try:
+            # Resolve equity and PnL
+            equity_val = float((account_info or {}).get('equity', 0) or 0)
+            profit_val = float((account_info or {}).get('profit', 0) or 0)
+            # Load risk parameters from policies (if present)
+            pol = load_policies() or {}
+            risk_pol = pol.get('risk', {}) if isinstance(pol, dict) else {}
+            daily_risk_pct = float(risk_pol.get('max_daily_loss_pct', 3.0))
+            anticipated_trades = int(risk_pol.get('max_daily_trades', 5))
+            daily_profit_pct = float(risk_pol.get('daily_profit_target_pct', 1.0))
+            milestone_threshold = float(os.getenv('PROFIT_MILESTONE_THRESHOLD', '0.75'))
+            
+            daily_risk_amount = equity_val * (daily_risk_pct / 100.0)
+            per_trade_risk = daily_risk_amount / max(anticipated_trades, 1)
+            daily_profit_target_amt = equity_val * (daily_profit_pct / 100.0)
+            milestone_amt = daily_profit_target_amt * milestone_threshold if daily_profit_target_amt else 0.0
+            if profit_val > 0 and ((milestone_amt and profit_val >= milestone_amt) or (per_trade_risk and profit_val >= per_trade_risk)):
+                risk_event = {
+                    "event": "profit_milestone_reached",
+                    "message": f"You've reached {int(milestone_threshold*100)}% of your daily target — consider protecting your position.",
+                    "pnl": profit_val,
+                    "milestone_amount": milestone_amt,
+                    "per_trade_risk": per_trade_risk,
+                }
+                # Optional: publish a Telegram alert once per day (anti-spam via Redis key)
+                if redis_lib is not None:
+                    try:
+                        rurl = os.getenv('REDIS_URL')
+                        if rurl:
+                            rcli = redis_lib.from_url(rurl)
+                        else:
+                            rcli = redis_lib.Redis(host=os.getenv('REDIS_HOST','redis'), port=int(os.getenv('REDIS_PORT',6379)))
+                        cache_key = f"alert:profit_milestone:{(account_info or {}).get('login','') or 'acct'}:{timezone.now().strftime('%Y%m%d')}"
+                        if not rcli.get(cache_key):
+                            msg = {
+                                "event": "profit_milestone_reached",
+                                "text": f"🎯 Profit Milestone! PnL ${profit_val:,.2f}. Consider protecting your position.",
+                                "actions": [
+                                    {"label": "Move SL to BE", "action": "protect_breakeven"},
+                                    {"label": "Trail SL (50%)", "action": "protect_trail_50"},
+                                    {"label": "Ignore", "action": "ignore"}
+                                ]
+                            }
+                            rcli.publish('telegram-alerts', json.dumps(msg))
+                            rcli.setex(cache_key, 6*60*60, "1")  # 6 hours TTL
+                    except Exception:
+                        pass
+        except Exception:
+            risk_event = {}
+
         payload = {
             "psychological_state": psych_payload,
             "confluence_score": confluence,
             "risk_metrics": risk_metrics,
             "risk_summary": risk_summary,
+            "account_info": account_info or {},
+            "open_positions": open_positions or [],
+            "risk_event": risk_event,
             "opportunities": opportunities,
             "recent_journal": recent_journal_payload,
             "policies": load_policies(),
@@ -299,6 +387,129 @@ class JournalEntryView(views.APIView):
                 setattr(journal, f, data.get(f))
         journal.save()
         return Response(JournalEntrySerializer(journal).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+class ProtectPositionView(views.APIView):
+    """Protect an open position via MT5 bridge.
+
+    POST JSON fields:
+      - action: 'protect_breakeven' | 'protect_trail_50'
+      - ticket: optional (preferred)
+      - symbol: optional (fallback if ticket omitted and only one position on symbol)
+      - lock_ratio: optional float (0..1) for trailing lock-in ratio, default 0.5
+
+    Auth: If DJANGO_API_TOKEN is set, require Token or X-API-Token header.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        # Optional token auth
+        api_token = os.getenv("DJANGO_API_TOKEN", "").strip().strip('"')
+        if api_token:
+            auth = request.headers.get("Authorization", "")
+            x_token = request.headers.get("X-API-Token", "")
+            valid = False
+            if auth.startswith("Token ") and auth.split(" ", 1)[1] == api_token:
+                valid = True
+            if x_token and x_token == api_token:
+                valid = True
+            if not valid:
+                return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        data = request.data or {}
+        action = str(data.get('action', '')).strip()
+        ticket = data.get('ticket')
+        symbol = data.get('symbol')
+        try:
+            lock_ratio = float(data.get('lock_ratio', 0.5))
+        except Exception:
+            lock_ratio = 0.5
+        lock_ratio = max(0.0, min(1.0, lock_ratio))
+
+        if action not in ('protect_breakeven', 'protect_trail_50'):
+            return Response({"error": "Unsupported action"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Fetch open positions from MT5 bridge
+        mt5_base = (
+            os.getenv("MT5_URL")
+            or os.getenv("MT5_API_URL")
+            or "http://mt5:5001"
+        )
+        try:
+            r = requests.get(f"{str(mt5_base).rstrip('/')}/positions_get", timeout=3.0)
+            if not r.ok:
+                return Response({"error": f"Bridge HTTP {r.status_code}"}, status=status.HTTP_502_BAD_GATEWAY)
+            positions = r.json() or []
+            if not isinstance(positions, list):
+                positions = []
+        except Exception as e:
+            return Response({"error": f"Bridge error: {e}"}, status=status.HTTP_502_BAD_GATEWAY)
+
+        # Locate the target position
+        pos = None
+        if ticket is not None:
+            try:
+                tid = int(ticket)
+            except Exception:
+                return Response({"error": "Invalid ticket"}, status=status.HTTP_400_BAD_REQUEST)
+            for p in positions:
+                if int(p.get('ticket', -1)) == tid:
+                    pos = p
+                    break
+        elif symbol:
+            sym = str(symbol).upper()
+            candidates = [p for p in positions if str(p.get('symbol','')).upper() == sym]
+            if len(candidates) == 1:
+                pos = candidates[0]
+            elif len(candidates) > 1:
+                return Response({"error": "Multiple positions for symbol; specify ticket"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({"error": "ticket or symbol required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not pos:
+            return Response({"error": "Position not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Compute new SL
+        try:
+            price_open = float(pos.get('price_open'))
+            typ = pos.get('type')  # numeric 0=BUY,1=SELL
+            ptype = 'BUY' if int(typ) == 0 else 'SELL'
+            sym = pos.get('symbol')
+            volume = float(pos.get('volume'))
+            current_profit = float(pos.get('profit') or 0.0)
+
+            if action == 'protect_breakeven':
+                new_sl = price_open
+            else:
+                # lock a fraction of current profit; if non-positive, reject
+                if current_profit <= 0:
+                    return Response({"error": "Cannot trail: non-positive profit"}, status=status.HTTP_400_BAD_REQUEST)
+                lock_usd = current_profit * lock_ratio
+                notional_usd = float(convert_lots_to_usd(sym, volume, price_open))
+                commission = float(calculate_commission(notional_usd, sym))
+                price_inc_comm, _ = get_price_at_pnl(
+                    desired_pnl=lock_usd,
+                    entry_price=price_open,
+                    order_size_usd=notional_usd,
+                    leverage=1.0,
+                    type=ptype,
+                    commission=commission,
+                )
+                new_sl = float(price_inc_comm)
+
+            # Build a minimal position-like object for modify_sl_tp
+            class _P: pass
+            pobj = _P()
+            pobj.ticket = int(pos.get('ticket'))
+            pobj.symbol = sym
+            pobj.type = int(typ)
+
+            result = modify_sl_tp(pobj, sl=new_sl, tp=None)
+            if result is None:
+                return Response({"error": "Failed to modify SL"}, status=status.HTTP_502_BAD_GATEWAY)
+            return Response({"ok": True, "ticket": pobj.ticket, "new_sl": new_sl, "action": action})
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class Healthz(View):

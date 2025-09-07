@@ -116,6 +116,9 @@ class AdvancedPulseRiskManager:
         self.connected = False
         self.mt5_available = MT5_AVAILABLE
         
+        # HTTP MT5 bridge (prefer public MT5_URL, fallback to internal MT5_API_URL)
+        self.mt5_url = os.getenv('MT5_URL') or os.getenv('MT5_API_URL')
+
         # Redis connection with error handling
         try:
             self.redis_client = redis.Redis(
@@ -202,15 +205,33 @@ class AdvancedPulseRiskManager:
             return {}
 
     def get_positions(self) -> pd.DataFrame:
-        """Get all open positions with error handling"""
+        """Get all open positions with error handling (HTTP bridge first, then native)."""
+        # Try HTTP bridge first so open trades show even without native MT5
+        if self.mt5_url:
+            try:
+                r = requests.get(f"{self.mt5_url.rstrip('/')}/positions_get", timeout=2.0)
+                if r.ok:
+                    data = r.json() or []
+                    if isinstance(data, list) and data:
+                        df = pd.DataFrame(data)
+                        for col in ("time", "time_update"):
+                            if col in df.columns:
+                                # MT5 returns epoch seconds; convert to datetime
+                                try:
+                                    df[col] = pd.to_datetime(df[col], unit='s', errors='coerce')
+                                except Exception:
+                                    df[col] = pd.to_datetime(df[col], errors='coerce')
+                        return df
+            except Exception:
+                pass
+
+        # Fallback: native MT5 if connected/available
         if not self.connected:
             return pd.DataFrame()
-
         try:
             positions = mt5.positions_get()
-            if positions is None or len(positions) == 0:
+            if not positions:
                 return pd.DataFrame()
-
             df = pd.DataFrame(list(positions), columns=positions[0]._asdict().keys())
             df['time'] = pd.to_datetime(df['time'], unit='s')
             df['time_update'] = pd.to_datetime(df['time_update'], unit='s')

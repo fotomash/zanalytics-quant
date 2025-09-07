@@ -131,7 +131,15 @@ class RiskManager:
         positions_data = self.get_mt5_data("positions_get")
 
         if positions_data and isinstance(positions_data, list):
-            return pd.DataFrame(positions_data)
+            df = pd.DataFrame(positions_data)
+            # Normalize MT5 time fields if present (epoch seconds → datetime)
+            for col in ("time", "time_update"):
+                if col in df.columns:
+                    try:
+                        df[col] = pd.to_datetime(df[col], unit='s', errors='coerce')
+                    except Exception:
+                        df[col] = pd.to_datetime(df[col], errors='coerce')
+            return df
 
         # Mock positions
         positions = []
@@ -280,7 +288,56 @@ class RiskManager:
             pass
 
         # Fallback to mock
-        return self.get_historical_metrics(hours)
+        # regenerate mock with same hours
+        data = []
+        for i in range(hours):
+            timestamp = datetime.now() - timedelta(hours=i)
+            data.append({
+                'timestamp': timestamp,
+                'risk_score': 50 + np.random.uniform(-20, 20),
+                'drawdown': 2 + np.random.uniform(-1, 3),
+                'equity': 100000 + np.random.uniform(-5000, 5000)
+            })
+        return pd.DataFrame(data)
+
+
+# --- Mini equity charts (adapted from page 16, simplified) ---
+import plotly.graph_objects as go
+from datetime import timedelta
+
+def _spark(series, title: str, color: str = None) -> go.Figure:
+    if not series:
+        series = [(datetime.now() - timedelta(minutes=1), 0.0), (datetime.now(), 0.0)]
+    xs, ys = zip(*series)
+    delta = (ys[-1] - ys[0]) if ys else 0.0
+    c = color or ("#00FFC6" if delta >= 0 else "#FF4B6E")
+    fig = go.Figure(data=[go.Scatter(x=list(xs), y=list(ys), mode="lines", line=dict(width=3, color=c), hoverinfo="skip", showlegend=False)])
+    fig.update_layout(height=120, margin=dict(l=10, r=10, t=28, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", xaxis=dict(visible=False), yaxis=dict(visible=False), title=dict(text=title, x=0.02, y=0.85, font=dict(size=12)))
+    return fig
+
+def _sod_key() -> str:
+    return f"rm17_sod_{datetime.now().strftime('%Y%m%d')}"
+
+def _get_sod_equity(equity_now: float) -> float:
+    key = _sod_key()
+    if key not in st.session_state and equity_now > 0:
+        st.session_state[key] = float(equity_now)
+    return float(st.session_state.get(key, equity_now) or 0.0)
+
+def _update_intraday_series(equity_now: float):
+    k = f"rm17_intraday_{datetime.now().strftime('%Y%m%d')}"
+    row = {"ts": datetime.now().isoformat(), "equity": float(equity_now or 0.0)}
+    if k not in st.session_state:
+        st.session_state[k] = []
+    st.session_state[k].append(row)
+    st.session_state[k] = st.session_state[k][-1440:]
+    out = []
+    for d in st.session_state[k]:
+        try:
+            out.append((pd.to_datetime(d.get("ts")), float(d.get("equity", 0.0))))
+        except Exception:
+            continue
+    return out
 
 def create_gauge_chart(value: float, title: str, max_value: float = 100) -> go.Figure:
     """Create a gauge chart"""
@@ -405,6 +462,32 @@ def main():
             len(positions_df),
             f"Max: {max_positions}"
         )
+
+    # Equity spark tiles
+    try:
+        sod = _get_sod_equity(float(account_info.get('equity', 0.0) or 0.0))
+        intraday = _update_intraday_series(float(account_info.get('equity', 0.0) or 0.0))
+        y_series = [
+            (datetime.now() - timedelta(days=1), sod),
+            (datetime.now().replace(hour=0, minute=0, second=0, microsecond=0), sod),
+        ]
+        t_series = (
+            [(intraday[0][0].replace(hour=0, minute=0, second=0, microsecond=0), sod)] + intraday[-120:]
+            if intraday else []
+        )
+        sod7 = [
+            (datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)-timedelta(days=6), sod),
+            (datetime.now().replace(hour=0, minute=0, second=0, microsecond=0), sod)
+        ]
+        sc1, sc2, sc3 = st.columns(3)
+        with sc1:
+            st.plotly_chart(_spark(y_series, "Yesterday (Open → Close)"), use_container_width=True)
+        with sc2:
+            st.plotly_chart(_spark(t_series, "Today (SoD → Now)"), use_container_width=True)
+        with sc3:
+            st.plotly_chart(_spark(sod7, "Start-of-Day Equity (7d)"), use_container_width=True)
+    except Exception:
+        pass
 
     # Risk gauges
     st.markdown("---")

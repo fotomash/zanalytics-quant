@@ -584,8 +584,8 @@ class PulseRiskManager:
         self.connected = False
         self.mt5_available = MT5_AVAILABLE
 
-        # Optional HTTP MT5 bridge (prefer MT5_API_URL fallback to MT5_URL)
-        self.mt5_url = os.getenv("MT5_URL") or os.getenv("MT5_API_URL", "http://mt5:5001")
+        # Optional HTTP MT5 bridge (use MT5_URL as before)
+        self.mt5_url = os.getenv("MT5_URL", "http://mt5:5001")
         # Annotate source so the UI can state "real MetaTrader account via HTTP bridge"
         self.using_http_bridge = True if self.mt5_url else False
         # status bookkeeping for bottom-of-page status panel (no top-level warnings)
@@ -671,23 +671,30 @@ class PulseRiskManager:
         cached = self._cache_get(ck)
         if isinstance(cached, dict) and cached:
             return cached
-        # Try HTTP MT5 bridge first
+        # Try HTTP MT5 bridge first (with one quick retry to avoid initial blank)
         if self.mt5_url:
-            try:
-                r = requests.get(f"{self.mt5_url}/account_info", timeout=2.0)
-                if r.ok:
-                    data = r.json() or {}
-                    if isinstance(data, dict) and data:
-                        self.bridge_available = True
-                        try:
-                            self._cache_set(ck, data, ttl_seconds=5)
-                        except Exception:
-                            pass
-                        return data
-                else:
-                    self.status_messages.append(f"HTTP bridge /account_info returned {r.status_code}")
-            except Exception as e:
-                self.status_messages.append(f"HTTP bridge error: {e}")
+            for attempt in (1, 2):
+                try:
+                    r = requests.get(f"{self.mt5_url}/account_info", timeout=2.5)
+                    if r.ok:
+                        data = r.json() or {}
+                        if isinstance(data, dict) and data:
+                            self.bridge_available = True
+                            try:
+                                self._cache_set(ck, data, ttl_seconds=5)
+                            except Exception:
+                                pass
+                            return data
+                    else:
+                        self.status_messages.append(f"HTTP bridge /account_info returned {r.status_code}")
+                except Exception as e:
+                    if attempt == 2:
+                        self.status_messages.append(f"HTTP bridge error: {e}")
+                # short backoff before one retry
+                try:
+                    time.sleep(0.3)
+                except Exception:
+                    pass
         # Try native MT5 if available and credentials are set
         if self.mt5_available and all([self.mt5_login, self.mt5_password, self.mt5_server]):
             try:
@@ -739,13 +746,30 @@ class PulseRiskManager:
                     data = r.json() or []
                     if isinstance(data, list) and data:
                         df = pd.DataFrame(data)
-                        # Normalize time columns if present
-                        for col in ("time", "time_update"):
-                            if col in df.columns:
-                                try:
-                                    df[col] = pd.to_datetime(df[col])
-                                except Exception:
-                                    pass
+                        # Normalize time columns robustly (seconds/ms/ns or ISO strings)
+                        try:
+                            # Prefer time_msc if provided by bridge
+                            if 'time_msc' in df.columns:
+                                df['time'] = pd.to_datetime(pd.to_numeric(df['time_msc'], errors='coerce'), unit='ms', errors='coerce')
+                            for col in ("time", "time_update"):
+                                if col not in df.columns:
+                                    continue
+                                s = df[col]
+                                nums = pd.to_numeric(s, errors='coerce')
+                                if nums.notna().any():
+                                    v = float(nums.dropna().iloc[0])
+                                    unit = 's'
+                                    if v > 1e18:
+                                        unit = 'ns'
+                                    elif v > 1e12:
+                                        unit = 'ms'
+                                    else:
+                                        unit = 's'
+                                    df[col] = pd.to_datetime(nums, unit=unit, errors='coerce')
+                                else:
+                                    df[col] = pd.to_datetime(s, errors='coerce')
+                        except Exception:
+                            pass
                         try:
                             self._cache_set(ck, df.to_dict(orient='records'), ttl_seconds=5)
                         except Exception:
@@ -764,8 +788,22 @@ class PulseRiskManager:
                     if positions is None or len(positions) == 0:
                         return pd.DataFrame()
                     df = pd.DataFrame(list(positions), columns=positions[0]._asdict().keys())
-                    df['time'] = pd.to_datetime(df['time'], unit='s')
-                    df['time_update'] = pd.to_datetime(df['time_update'], unit='s')
+                    # Native MT5 returns seconds for 'time' and 'time_update', but normalize robustly
+                    try:
+                        if 'time_msc' in df.columns:
+                            df['time'] = pd.to_datetime(pd.to_numeric(df['time_msc'], errors='coerce'), unit='ms', errors='coerce')
+                        for col in ("time", "time_update"):
+                            if col in df.columns:
+                                nums = pd.to_numeric(df[col], errors='coerce')
+                                v = float(nums.dropna().iloc[0]) if nums.notna().any() else None
+                                unit = 's'
+                                if v is not None and v > 1e18:
+                                    unit = 'ns'
+                                elif v is not None and v > 1e12:
+                                    unit = 'ms'
+                                df[col] = pd.to_datetime(nums if nums.notna().any() else df[col], unit=unit if nums.notna().any() else None, errors='coerce')
+                    except Exception:
+                        pass
                     try:
                         self._cache_set(ck, df.to_dict(orient='records'), ttl_seconds=5)
                     except Exception:
@@ -1363,9 +1401,10 @@ def main():
             (datetime.now().replace(hour=0, minute=0, second=0, microsecond=0), float(y_close)),
         ]
 
+    # Always define columns; gate header text only
     if not st.session_state.get("_equity_summary_rendered", False):
         st.markdown("#### 📈 Equity Summary")
-        col_eq1, col_eq2, col_eq3 = st.columns(3)
+    col_eq1, col_eq2, col_eq3 = st.columns(3)
 
     with col_eq1:
         fig = make_sparkline(yesterday_series, "Yesterday (Open → Close)", acct_ccy)
@@ -1394,7 +1433,8 @@ def main():
         st.plotly_chart(fig, use_container_width=True)
         if len(sod7d_series) >= 2:
             st.caption(f"{sod7d_series[0][0].strftime('%d %b')} → {sod7d_series[-1][0].strftime('%d %b')}")
-        st.session_state["_equity_summary_rendered"] = True
+    # mark header as rendered
+    st.session_state["_equity_summary_rendered"] = True
 
     # Pulse Decision Surface
     if show_pulse_tiles:

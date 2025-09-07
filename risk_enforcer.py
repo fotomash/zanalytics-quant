@@ -66,6 +66,11 @@ class RiskEnforcer:
         return {
             'daily_loss_limit': 500,
             'daily_loss_percent': 0.03,
+            # Optional daily profit target (USD or % of start-of-day equity)
+            'daily_profit_target_usd': None,
+            'daily_profit_target_pct': None,
+            # Milestone fraction (e.g., 0.75 → 75% of profit target)
+            'profit_milestone_threshold': 0.75,
             'max_trades_per_day': 5,
             'max_position_size': 0.02,
             'cooling_period_minutes': 15,
@@ -204,6 +209,13 @@ class EnhancedRiskEnforcer:
         warnings = []
         details = {}
         
+        # Check profit target first (optional); if hit, block further trades
+        pt_check = self._check_profit_target(signal.get('sod_equity'))
+        if not pt_check['allowed']:
+            allowed = False
+            warnings.append(pt_check['reason'])
+            self.daily_stats['violations'].append(pt_check.get('flag', 'PROFIT_TARGET'))
+        
         # Check daily loss limit
         loss_check = self._check_daily_loss()
         if not loss_check['allowed']:
@@ -299,6 +311,38 @@ class EnhancedRiskEnforcer:
                 'warning': '⚠️ Approaching daily loss limit (80% reached)'
             }
             
+        return {'allowed': True}
+
+    def _check_profit_target(self, sod_equity: Optional[float] = None) -> Dict:
+        """Check if daily profit target is reached. If a USD target is configured,
+        compare against total PnL; if a percent target is configured, requires SoD equity.
+        """
+        try:
+            target_usd = self.limits.get('daily_profit_target_usd')
+            target_pct = self.limits.get('daily_profit_target_pct')
+            if target_usd is None and target_pct is None:
+                return {'allowed': True}
+            pnl = float(self.daily_stats.get('total_pnl', 0.0) or 0.0)
+            if target_usd is not None:
+                tgt = float(target_usd)
+                if pnl >= tgt > 0:
+                    return {
+                        'allowed': False,
+                        'reason': '🎯 Daily profit target reached — protect gains and pause trading.',
+                        'flag': 'DAILY_PROFIT_TARGET_REACHED'
+                    }
+            if target_pct is not None and sod_equity and sod_equity > 0:
+                tgt = float(target_pct)
+                if tgt > 1:
+                    tgt = tgt / 100.0
+                if pnl >= (sod_equity * tgt):
+                    return {
+                        'allowed': False,
+                        'reason': '🎯 Daily profit target reached — protect gains and pause trading.',
+                        'flag': 'DAILY_PROFIT_TARGET_REACHED'
+                    }
+        except Exception:
+            pass
         return {'allowed': True}
     
     def _check_trade_count(self) -> Dict:

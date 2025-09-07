@@ -33,7 +33,7 @@ load_dotenv()
 # Secrets/Env with defaults
 MT5_API_URL = os.getenv("MT5_API_URL", "http://localhost:8000")
 PULSE_API_URL = os.getenv("PULSE_API_URL", "http://localhost:8000/api/pulse")
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 
 # Starting equity default
@@ -62,7 +62,7 @@ def check_health(url: str) -> bool:
 
 # Data Fetching
 @st.cache_data(ttl=30)
-def fetch_tick_data(symbol: str, limit: int = 5000, use_mock: bool = False) -> pd.DataFrame:
+def fetch_tick_data(symbol: str, limit: int = 5000, use_mock: bool = False, use_redis: bool = False) -> pd.DataFrame:
     """Fetch tick data from MT5 API with retries and mock fallback"""
 
     def _mock_ticks() -> pd.DataFrame:
@@ -78,6 +78,57 @@ def fetch_tick_data(symbol: str, limit: int = 5000, use_mock: bool = False) -> p
 
     if use_mock:
         return _mock_ticks()
+
+    # Prefer Redis live stream if requested and available
+    if use_redis and redis_client is not None:
+        try:
+            # Try common stream keys in order
+            stream_keys = [
+                f"stream:pulse:ticks:{symbol}",
+                f"stream:ticks:{symbol}",
+                "ticks",
+            ]
+            stream = next((k for k in stream_keys if redis_client.xlen(k) > 0), None)
+            if stream:
+                # Get latest entries in reverse to limit, then sort ascending
+                entries = redis_client.xrevrange(stream, count=limit)
+                rows = []
+                for _id, data in entries:
+                    # Normalize timestamp
+                    ts = data.get('ts') or data.get('timestamp') or data.get('time')
+                    try:
+                        ts_parsed = pd.to_datetime(ts, utc=True)
+                    except Exception:
+                        try:
+                            ts_num = pd.to_numeric(ts, errors='coerce')
+                            unit = 's'
+                            if ts_num and ts_num > 1e18:
+                                unit = 'ns'
+                            elif ts_num and ts_num > 1e12:
+                                unit = 'ms'
+                            ts_parsed = pd.to_datetime(ts_num, unit=unit, utc=True)
+                        except Exception:
+                            ts_parsed = pd.NaT
+                    bid = float(data.get('bid') or data.get('Bid') or data.get('b', 0) or 0)
+                    ask = float(data.get('ask') or data.get('Ask') or data.get('a', 0) or 0)
+                    last = data.get('last') or data.get('price')
+                    try:
+                        last = float(last) if last is not None else None
+                    except Exception:
+                        last = None
+                    vol = data.get('volume') or data.get('vol') or 1
+                    try:
+                        vol = float(vol)
+                    except Exception:
+                        vol = 1.0
+                    price = last if last is not None else ((bid + ask) / 2 if bid and ask else None)
+                    if ts_parsed is not pd.NaT and price is not None:
+                        rows.append({'timestamp': ts_parsed, 'bid': bid, 'ask': ask, 'price': price, 'volume': vol})
+                if rows:
+                    df_live = pd.DataFrame(rows).dropna(subset=['timestamp']).sort_values('timestamp').set_index('timestamp')
+                    return df_live.tail(limit)
+        except Exception:
+            pass
 
     params = {"symbol": symbol, "limit": limit}
     last_error = None
@@ -236,6 +287,7 @@ def main():
             index=1
         )
         use_mock = st.checkbox("Use Mock Data", value=False)
+        use_redis_stream = st.checkbox("Use Redis Live Stream", value=True, help="Prefer Redis ticks when available")
         
         # Analysis parameters
         st.subheader("Analysis Settings")
@@ -264,7 +316,7 @@ def main():
 
     # Fetch tick data
     with st.spinner(f"Fetching {tick_limit} ticks for {symbol}..."):
-        tick_df = fetch_tick_data(symbol, tick_limit, use_mock)
+        tick_df = fetch_tick_data(symbol, tick_limit, use_mock, use_redis_stream)
     
     if not tick_df.empty:
         st.success(f"Fetched {len(tick_df)} ticks | Time range: {tick_df.index.min()} to {tick_df.index.max()}")
