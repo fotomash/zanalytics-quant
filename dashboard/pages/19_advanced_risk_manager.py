@@ -309,7 +309,10 @@ class AdvancedPulseRiskManager:
         self.mt5_available = MT5_AVAILABLE
         self._last_account_info: Dict = {}
         # Optional HTTP MT5 bridge (align with page 16) with robust fallbacks
+        # Allow UI/session override to be first candidate
+        ui_override = st.session_state.get('adv19_bridge_url')
         self._mt5_candidates = [
+            ui_override,
             os.getenv("MT5_URL"),
             os.getenv("MT5_API_URL"),
             os.getenv("MT5_PUBLIC_URL"),
@@ -379,6 +382,7 @@ class AdvancedPulseRiskManager:
         return None
 
     def _cache_set(self, key: str, data, ttl_seconds: int = 5):
+        try:
             if getattr(self, 'redis_available', False) and self.redis_client:
                 self.redis_client.set(key, json.dumps(data), ex=ttl_seconds)
                 return
@@ -534,11 +538,22 @@ class AdvancedPulseRiskManager:
         return {}
 
     def get_risk_summary(self) -> Dict:
-        """Get risk summary from Pulse API (short timeout)."""
+        """Get risk summary: Redis latest → API (short timeout) → empty."""
         ck = "adv19:risk_summary"
         cached = self._cache_get(ck)
         if isinstance(cached, dict) and cached:
             return cached
+        # Try Redis key
+        try:
+            if getattr(self, 'redis_available', False) and self.redis_client:
+                raw = self.redis_client.get('pulse:risk:latest')
+                if raw:
+                    data = json.loads(raw)
+                    self._cache_set(ck, data, ttl_seconds=5)
+                    return data
+        except Exception:
+            pass
+        # API
         result = safe_api_call("GET", "risk/summary", timeout=1.0)
         if isinstance(result, dict) and 'error' not in result:
             self._cache_set(ck, result, ttl_seconds=5)
@@ -1159,6 +1174,38 @@ def main():
     with ctrl_cols[1]:
         live_updates = st.checkbox("Live (Kafka)", value=False, help="Ingest latest trade from Kafka once per refresh")
 
+    # Bridge override (helpful when running Streamlit outside Docker)
+    with ctrl_cols[2]:
+        current_override = st.session_state.get('adv19_bridge_url', '') or ''
+        with st.expander("Bridge URL (override)", expanded=False):
+            url_input = st.text_input("MT5 Bridge Base URL", value=current_override, placeholder="e.g. https://api3.zanalytics.app")
+            cA, cB, cC = st.columns([1,1,4])
+            with cA:
+                if st.button("Apply", key="apply_bridge_19"):
+                    st.session_state['adv19_bridge_url'] = url_input.strip() or None
+                    try:
+                        # update live manager candidates immediately
+                        if url_input.strip():
+                            pulse_manager._mt5_candidates = [url_input.strip()] + [u for u in pulse_manager._mt5_candidates if u and u != url_input.strip()]
+                            pulse_manager.mt5_url = url_input.strip()
+                    except Exception:
+                        pass
+                    st.success("Bridge override applied")
+            with cB:
+                if st.button("Test", key="test_bridge_19"):
+                    test_url = (url_input or pulse_manager.mt5_url or "").rstrip('/')
+                    if not test_url:
+                        st.warning("No URL to test")
+                    else:
+                        try:
+                            r = requests.get(f"{test_url}/account_info", timeout=1.2)
+                            if r.ok:
+                                st.success("Bridge reachable ✓")
+                            else:
+                                st.error(f"HTTP {r.status_code}")
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+
     # If live updates enabled, try a single non-blocking Kafka poll and write to cache
     if live_updates:
         try:
@@ -1182,6 +1229,12 @@ def main():
                     cached_list = [trade] + cached_list
                     cached_list = cached_list[:50]
                     pulse_manager._cache_set(key, cached_list, ttl_seconds=15)
+        except Exception:
+            pass
+        # gentle auto-refresh to surface live updates
+        try:
+            time.sleep(1.0)
+            st.experimental_rerun()
         except Exception:
             pass
 
