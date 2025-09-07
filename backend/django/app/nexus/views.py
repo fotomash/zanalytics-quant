@@ -25,6 +25,8 @@ import os
 import requests
 import json
 import statistics
+import json as _json
+import math
 
 try:
     import redis as redis_lib  # optional
@@ -987,3 +989,179 @@ class MirrorStateView(views.APIView):
             pass
 
         return Response(payload)
+
+
+class MarketMiniView(views.APIView):
+    """Slim market header payload: VIX/DXY sparklines + next news.
+
+    Tries DB Bar data for symbols 'VIX' and 'DXY' (any timeframe) and falls back to Redis keys:
+      - market:vix:series, market:dxy:series (JSON lists)
+      - market:news:next (JSON {label, ts})
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        def bar_series(symbol: str, limit: int = 40):
+            try:
+                qs = Bar.objects.filter(symbol=symbol).order_by('-time')[:limit]
+                if qs:
+                    vals = [float(b.close or 0) for b in reversed(list(qs))]
+                    return vals, (vals[-1] if vals else None)
+            except Exception:
+                pass
+            return None, None
+
+        vix_series, vix_last = bar_series('VIX', 40)
+        dxy_series, dxy_last = bar_series('DXY', 40)
+
+        # Fallback to Redis cached lists if bars missing
+        if (vix_series is None or not vix_series) and _redis_client() is not None:
+            try:
+                r = _redis_client()
+                raw = r.get('market:vix:series')
+                if raw:
+                    import json as _json
+                    vix_series = _json.loads(raw)
+                    vix_last = vix_series[-1] if vix_series else None
+            except Exception:
+                pass
+        if (dxy_series is None or not dxy_series) and _redis_client() is not None:
+            try:
+                r = _redis_client()
+                raw = r.get('market:dxy:series')
+                if raw:
+                    import json as _json
+                    dxy_series = _json.loads(raw)
+                    dxy_last = dxy_series[-1] if dxy_series else None
+            except Exception:
+                pass
+
+        # Next news (optional): read from Redis market:news:next {label, ts}
+        news = {"label": None, "countdown": None}
+        try:
+            r = _redis_client()
+            if r is not None:
+                raw = r.get('market:news:next')
+                if raw:
+                    import json as _json
+                    obj = _json.loads(raw)
+                    lbl = obj.get('label')
+                    ts = obj.get('ts')
+                    if ts:
+                        from django.utils import timezone
+                        try:
+                            when = timezone.datetime.fromisoformat(ts.replace('Z','+00:00'))
+                        except Exception:
+                            when = None
+                        if when is not None:
+                            delta = when - timezone.now()
+                            secs = int(delta.total_seconds())
+                            if secs > 0:
+                                m, s = divmod(secs, 60)
+                                h, m = divmod(m, 60)
+                                news['countdown'] = f"in {h}h {m}m"
+                    news['label'] = lbl
+        except Exception:
+            pass
+
+        # Simple regime heuristic from last two points (if available)
+        regime = None
+        try:
+            def trend(arr):
+                if not arr or len(arr) < 2:
+                    return 0
+                return (arr[-1] - arr[0]) / (abs(arr[0]) + 1e-6)
+            vix_tr = trend(vix_series)
+            dxy_tr = trend(dxy_series)
+            if vix_tr > 0.02 or dxy_tr > 0.01:
+                regime = "Risk-Off / Choppy"
+            elif vix_tr < -0.02 and dxy_tr < 0.0:
+                regime = "Risk-On / Trending"
+            else:
+                regime = "Neutral"
+        except Exception:
+            regime = None
+
+        payload = {
+            'vix': {'series': vix_series or [], 'value': vix_last},
+            'dxy': {'series': dxy_series or [], 'value': dxy_last},
+            'news': news,
+            'regime': regime,
+        }
+        return Response(payload)
+
+
+class MarketFetchView(views.APIView):
+    """Fetch VIX/DXY from public APIs and cache to Redis (TTL).
+
+    Tries Yahoo Finance chart API (no key) for ^VIX and ^DXY 1d/5m.
+    Use responsibly; add outbound allowances in your environment.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        import requests as _req
+        rcli = _redis_client()
+        out = {}
+
+        def fetch_yahoo(ticker: str):
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=5m&range=1d"
+            try:
+                resp = _req.get(url, timeout=3)
+                if resp.ok:
+                    data = resp.json()
+                    closes = (
+                        data.get('chart', {})
+                        .get('result', [{}])[0]
+                        .get('indicators', {})
+                        .get('quote', [{}])[0]
+                        .get('close', [])
+                    )
+                    series = [float(x) for x in closes if x is not None]
+                    return series
+            except Exception:
+                return []
+            return []
+
+        vix_series = fetch_yahoo('%5EVIX')
+        dxy_series = fetch_yahoo('%5EDXY')
+        out['vix'] = len(vix_series)
+        out['dxy'] = len(dxy_series)
+        if rcli is not None:
+            try:
+                if vix_series:
+                    rcli.setex('market:vix:series', 300, _json.dumps(vix_series))
+                if dxy_series:
+                    rcli.setex('market:dxy:series', 300, _json.dumps(dxy_series))
+            except Exception:
+                pass
+        return Response({'ok': True, **out})
+
+
+class MarketNewsPublisherView(views.APIView):
+    """Publish next high-impact news item into Redis for header consumption.
+
+    POST JSON: { label: str, ts: ISO8601 }  (ts optional)
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        try:
+            data = request.data or {}
+        except Exception:
+            try:
+                data = _json.loads(request.body or b"{}")
+            except Exception:
+                data = {}
+        lbl = data.get('label')
+        ts = data.get('ts')
+        if not lbl:
+            return Response({'ok': False, 'error': 'label required'}, status=400)
+        r = _redis_client()
+        if r is None:
+            return Response({'ok': False, 'error': 'redis unavailable'}, status=503)
+        try:
+            r.setex('market:news:next', 3600, _json.dumps({'label': lbl, 'ts': ts}))
+            return Response({'ok': True})
+        except Exception as e:
+            return Response({'ok': False, 'error': str(e)}, status=500)

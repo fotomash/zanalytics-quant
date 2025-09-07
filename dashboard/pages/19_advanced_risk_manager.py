@@ -21,6 +21,7 @@ from dashboard.components.ui_concentric import donut_system_overview, donut_sess
 from dashboard.components.behavioral_compass import make_behavioral_compass
 from dashboard.pages.components.profit_horizon_panel import render_profit_horizon
 from dashboard.pages.components.whisper_panel import render_whisper_panel
+from dashboard.pages.components.discipline_posture_panel import render_discipline_posture_panel
 from dashboard.pages.components.market_header import render_market_header
 from datetime import timedelta as _td
 from dashboard.components.behavioral_mirror import make_behavioral_mirror
@@ -1171,6 +1172,9 @@ def _render_top_three_donuts(account_info: Dict):
             subtitle="Keep red covered; tempo in check",
         )
         st.plotly_chart(fig_compass, use_container_width=True, config={'displayModeBar': False})
+    # Discipline Posture panel
+    st.subheader("📏 Discipline Posture")
+    render_discipline_posture_panel()
 
     # Whisper Feed (kept)
     st.markdown("---")

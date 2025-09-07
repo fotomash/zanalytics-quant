@@ -21,6 +21,9 @@ from .views import (
     FeedBehaviorView,
     ProfitHorizonView,
     MirrorStateView,
+    MarketMiniView,
+    MarketFetchView,
+    MarketNewsPublisherView,
 )
 
 # --- Minimal, dependency-free Pulse endpoints (stubs) ---
@@ -79,4 +82,7 @@ urlpatterns = [
     path('feed/behavior', FeedBehaviorView.as_view(), name='feed-behavior'),
     path('profit-horizon', ProfitHorizonView.as_view(), name='profit-horizon'),
     path('mirror/state', MirrorStateView.as_view(), name='mirror-state'),
+    path('market/mini', MarketMiniView.as_view(), name='market-mini'),
+    path('market/fetch', MarketFetchView.as_view(), name='market-fetch'),
+    path('market/news/next', MarketNewsPublisherView.as_view(), name='market-news-next'),
 ]

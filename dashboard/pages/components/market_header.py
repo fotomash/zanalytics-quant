@@ -26,6 +26,7 @@ def render_market_header():
             vix = data.get('vix') or vix
             dxy = data.get('dxy') or dxy
             news = data.get('news') or news
+            regime = data.get('regime')
     except Exception:
         pass
 
@@ -40,4 +41,5 @@ def render_market_header():
         label = news.get('label') or "—"
         cd = news.get('countdown') or ""
         st.caption(f"🗞️ {label} {cd}")
-
+        if 'regime' in locals() and regime:
+            st.caption(f"📈 Regime: {regime}")
