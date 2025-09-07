@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 COL = {
     "pos": "#22C55E",
     "neg": "#EF4444",
-    "warn": "#F59E0B",
+    "warn": "#FBBF24",
     "info": "#3B82F6",
     "cyan": "#22D3EE",
     "track": "rgba(148, 163, 184, 0.28)",
@@ -536,7 +536,7 @@ def donut_system_overview(
                     hoverinfo="skip",
                     showlegend=False,
                     name="tempo",
-                    opacity=0.7,
+                    opacity=0.80,
                 )
             )
         except Exception:

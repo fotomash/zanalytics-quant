@@ -5,7 +5,7 @@ import os
 
 def _sparkline(values, color="#93c5fd"):
     import plotly.graph_objects as go
-    fig = go.Figure(go.Scatter(y=values or [], mode='lines', line=dict(color=color, width=2), hoverinfo='skip'))
+    fig = go.Figure(go.Scatter(y=values or [], mode='lines', line=dict(color=color, width=1.5), hoverinfo='skip'))
     fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), xaxis=dict(visible=False), yaxis=dict(visible=False), height=40)
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 

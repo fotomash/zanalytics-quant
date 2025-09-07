@@ -1174,6 +1174,7 @@ def _render_top_three_donuts(account_info: Dict):
             size=(280, 280),
         )
         st.plotly_chart(fig_sess, use_container_width=True, config={'displayModeBar': False})
+        st.caption("Outer: Hard Deck • Middle: Daily DD • Inner: P&L")
     with c_right:
         fig_compass = make_behavioral_compass(
             discipline=ms.get('discipline') or 100,
@@ -1186,6 +1187,7 @@ def _render_top_three_donuts(account_info: Dict):
             subtitle="Keep red covered; tempo in check",
         )
         st.plotly_chart(fig_compass, use_container_width=True, config={'displayModeBar': False})
+        st.caption("Outer: Discipline • Mid: Patience/Efficiency • Inner: Conviction")
     # Discipline Posture panel
     st.subheader("📏 Discipline Posture")
     render_discipline_posture_panel()
