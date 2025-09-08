@@ -8,11 +8,13 @@ Purpose
 Authoritative schema
 - File to upload to Custom GPT: `openapi.actions.yaml`
 - Endpoint: `POST /api/v1/actions/query`
-- Request shape:
+- Request shape (object schema required by GPT):
   {
     "type": "<verb>",
     "payload": { ... }
   }
+  Note: The spec includes rich per-verb payload schemas, but to satisfy GPT’s function export
+  requirements the requestBody references an object schema (`ActionQueryRequest`).
 
 Where verbs are routed
 - Server: `backend/django/app/nexus/views.py` → `ActionsQueryView.post()`
@@ -67,4 +69,3 @@ LLM categories (naming)
 Notes
 - Keep adding verbs to the enum in `openapi.actions.yaml` and a matching branch in `ActionsQueryView`.
 - You can keep this entire surface to a single operation for GPT.
-
