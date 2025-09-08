@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+from dashboard.components import behavioral_donut as _beh_donut
  
 
 st.set_page_config(page_title="PULSE Predictive Flow", page_icon="🧠", layout="wide")
@@ -772,6 +773,10 @@ def render_behavioral_section():
 
 with st.container():
     render_behavioral_section()
+    try:
+        _beh_donut.render(st)
+    except Exception:
+        pass
 
 # ---------------- Trade History (All symbols, 3D default) -----------------
 def _now_utc():

@@ -283,6 +283,16 @@ class BarsEnriched(views.APIView):
                     "fvg_bear": bool(row.get('fvg_bear')) if 'fvg_bear' in df.columns else False,
                 })
             payload = {"items": items, "symbol": symbol, "timeframe": tf}
+            # Helpful links for LLMs/agents (relative paths; no mock data)
+            try:
+                q_limit = max(1, min(limit, 800))
+            except Exception:
+                q_limit = 300
+            payload["links"] = {
+                "self": f"/api/v1/feed/bars-enriched?symbol={symbol}&timeframe={tf}&limit={q_limit}",
+                "tick_data_url": f"/api/v1/ticks/?symbol={symbol}",
+                "bars_url": f"/api/v1/bars/?symbol={symbol}&timeframe={tf}",
+            }
             # Back-compat alias: provide dataframe-like 'bars' key
             payload["bars"] = items
             # Optional strategies: derive from existing gates only (no mock scores)
