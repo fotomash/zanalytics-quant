@@ -8,11 +8,29 @@ if str(project_root) not in sys.path:
 Enhanced Wyckoff Analysis Dashboard v4.0 - Professional Quant Edition
 Integrates Wyckoff Method with Microstructure Analysis and Tick Manipulation Detection
 """
-import ta
-from ta.volatility import BollingerBands
+try:
+    import ta
+    from ta.volatility import BollingerBands
+except Exception:
+    ta = None  # type: ignore
+    class BollingerBands:  # type: ignore
+        def __init__(self, *args, **kwargs):
+            pass
 
-from core.wyckoff.unified_wyckoff_engine import UnifiedWyckoffEngine
-EnhancedWyckoffAnalyzer = UnifiedWyckoffEngine
+import streamlit as st
+
+try:
+    from core.wyckoff.unified_wyckoff_engine import UnifiedWyckoffEngine
+    EnhancedWyckoffAnalyzer = UnifiedWyckoffEngine
+except Exception:
+    EnhancedWyckoffAnalyzer = None  # type: ignore
+
+if EnhancedWyckoffAnalyzer is None:
+    st.warning("Wyckoff engine module not available — showing limited UI."
+               " Ensure core/wyckoff/unified_wyckoff_engine.py is present.")
+if ta is None:
+    st.warning("Python package 'ta' not installed — some indicators disabled."
+               " Add 'ta' to requirements or install in the dashboard environment.")
 
 # ==== Local Dashboard Styling (copied from Home.py) ====
 CHART_THEME = "plotly_dark"
