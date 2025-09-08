@@ -189,6 +189,135 @@ class ZanalyticsDashboard:
 
     def __init__(self):
         """
+
+        # Active rendering for EURGBP (15m)
+        _plot_symbol_15m("EURGBP")
+
+        # Active rendering for majors (EURUSD, GBPUSD) with FVG, VWAP, Wyckoff
+        def _plot_symbol_15m(fx_pair: str):
+            try:
+                df = auto_cache(
+                    f"home_chart_{fx_pair.lower()}_15min",
+                    lambda p=fx_pair: self.fetch_bar_data(p, "M15", 200).sort_values("timestamp"),
+                    refresh=st.session_state.get("refresh_home_data", False)
+                )
+                required_cols = {"timestamp", "open", "high", "low", "close", "volume"}
+                if not isinstance(df, pd.DataFrame) or df.empty or not required_cols.issubset(df.columns):
+                    st.info(f"{fx_pair} 15min data missing required columns: {required_cols - set(df.columns) if isinstance(df, pd.DataFrame) else required_cols}")
+                    return
+                df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+                df = df.dropna(subset=["timestamp"]).sort_values(by="timestamp")
+                df_recent = df.tail(200)
+
+                fig_fx = go.Figure(data=[go.Candlestick(
+                    x=df_recent["timestamp"],
+                    open=df_recent["open"],
+                    high=df_recent["high"],
+                    low=df_recent["low"],
+                    close=df_recent["close"],
+                    increasing_line_color='lime',
+                    decreasing_line_color='red',
+                    name=f'{fx_pair} 15min'
+                )])
+
+                # FVG overlays
+                for i in range(2, len(df_recent)):
+                    prev = df_recent.iloc[i-2]
+                    curr = df_recent.iloc[i]
+                    if curr["low"] > prev["high"]:
+                        fig_fx.add_vrect(
+                            x0=df_recent.iloc[i-1]["timestamp"], x1=curr["timestamp"],
+                            fillcolor="rgba(0,255,0,0.13)", opacity=0.26, line_width=0, layer="below"
+                        )
+                    elif curr["high"] < prev["low"]:
+                        fig_fx.add_vrect(
+                            x0=df_recent.iloc[i-1]["timestamp"], x1=curr["timestamp"],
+                            fillcolor="rgba(255,0,0,0.13)", opacity=0.26, line_width=0, layer="below"
+                        )
+
+                # Anchored VWAP (Midas style)
+                vwap_prices = (df_recent['high'] + df_recent['low'] + df_recent['close']) / 3
+                vol = pd.to_numeric(df_recent['volume'], errors='coerce').fillna(0)
+                cumulative_vol = vol.cumsum().replace(0, np.nan)
+                vwap = (vwap_prices * vol).cumsum() / cumulative_vol
+                vwap = vwap.fillna(method='ffill')
+                fig_fx.add_trace(go.Scatter(x=df_recent["timestamp"], y=vwap, mode='lines', name='Midas VWAP',
+                                            line=dict(color='gold', width=2, dash='dot')))
+
+                # Wyckoff regime detection
+                phases = []
+                window = 42
+                close = df_recent['close'].values
+                for i in range(len(close) - window):
+                    win = close[i:i+window]
+                    atr = (df_recent['high'].iloc[i:i+window] - df_recent['low'].iloc[i:i+window]).mean()
+                    minmax_range = win.max() - win.min()
+                    slope = (win[-1] - win[0]) / window
+                    if minmax_range < 1.2 * atr and abs(slope) < 0.08 * atr:
+                        phases.append(('accumulation', df_recent.iloc[i]["timestamp"], df_recent.iloc[i+window]["timestamp"]))
+                    elif slope > 0.10 * atr:
+                        phases.append(('markup', df_recent.iloc[i]["timestamp"], df_recent.iloc[i+window]["timestamp"]))
+                    elif minmax_range < 1.2 * atr and abs(slope) < 0.08 * atr and i > 0:
+                        phases.append(('distribution', df_recent.iloc[i]["timestamp"], df_recent.iloc[i+window]["timestamp"]))
+                    elif slope < -0.10 * atr:
+                        phases.append(('markdown', df_recent.iloc[i]["timestamp"], df_recent.iloc[i+window]["timestamp"]))
+                phase_colors = {
+                    'accumulation': 'rgba(0, 90, 255, 0.08)',
+                    'markup': 'rgba(0, 200, 70, 0.08)',
+                    'distribution': 'rgba(255, 160, 0, 0.08)',
+                    'markdown': 'rgba(220, 40, 40, 0.08)'
+                }
+                last_phase = None
+                for phase, start, end in phases:
+                    fig_fx.add_vrect(
+                        x0=start, x1=end,
+                        fillcolor=phase_colors[phase], opacity=0.13, line_width=0, layer="below"
+                    )
+                    if phase != last_phase:
+                        win = df_recent[(df_recent["timestamp"] >= start) & (df_recent["timestamp"] <= end)]
+                        y_mid = (win['high'].max() + win['low'].min()) / 2 if not win.empty else df_recent['close'].iloc[-1]
+                        fig_fx.add_annotation(
+                            x=start,
+                            y=y_mid,
+                            text=phase.title(),
+                            showarrow=False,
+                            font=dict(size=13, color=phase_colors[phase].replace("0.08", "0.8")),
+                            bgcolor="rgba(0,0,0,0.4)",
+                            yshift=0,
+                            opacity=0.9
+                        )
+                        last_phase = phase
+                current_phase = None
+                if phases:
+                    last_ts = df_recent["timestamp"].max()
+                    for phase, start, end in reversed(phases):
+                        if end >= last_ts:
+                            current_phase = phase
+                            break
+                    if not current_phase:
+                        current_phase = phases[-1][0]
+                phase_label = f"Wyckoff: <b style='color:orange;'>{current_phase.upper()}</b>" if current_phase else ""
+                chart_title = f"{fx_pair} – 15-Minute Candlestick Chart with FVG, Midas VWAP & {phase_label}"
+                fig_fx.update_layout(
+                    title={'text': chart_title, 'y':0.93, 'x':0.5, 'xanchor': 'center', 'yanchor': 'top'},
+                    template=st.session_state.get('chart_theme', 'plotly_dark'),
+                    height=370,
+                    autosize=True,
+                    paper_bgcolor="rgba(0,0,0,0.02)",
+                    plot_bgcolor="rgba(0,0,0,0.02)",
+                    xaxis_rangeslider_visible=False,
+                    margin=dict(l=20, r=20, t=40, b=20),
+                    showlegend=False
+                )
+                st.plotly_chart(fig_fx, use_container_width=True)
+            except Exception as e:
+                st.warning(f"Failed to load {fx_pair} 15min candlestick chart: {e}")
+
+        cols = st.columns(2)
+        with cols[0]:
+            _plot_symbol_15m("EURUSD")
+        with cols[1]:
+            _plot_symbol_15m("GBPUSD")
         Initializes the dashboard, loading configuration from env or Streamlit secrets.
         """
         # Always use get_config_var for all config values

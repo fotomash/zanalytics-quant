@@ -2,7 +2,9 @@ import streamlit as st
 import json
 from pathlib import Path
 from dashboard.utils.user_prefs import fetch_symbols_list
+from dashboard.utils.confluence_visuals import render_confluence_donut
 import os
+import time
 import requests
 import pandas as pd
 
@@ -59,6 +61,65 @@ with st.sidebar.expander("Settings", expanded=False):
     fav_symbol = st.selectbox("Favorite symbol", all_symbols, index=all_symbols.index(fav_symbol) if fav_symbol in all_symbols else 0)
     st.session_state['pulse_fav_symbol'] = fav_symbol
 
+with st.sidebar.expander("Confluence Weights", expanded=False):
+    st.caption("Local override (applies to this view)")
+    # Scope toggle: global (default) or symbol-specific
+    sym_scope = st.checkbox(f"Symbol-specific ({symbol})", value=False, help="If enabled, save/load weights for this symbol only; otherwise global defaults.")
+    def _w(key: str, default: float):
+        return float(st.session_state.get(f'conf_w_{key}', default))
+    w_context = st.slider("Context", 0.0, 1.0, value=_w('context', 0.2), step=0.05, key='conf_w_context')
+    w_liq = st.slider("Liquidity", 0.0, 1.0, value=_w('liquidity', 0.2), step=0.05, key='conf_w_liquidity')
+    w_struct = st.slider("Structure", 0.0, 1.0, value=_w('structure', 0.25), step=0.05, key='conf_w_structure')
+    w_imb = st.slider("Imbalance", 0.0, 1.0, value=_w('imbalance', 0.15), step=0.05, key='conf_w_imbalance')
+    w_risk = st.slider("Risk", 0.0, 1.0, value=_w('risk', 0.2), step=0.05, key='conf_w_risk')
+    thr = st.slider("Threshold", 0.0, 1.0, value=float(st.session_state.get('conf_threshold', 0.6)), step=0.05, key='conf_threshold')
+    # Show sum and normalization hint
+    raw_sum = float(w_context + w_liq + w_struct + w_imb + w_risk)
+    st.caption(f"Weights sum: {raw_sum:.2f} — normalized before sending to API")
+    base = os.getenv('DJANGO_API_URL', 'http://django:8000').rstrip('/')
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Save as default"):
+            try:
+                payload = {
+                    "weights": {
+                        "context": float(st.session_state.get('conf_w_context', w_context)),
+                        "liquidity": float(st.session_state.get('conf_w_liquidity', w_liq)),
+                        "structure": float(st.session_state.get('conf_w_structure', w_struct)),
+                        "imbalance": float(st.session_state.get('conf_w_imbalance', w_imb)),
+                        "risk": float(st.session_state.get('conf_w_risk', w_risk)),
+                    },
+                    "threshold": float(st.session_state.get('conf_threshold', thr)),
+                }
+                if sym_scope and symbol:
+                    payload["symbol"] = symbol
+                r = requests.post(f"{base}/api/v1/feed/pulse-weights", json=payload, timeout=1.5)
+                if r.ok:
+                    st.success("Saved")
+                else:
+                    st.warning(f"Save failed: HTTP {r.status_code}")
+            except Exception as e:
+                st.warning(f"Save failed: {e}")
+    with c2:
+        if st.button("Load server defaults"):
+            try:
+                params = {"symbol": symbol} if sym_scope and symbol else None
+                r = requests.get(f"{base}/api/v1/feed/pulse-weights", params=params, timeout=1.5)
+                if r.ok:
+                    data = r.json() or {}
+                    w = data.get('weights') or {}
+                    st.session_state['conf_w_context'] = float(w.get('context', 0.2))
+                    st.session_state['conf_w_liquidity'] = float(w.get('liquidity', 0.2))
+                    st.session_state['conf_w_structure'] = float(w.get('structure', 0.25))
+                    st.session_state['conf_w_imbalance'] = float(w.get('imbalance', 0.15))
+                    st.session_state['conf_w_risk'] = float(w.get('risk', 0.2))
+                    st.session_state['conf_threshold'] = float(data.get('threshold', 0.6))
+                    st.experimental_rerun()
+                else:
+                    st.warning(f"Load failed: HTTP {r.status_code}")
+            except Exception as e:
+                st.warning(f"Load failed: {e}")
+
 # Symbol selector (use favorite as default; URL param overrides)
 all_symbols = fetch_symbols_list()
 sym_qp = st.experimental_get_query_params().get('sym', [None])[0]
@@ -87,9 +148,26 @@ st.subheader("Live Status")
 def fetch_status(sym: str):
     base = os.getenv('DJANGO_API_URL', 'http://django:8000').rstrip('/')
     try:
-        r = requests.get(f"{base}/api/v1/feed/pulse-status", params={"symbol": sym}, timeout=1.5)
+        t0 = time.time()
+        params = {"symbol": sym}
+        # Pass local overrides to backend
+        raw_ws = {}
+        for k in ("context", "liquidity", "structure", "imbalance", "risk"):
+            v = st.session_state.get(f'conf_w_{k}')
+            if isinstance(v, (int, float)):
+                raw_ws[k] = float(v)
+        s = sum(raw_ws.values())
+        if s > 0:
+            for k, v in raw_ws.items():
+                params[f"w_{k}"] = v / s
+        thr = st.session_state.get('conf_threshold')
+        if isinstance(thr, (int, float)):
+            params["threshold"] = thr
+        r = requests.get(f"{base}/api/v1/feed/pulse-status", params=params, timeout=1.5)
         if r.ok:
-            return r.json()
+            out = r.json() or {}
+            out['__latency_ms'] = int((time.time() - t0) * 1000)
+            return out
     except Exception:
         pass
     return {}
@@ -105,6 +183,50 @@ for col, gate in zip(cols, playbook.get("gates", [])):
         f"{label}<br>●</div>",
         unsafe_allow_html=True
     )
+
+lat_ms = status.get('__latency_ms') if isinstance(status, dict) else None
+if isinstance(lat_ms, int):
+    st.caption(f"Pulse API latency: {lat_ms} ms")
+
+conf = status.get('confidence') if isinstance(status, dict) else None
+if isinstance(conf, (int, float)):
+    st.caption(f"Confluence confidence: {float(conf)*100:.1f}%")
+
+# Confluence donut snapshot (lean, directly from status flags)
+try:
+    if isinstance(status, dict) and status:
+        gate_order = ["context", "liquidity", "structure", "imbalance", "risk"]
+        summary = {}
+        for g in gate_order:
+            v = status.get(g)
+            if v is None:
+                summary[g] = "missing"
+            else:
+                summary[g] = "passed" if int(v) == 1 else "failed"
+        score = float(status.get('confidence') or 0.0)
+        fig_conf = render_confluence_donut(summary, score)
+        st.plotly_chart(fig_conf, use_container_width=True)
+except Exception:
+    pass
+
+# Recent gate hits (lean view)
+with st.expander("Recent Gate Hits", expanded=False):
+    try:
+        base = os.getenv('DJANGO_API_URL', 'http://django:8000').rstrip('/')
+        params = {"limit": 50, "symbol": symbol}
+        r = requests.get(f"{base}/api/v1/feed/pulse-gate-hits", params=params, timeout=1.5)
+        if r.ok:
+            items = (r.json() or {}).get('items') or []
+            if items:
+                dfh = pd.DataFrame(items)
+                cols = [c for c in ["timestamp", "symbol", "gate", "passed", "score"] if c in dfh.columns]
+                st.dataframe(dfh[cols], use_container_width=True, height=180)
+            else:
+                st.caption("No recent events")
+        else:
+            st.caption("Feed unavailable")
+    except Exception:
+        st.caption("Feed unavailable")
 
 # If backend is unreachable, provide a clear hint but keep UI usable
 if not status:

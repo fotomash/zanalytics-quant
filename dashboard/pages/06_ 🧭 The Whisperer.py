@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime
 
 from dashboard.components.ui_concentric import donut_session_vitals
+from dashboard.utils.confluence_visuals import render_confluence_donut
 from dashboard.utils.plotly_donuts import bipolar_donut, oneway_donut, behavioral_score_from_mirror
 from dashboard.utils.streamlit_api import (
     safe_api_call,
@@ -25,6 +26,41 @@ inject_glass_css()
 st.markdown("# 🧭 Whisperer Cockpit — Unified")
 st.caption("Behavioral compass • Session vitals • Trajectory • Pattern watch • Discipline posture • Whisper actions")
 render_status_row()
+
+# Pulse Confidence (default symbol) + donut snapshot
+try:
+    syms = fetch_symbols() or []
+    sym0 = syms[0] if syms else 'XAUUSD'
+    # Build query inline because safe_api_call doesn't take params
+    st_status = safe_api_call('GET', f'api/v1/feed/pulse-status?symbol={sym0}') or {}
+    conf = st_status.get('confidence') if isinstance(st_status, dict) else None
+    if isinstance(conf, (int, float)):
+        pct = float(conf) * 100.0
+        tone = '#22C55E' if pct >= 75 else ('#FBBF24' if pct >= 50 else '#EF4444')
+        st.markdown(
+            f"<div class='glass' style='display:inline-block;margin-top:6px;'>"
+            f"<span style='color:#9CA3AF;margin-right:6px'>Pulse Confidence</span>"
+            f"<span style='color:{tone};font-weight:700'>{pct:.1f}%</span>"
+            f"<span style='color:#9CA3AF;margin-left:8px'>({sym0})</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+        # Donut: gate snapshot
+        try:
+            gate_order = ["context", "liquidity", "structure", "imbalance", "risk"]
+            summary = {}
+            for g in gate_order:
+                v = st_status.get(g)
+                if v is None:
+                    summary[g] = "missing"
+                else:
+                    summary[g] = "passed" if int(v) == 1 else "failed"
+            fig_conf = render_confluence_donut(summary, float(conf))
+            st.plotly_chart(fig_conf, use_container_width=True)
+        except Exception:
+            pass
+except Exception:
+    pass
 
 # Start SSE for live whispers
 start_whisper_sse()

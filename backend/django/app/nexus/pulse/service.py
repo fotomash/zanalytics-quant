@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+import os
+import json
 import pandas as pd
 
 from django.conf import settings
@@ -18,6 +20,9 @@ from .gates import (
     risk_gate,
     confluence_gate,
 )
+from .confluence_score_engine import compute_confluence_score
+from .gates import KafkaJournalEngine as _KafkaJournalEngine
+import time as _time
 
 
 def _normalize_bars(df: pd.DataFrame | None) -> pd.DataFrame | None:
@@ -93,7 +98,65 @@ def _load_minute_data(symbol: str) -> Dict[str, Any]:
     return out
 
 
-def pulse_status(symbol: str) -> Dict[str, int]:
+def _resolve_weights(weights: Optional[Dict[str, float]] = None, *, symbol: Optional[str] = None) -> Dict[str, float]:
+    """Resolve confluence weights from overrides, env, or defaults."""
+    if isinstance(weights, dict) and weights:
+        return weights
+    # 0) Try Redis-persisted weights
+    try:
+        r = _redis_client()
+        if r is not None:
+            # Prefer symbol-specific override
+            raw = None
+            if symbol:
+                raw = r.get(f"pulse:conf_weights:{symbol}")
+            if not raw:
+                raw = r.get("pulse:conf_weights")
+            if raw:
+                obj = json.loads(raw)
+                if isinstance(obj, dict):
+                    w = obj.get("weights") or {}
+                    if isinstance(w, dict) and w:
+                        return {k: float(v) for k, v in w.items() if isinstance(v, (int, float))}
+    except Exception:
+        pass
+    # Try env var JSON: PULSE_CONF_WEIGHTS='{"context":0.2,"liquidity":0.2,"structure":0.25,"imbalance":0.15,"risk":0.2}'
+    try:
+        raw = os.getenv('PULSE_CONF_WEIGHTS')
+        if raw:
+            obj = json.loads(raw)
+            if isinstance(obj, dict):
+                return {k: float(v) for k, v in obj.items() if isinstance(v, (int, float))}
+    except Exception:
+        pass
+    # Fallback defaults (balanced)
+    return {"context": 0.2, "liquidity": 0.2, "structure": 0.25, "imbalance": 0.15, "risk": 0.2}
+
+
+def _resolve_threshold(*, symbol: Optional[str] = None, default: float = 0.6) -> float:
+    # Symbol-specific in Redis, then global in Redis, then env, then default
+    try:
+        r = _redis_client()
+        if r is not None:
+            raw = None
+            if symbol:
+                raw = r.get(f"pulse:conf_weights:{symbol}")
+            if not raw:
+                raw = r.get("pulse:conf_weights")
+            if raw:
+                obj = json.loads(raw)
+                thr = obj.get("threshold") if isinstance(obj, dict) else None
+                if isinstance(thr, (int, float)):
+                    return float(thr)
+    except Exception:
+        pass
+    try:
+        return float(os.getenv('PULSE_CONF_THRESHOLD', str(default)))
+    except Exception:
+        return float(default)
+
+
+def pulse_status(symbol: str, *, weights: Optional[Dict[str, float]] = None, threshold: Optional[float] = None) -> Dict[str, int | float]:
     """Compute gate status for the given symbol and cache briefly in Redis.
 
     Returns a dict of 0/1 flags: context, liquidity, structure, imbalance, risk, confluence.
@@ -120,7 +183,18 @@ def pulse_status(symbol: str) -> Dict[str, int]:
     struct = structure_gate(data.get("M1"))
     imb = imbalance_gate(data.get("M1"))
     rsk = risk_gate(imb, struct, symbol)
-    conf = confluence_gate(data)
+    # Confluence score from gate results
+    w = _resolve_weights(weights, symbol=symbol)
+    thr = float(threshold) if isinstance(threshold, (int, float)) else _resolve_threshold(symbol=symbol, default=0.6)
+    gates_for_score = {
+        "context": ctx,
+        "liquidity": liq,
+        "structure": struct,
+        "imbalance": imb,
+        "risk": rsk,
+    }
+    score, details = compute_confluence_score(gates_for_score, w, threshold=thr)
+    conf = {"passed": bool(details.get("score_passed")), "confidence": float(score)}
 
     status = {
         "context": int(bool(ctx.get("passed"))),
@@ -129,6 +203,7 @@ def pulse_status(symbol: str) -> Dict[str, int]:
         "imbalance": int(bool(imb.get("passed"))),
         "risk": int(bool(rsk.get("passed"))),
         "confluence": int(bool(conf.get("passed"))),
+        "confidence": round(float(score), 4),
     }
 
     # Cache to Redis with very short TTL
@@ -139,6 +214,55 @@ def pulse_status(symbol: str) -> Dict[str, int]:
             r.setex(key_sym, 5, json.dumps(status))
             # Also write a generic key for dashboards not passing symbol yet
             r.setex("pulse:status", 5, json.dumps(status))
+            # Emit per-gate hit/miss events into a capped Redis list
+            now_ts = _time.time()
+            now_iso = None
+            try:
+                import datetime as _dt
+                now_iso = _dt.datetime.utcfromtimestamp(now_ts).isoformat() + "Z"
+            except Exception:
+                now_iso = None
+            for g in ("context", "liquidity", "structure", "imbalance", "risk"):
+                try:
+                    ev = {
+                        "ts": now_ts,
+                        "timestamp": now_iso,
+                        "symbol": symbol,
+                        "gate": g,
+                        "passed": bool(status.get(g, 0)),
+                        "score": float(status.get("confidence") or 0.0),
+                    }
+                    r.rpush("pulse:gate_hits", json.dumps(ev))
+                except Exception:
+                    pass
+            try:
+                r.ltrim("pulse:gate_hits", -300, -1)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # Optional Kafka journal for gate events (best-effort)
+    try:
+        if _KafkaJournalEngine is not None:
+            kj = _KafkaJournalEngine()
+            if getattr(kj, "enabled", False):
+                for g in ("context", "liquidity", "structure", "imbalance", "risk"):
+                    try:
+                        kj.emit({
+                            "ts": _time.time(),
+                            "stream": "pulse.gate-hits",
+                            "symbol": symbol,
+                            "frame": "1m",
+                            "payload": {
+                                "v": 1,
+                                "gate": g,
+                                "passed": bool(status.get(g, 0)),
+                                "score": float(status.get("confidence") or 0.0),
+                            },
+                        })
+                    except Exception:
+                        pass
     except Exception:
         pass
 
