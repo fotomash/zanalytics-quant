@@ -1,0 +1,61 @@
+conversation_starters:
+  - Analyze the current XAUUSD market structure across all timeframes
+  - What are the key support and resistance levels for gold?
+  - Show me the latest risk assessment and position sizing recommendations
+  - Generate a multi-timeframe chart with order flow analysis
+  - Find similar market patterns from the last 6 months
+  - What's the current volatility regime and how should I adjust my strategy?
+  - Check system health and agent performance
+  - Process the latest 1-minute data and identify any order blocks
+error_handling:
+  agent_error: "\u26A0\uFE0F Agent {agent_name} encountered an error: {error_message}.\
+    \ Attempting auto-recovery..."
+  data_not_found: "\u274C Data not found for {symbol} {timeframe}. Available: {available_data}"
+  invalid_command: "\u2753 Command not recognized. Available commands: {available_commands}"
+  system_overload: "\U0001F504 System under high load. Optimizing performance..."
+system_prompts:
+  data_analysis:
+    template: "Analyze the provided {symbol} {timeframe} data:\n\nDATA SUMMARY:\n\u2022\
+      \ Rows: {row_count}\n\u2022 Date Range: {date_range}\n\u2022 Features: {feature_count}\n\
+      \nANALYSIS FOCUS:\n\u2022 Market microstructure patterns\n\u2022 Order flow\
+      \ imbalances\n\u2022 Support/resistance levels\n\u2022 Volatility regimes\n\u2022\
+      \ Smart money concepts\n\nProvide insights on:\n1. Current market structure\n\
+      2. Key levels to watch\n3. Risk factors\n4. Trading opportunities\n"
+    variables:
+      - symbol
+      - timeframe
+      - row_count
+      - date_range
+      - feature_count
+  initialization:
+    template: "You are ncOS Unified v5.0, a production-ready trading platform with\
+      \ vector-native capabilities.\n\nCORE CAPABILITIES:\n\u2022 Multi-timeframe\
+      \ XAUUSD data processing (1m to 1d)\n\u2022 Vector embeddings with similarity\
+      \ search\n\u2022 Smart Money Concepts (SMC) integration\n\u2022 Real-time risk\
+      \ management\n\u2022 Auto-healing system monitoring\n\nAVAILABLE COMMANDS:\n\
+      \u2022 process_data [symbol] [timeframe] - Process market data\n\u2022 vector_search\
+      \ [query] - Find similar patterns\n\u2022 risk_check - Get risk assessment\n\
+      \u2022 system_status - Check system health\n\u2022 generate_chart [symbol] [timeframe]\
+      \ - Create charts\n\nRESPONSE STYLE:\n\u2022 Be concise and technical\n\u2022\
+      \ Use trading terminology\n\u2022 Provide actionable insights\n\u2022 Include\
+      \ confidence levels\n\u2022 Show relevant metrics\n\nInitialize with: \"ncOS\
+      \ v5.0 ready. {agent_count} agents active. {data_status}\"\n"
+    variables:
+      - agent_count
+      - data_status
+  risk_assessment:
+    template: "RISK ASSESSMENT for {symbol}:\n\nCURRENT METRICS:\n\u2022 VaR (1-day):\
+      \ ${var_1d:,.0f}\n\u2022 Position Risk: {position_risk}\n\u2022 Market Regime:\
+      \ {market_regime}\n\u2022 Volatility: {volatility_level}\n\nRISK FACTORS:\n\
+      {risk_factors}\n\nRECOMMENDATIONS:\n{recommendations}\n\nOverall Risk Level:\
+      \ {risk_level}\nConfidence: {confidence}%\n"
+    variables:
+      - symbol
+      - var_1d
+      - position_risk
+      - market_regime
+      - volatility_level
+      - risk_factors
+      - recommendations
+      - risk_level
+      - confidence

@@ -1,0 +1,300 @@
+{
+  "menu_version": "2.0",
+  "system_name": "ZANFLOW v17 Trading Environment",
+  "last_updated": "2025-06-06T04:03:25.512563",
+  "description": "Aligned menu system based on actual ZANFLOW v17 strategies and agents",
+  "main_menu": {
+    "1": {
+      "title": "\ud83c\udfaf Strategy Management",
+      "description": "Access and manage ZANFLOW trading strategies",
+      "submenu": "strategy_menu"
+    },
+    "2": {
+      "title": "\ud83e\udd16 Agent Operations",
+      "description": "Monitor and control trading agents",
+      "submenu": "agent_menu"
+    },
+    "3": {
+      "title": "\ud83d\udcca Market Analysis",
+      "description": "Real-time market structure and liquidity analysis",
+      "submenu": "analysis_menu"
+    },
+    "4": {
+      "title": "\ud83d\udd27 System Configuration",
+      "description": "Configure modules and parameters",
+      "submenu": "config_menu"
+    },
+    "5": {
+      "title": "\ud83d\udcc8 Performance & Journaling",
+      "description": "View ZBAR logs and performance metrics",
+      "submenu": "performance_menu"
+    },
+    "6": {
+      "title": "\ud83d\ude80 Quick Actions",
+      "description": "Common tasks and workflows",
+      "submenu": "quick_menu"
+    }
+  },
+  "submenus": {
+    "strategy_menu": {
+      "title": "Strategy Management",
+      "options": {
+        "1": {
+          "title": "SMC Structural Flip POI v12",
+          "action": "load_strategy",
+          "params": {
+            "strategy": "SMC_Structural_Flip_POI_v12"
+          },
+          "description": "BOS/CHoCH on M15 with M1 confirmation at POIs"
+        },
+        "2": {
+          "title": "Inducement Sweep Strategy",
+          "action": "load_strategy",
+          "params": {
+            "strategy": "InducementSweepChoCh_FVG"
+          },
+          "description": "Liquidity sweep followed by structure break"
+        },
+        "3": {
+          "title": "London Sweep NY Reversal",
+          "action": "load_strategy",
+          "params": {
+            "strategy": "London_Sweep_NY_Reversal"
+          },
+          "description": "Session-based liquidity hunting"
+        },
+        "4": {
+          "title": "Wyckoff Accumulation/Distribution",
+          "action": "load_strategy",
+          "params": {
+            "strategy": "Wyckoff_Phase_Trading"
+          },
+          "description": "Trade Wyckoff phases with SMC confluence"
+        },
+        "5": {
+          "title": "View All Strategies",
+          "action": "list_strategies",
+          "description": "Browse strategy manifest"
+        },
+        "6": {
+          "title": "Strategy Builder",
+          "action": "strategy_builder",
+          "description": "Create new strategy from templates"
+        }
+      }
+    },
+    "agent_menu": {
+      "title": "Agent Operations",
+      "options": {
+        "1": {
+          "title": "Active Agent Status",
+          "action": "agent_status",
+          "description": "View all running agents and their states"
+        },
+        "2": {
+          "title": "Deploy New Agent",
+          "action": "deploy_agent",
+          "description": "Launch agent with strategy assignment"
+        },
+        "3": {
+          "title": "Agent Performance Metrics",
+          "action": "agent_metrics",
+          "description": "View maturity scores and trade history"
+        },
+        "4": {
+          "title": "Risk Manager Status",
+          "action": "risk_status",
+          "description": "Global risk parameters and exposure"
+        },
+        "5": {
+          "title": "Agent Communication Bus",
+          "action": "message_bus",
+          "description": "Inter-agent message flow"
+        }
+      }
+    },
+    "analysis_menu": {
+      "title": "Market Analysis Tools",
+      "options": {
+        "1": {
+          "title": "Structure Analysis (HTF/MTF/LTF)",
+          "action": "structure_analysis",
+          "description": "Multi-timeframe structure validation"
+        },
+        "2": {
+          "title": "Liquidity Map",
+          "action": "liquidity_map",
+          "description": "Identify liquidity pools and sweep targets"
+        },
+        "3": {
+          "title": "POI Scanner",
+          "action": "poi_scanner",
+          "description": "Find Order Blocks, FVGs, Breaker Blocks"
+        },
+        "4": {
+          "title": "Session Analysis",
+          "action": "session_analysis",
+          "description": "London/NY killzone opportunities"
+        },
+        "5": {
+          "title": "Confluence Dashboard",
+          "action": "confluence_dashboard",
+          "description": "Real-time confluence scoring"
+        },
+        "6": {
+          "title": "Tick Volume Analysis",
+          "action": "tick_analysis",
+          "description": "Volume spikes and spread monitoring"
+        }
+      }
+    },
+    "config_menu": {
+      "title": "System Configuration",
+      "options": {
+        "1": {
+          "title": "Module Configuration",
+          "action": "module_config",
+          "description": "Configure core ZANFLOW modules"
+        },
+        "2": {
+          "title": "Risk Parameters",
+          "action": "risk_config",
+          "description": "Set global risk limits and position sizing"
+        },
+        "3": {
+          "title": "Data Feed Settings",
+          "action": "data_config",
+          "description": "Configure OHLC and tick data sources"
+        },
+        "4": {
+          "title": "Indicator Parameters",
+          "action": "indicator_config",
+          "description": "Adjust ATR, RSI, MACD settings"
+        },
+        "5": {
+          "title": "Bootstrap Environment",
+          "action": "bootstrap_env",
+          "description": "Initialize or update system bootstrap"
+        }
+      }
+    },
+    "performance_menu": {
+      "title": "Performance & Journaling",
+      "options": {
+        "1": {
+          "title": "ZBAR Journal Viewer",
+          "action": "zbar_viewer",
+          "description": "Browse detailed trade logs"
+        },
+        "2": {
+          "title": "Strategy Performance Report",
+          "action": "strategy_report",
+          "description": "Win rate, R:R, drawdown by strategy"
+        },
+        "3": {
+          "title": "Maturity Score Analytics",
+          "action": "maturity_analytics",
+          "description": "Predictive score accuracy analysis"
+        },
+        "4": {
+          "title": "Trade Replay",
+          "action": "trade_replay",
+          "description": "Replay trades with full context"
+        },
+        "5": {
+          "title": "Export Reports",
+          "action": "export_reports",
+          "description": "Generate CSV/JSON performance data"
+        }
+      }
+    },
+    "quick_menu": {
+      "title": "Quick Actions",
+      "options": {
+        "1": {
+          "title": "Scan Current Setups",
+          "action": "scan_setups",
+          "description": "Find immediate trading opportunities"
+        },
+        "2": {
+          "title": "Emergency Stop All",
+          "action": "emergency_stop",
+          "description": "Halt all agents and close positions"
+        },
+        "3": {
+          "title": "Load Today's Playbook",
+          "action": "load_playbook",
+          "description": "Load session-specific strategies"
+        },
+        "4": {
+          "title": "Enrichment Pipeline Status",
+          "action": "enrichment_status",
+          "description": "View data enrichment progress"
+        },
+        "5": {
+          "title": "Generate Snapshot",
+          "action": "generate_snapshot",
+          "description": "Create system state snapshot"
+        }
+      }
+    }
+  },
+  "action_mappings": {
+    "load_strategy": {
+      "module": "zanflow.core.StrategyLoader",
+      "method": "load_strategy_config",
+      "requires_params": [
+        "strategy"
+      ]
+    },
+    "agent_status": {
+      "module": "zanflow.orchestrator.AgentManager",
+      "method": "get_all_agent_status"
+    },
+    "structure_analysis": {
+      "module": "zanflow.core.StructureValidator",
+      "method": "analyze_multi_timeframe"
+    },
+    "liquidity_map": {
+      "module": "zanflow.core.LiquidityEngine",
+      "method": "generate_liquidity_map"
+    },
+    "poi_scanner": {
+      "module": "zanflow.core.PoiIdentifier",
+      "method": "scan_all_poi_types"
+    },
+    "zbar_viewer": {
+      "module": "zanflow.core.JournalLogger",
+      "method": "view_recent_logs"
+    },
+    "scan_setups": {
+      "module": "zanflow.orchestrator.SetupScanner",
+      "method": "scan_all_active_strategies"
+    }
+  },
+  "shortcuts": {
+    "ss": "scan_setups",
+    "as": "agent_status",
+    "lm": "liquidity_map",
+    "zb": "zbar_viewer",
+    "es": "emergency_stop"
+  },
+  "context_help": {
+    "strategies": {
+      "SMC_Structural_Flip_POI_v12": "Primary strategy using M15 structure breaks with M1 confirmation",
+      "InducementSweepChoCh": "Focuses on liquidity sweeps before structural changes",
+      "London_Sweep_NY_Reversal": "Session-based strategy for major FX pairs",
+      "Wyckoff_Phase_Trading": "Identifies accumulation/distribution phases"
+    },
+    "modules": {
+      "ContextAnalyzer": "Determines HTF bias and market context",
+      "StructureValidator": "Validates BOS/CHoCH across timeframes",
+      "PoiIdentifier": "Locates Order Blocks, FVGs, and Breaker Blocks",
+      "EntryExecutorSMC": "Manages precision entries with LTF confirmation",
+      "RiskManager": "Adaptive stop loss and position sizing",
+      "ConfluenceStacker": "Aggregates multiple confirmation factors",
+      "PredictiveScorer": "Calculates evolving maturity scores",
+      "JournalLogger": "ZBAR logging system"
+    }
+  }
+}

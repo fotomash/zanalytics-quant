@@ -1,0 +1,312 @@
+# ZANFLOW Trading Strategy Logical Blocks v1.0
+# Modular components for strategy construction
+
+blocks:
+  # Context Analysis Block
+  context_analysis:
+    id: "context_analyzer_v1"
+    type: "analysis"
+    inputs:
+      - price_data: "OHLCV data for multiple timeframes"
+      - timeframes: ["M1", "M5", "M15", "H1", "H4", "Daily"]
+      - session_times: "Market session boundaries"
+      - news_calendar: "Economic events data"
+
+    processing:
+      htf_bias_determination:
+        module: "ContextAnalyzer"
+        steps:
+          - identify_major_highs_lows
+          - calculate_trend_direction
+          - map_liquidity_zones
+          - determine_premium_discount_zones
+        outputs:
+          - htf_bias: "bullish|bearish|neutral"
+          - key_levels: "array of price levels"
+          - liquidity_map: "liquidity zone coordinates"
+
+      session_analysis:
+        module: "SessionAnalyzer"
+        steps:
+          - identify_current_session
+          - map_session_highs_lows
+          - calculate_session_volatility
+          - check_news_proximity
+        outputs:
+          - session_context: "session metadata"
+          - volatility_expectation: "high|medium|low"
+
+    outputs:
+      - market_context: "comprehensive market state"
+      - tradeable_bias: "directional bias with confidence"
+      - risk_factors: "array of risk considerations"
+
+  # Structure Detection Block
+  structure_detection:
+    id: "structure_validator_v1"
+    type: "detection"
+    inputs:
+      - price_data: "recent price action"
+      - context: "from context_analysis block"
+      - volume_data: "tick volume information"
+
+    processing:
+      bos_choch_detection:
+        module: "StructureValidator"
+        parameters:
+          min_displacement_atr_multiple: 0.75
+          require_volume_confirmation: true
+          volume_spike_threshold: 2.0
+        steps:
+          - identify_swing_points
+          - measure_break_displacement
+          - validate_volume_spike
+          - classify_break_type
+        outputs:
+          - break_detected: "boolean"
+          - break_type: "BOS|CHoCH"
+          - break_strength: "displacement metrics"
+
+      structure_mapping:
+        module: "StructureMapper"
+        steps:
+          - map_recent_structures
+          - identify_mitigation_status
+          - calculate_structure_age
+        outputs:
+          - structure_map: "array of structures"
+          - active_structures: "unmitigated structures"
+
+    outputs:
+      - structural_state: "current structure context"
+      - setup_validity: "boolean with reasons"
+      - key_structure_levels: "important price levels"
+
+  # POI Identification Block
+  poi_identification:
+    id: "poi_identifier_v1"
+    type: "detection"
+    inputs:
+      - structural_state: "from structure_detection"
+      - price_data: "detailed price action"
+      - volume_profile: "volume distribution"
+
+    processing:
+      order_block_detection:
+        module: "OrderBlockIdentifier"
+        parameters:
+          require_liquidity_sweep: true
+          max_mitigation_allowed: 0.3
+          min_displacement_followthrough: 1.5
+        steps:
+          - identify_potential_obs
+          - validate_liquidity_sweep
+          - check_mitigation_status
+          - rank_by_strength
+        outputs:
+          - order_blocks: "array of OB objects"
+          - ob_quality_scores: "quality metrics"
+
+      fvg_detection:
+        module: "FvgLocator"
+        parameters:
+          min_size_pips: 1.5
+          max_age_candles: 5
+          max_mitigation_percent: 30
+        steps:
+          - scan_for_gaps
+          - measure_gap_size
+          - check_mitigation
+          - assess_freshness
+        outputs:
+          - fvgs: "array of FVG objects"
+          - fvg_validity: "validity status"
+
+      breaker_block_detection:
+        module: "BreakerIdentifier"
+        steps:
+          - identify_broken_structures
+          - validate_role_reversal
+          - check_retest_quality
+        outputs:
+          - breakers: "array of breaker blocks"
+
+    outputs:
+      - poi_inventory: "all identified POIs"
+      - ranked_pois: "POIs ranked by probability"
+      - poi_metadata: "detailed POI information"
+
+  # Entry Trigger Block
+  entry_trigger:
+    id: "entry_executor_v1"
+    type: "execution"
+    inputs:
+      - poi_inventory: "from poi_identification"
+      - ltf_price_data: "lower timeframe data"
+      - spread_data: "current market spread"
+
+    processing:
+      ltf_confirmation:
+        module: "LTFConfirmationEngine"
+        parameters:
+          confirmation_timeframe: "M1"
+          confirmation_types: ["CHoCH", "FVG_mitigation", "rejection_wick"]
+          max_wait_candles: 8
+        steps:
+          - monitor_poi_interaction
+          - detect_ltf_structure_shift
+          - validate_confirmation_quality
+          - check_spread_conditions
+        outputs:
+          - confirmation_detected: "boolean"
+          - confirmation_type: "type of confirmation"
+          - entry_quality_score: "0-100"
+
+      precision_entry:
+        module: "PrecisionEntryCalculator"
+        steps:
+          - calculate_optimal_entry
+          - determine_position_size
+          - set_initial_stops
+        outputs:
+          - entry_price: "exact entry level"
+          - position_size: "calculated size"
+          - initial_sl: "stop loss level"
+
+    outputs:
+      - entry_signal: "complete entry package"
+      - confidence_score: "overall confidence"
+      - execution_instructions: "detailed instructions"
+
+  # Risk Management Block
+  risk_management:
+    id: "risk_manager_v1"
+    type: "control"
+    inputs:
+      - entry_signal: "from entry_trigger"
+      - market_context: "from context_analysis"
+      - account_parameters: "risk settings"
+
+    processing:
+      stop_loss_calculation:
+        module: "AdaptiveStopLoss"
+        parameters:
+          method: "structural_adaptive_buffer"
+          buffer_type: "atr_based_plus_fixed_ticks"
+          atr_period: 14
+          atr_multiplier: 1.0
+          fixed_tick_buffer: 3
+        steps:
+          - identify_structural_level
+          - calculate_atr_buffer
+          - add_fixed_buffer
+          - validate_risk_reward
+        outputs:
+          - stop_loss: "final SL level"
+          - risk_amount: "monetary risk"
+
+      take_profit_planning:
+        module: "TargetCalculator"
+        parameters:
+          tp_strategy: "liquidity_based_with_partials"
+          min_rr_ratio: 2.0
+          partial_percentages: [50, 30, 20]
+        steps:
+          - identify_liquidity_targets
+          - calculate_rr_levels
+          - plan_partial_exits
+        outputs:
+          - take_profits: "array of TP levels"
+          - partial_plan: "exit strategy"
+
+    outputs:
+      - risk_parameters: "complete risk setup"
+      - position_plan: "full position lifecycle"
+      - risk_warnings: "any risk concerns"
+
+  # Trade Management Block
+  trade_management:
+    id: "trade_manager_v1"
+    type: "control"
+    inputs:
+      - active_position: "current position data"
+      - market_updates: "real-time price data"
+      - management_rules: "trade management settings"
+
+    processing:
+      position_monitoring:
+        module: "PositionMonitor"
+        steps:
+          - track_price_movement
+          - monitor_structure_changes
+          - check_target_proximity
+          - assess_invalidation_risk
+        outputs:
+          - position_health: "health metrics"
+          - adjustment_signals: "modification needs"
+
+      dynamic_adjustment:
+        module: "DynamicAdjuster"
+        parameters:
+          breakeven_trigger_rr: 1.0
+          trailing_activation_rr: 2.0
+          partial_execution_tolerance: 2
+        steps:
+          - move_to_breakeven
+          - trail_stop_loss
+          - execute_partials
+          - handle_news_events
+        outputs:
+          - adjustments_made: "list of modifications"
+          - position_status: "updated status"
+
+    outputs:
+      - management_actions: "executed actions"
+      - position_update: "current position state"
+      - performance_metrics: "trade statistics"
+
+  # Scoring and Validation Block
+  scoring_validation:
+    id: "predictive_scorer_v1"
+    type: "analysis"
+    inputs:
+      - setup_components: "all setup elements"
+      - market_conditions: "current conditions"
+      - historical_performance: "past results"
+
+    processing:
+      confluence_scoring:
+        module: "ConfluenceStacker"
+        parameters:
+          scoring_weights:
+            htf_alignment: 0.25
+            structure_quality: 0.20
+            poi_freshness: 0.20
+            volume_confirmation: 0.15
+            session_timing: 0.10
+            risk_reward: 0.10
+        steps:
+          - calculate_component_scores
+          - apply_weights
+          - normalize_score
+        outputs:
+          - confluence_score: "0-100"
+          - score_breakdown: "component scores"
+
+      predictive_analysis:
+        module: "PredictiveScorer"
+        parameters:
+          time_decay_factor: 0.95
+          maturity_thresholds: [60, 75, 85]
+        steps:
+          - assess_setup_maturity
+          - apply_time_decay
+          - predict_success_probability
+        outputs:
+          - maturity_score: "setup maturity"
+          - success_probability: "predicted probability"
+
+    outputs:
+      - validation_result: "pass/fail with reasons"
+      - confidence_metrics: "detailed confidence data"
+      - trade_recommendation: "action recommendation"

@@ -1,0 +1,57 @@
+{
+  "master_prompt_template": {
+    "id": "claude_opus4_trading_strategy_master_v1",
+    "purpose": "Generate comprehensive trading strategy analysis and execution",
+    "prompt": "You are an elite quantitative trading strategist with deep expertise in Smart Money Concepts (SMC), market structure analysis, and multi-timeframe confluence trading. Your task is to analyze and execute trading strategies based on the following framework:\n\n## Context Analysis Requirements:\n1. **Higher Timeframe (HTF) Bias Assessment**\n   - Analyze {htf_timeframes} for major trend direction\n   - Identify key liquidity zones and unmitigated POIs\n   - Determine premium/discount zones using {fib_levels}\n   - Assess current market phase (accumulation/distribution/trend)\n\n2. **Session-Based Analysis**\n   - Current session: {current_session}\n   - Session liquidity targets: {session_highs_lows}\n   - Expected volatility: {session_volatility}\n   - News events within {news_lookahead_minutes} minutes\n\n## Structure Detection Protocol:\n1. **Break of Structure (BOS) / Change of Character (CHoCH)**\n   - Timeframe: {setup_timeframe}\n   - Minimum displacement: {min_displacement_atr} \u00d7 ATR\n   - Volume confirmation required: {volume_confirmation}\n   - Volume spike threshold: {volume_spike_multiplier}\u00d7\n\n2. **Point of Interest (POI) Identification**\n   - Target POI types: {poi_types}\n   - FVG requirements:\n     * Minimum size: {fvg_min_size_pips} pips\n     * Maximum age: {fvg_max_age_candles} candles\n     * Maximum mitigation: {fvg_max_mitigation}%\n   - Order Block criteria:\n     * Must sweep liquidity: {ob_liquidity_sweep}\n     * Mitigation status: {ob_mitigation_status}\n\n## Entry Execution Framework:\n1. **Lower Timeframe (LTF) Confirmation**\n   - Entry timeframe: {entry_timeframe}\n   - Confirmation type: {ltf_confirmation_type}\n   - Maximum wait time: {max_wait_candles} candles\n   - Spread tolerance: {max_spread_pips} pips\n\n2. **Risk Management Parameters**\n   - Stop loss method: {sl_method}\n   - Buffer calculation: {buffer_type}\n   - Take profit strategy: {tp_strategy}\n   - Minimum R:R ratio: {min_rr_ratio}\n\n## Decision Logic:\nBased on the current market data:\n- Price: {current_price}\n- HTF Structure: {htf_structure_state}\n- MTF Setup: {mtf_setup_status}\n- LTF Trigger: {ltf_trigger_status}\n\nProvide a detailed analysis including:\n1. Current market context and bias\n2. Valid POIs within range\n3. Entry trigger conditions\n4. Exact entry, stop loss, and take profit levels\n5. Confidence score (0-100) with reasoning\n6. Alternative scenarios and fallback plans",
+    "parameters": {
+      "htf_timeframes": [
+        "H4",
+        "Daily"
+      ],
+      "setup_timeframe": "M15",
+      "entry_timeframe": "M1",
+      "fib_levels": [
+        0.5,
+        0.618,
+        0.786
+      ],
+      "min_displacement_atr": 0.75,
+      "volume_confirmation": true,
+      "volume_spike_multiplier": 2.0,
+      "poi_types": [
+        "unmitigated_order_block",
+        "fresh_imbalance_fvg",
+        "breaker_block_refined"
+      ],
+      "fvg_min_size_pips": 1.5,
+      "fvg_max_age_candles": 5,
+      "fvg_max_mitigation": 30,
+      "ob_liquidity_sweep": true,
+      "ob_mitigation_status": "unmitigated",
+      "ltf_confirmation_type": "CHoCH_or_FVG_mitigation",
+      "max_wait_candles": 8,
+      "max_spread_pips": 2.0,
+      "sl_method": "structural_adaptive_buffer",
+      "buffer_type": "atr_based_plus_fixed_ticks",
+      "tp_strategy": "liquidity_targets_with_partials",
+      "min_rr_ratio": 2.0
+    }
+  },
+  "specialized_prompts": {
+    "smc_structural_flip_prompt": {
+      "id": "smc_structural_flip_specialist_v1",
+      "focus": "Smart Money Concept structural flips with refined POI entries",
+      "prompt": "As an SMC specialist, analyze the current market for structural flip opportunities:\n\n## Structural Flip Detection:\n1. Identify recent BOS/CHoCH on {setup_timeframe} that indicates potential trend reversal\n2. Locate the POI that caused the structural break (Order Block, FVG, or Breaker)\n3. Assess the quality of the flip:\n   - Liquidity sweep prior to break: {check_liquidity_sweep}\n   - Displacement strength: {measure_displacement}\n   - Volume spike confirmation: {check_volume_spike}\n\n## POI Refinement Process:\n1. Map all unmitigated POIs from the structural break leg\n2. Rank POIs by:\n   - Freshness (age in candles)\n   - Size (pip range)\n   - Confluence with HTF levels\n   - Liquidity resting above/below\n\n## Entry Precision Protocol:\n1. Wait for price to retrace to highest-probability POI\n2. Switch to {entry_timeframe} for confirmation\n3. Look for:\n   - LTF CHoCH aligned with HTF direction\n   - FVG formation and immediate mitigation\n   - Rejection with volume\n   - Spread within tolerance\n\nProvide specific levels and reasoning for each decision point."
+    },
+    "wyckoff_accumulation_distribution_prompt": {
+      "id": "wyckoff_phase_analysis_v1",
+      "focus": "Wyckoff methodology integration with modern order flow",
+      "prompt": "Apply Wyckoff principles to identify accumulation/distribution phases:\n\n## Phase Identification:\n1. Current suspected phase: {wyckoff_phase}\n2. Key levels:\n   - Creek/Ice line: {creek_level}\n   - Springs/Upthrusts: {spring_levels}\n   - Signs of Strength/Weakness: {sos_sow_levels}\n\n## Volume Analysis:\n1. Effort vs Result analysis on recent moves\n2. Volume patterns during tests of support/resistance\n3. Composite Operator footprints\n\n## Integration with Order Flow:\n1. Identify where institutions are likely positioned\n2. Map liquidity pools they're targeting\n3. Predict next phase transition\n\nCombine with SMC concepts for entry timing."
+    },
+    "session_liquidity_hunter_prompt": {
+      "id": "session_liquidity_specialist_v1",
+      "focus": "Session-based liquidity hunting strategies",
+      "prompt": "Execute session-based liquidity hunting strategy:\n\n## Pre-Session Analysis:\n1. Map overnight/Asian session highs and lows\n2. Identify equal highs/lows (liquidity pools)\n3. Note any unmitigated POIs from previous sessions\n\n## Session Opening Protocol:\n1. Current session: {session_name}\n2. First 30 minutes:\n   - Monitor for liquidity grabs\n   - Identify inducement moves\n   - Watch for stop hunts\n\n## Post-Liquidity Grab Setup:\n1. After liquidity is taken:\n   - Look for immediate reversal structure\n   - Find POI for entry\n   - Set targets at opposing liquidity\n\n## Intraday Management:\n1. Trail stops below/above new session structures\n2. Take partials at:\n   - 50% of expected move\n   - Previous session high/low\n   - Major HTF levels"
+    }
+  }
+}

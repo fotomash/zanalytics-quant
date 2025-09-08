@@ -1,0 +1,207 @@
+{
+  "flow_metadata": {
+    "version": "1.0.0",
+    "created": "2025-06-06T04:38:14.978938",
+    "description": "ZANFLOW v17 Trading Strategy Execution Flow",
+    "compatibility": "Claude Opus 4"
+  },
+  "execution_flow": {
+    "phase_1_initialization": {
+      "sequence": 1,
+      "duration_estimate": "100-200ms",
+      "blocks": [
+        {
+          "block_id": "context_analyzer_v1",
+          "parallel": false,
+          "timeout": 150,
+          "retry_count": 2,
+          "outputs_feed_to": [
+            "structure_validator_v1",
+            "predictive_scorer_v1"
+          ]
+        }
+      ],
+      "checkpoint": "market_context_established"
+    },
+    "phase_2_setup_detection": {
+      "sequence": 2,
+      "duration_estimate": "200-400ms",
+      "blocks": [
+        {
+          "block_id": "structure_validator_v1",
+          "parallel": false,
+          "timeout": 300,
+          "dependencies": [
+            "context_analyzer_v1"
+          ],
+          "outputs_feed_to": [
+            "poi_identifier_v1"
+          ]
+        },
+        {
+          "block_id": "poi_identifier_v1",
+          "parallel": true,
+          "timeout": 200,
+          "dependencies": [
+            "structure_validator_v1"
+          ],
+          "outputs_feed_to": [
+            "entry_executor_v1",
+            "predictive_scorer_v1"
+          ]
+        }
+      ],
+      "checkpoint": "setup_identified",
+      "validation_required": true
+    },
+    "phase_3_entry_execution": {
+      "sequence": 3,
+      "duration_estimate": "continuous_monitoring",
+      "blocks": [
+        {
+          "block_id": "entry_executor_v1",
+          "parallel": false,
+          "timeout": "market_dependent",
+          "dependencies": [
+            "poi_identifier_v1"
+          ],
+          "monitoring_interval": 1000,
+          "outputs_feed_to": [
+            "risk_manager_v1"
+          ]
+        },
+        {
+          "block_id": "predictive_scorer_v1",
+          "parallel": true,
+          "continuous": true,
+          "update_interval": 5000,
+          "dependencies": [
+            "context_analyzer_v1",
+            "poi_identifier_v1"
+          ],
+          "outputs_feed_to": [
+            "risk_manager_v1"
+          ]
+        }
+      ],
+      "checkpoint": "entry_triggered",
+      "abort_conditions": [
+        "max_wait_exceeded",
+        "setup_invalidated"
+      ]
+    },
+    "phase_4_risk_position_management": {
+      "sequence": 4,
+      "duration_estimate": "50-100ms",
+      "blocks": [
+        {
+          "block_id": "risk_manager_v1",
+          "parallel": false,
+          "timeout": 100,
+          "dependencies": [
+            "entry_executor_v1",
+            "predictive_scorer_v1"
+          ],
+          "outputs_feed_to": [
+            "trade_manager_v1"
+          ]
+        }
+      ],
+      "checkpoint": "position_established"
+    },
+    "phase_5_trade_lifecycle": {
+      "sequence": 5,
+      "duration_estimate": "position_duration",
+      "blocks": [
+        {
+          "block_id": "trade_manager_v1",
+          "parallel": false,
+          "continuous": true,
+          "monitoring_interval": 1000,
+          "dependencies": [
+            "risk_manager_v1"
+          ],
+          "outputs_feed_to": [
+            "journal_logger"
+          ]
+        }
+      ],
+      "checkpoint": "position_closed"
+    }
+  },
+  "data_flow_mappings": {
+    "context_analyzer_v1": {
+      "inputs": {
+        "price_data": {
+          "source": "market_data_feed",
+          "format": "OHLCV",
+          "timeframes": [
+            "M1",
+            "M5",
+            "M15",
+            "H1",
+            "H4",
+            "Daily"
+          ]
+        },
+        "session_data": {
+          "source": "session_calculator",
+          "format": "session_boundaries"
+        }
+      },
+      "outputs": {
+        "market_context": {
+          "schema": {
+            "htf_bias": "string",
+            "key_levels": "array<float>",
+            "session_state": "object",
+            "risk_factors": "array<string>"
+          }
+        }
+      }
+    },
+    "structure_validator_v1": {
+      "inputs": {
+        "market_context": {
+          "source": "context_analyzer_v1",
+          "required": true
+        },
+        "price_data": {
+          "source": "market_data_feed",
+          "window": "last_50_candles"
+        }
+      },
+      "outputs": {
+        "structural_state": {
+          "schema": {
+            "break_detected": "boolean",
+            "break_type": "string",
+            "break_strength": "float",
+            "structure_levels": "array<object>"
+          }
+        }
+      }
+    }
+  },
+  "error_handling": {
+    "global_timeout": 30000,
+    "retry_strategy": "exponential_backoff",
+    "fallback_flows": {
+      "context_failure": "use_cached_context",
+      "structure_failure": "wait_next_candle",
+      "entry_failure": "cancel_setup",
+      "risk_failure": "abort_trade"
+    }
+  },
+  "performance_optimization": {
+    "caching_strategy": {
+      "context_cache_ttl": 60000,
+      "structure_cache_ttl": 5000,
+      "poi_cache_ttl": 10000
+    },
+    "parallel_execution": {
+      "max_threads": 4,
+      "priority_queue": true
+    }
+  }
+}

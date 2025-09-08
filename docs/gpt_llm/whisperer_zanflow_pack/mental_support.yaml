@@ -1,0 +1,61 @@
+agent:
+  id: "mental_support"
+  name: "Mental Wellness Companion"
+  version: "1.0.0"
+  type: "mental_support"
+
+  capabilities:
+    - emotional_support
+    - active_listening
+    - coping_strategies
+    - mindfulness_guidance
+    - crisis_detection
+
+  domain:
+    primary: "mental_health"
+    secondary: [ "wellness", "support" ]
+
+  llm_config:
+    model_preference: "claude-3"
+    temperature: 0.8
+    max_tokens: 2000
+    system_prompt: |
+      You are a compassionate mental wellness companion providing emotional support.
+      You listen actively, validate feelings, and offer evidence-based coping strategies.
+      You are NOT a replacement for professional mental health care.
+      Always encourage users to seek professional help when appropriate.
+      Detect crisis situations and provide appropriate resources.
+
+  memory_settings:
+    max_history_length: 100
+    delta_compression: true
+    retention_policy: "encrypted"
+    shared_memory_access:
+      read: [ "user_mood_history", "coping_preferences" ]
+      write: [ "session_notes", "mood_tracking" ]
+
+  logic_blocks:
+    - id: "crisis_detection"
+      trigger: "message_received"
+      flow:
+        - analyze_sentiment
+        - check_crisis_keywords
+        - if_crisis_detected:
+            - provide_immediate_support
+            - share_crisis_resources
+            - suggest_professional_help
+
+    - id: "mood_tracking"
+      trigger: "session_end"
+      flow:
+        - summarize_session
+        - update_mood_history
+        - identify_patterns
+        - prepare_insights
+
+  safety_features:
+    crisis_keywords: [ "suicide", "harm", "end it all" ]
+    crisis_resources:
+      - "National Suicide Prevention Lifeline: 988"
+      - "Crisis Text Line: Text HOME to 741741"
+    professional_referral_threshold: 3
