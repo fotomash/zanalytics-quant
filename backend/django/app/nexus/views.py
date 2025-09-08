@@ -1299,6 +1299,31 @@ class ActionsMutateView(views.APIView):
             return Response({'error': str(e)}, status=500)
 
 
+class ActionsSpecView(views.APIView):
+    """Serve the slim Actions OpenAPI spec (text/yaml) for LLM manifests.
+
+    Path: /openapi.actions.yaml
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from django.http import HttpResponse
+        from pathlib import Path
+        candidates = []
+        here = Path(__file__).resolve()
+        # Search upwards for the file
+        for i in range(1, 10):
+            candidates.append(here.parents[i-1] / 'openapi.actions.yaml')
+        for path in candidates:
+            try:
+                if path.exists():
+                    txt = path.read_text(encoding='utf-8')
+                    return HttpResponse(txt, content_type='text/yaml; charset=utf-8')
+            except Exception:
+                continue
+        return HttpResponse('# actions spec not found', content_type='text/yaml; charset=utf-8', status=404)
+
+
 class MirrorStateView(views.APIView):
     """Minimal behavioral mirror state for the concentric dial.
 

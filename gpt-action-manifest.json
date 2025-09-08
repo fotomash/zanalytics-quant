@@ -4,7 +4,7 @@
   "description_for_model": "Use this API to read Pulse gates, behavioral mirrors, account/risk, whispers, and trades to assist the trader with context-aware guidance.",
   "description_for_human": "Pulse API: gates, risk, behavior, whispers, trades",
   "auth": {"type": "none"},
-  "api": {"type": "openapi", "url": "https://django2.zanalytics.app/openapi.yaml"},
+  "api": {"type": "openapi", "url": "https://django2.zanalytics.app/openapi.actions.yaml"},
   "logo_url": "https://example.com/logo.png",
   "contact_email": "support@example.com",
   "legal_info_url": "https://example.com/legal"

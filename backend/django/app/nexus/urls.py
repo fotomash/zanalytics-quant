@@ -47,6 +47,7 @@ from .views import (
     TradesRecentView,
     ActionsQueryView,
     ActionsMutateView,
+    ActionsSpecView,
     JournalEntryPostView,
     SessionSetFocusView,
     PositionProtectOptionsView,
@@ -157,4 +158,6 @@ urlpatterns = [
     # Actions bus (prototype; not exposed in openapi.yaml to keep op count)
     path('actions/query', ActionsQueryView.as_view(), name='actions-query'),
     path('actions/mutate', ActionsMutateView.as_view(), name='actions-mutate'),
+    # Serve slim OpenAPI for Actions
+    path('openapi.actions.yaml', ActionsSpecView.as_view(), name='actions-openapi-spec'),
 ]
