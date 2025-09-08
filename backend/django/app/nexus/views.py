@@ -29,6 +29,8 @@ import json
 import statistics
 import json as _json
 import math
+from zoneinfo import ZoneInfo
+from datetime import timedelta
 
 try:
     import redis as redis_lib  # optional
@@ -51,6 +53,29 @@ def health(request):
     Returns HTTP 200 with a small JSON payload without requiring auth.
     """
     return Response({"status": "ok"})
+
+
+def _trading_day_start_utc(now=None) -> "timezone.datetime":
+    """Return the start of the current trading day in UTC.
+
+    Trading day anchor is configurable via env:
+      - TRADING_DAY_TZ (default Europe/London)
+      - TRADING_DAY_ANCHOR_HOUR (default 23)  # 23:00 local time (11pm UK)
+    If current local time is before anchor, roll back to previous day.
+    """
+    from django.utils import timezone
+    tz_name = os.getenv("TRADING_DAY_TZ", "Europe/London")
+    anchor_hour = int(os.getenv("TRADING_DAY_ANCHOR_HOUR", "23"))
+    now = now or timezone.now()
+    try:
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        tz = ZoneInfo("UTC")
+    local_now = now.astimezone(tz)
+    anchor_local = local_now.replace(hour=anchor_hour, minute=0, second=0, microsecond=0)
+    if local_now < anchor_local:
+        anchor_local = anchor_local - timedelta(days=1)
+    return anchor_local.astimezone(ZoneInfo("UTC"))
 
 class TradeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Trade.objects.all()
@@ -757,7 +782,7 @@ class FeedEquityView(views.APIView):
 
     def get(self, request):
         from django.utils import timezone
-        sod = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        sod = _trading_day_start_utc()
         closed_today = Trade.objects.filter(close_time__gte=sod, close_time__isnull=False)
         pnl_today = sum([t.pnl or 0 for t in closed_today])
         # Pull account risk envelope for targets/exposure if available
@@ -814,7 +839,7 @@ class EquitySeriesView(views.APIView):
 
     def get(self, request):
         from django.utils import timezone
-        sod = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        sod = _trading_day_start_utc()
         qs = Trade.objects.filter(close_time__gte=sod, close_time__isnull=False).order_by('close_time')
         points = []
         cum = 0.0
@@ -884,7 +909,7 @@ class FeedTradeView(views.APIView):
 
     def get(self, request):
         from django.utils import timezone
-        sod = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        sod = _trading_day_start_utc()
         realized = 0.0
         try:
             realized = float(sum([(t.pnl or 0.0) for t in Trade.objects.filter(close_time__gte=sod)]))
@@ -1136,6 +1161,68 @@ class TradesRecentView(views.APIView):
         return Response(out)
 
 
+class ActionsQueryView(views.APIView):
+    """Consolidated query endpoint (prototype). Not documented in OpenAPI actions cap.
+
+    POST { type: str, payload: dict }
+    type ∈ { market_snapshot, pulse_status, trades_recent, behavior_events, equity_today }
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        data = request.data or {}
+        typ = str(data.get('type') or '')
+        payload = data.get('payload') or {}
+        try:
+            if typ == 'trades_recent':
+                req = request._request
+                req.GET = req.GET.copy()
+                req.GET['limit'] = str(payload.get('limit') or 200)
+                return TradesRecentView().get(request)
+            if typ == 'behavior_events':
+                return BehaviorEventsTodayView().get(request)
+            if typ == 'equity_today':
+                return EquityTodayView().get(request)
+            if typ == 'pulse_status':
+                # Proxy to pulse status (symbol required)
+                from app.nexus.pulse.views import PulseStatus  # type: ignore
+                req = request._request
+                req.GET = req.GET.copy()
+                sym = payload.get('symbol') or 'XAUUSD'
+                req.GET['symbol'] = sym
+                return PulseStatus().get(request)
+            if typ == 'market_snapshot':
+                # Minimal: reuse market/mini
+                return MarketMiniView().get(request)
+            return Response({'error': 'unknown type'}, status=400)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+class ActionsMutateView(views.APIView):
+    """Consolidated mutation endpoint (prototype). Not documented in OpenAPI to keep cap.
+
+    POST { type: str, payload: dict }
+    type ∈ { alert_send, risk_update, note_create }
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        data = request.data or {}
+        typ = str(data.get('type') or '')
+        payload = data.get('payload') or {}
+        try:
+            if typ == 'note_create':
+                # Map to journal entry
+                req = request._request
+                req.data = payload
+                return JournalEntryPostView().post(request)
+            # alert_send / risk_update could be wired later
+            return Response({'ok': False, 'note': 'not_implemented'}, status=501)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
 class MirrorStateView(views.APIView):
     """Minimal behavioral mirror state for the concentric dial.
 
@@ -1152,7 +1239,7 @@ class MirrorStateView(views.APIView):
     def get(self, request):
         from django.utils import timezone
         now = timezone.now()
-        sod = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        sod = _trading_day_start_utc(now)
 
         payload = {}
 
@@ -1636,8 +1723,17 @@ class AccountRiskView(views.APIView):
     def get(self, request):
         from django.utils import timezone
         now = timezone.now()
-        today = now.strftime('%Y%m%d')
-        yesterday = (now - timezone.timedelta(days=1)).strftime('%Y%m%d')
+        # Trading-day anchor (e.g., 23:00 Europe/London)
+        anchor_utc = _trading_day_start_utc(now)
+        tz_name = os.getenv("TRADING_DAY_TZ", "Europe/London")
+        try:
+            tz = ZoneInfo(tz_name)
+        except Exception:
+            tz = ZoneInfo("UTC")
+        # Date keys are based on local trading day (anchor date)
+        anchor_local = anchor_utc.astimezone(tz)
+        today_key = anchor_local.strftime('%Y%m%d')
+        yesterday_key = (anchor_local - timedelta(days=1)).strftime('%Y%m%d')
         r = _redis_client()
         # Resolve equity via account_info
         equity = None
@@ -1652,26 +1748,41 @@ class AccountRiskView(views.APIView):
                     equity = float(data.get('equity') or data.get('Equity') or 0)
         except Exception:
             pass
-        # SoD equity: cached per day
+        # SoD equity: cached per trading day (local) with manual override support
         sod_equity = None
         if r is not None:
             try:
-                raw = r.get(f"sod_equity:{today}")
-                if raw:
-                    sod_equity = float(raw)
+                # 1) Manual override for this trading day
+                raw_ovr = r.get(f"sod_equity_override:{today_key}")
+                if raw_ovr:
+                    sod_equity = float(raw_ovr)
+                # 2) Stored snapshot
+                if sod_equity is None:
+                    raw = r.get(f"sod_equity:{today_key}")
+                    if raw:
+                        sod_equity = float(raw)
             except Exception:
                 sod_equity = None
-        if sod_equity is None and equity is not None and r is not None:
+        # Optional environment override (useful for demos)
+        if sod_equity is None:
             try:
-                r.setex(f"sod_equity:{today}", 48*3600, str(equity))
+                env_override = os.getenv('SOD_EQUITY_OVERRIDE')
+                if env_override:
+                    sod_equity = float(env_override)
+            except Exception:
+                pass
+        # If missing and we are past the anchor for this trading day, snapshot current equity
+        if sod_equity is None and equity is not None and r is not None and now >= anchor_utc:
+            try:
+                r.setex(f"sod_equity:{today_key}", 72*3600, str(equity))
                 sod_equity = equity
             except Exception:
                 sod_equity = equity
-        # Previous close equity (yesterday 23:00 snapshot)
+        # Previous close equity (yesterday 23:00 snapshot; honor override if set)
         prev_close_equity = None
         if r is not None:
             try:
-                rawp = r.get(f"sod_equity:{today}") or r.get(f"sod_equity:{yesterday}")
+                rawp = r.get(f"sod_equity_override:{yesterday_key}") or r.get(f"sod_equity:{yesterday_key}")
                 if rawp:
                     prev_close_equity = float(rawp)
             except Exception:
@@ -1782,6 +1893,47 @@ class AccountSoDView(views.APIView):
             'sod_equity': val,
             'source': source,
         })
+
+    def post(self, request):
+        """Manually override or clear SoD equity for a given date.
+
+        Body JSON: { sod_equity?: number, date?: 'YYYY-MM-DD', clear?: bool }
+        When clear=true, removes the override for that date.
+        Stores under Redis key sod_equity_override:YYYYMMDD
+        """
+        r = _redis_client()
+        if r is None:
+            return Response({'error': 'redis unavailable'}, status=503)
+        data = request.data or {}
+        from django.utils import timezone
+        import datetime as _dt
+        q = data.get('date')
+        try:
+            if q:
+                dt = _dt.datetime.fromisoformat(q)
+            else:
+                dt = timezone.now()
+            date_key = dt.strftime('%Y%m%d')
+        except Exception:
+            dt = timezone.now()
+            date_key = dt.strftime('%Y%m%d')
+        key = f"sod_equity_override:{date_key}"
+        if data.get('clear'):
+            try:
+                r.delete(key)
+            except Exception:
+                pass
+            return Response({'ok': True, 'cleared': True, 'date': dt.strftime('%Y-%m-%d')})
+        val = data.get('sod_equity')
+        try:
+            sval = str(float(val))
+        except Exception:
+            return Response({'error': 'sod_equity must be numeric'}, status=400)
+        try:
+            r.set(key, sval)
+            return Response({'ok': True, 'date': dt.strftime('%Y-%m-%d'), 'sod_equity': float(sval)})
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
 
 
 class OrderMarketProxyView(views.APIView):

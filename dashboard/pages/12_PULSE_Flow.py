@@ -702,6 +702,32 @@ def render_behavioral_section():
     compass = dict(discipline=disc, patience_score=pat.get('score'), profit_eff=pe.get('avg'), hc_win=conv.get('hc_win'), lc_win=conv.get('lc_win'))
     fig = plot_behavioral_compass(compass)
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+    # Quick Whisper (local heuristic; provider integration can replace this)
+    try:
+        flags = []
+        if not math.isnan(disc) and disc < 60:
+            flags.append('discipline_low')
+        if (pe.get('avg') or 1.0) < 0.5:
+            flags.append('profit_efficiency_low')
+        if (conv.get('hc_win') or 0.0) < 0.5 and (conv.get('lc_win') or 0.0) > 0.5:
+            flags.append('conviction_misaligned')
+        k = _compute_trade_kpis(trades)
+        whisper = None
+        if flags:
+            if 'discipline_low' in flags:
+                whisper = "Discipline is soft today. Would you consider a brief reset and smaller size for the next setup?"
+            elif 'profit_efficiency_low' in flags:
+                whisper = "Efficiency is lagging. Would you consider protecting winners earlier and reducing chase entries?"
+            elif 'conviction_misaligned' in flags:
+                whisper = "Conviction looks inverted. Would you re‑check confluence before the next trade?"
+        else:
+            whisper = "Posture looks balanced. Would you keep waiting for clean confluence and protect gains near targets?"
+        with st.expander('🤖 The Whisperer — Quick Suggestion', expanded=False):
+            st.write(whisper)
+            st.caption(f"Ref: {len(trades)} trades, Win {k['win_rate']}%, Avg R:R {k['avg_rr']:.2f if not math.isnan(k['avg_rr']) else 0.0}, Eff {int(100*(pe.get('avg') or 0))}%")
+    except Exception:
+        pass
     with st.expander('Why these scores?'):
         if not math.isnan(disc):
             st.markdown(f"- Discipline: {disc:.0f}% (penalized by events/low-confluence trades)")
@@ -718,3 +744,108 @@ def render_behavioral_section():
 
 with st.container():
     render_behavioral_section()
+
+# ---------------- Trade History (All symbols, 3D default) -----------------
+def _now_utc():
+    from datetime import timezone as _tz
+    return pd.Timestamp.now(tz=_tz.utc).to_pydatetime()
+
+def _range_from_preset(preset: str):
+    from datetime import timedelta as _td
+    end = _now_utc()
+    if preset == "1D":   start = end - _td(days=1)
+    elif preset == "3D": start = end - _td(days=3)
+    elif preset == "7D": start = end - _td(days=7)
+    elif preset == "30D":start = end - _td(days=30)
+    else:                 start = None
+    return start, end
+
+def _filter_by_range(df: pd.DataFrame, start, end):
+    if df.empty or 'ts_open' not in df.columns:
+        return df
+    m = pd.Series(True, index=df.index)
+    if start is not None:
+        m &= df['ts_open'] >= pd.Timestamp(start, tz='UTC')
+    if end is not None:
+        m &= df['ts_open'] <= pd.Timestamp(end, tz='UTC')
+    return df.loc[m].copy()
+
+def _trade_summary_quote(df: pd.DataFrame) -> str:
+    if df.empty:
+        return "No trades in the selected window."
+    pnl = float(df.get('pnl', pd.Series(dtype=float)).sum()) if 'pnl' in df.columns else 0.0
+    wins = int((df.get('pnl', pd.Series(dtype=float)) > 0).sum()) if 'pnl' in df.columns else 0
+    losses = int((df.get('pnl', pd.Series(dtype=float)) <= 0).sum()) if 'pnl' in df.columns else 0
+    total = wins + losses
+    win_rate = (100.0 * wins / total) if total else 0.0
+    rr = df.get('rr', pd.Series(dtype=float)).replace([np.inf, -np.inf], np.nan) if 'rr' in df.columns else pd.Series(dtype=float)
+    avg_rr = float(rr.dropna().mean()) if not rr.dropna().empty else float('nan')
+    if 'symbol' in df.columns and 'pnl' in df.columns and not df.empty:
+        by_sym = df.groupby('symbol')['pnl'].sum().sort_values(ascending=False)
+        best = f"{by_sym.index[0]} {by_sym.iloc[0]:+,.2f}" if len(by_sym) else "—"
+        worst = f"{by_sym.index[-1]} {by_sym.iloc[-1]:+,.2f}" if len(by_sym) else "—"
+    else:
+        best = worst = "—"
+    avg_rr_str = f"{avg_rr:.2f}" if not math.isnan(avg_rr) else "—"
+    return (
+        f"In the selected window: {total} trades, win rate {win_rate:.1f}%, "
+        f"net PnL {pnl:+,.2f}, avg R:R {avg_rr_str}. Best symbol: {best}; worst: {worst}."
+    )
+
+def _session_filter_df(df: pd.DataFrame, session: str) -> pd.DataFrame:
+    if df.empty or 'ts_open' not in df.columns:
+        return df
+    if session == 'All':
+        return df
+    s, e = _session_window_utc('London' if session=='London' else 'New_York' if session=='New_York' else 'Asian')
+    return df[(df['ts_open'] >= s) & (df['ts_open'] <= e)].copy()
+
+def render_trade_history():
+    st.subheader('📚 Trade History')
+    df_all = _fetch_trades(limit=1000)
+
+    left, mid, right = st.columns([1.5, 1, 1])
+    view_mode = left.radio('View', ['By Time Range', 'Last N Trades'], horizontal=True)
+    preset = mid.selectbox('Range', ['1D','3D','7D','30D','Custom'], index=1)  # 3D default
+    compact = right.toggle('Compact rows', value=True)
+
+    start_ts = end_ts = None
+    if view_mode == 'By Time Range':
+        if preset == 'Custom':
+            c1, c2 = st.columns(2)
+            d1 = c1.date_input('Start (UTC)', (_now_utc()-pd.Timedelta(days=3)).date())
+            d2 = c2.date_input('End (UTC)', _now_utc().date())
+            start_ts = pd.Timestamp(d1, tz='UTC')
+            end_ts = pd.Timestamp(d2, tz='UTC') + pd.Timedelta(hours=23, minutes=59, seconds=59)
+        else:
+            start_ts, end_ts = _range_from_preset(preset)
+        df_view = _filter_by_range(df_all, start_ts, end_ts)
+    else:
+        n = mid.number_input('N trades', min_value=10, max_value=200, value=30, step=10)
+        df_view = df_all.sort_values('ts_open', ascending=False).head(int(n))
+
+    sess = st.selectbox('Session', ['All','Asian','London','New_York'], index=0)
+    df_view = _session_filter_df(df_view, sess)
+
+    # KPIs
+    k = _compute_trade_kpis(df_view)
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric('Win Rate', f"{k['win_rate']}%")
+    c2.metric('Net PnL', f"{k['pnl']:+.2f}")
+    c3.metric('Trades', len(df_view))
+    c4.metric('Avg R:R', f"{k['avg_rr']:.2f}" if not math.isnan(k['avg_rr']) else '—')
+    c5.metric('Last Symbol', k['last_symbol'])
+
+    # Quote-able summary
+    st.text_area('Summary (copy/share)', _trade_summary_quote(df_view), height=70)
+
+    # Table
+    cols = [c for c in ['ts_open','ts_close','symbol','side','entry','exit','pnl','rr','strategy','session'] if c in df_view.columns]
+    st.dataframe(
+        df_view.sort_values('ts_open', ascending=False)[cols],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+with st.container():
+    render_trade_history()

@@ -45,6 +45,8 @@ from .views import (
     BehaviorEventsTodayView,
     EquityTodayView,
     TradesRecentView,
+    ActionsQueryView,
+    ActionsMutateView,
     JournalEntryPostView,
     SessionSetFocusView,
     PositionProtectOptionsView,
@@ -152,4 +154,7 @@ urlpatterns = [
     path('opportunity/priority-items', PriorityItemsView.as_view(), name='opportunity-priority-items'),
     path('ai/explain-signal', ExplainSignalView.as_view(), name='ai-explain-signal'),
     path('report/daily-summary', DailySummaryView.as_view(), name='report-daily-summary'),
+    # Actions bus (prototype; not exposed in openapi.yaml to keep op count)
+    path('actions/query', ActionsQueryView.as_view(), name='actions-query'),
+    path('actions/mutate', ActionsMutateView.as_view(), name='actions-mutate'),
 ]
