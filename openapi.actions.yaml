@@ -18,6 +18,59 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ActionQueryRequest'
+            examples:
+              position_close_half:
+                summary: Close 50% of a position
+                value:
+                  type: position_close
+                  payload:
+                    ticket: 302402468
+                    fraction: 0.5
+              position_modify_sl:
+                summary: Set/modify stop loss
+                value:
+                  type: position_modify
+                  payload:
+                    ticket: 302402468
+                    sl: 3625
+              position_open_buy:
+                summary: Open a small BUY
+                value:
+                  type: position_open
+                  payload:
+                    symbol: XAUUSD
+                    volume: 0.1
+                    side: buy
+                    sl: 0
+                    tp: 0
+              position_hedge_full:
+                summary: Hedge a position with full size
+                value:
+                  type: position_hedge
+                  payload:
+                    ticket: 302402468
+              session_boot_default:
+                summary: Boot snapshot
+                value:
+                  type: session_boot
+                  payload:
+                    limit_trades: 10
+                    include_positions: true
+                    include_equity: true
+                    include_risk: true
+              market_symbols_simple:
+                summary: Fetch symbols list
+                value:
+                  type: market_symbols
+                  payload: {}
+              journal_append_partial:
+                summary: Journal a partial close
+                value:
+                  type: journal_append
+                  payload:
+                    trade_id: 302402468
+                    kind: PARTIAL_CLOSE
+                    text: Closed 50% of XAUUSD short
       responses:
         '200':
           description: OK
@@ -35,6 +88,7 @@ paths:
                     description: trades_history_mt5 result
                     items:
                       $ref: '#/components/schemas/TradeHistoryItem'
+                  - $ref: '#/components/schemas/PositionActionResponse'
         '400': { description: Bad Request }
         '500': { description: Server Error }
 
@@ -444,5 +498,22 @@ components:
         exit: { type: number, nullable: true }
         pnl: { type: number, nullable: true }
         status: { type: string, nullable: true }
+    
+    PositionActionResponse:
+      type: object
+      description: Generic response envelope for position actions (open/close/modify/hedge)
+      properties:
+        ok: { type: boolean, nullable: true }
+        success: { type: boolean, nullable: true }
+        order:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: MT5 order result when returned by position_open
+        result:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Bridge result payload for close/modify/hedge
 
 security: []

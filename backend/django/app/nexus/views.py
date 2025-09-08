@@ -1225,6 +1225,18 @@ class ActionsQueryView(views.APIView):
         data = request.data or {}
         typ = str(data.get('type') or '')
         payload = data.get('payload') or {}
+        # Back-compat: allow flat fields when payload is omitted by the client/tooling
+        try:
+            if not payload and typ in ('position_close', 'position_modify', 'position_open', 'position_hedge'):
+                flat = {}
+                # Collect common fields if present at top-level
+                for k in ('ticket', 'fraction', 'volume', 'sl', 'tp', 'symbol', 'side', 'comment'):
+                    if k in data and data.get(k) is not None:
+                        flat[k] = data.get(k)
+                if flat:
+                    payload = flat
+        except Exception:
+            pass
         try:
             if typ == 'session_boot':
                 # Composite boot snapshot for LLM initialization

@@ -26,6 +26,11 @@ try:
     from dashboard.pages.components.gate_confluence_donut import render as render_gate_confluence
 except Exception:
     render_gate_confluence = None  # optional component
+try:
+    # Optional import for trades
+    from dashboard.utils.streamlit_api import fetch_trade_history_filtered as _fetch_trade_history_filtered
+except Exception:
+    _fetch_trade_history_filtered = None
 
 
 # Page configuration
@@ -486,8 +491,8 @@ with bc2:
             v = float(pct)
             st.metric("Captured vs Potential", f"{v*100:.0f}%")
             st.progress(max(0.0, min(1.0, v)))
-    except Exception:
-        pass
+        except Exception:
+            pass
 with bc3:
     st.markdown("#### Risk Management")
     try:
@@ -595,8 +600,40 @@ try:
         pr = (mirror or {}).get('patience_ratio')
         if isinstance(pr, (int, float)):
             subs['Patience'] = 'Tempo high' if float(pr) < 0 else 'Tempo conservative'
-    except Exception:
-        pass
+        except Exception:
+            pass
+
+    # Trades Snapshot
+    st.markdown("##### Trades Snapshot")
+    tabs = st.tabs(["DB Recent", "MT5 History"])
+    with tabs[0]:
+        try:
+            db = safe_api_call("GET", f"api/v1/trades/recent?limit=20")
+            import pandas as _pd
+            _df = _pd.DataFrame(db if isinstance(db, list) else [])
+            if not _df.empty:
+                cols = ["id","symbol","side","entry","exit","pnl","ts_open","ts_close"]
+                for c in cols:
+                    if c not in _df.columns:
+                        _df[c] = None
+                _df = _df[cols]
+            st.dataframe(_df, use_container_width=True, height=240)
+        except Exception:
+            st.info("No DB trades available")
+    with tabs[1]:
+        try:
+            mt5 = _fetch_trade_history_filtered() if _fetch_trade_history_filtered else []
+            import pandas as _pd
+            _df2 = _pd.DataFrame(mt5 if isinstance(mt5, list) else [])
+            if not _df2.empty:
+                cols2 = ["id","ts","symbol","direction","entry","exit","pnl","status"]
+                for c in cols2:
+                    if c not in _df2.columns:
+                        _df2[c] = None
+                _df2 = _df2[cols2]
+            st.dataframe(_df2, use_container_width=True, height=240)
+        except Exception:
+            st.info("No MT5 trade history available")
 
     gc1, gc2, gc3, gc4, gc5 = st.columns(5)
     with gc1:
