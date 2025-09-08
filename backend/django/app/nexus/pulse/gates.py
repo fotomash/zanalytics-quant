@@ -24,6 +24,38 @@ def context_gate(data: pd.DataFrame | None) -> Dict[str, Any]:
     return {"passed": False, "bias": None, "poi": None}
 
 
+def wyckoff_gate(data: pd.DataFrame | None) -> Dict[str, Any]:
+    """Minimal Wyckoff gate stub.
+
+    Intention: detect an accumulation/distribution context via a simple
+    range + breakout heuristic. Returns {passed, phase, direction}.
+
+    This is a placeholder and safe to call when data is missing.
+    """
+    out: Dict[str, Any] = {"passed": False, "phase": None, "direction": None}
+    if data is None or not isinstance(data, pd.DataFrame) or data.empty:
+        return out
+    try:
+        df = data.copy().sort_values('timestamp').reset_index(drop=True)
+        # Use last N bars to define a range
+        win = df.tail(60)
+        hi = float(win['high'].max())
+        lo = float(win['low'].min())
+        rng = hi - lo
+        if rng <= 0:
+            return out
+        last = win.iloc[-1]
+        # Break above range → distribution potential (bearish soon)
+        # Break below range → accumulation potential (bullish soon)
+        if float(last['close']) > hi:
+            out.update(passed=True, phase='distribution?', direction='bearish?')
+        elif float(last['close']) < lo:
+            out.update(passed=True, phase='accumulation?', direction='bullish?')
+    except Exception:
+        return out
+    return out
+
+
 def liquidity_gate(data: pd.DataFrame | None, *, asia_start: str = ASIA_START_UTC,
                    asia_end: str = ASIA_END_UTC, atr_mult: float = ATR_SWEEP_MULT) -> Dict[str, Any]:
     """M15 liquidity sweep with snap-back confirmation.

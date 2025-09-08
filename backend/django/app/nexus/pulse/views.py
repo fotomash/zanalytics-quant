@@ -6,7 +6,7 @@ from rest_framework.response import Response
 
 from .service import pulse_status
 from .service import _load_minute_data
-from .gates import structure_gate, liquidity_gate, imbalance_gate, risk_gate
+from .gates import structure_gate, liquidity_gate, imbalance_gate, risk_gate, wyckoff_gate
 from app.nexus.views import _redis_client
 from app.nexus.models import Trade
 import datetime as _dt
@@ -66,6 +66,7 @@ class PulseDetail(views.APIView):
             liq = liquidity_gate(m15) if m15 is not None else {"passed": False}
             imb = imbalance_gate(m1) if m1 is not None else {"passed": False, "entry_zone": [None, None]}
             rsk = risk_gate(imb, struct, symbol)
+            wyk = wyckoff_gate(m15 if m15 is not None else m1)
             # Include confluence summary (same weights/threshold as status endpoint defaults)
             try:
                 from .service import _resolve_weights
@@ -78,7 +79,7 @@ class PulseDetail(views.APIView):
                 conf = {"confidence": score, "passed": bool(reasons.get("score_passed"))}
             except Exception:
                 conf = {"confidence": 0.0, "passed": False}
-            payload = {"structure": struct, "liquidity": liq, "risk": rsk, "confluence": conf}
+            payload = {"structure": struct, "liquidity": liq, "wyckoff": wyk, "risk": rsk, "confluence": conf}
             try:
                 r = _redis_client()
                 if r is not None:
