@@ -13,6 +13,11 @@ RUN adduser --disabled-password --gecos "" ${APP_USER}
 
 WORKDIR /app
 
+# Install minimal VCS tool for VCS requirements (e.g., pandas-ta from GitHub)
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git \
+ && rm -rf /var/lib/apt/lists/*
+
 # 1) Install deps
 COPY requirements.txt /app/requirements.txt
 ENV PIP_ROOT_USER_ACTION=ignore

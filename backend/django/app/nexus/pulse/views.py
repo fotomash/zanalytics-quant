@@ -8,6 +8,9 @@ from .service import pulse_status
 from .service import _load_minute_data
 from .gates import structure_gate, liquidity_gate, imbalance_gate, risk_gate
 from app.nexus.views import _redis_client
+from app.nexus.models import Trade
+import datetime as _dt
+from collections import Counter
 
 
 class PulseStatus(views.APIView):
@@ -260,6 +263,265 @@ class BarsEnriched(views.APIView):
             return Response({"items": [], "error": str(e)}, status=500)
 
 
+class TradeQualityDist(views.APIView):
+    """Return a lightweight trade quality distribution.
+
+    Tries Redis caches first; falls back to 0 counts if unavailable.
+    Heuristics:
+      - Looks for recent trade lists under keys:
+          trade:history:recent, mt5:history:recent, pulse:trades:recent
+      - For each trade, uses any of: 'quality', 'grade', 'setup_grade', 'setup'
+        Mapping:
+          values starting with 'A' -> A+
+          values starting with 'B' -> B
+          values starting with 'C' or lower -> C
+      - If numeric 'score' exists (0..100), buckets: >=80→A+, 60..79→B, else C.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        counts = Counter({"A+": 0, "B": 0, "C": 0})
+        items = []
+        try:
+            r = _redis_client()
+            if r is not None:
+                for key in ("trade:history:recent", "mt5:history:recent", "pulse:trades:recent"):
+                    raw = r.get(key)
+                    if not raw:
+                        continue
+                    import json as _json
+                    try:
+                        arr = _json.loads(raw)
+                        if isinstance(arr, list):
+                            items = arr
+                            break
+                    except Exception:
+                        continue
+        except Exception:
+            items = []
+
+        def _bucket(obj: dict) -> str:
+            # text-based
+            for k in ("quality", "grade", "setup_grade", "setup"):
+                v = obj.get(k)
+                if isinstance(v, str) and v:
+                    s = v.strip().upper()
+                    if s.startswith("A"):
+                        return "A+"
+                    if s.startswith("B"):
+                        return "B"
+                    return "C"
+            # numeric score
+            for k in ("score", "quality_score"):
+                v = obj.get(k)
+                try:
+                    x = float(v)
+                    if 0 <= x <= 1:
+                        x *= 100.0
+                    if x >= 80:
+                        return "A+"
+                    if x >= 60:
+                        return "B"
+                    return "C"
+                except Exception:
+                    continue
+            return "C"
+
+        try:
+            for t in items[:200]:
+                if isinstance(t, dict):
+                    counts[_bucket(t)] += 1
+        except Exception:
+            pass
+        return Response({"labels": ["A+", "B", "C"], "counts": [counts["A+"], counts["B"], counts["C"]]})
+
+
+# -------------------- Analytics: Trades (Phase 1) -----------------------------
+
+def _parse_date(s: str | None) -> _dt.datetime | None:
+    if not s:
+        return None
+    try:
+        return _dt.datetime.fromisoformat(s)
+    except Exception:
+        try:
+            return _dt.datetime.strptime(s, "%Y-%m-%d")
+        except Exception:
+            return None
+
+
+def _filter_trades(qs, request):
+    symbol = request.query_params.get("symbol")
+    date_from = _parse_date(request.query_params.get("date_from"))
+    date_to = _parse_date(request.query_params.get("date_to"))
+    strategy = request.query_params.get("strategy")
+    status = request.query_params.get("status")  # not used without a field
+
+    if symbol:
+        qs = qs.filter(symbol=symbol)
+    if strategy:
+        qs = qs.filter(strategy=strategy)
+    # Use close_time when present, fallback to entry_time
+    if date_from:
+        qs = qs.filter(entry_time__gte=date_from)
+    if date_to:
+        qs = qs.filter(entry_time__lte=date_to)
+    return qs
+
+
+def _safe_float(x, default=0.0):
+    try:
+        return float(x)
+    except Exception:
+        return float(default)
+
+
+def _realized_r(tr: Trade) -> float:
+    pnl = _safe_float(tr.pnl)
+    dd = abs(_safe_float(tr.max_drawdown))
+    if dd <= 0:
+        return 0.0 if pnl == 0 else (1.5 if pnl > 0 else -1.0)
+    return pnl / dd
+
+
+def _eff_pair(tr: Trade) -> tuple[float, float]:
+    pnl_pos = max(0.0, _safe_float(tr.pnl))
+    pot = _safe_float(tr.max_profit)
+    if pot <= 0:
+        pot = pnl_pos
+    return pnl_pos, max(0.0, pot)
+
+
+def _grade_from_trade(tr: Trade) -> str:
+    r = _realized_r(tr)
+    if r >= 1.5:
+        return "A+"
+    if r >= 0.5:
+        return "B"
+    return "C"
+
+
+class TradesQuality(views.APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        qs = _filter_trades(Trade.objects.all(), request)
+        labels = ["A+", "B", "C"]
+        counts = {k: 0 for k in labels}
+        for tr in qs[:1000]:
+            counts[_grade_from_trade(tr)] += 1
+        return Response({"labels": labels, "counts": [counts[l] for l in labels]})
+
+
+class TradesSummary(views.APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        qs = _filter_trades(Trade.objects.all(), request)
+        n = qs.count()
+        if n == 0:
+            return Response({
+                "win_rate": 0.0,
+                "expectancy_r": 0.0,
+                "avg_r": 0.0,
+                "std_r": 0.0,
+                "median_duration_s": 0,
+                "trades": 0,
+                "pnl_usd": {"total": 0.0, "avg": 0.0},
+            })
+        rs = []
+        pnls = []
+        wins = 0
+        durs = []
+        for tr in qs[:2000]:
+            r = _realized_r(tr)
+            rs.append(r)
+            p = _safe_float(tr.pnl)
+            pnls.append(p)
+            if p > 0:
+                wins += 1
+            try:
+                if tr.entry_time and tr.close_time:
+                    durs.append((tr.close_time - tr.entry_time).total_seconds())
+            except Exception:
+                pass
+        import statistics as _st
+        win_rate = wins / max(1, len(pnls))
+        avg_r = _st.mean(rs) if rs else 0.0
+        std_r = (_st.pstdev(rs) if len(rs) > 1 else 0.0) if rs else 0.0
+        expectancy_r = avg_r
+        total_pnl = sum(pnls)
+        avg_pnl = _st.mean(pnls) if pnls else 0.0
+        med_dur = int(_st.median(durs)) if durs else 0
+        return Response({
+            "win_rate": round(win_rate, 4),
+            "expectancy_r": round(expectancy_r, 4),
+            "avg_r": round(avg_r, 4),
+            "std_r": round(std_r, 4),
+            "median_duration_s": med_dur,
+            "trades": len(pnls),
+            "pnl_usd": {"total": round(total_pnl, 2), "avg": round(avg_pnl, 2)},
+        })
+
+
+class TradesEfficiency(views.APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        qs = _filter_trades(Trade.objects.all(), request)
+        cap = 0.0
+        pot = 0.0
+        effs = []
+        for tr in qs[:2000]:
+            got, mx = _eff_pair(tr)
+            cap += got
+            pot += mx
+            if mx > 0:
+                effs.append(min(1.0, got / mx))
+        pct = (cap / pot) if pot > 0 else 0.0
+        avg_eff = (sum(effs) / len(effs)) if effs else pct
+        return Response({
+            "captured_vs_potential_pct": round(pct, 4),
+            "avg_efficiency_pct": round(avg_eff, 4),
+        })
+
+
+class TradesBuckets(views.APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        qs = _filter_trades(Trade.objects.all(), request)
+        edges = [-3, -2, -1, 0, 1, 2, 3]
+        counts = [0 for _ in range(len(edges))]
+        for tr in qs[:5000]:
+            r = _realized_r(tr)
+            # clamp to edges range and bin to nearest edge index
+            # bins: (-inf,-2.5],(-2.5,-1.5],...,(2.5,inf)
+            idx = min(len(edges) - 1, max(0, int(round(r + 3))))
+            counts[idx] += 1
+        return Response({"edges": edges, "counts": counts})
+
+
+class TradesSetups(views.APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        qs = _filter_trades(Trade.objects.all(), request)
+        from collections import defaultdict
+        agg = defaultdict(lambda: {"A+": 0, "B": 0, "C": 0})
+        for tr in qs[:5000]:
+            name = tr.strategy or "unknown"
+            g = _grade_from_trade(tr)
+            agg[name][g] += 1
+        setups = []
+        for name, d in agg.items():
+            item = {"name": name, "A+": d["A+"], "B": d["B"], "C": d["C"]}
+            setups.append(item)
+        # sort by total desc
+        setups.sort(key=lambda x: x["A+"] + x["B"] + x["C"], reverse=True)
+        return Response({"setups": setups})
+
+
 class YFBars(views.APIView):
     """Fetch bars via yfinance as a redundant feed for LLM agents.
 
@@ -272,19 +534,27 @@ class YFBars(views.APIView):
 
     def get(self, request):
         import datetime as _dt
+        from .yf_config import get_yf_defaults
+        enabled, def_interval, def_range, max_points, proxy, cfg = get_yf_defaults()
+        if not enabled:
+            return Response({"items": [], "error": "yfinance backup disabled"}, status=503)
         symbol = request.query_params.get('symbol') or 'SPY'
-        interval = request.query_params.get('interval') or '1h'
-        rng = request.query_params.get('range') or '60d'
+        interval = request.query_params.get('interval') or def_interval
+        rng = request.query_params.get('range') or def_range
         try:
             import yfinance as _yf
         except Exception as e:
             return Response({"items": [], "error": f"yfinance not available: {e}"}, status=500)
         try:
             tk = _yf.Ticker(symbol)
-            hist = tk.history(period=rng, interval=interval)
+            # yfinance supports a proxy kw for requests; not all versions honor it
+            kwargs = {}
+            if proxy:
+                kwargs["proxy"] = proxy
+            hist = tk.history(period=rng, interval=interval, **kwargs)
             if hist is None or hist.empty:
                 return Response({"items": []})
-            hist = hist.tail(1500)
+            hist = hist.tail(max_points)
             items = []
             for idx, row in hist.iterrows():
                 ts = idx.to_pydatetime() if hasattr(idx, 'to_pydatetime') else idx

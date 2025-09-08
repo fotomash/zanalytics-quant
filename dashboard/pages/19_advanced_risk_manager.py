@@ -27,7 +27,7 @@ from dashboard.pages.components.whisper_panel import render_whisper_panel
 from dashboard.pages.components.whisper_timeline import render_whisper_timeline
 from dashboard.pages.components.discipline_posture_panel import render_discipline_posture_panel
 from dashboard.pages.components.market_header import render_market_header
-from dashboard.utils.streamlit_api import inject_glass_css
+from dashboard.utils.streamlit_api import inject_glass_css, render_analytics_filters
 from datetime import timedelta as _td
 from dashboard.components.behavioral_mirror import make_behavioral_mirror
 from dashboard.pages.components.whisper_panel import render_whisper_panel
@@ -97,6 +97,83 @@ render_market_header()
 
 # Global Settings: favorite symbol (shared across pages)
 _all_syms, _fav_symbol = render_favorite_selector(key='fav_sym_19')
+
+# Trade Analytics (quality, efficiency, summary, distribution, setups)
+with st.expander("📊 Trade Analytics", expanded=False):
+    try:
+        q = safe_api_call("GET", f"api/pulse/analytics/trades/quality{_qs19}")
+        labels = q.get('labels') if isinstance(q, dict) else None
+        counts = q.get('counts') if isinstance(q, dict) else None
+        if isinstance(labels, list) and isinstance(counts, list) and len(labels) == len(counts):
+            fig_q = px.bar(x=labels, y=counts, labels={'x': 'Grade', 'y': 'Count'}, color=labels,
+                           color_discrete_sequence=["#22C55E", "#FBBF24", "#EF4444"][:len(labels)])
+            fig_q.update_layout(height=220, margin=dict(t=10, b=10, l=0, r=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig_q, use_container_width=True, config={'displayModeBar': False})
+        else:
+            st.info("No trade quality data yet.")
+    except Exception:
+        st.info("Quality feed unavailable")
+
+    cA, cB, cC = st.columns(3)
+    with cA:
+        try:
+            eff = safe_api_call("GET", f"api/pulse/analytics/trades/efficiency{_qs19}")
+            pct = eff.get('captured_vs_potential_pct') if isinstance(eff, dict) else None
+            val = float(pct) if isinstance(pct, (int, float)) else 0.0
+            st.metric("Captured vs Potential", f"{val*100:.0f}%")
+            st.progress(max(0.0, min(1.0, val)))
+        except Exception:
+            st.metric("Captured vs Potential", "—")
+            st.progress(0.0)
+    with cB:
+        try:
+            summ = safe_api_call("GET", f"api/pulse/analytics/trades/summary{_qs19}")
+            wr = float(summ.get('win_rate') or 0.0)
+            st.metric("Win Rate", f"{wr*100:.0f}%")
+        except Exception:
+            st.metric("Win Rate", "—")
+    with cC:
+        try:
+            summ = summ if 'summ' in locals() and isinstance(summ, dict) else safe_api_call("GET", f"api/pulse/analytics/trades/summary{_qs19}")
+            er = float(summ.get('expectancy_r') or 0.0) if isinstance(summ, dict) else 0.0
+            st.metric("Expectancy (R)", f"{er:.2f}")
+        except Exception:
+            st.metric("Expectancy (R)", "—")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        try:
+            b = safe_api_call("GET", f"api/pulse/analytics/trades/buckets{_qs19}")
+            edges = b.get('edges') if isinstance(b, dict) else []
+            counts = b.get('counts') if isinstance(b, dict) else []
+            if isinstance(edges, list) and isinstance(counts, list) and len(edges) == len(counts):
+                fig_b = go.Figure(go.Bar(x=edges, y=counts, marker_color='#60A5FA'))
+                fig_b.update_layout(height=220, margin=dict(t=10, b=10, l=0, r=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                fig_b.update_xaxes(title='R', color='#9CA3AF')
+                fig_b.update_yaxes(title='Trades', color='#9CA3AF')
+                st.plotly_chart(fig_b, use_container_width=True, config={'displayModeBar': False})
+            else:
+                st.info("No distribution yet.")
+        except Exception:
+            st.info("Distribution unavailable")
+    with c2:
+        try:
+            s = safe_api_call("GET", f"api/pulse/analytics/trades/setups{_qs19}")
+            setups = s.get('setups') if isinstance(s, dict) else []
+            if isinstance(setups, list) and setups:
+                dff = pd.DataFrame(setups)
+                if all(k in dff.columns for k in ('A+','B','C')):
+                    dff['Total'] = pd.to_numeric(dff['A+'], errors='coerce').fillna(0) + pd.to_numeric(dff['B'], errors='coerce').fillna(0) + pd.to_numeric(dff['C'], errors='coerce').fillna(0)
+                    cols = [c for c in ['name','A+','B','C','Total'] if c in dff.columns]
+                    st.dataframe(dff[cols].head(10), use_container_width=True, height=240)
+                else:
+                    st.dataframe(dff.head(10), use_container_width=True, height=240)
+            else:
+                st.info("No setup data yet")
+        except Exception:
+            st.info("Setups unavailable")
+# Analytics filters (symbol/date) for downstream panels
+_sym19, _df19, _dt19, _qs19 = render_analytics_filters(key_prefix='adv19')
 
 # --- Session Vitals (three donuts • Equity/Exposure/Behavior) ---
 try:

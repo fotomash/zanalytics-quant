@@ -15,6 +15,20 @@ st.set_page_config(
 )
 
 st.title("📡 Wyckoff Advanced Terminal")
+
+# MT5 bridge health strip
+def _mt5_health(timeout: float = 1.2) -> bool:
+    for url in ("http://mt5:8000/health", "http://localhost:5001/account_info"):
+        try:
+            r = requests.get(url, timeout=timeout)
+            if r.ok:
+                return True
+        except Exception:
+            continue
+    return False
+
+mt5_ok = _mt5_health()
+st.caption(f"MT5 bridge: {'✅ OK' if mt5_ok else '⚠️ Unavailable'}")
 st.markdown("Styled real-time chart with Wyckoff overlays and advanced volume/price interaction.")
 
 # Quick concentric session ring under the header (live endpoints)
@@ -104,8 +118,9 @@ def get_ticks(symbol, count):
                 df['time'] = pd.to_datetime(df['time'], unit='s')
                 df = df.set_index('time')
                 return df
-            except Exception as e:
-                st.warning(f"Failed to fetch from {url}: {e}")
+            except Exception:
+                # Suppress noisy warnings when bridge is down; health strip above indicates status
+                continue
         return pd.DataFrame()
     except Exception as e:
         st.error(f"Tick API error: {e}")

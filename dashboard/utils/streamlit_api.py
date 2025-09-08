@@ -210,6 +210,39 @@ def fetch_symbols() -> List[str]:
     return []
 
 
+def render_analytics_filters(*, key_prefix: str = "flt") -> Tuple[str | None, str | None, str | None, str]:
+    """Render standard Symbol and Date filters and return values:
+    (symbol_or_None, date_from_iso_or_None, date_to_iso_or_None, querystring)
+
+    key_prefix: unique prefix per page to avoid widget key collisions.
+    """
+    cols = st.columns(3)
+    with cols[0]:
+        try:
+            syms = fetch_symbols() or []
+        except Exception:
+            syms = []
+        opts = ['All'] + syms
+        sel = st.selectbox("Symbol", opts, index=0, key=f"{key_prefix}_sym")
+        symbol = None if sel == 'All' else sel
+    with cols[1]:
+        dfrom = st.date_input("From", value=None, key=f"{key_prefix}_from")
+    with cols[2]:
+        dto = st.date_input("To", value=None, key=f"{key_prefix}_to")
+
+    df_str = dfrom.isoformat() if dfrom else None
+    dt_str = dto.isoformat() if dto else None
+    params: List[str] = []
+    if symbol:
+        params.append(f"symbol={symbol}")
+    if df_str:
+        params.append(f"date_from={df_str}")
+    if dt_str:
+        params.append(f"date_to={dt_str}")
+    qs = ("?" + "&".join(params)) if params else ""
+    return symbol, df_str, dt_str, qs
+
+
 # --- SSE (Server-Sent Events) support for real-time whispers -----------
 
 def _ensure_sse_state() -> None:

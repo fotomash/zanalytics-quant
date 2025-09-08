@@ -11,6 +11,20 @@ import time
 # --- Page setup ---
 st.set_page_config(page_title="Live Wyckoff Terminal", page_icon="📈", layout="wide")
 st.title("📈 Live Wyckoff Terminal")
+
+# MT5 bridge health strip
+def _mt5_health(timeout: float = 1.2) -> bool:
+    for url in ("http://mt5:8000/health", "http://localhost:5001/account_info"):
+        try:
+            r = requests.get(url, timeout=timeout)
+            if r.ok:
+                return True
+        except Exception:
+            continue
+    return False
+
+mt5_ok = _mt5_health()
+st.caption(f"MT5 bridge: {'✅ OK' if mt5_ok else '⚠️ Unavailable'}")
 st.caption("Real-time Wyckoff scoring (adaptive + news-aware) from live MT5 ticks")
 
 # --- Service endpoints (adjust hostnames/ports if needed) ---

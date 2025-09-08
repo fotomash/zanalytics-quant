@@ -18,6 +18,8 @@ import base64
 import yfinance as yf
 from fredapi import Fred
 import streamlit as st
+from dashboard.utils.streamlit_api import safe_api_call
+from dashboard.components.ui_concentric import donut_equity
 from openai import OpenAI
 from dotenv import load_dotenv
 import hashlib
@@ -64,7 +66,7 @@ if img_base64:
     footer {{visibility: hidden;}}
     </style>
     """
-    st.markdown(background_style, unsafe_allow_html=True)
+st.markdown(background_style, unsafe_allow_html=True)
 
 st.markdown("""
 <style>
@@ -73,6 +75,68 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
+
+# Analytics filters (symbol/date)
+ 
+
+# Session Donuts — Equity vs SoD with target/loss ticks
+with st.expander("🫀 Session Donuts", expanded=False):
+    try:
+        acct = safe_api_call('GET', 'api/v1/account/info') or {}
+        risk = safe_api_call('GET', 'api/v1/account/risk') or {}
+        eq = float(acct.get('equity') or 0.0)
+        bal = float(acct.get('balance') or 0.0)
+        sod = float(risk.get('sod_equity') or bal or eq)
+        target_amt = float(risk.get('target_amount') or 0.0)
+        loss_amt = float(risk.get('loss_amount') or 0.0)
+        # Today P&L
+        pnl = eq - sod
+        if pnl >= 0 and target_amt > 0:
+            pnl_norm = min(1.0, pnl / target_amt)
+        elif pnl < 0 and loss_amt > 0:
+            pnl_norm = -min(1.0, abs(pnl) / loss_amt)
+        else:
+            pnl_norm = 0.0
+        # Daily DD used (0..1)
+        dd_used = 0.0
+        if eq < sod and loss_amt > 0:
+            dd_used = max(0.0, min(1.0, (sod - eq) / loss_amt))
+        # Exposure as 0..1
+        exp_pct = risk.get('exposure_pct')
+        if isinstance(exp_pct, (int, float)) and exp_pct > 1:
+            exp_frac = float(exp_pct) / 100.0
+        else:
+            exp_frac = float(exp_pct or 0.0)
+        # Build donut with ticks at +target and -loss
+        fig_eq = donut_equity(
+            equity_usd=eq,
+            pnl_day_norm=pnl_norm,
+            risk_used_pct=dd_used,
+            exposure_pct=exp_frac,
+            daily_target_norm=1.0 if target_amt > 0 else None,
+            daily_loss_norm=-1.0 if loss_amt > 0 else None,
+            size=(280, 280),
+        )
+        st.plotly_chart(fig_eq, use_container_width=True, config={'displayModeBar': False})
+        # Readouts
+        r1, r2, r3 = st.columns(3)
+        with r1:
+            st.metric("SoD Equity (11pm)", f"${sod:,.0f}")
+            st.metric("P&L Today", f"${pnl:+,.0f}")
+        with r2:
+            st.metric("Target (today)", f"+${target_amt:,.0f}" if target_amt > 0 else "—")
+            st.metric("Loss Cap (today)", f"-${loss_amt:,.0f}" if loss_amt > 0 else "—")
+        with r3:
+            prev_close = risk.get('prev_close_equity')
+            try:
+                prev_close = float(prev_close) if prev_close is not None else None
+            except Exception:
+                prev_close = None
+            st.metric("Prev Close Equity", f"${prev_close:,.0f}" if isinstance(prev_close, (int, float)) else "—")
+            st.metric("Equity Now", f"${eq:,.0f}")
+        st.caption("Donut: outer=P&L vs target/loss • middle=Daily DD used • inner=Exposure")
+    except Exception:
+        st.info("Session readings unavailable")
 
 # Initialize session state
 if 'cached_data' not in st.session_state:

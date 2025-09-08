@@ -21,7 +21,13 @@ kombu==5.4.2
 numpy==1.24.3
 packaging==24.1
 pandas==2.0.3
-pandas_ta==0.3.14b0
+# pandas-ta beta naming on PyPI uses 0.3.14b (no trailing 0)
+# Fallback to VCS URL to avoid PyPI resolver issues on py311 builders
+# Use release tarball to avoid git auth in builders
+# GitHub tag uses 0.3.14b0 (with trailing 0); use tarball to avoid git in builders
+# Switch to PyPI drop-in that provides the same module name `pandas_ta`
+# pandas-ta temporarily removed from server build to avoid py311/numpy resolver conflicts.
+# If needed for local analytics, install in the dashboard image or a dev venv.
 scipy==1.13.1
 prompt-toolkit==3.0.48
 psycopg2-binary==2.9.10

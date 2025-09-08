@@ -7,6 +7,7 @@ import os
 import time
 import requests
 import pandas as pd
+ 
 
 st.set_page_config(page_title="PULSE Predictive Flow", page_icon="🧠", layout="wide")
 st.title("PULSE Predictive Flow Framework")
@@ -52,6 +53,29 @@ playbook = load_playbook()
 
 # --- Symbols source + favorite default -------------------------------------
     
+# Agent Ops — Quick Checklist (price integrity)
+with st.expander("Price Confirmation Checklist", expanded=False):
+    st.markdown(
+        "- Confirm latest price via `/api/v1/feed/bars-enriched` (preferred)\n"
+        "- If primary feed is down, use Yahoo chart API (e.g., `XAUUSD=X`, `GC=F`)\n"
+        "- Never state a price if no feed is reachable\n"
+        "- When quoting, include instrument + timeframe + time (e.g., M15 close at 13:45Z)"
+    )
+    st.caption("See full guidance in Agent Ops → GPT Instructions below.")
+
+# Agent Ops — GPT Instructions (inline reference)
+with st.expander("Agent Ops — GPT Instructions", expanded=False):
+    try:
+        from pathlib import Path
+        p = Path(__file__).resolve().parents[2] / "docs" / "custom_gpt_instructions.md"
+        text = p.read_text(encoding="utf-8") if p.exists() else ""
+        if text:
+            st.markdown(text)
+        else:
+            st.info("Instructions file not found: docs/custom_gpt_instructions.md")
+    except Exception:
+        st.info("Unable to load instructions.")
+    
 
 # Settings: favorite symbol (session + optional env)
 with st.sidebar.expander("Settings", expanded=False):
@@ -60,6 +84,18 @@ with st.sidebar.expander("Settings", expanded=False):
     fav_symbol = st.session_state.get('pulse_fav_symbol', fav_default)
     fav_symbol = st.selectbox("Favorite symbol", all_symbols, index=all_symbols.index(fav_symbol) if fav_symbol in all_symbols else 0)
     st.session_state['pulse_fav_symbol'] = fav_symbol
+
+# Symbol selector (use favorite as default; URL param overrides)
+all_symbols = fetch_symbols_list()
+sym_qp = st.experimental_get_query_params().get('sym', [None])[0]
+default_sym = (sym_qp or st.session_state.get('pulse_fav_symbol') or os.getenv('PULSE_DEFAULT_SYMBOL', 'XAUUSD')).upper()
+if default_sym not in all_symbols:
+    default_sym = all_symbols[0] if all_symbols else 'XAUUSD'
+symbol = st.selectbox("Symbol", all_symbols, index=all_symbols.index(default_sym) if default_sym in all_symbols else 0)
+try:
+    st.experimental_set_query_params(sym=symbol)
+except Exception:
+    pass
 
 with st.sidebar.expander("Confluence Weights", expanded=False):
     st.caption("Local override (applies to this view)")
@@ -120,17 +156,6 @@ with st.sidebar.expander("Confluence Weights", expanded=False):
             except Exception as e:
                 st.warning(f"Load failed: {e}")
 
-# Symbol selector (use favorite as default; URL param overrides)
-all_symbols = fetch_symbols_list()
-sym_qp = st.experimental_get_query_params().get('sym', [None])[0]
-default_sym = (sym_qp or st.session_state.get('pulse_fav_symbol') or os.getenv('PULSE_DEFAULT_SYMBOL', 'XAUUSD')).upper()
-if default_sym not in all_symbols:
-    default_sym = all_symbols[0] if all_symbols else 'XAUUSD'
-symbol = st.selectbox("Symbol", all_symbols, index=all_symbols.index(default_sym) if default_sym in all_symbols else 0)
-try:
-    st.experimental_set_query_params(sym=symbol)
-except Exception:
-    pass
 
 # Gate table (human narrative)
 if playbook.get("gates"):

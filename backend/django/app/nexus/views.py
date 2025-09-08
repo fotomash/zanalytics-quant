@@ -1511,7 +1511,9 @@ class AccountRiskView(views.APIView):
 
     def get(self, request):
         from django.utils import timezone
-        today = timezone.now().strftime('%Y%m%d')
+        now = timezone.now()
+        today = now.strftime('%Y%m%d')
+        yesterday = (now - timezone.timedelta(days=1)).strftime('%Y%m%d')
         r = _redis_client()
         # Resolve equity via account_info
         equity = None
@@ -1541,6 +1543,16 @@ class AccountRiskView(views.APIView):
                 sod_equity = equity
             except Exception:
                 sod_equity = equity
+        # Previous close equity (yesterday 23:00 snapshot)
+        prev_close_equity = None
+        if r is not None:
+            try:
+                rawp = r.get(f"sod_equity:{today}") or r.get(f"sod_equity:{yesterday}")
+                if rawp:
+                    prev_close_equity = float(rawp)
+            except Exception:
+                prev_close_equity = None
+
         # Policy
         pol = load_policies() or {}
         risk_pol = pol.get('risk', {}) if isinstance(pol, dict) else {}
@@ -1581,12 +1593,70 @@ class AccountRiskView(views.APIView):
 
         return Response({
             'sod_equity': sod_equity,
+            'prev_close_equity': prev_close_equity,
             'daily_profit_pct': daily_profit_pct,
             'daily_risk_pct': daily_risk_pct,
             'target_amount': target_amount,
             'loss_amount': loss_amount,
             'used_pct': used_pct,
             'exposure_pct': exposure_pct,
+        })
+
+
+class AccountSoDView(views.APIView):
+    """Return Start-of-Day equity snapshot for a given date (YYYY-MM-DD).
+
+    Query: date=YYYY-MM-DD (optional; default today)
+    Response: { date: 'YYYY-MM-DD', sod_equity: number | null, source: 'redis'|'fallback' }
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from django.utils import timezone
+        import datetime as _dt
+        q = request.GET.get('date')
+        try:
+            if q:
+                dt = _dt.datetime.fromisoformat(q)
+                date_key = dt.strftime('%Y%m%d')
+                date_out = dt.strftime('%Y-%m-%d')
+            else:
+                d = timezone.now().date()
+                date_key = d.strftime('%Y%m%d')
+                date_out = d.strftime('%Y-%m-%d')
+        except Exception:
+            d = timezone.now().date()
+            date_key = d.strftime('%Y%m%d')
+            date_out = d.strftime('%Y-%m-%d')
+        key = f"sod_equity:{date_key}"
+        r = _redis_client()
+        val = None
+        source = None
+        if r is not None:
+            try:
+                raw = r.get(key)
+                if raw:
+                    val = float(raw)
+                    source = 'redis'
+            except Exception:
+                val = None
+        # Optional fallback: if not found and MT5 reachable, return current equity
+        if val is None:
+            try:
+                base = os.getenv("MT5_URL") or os.getenv("MT5_API_URL") or "http://mt5:5001"
+                rq = requests.get(f"{str(base).rstrip('/')}/account_info", timeout=1.5)
+                if rq.ok:
+                    data = rq.json() or {}
+                    if isinstance(data, list) and data:
+                        data = data[0]
+                    val = float(data.get('equity') or data.get('Equity') or 0)
+                    source = 'fallback'
+            except Exception:
+                val = None
+        return Response({
+            'date': date_out,
+            'sod_equity': val,
+            'source': source,
         })
 
 

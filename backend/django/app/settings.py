@@ -210,6 +210,9 @@ CELERY_BROKER_CONNECTION_RETRY = True
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True  # To retain existing behavior
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://redis:6379/0')
 CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://redis:6379/0')
+CELERY_TIMEZONE = os.getenv('CELERY_TZ', TIME_ZONE)
+from celery.schedules import crontab
+
 CELERY_BEAT_SCHEDULE = {
     'run-quant-entry-algorithm': {
         'task': 'quant.tasks.run_quant_entry_algorithm',  # This should match the @shared_task name
@@ -237,5 +240,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'utils.accumulator.flush_and_aggregate',
         'schedule': 3600.0,
         'args': ('EURUSD',),
+    },
+    # Snapshot equity daily at 23:00 for next-day SoD equity
+    'snapshot-sod-equity-2300': {
+        'task': 'nexus.tasks.snapshot_sod_equity',
+        'schedule': crontab(minute=0, hour=23),
     },
 }

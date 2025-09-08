@@ -11,3 +11,5 @@ from plotly.subplots import make_subplots
 import streamlit as st
 import requests
 import time
+
+st.title("🔥 Phoenix Wyckoff Dashboard")

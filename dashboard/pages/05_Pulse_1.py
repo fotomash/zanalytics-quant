@@ -1,5 +1,6 @@
 # pulse_ui_3d_enhanced.py
 import streamlit as st
+from dashboard.utils.streamlit_api import render_analytics_filters
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import numpy as np
@@ -30,6 +31,7 @@ class Pulse3DDashboard:
     
     def render_dashboard(self):
         st.title("🧠 Zanalytics Pulse - 3D Intelligence")
+        _sym05, _df05, _dt05, _qs05 = render_analytics_filters(key_prefix='p05')
         
         # Top row: Key 3D metrics
         col1, col2, col3 = st.columns([1, 2, 1])

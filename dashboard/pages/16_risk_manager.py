@@ -16,6 +16,8 @@ from typing import Dict, List, Optional, Tuple
 import os
 from dotenv import load_dotenv
 from dashboard.utils.user_prefs import render_favorite_selector
+from dashboard.utils.streamlit_api import safe_api_call
+from dashboard.utils.streamlit_api import render_analytics_filters
 import base64
 
 # Safe MT5 import
@@ -128,6 +130,83 @@ st.markdown(f"""
     }}
   </style>
 """, unsafe_allow_html=True)
+
+# Analytics filters (symbol/date) — optional for downstream analytics
+_sym16, _df16, _dt16, _qs16 = render_analytics_filters(key_prefix='risk16')
+
+# Trade Analytics (compact)
+st.subheader("📊 Trade Analytics")
+try:
+    q = safe_api_call('GET', f'api/pulse/analytics/trades/quality{_qs16}')
+    labels = q.get('labels') if isinstance(q, dict) else None
+    counts = q.get('counts') if isinstance(q, dict) else None
+    if isinstance(labels, list) and isinstance(counts, list) and len(labels)==len(counts):
+        fig_q = go.Figure(go.Bar(x=labels, y=counts, marker_color=['#22C55E','#FBBF24','#EF4444'][:len(labels)], text=counts, textposition='outside'))
+        fig_q.update_layout(height=180, margin=dict(t=10,b=10,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(fig_q, use_container_width=True, config={'displayModeBar': False})
+    else:
+        st.info('No trade quality yet.')
+except Exception:
+    st.info('Quality feed unavailable')
+
+c1, c2, c3 = st.columns(3)
+with c1:
+    try:
+        eff = safe_api_call('GET', f'api/pulse/analytics/trades/efficiency{_qs16}')
+        pct = eff.get('captured_vs_potential_pct') if isinstance(eff, dict) else None
+        v = float(pct) if isinstance(pct,(int,float)) else 0.0
+        st.metric('Captured vs Potential', f'{v*100:.0f}%')
+        st.progress(max(0.0, min(1.0, v)))
+    except Exception:
+        st.metric('Captured vs Potential', '—')
+        st.progress(0.0)
+with c2:
+    try:
+        summ = safe_api_call('GET', f'api/pulse/analytics/trades/summary{_qs16}')
+        wr = float(summ.get('win_rate') or 0.0)
+        st.metric('Win Rate', f'{wr*100:.0f}%')
+    except Exception:
+        st.metric('Win Rate', '—')
+with c3:
+    try:
+        summ = summ if 'summ' in locals() and isinstance(summ, dict) else safe_api_call('GET', f'api/pulse/analytics/trades/summary{_qs16}')
+        er = float(summ.get('expectancy_r') or 0.0)
+        st.metric('Expectancy (R)', f'{er:.2f}')
+    except Exception:
+        st.metric('Expectancy (R)', '—')
+
+c4, c5 = st.columns(2)
+with c4:
+    try:
+        b = safe_api_call('GET', f'api/pulse/analytics/trades/buckets{_qs16}')
+        edges = b.get('edges') if isinstance(b, dict) else []
+        counts = b.get('counts') if isinstance(b, dict) else []
+        if isinstance(edges,list) and isinstance(counts,list) and len(edges)==len(counts):
+            fig_b = go.Figure(go.Bar(x=edges, y=counts, marker_color='#60A5FA'))
+            fig_b.update_layout(height=180, margin=dict(t=10,b=10,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            fig_b.update_xaxes(title='R', color='#9CA3AF')
+            fig_b.update_yaxes(title='Trades', color='#9CA3AF')
+            st.plotly_chart(fig_b, use_container_width=True, config={'displayModeBar': False})
+        else:
+            st.info('No distribution yet.')
+    except Exception:
+        st.info('Distribution unavailable')
+with c5:
+    try:
+        s = safe_api_call('GET', f'api/pulse/analytics/trades/setups{_qs16}')
+        setups = s.get('setups') if isinstance(s, dict) else []
+        if isinstance(setups, list) and setups:
+            df_set = pd.DataFrame(setups)
+            if all(k in df_set.columns for k in ('A+','B','C')):
+                df_set['Total'] = pd.to_numeric(df_set['A+'], errors='coerce').fillna(0) + pd.to_numeric(df_set['B'], errors='coerce').fillna(0) + pd.to_numeric(df_set['C'], errors='coerce').fillna(0)
+                cols = [c for c in ['name','A+','B','C','Total'] if c in df_set.columns]
+                st.dataframe(df_set[cols].head(8), use_container_width=True, height=200)
+            else:
+                st.dataframe(df_set.head(8), use_container_width=True, height=200)
+        else:
+            st.info('No setup data yet.')
+    except Exception:
+        st.info('Setups unavailable')
 
 # --- Sidebar: Risk Limits (persisted) ---
 with st.sidebar:

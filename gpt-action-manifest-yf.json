@@ -1,0 +1,11 @@
+{
+  "schema_version": "v1",
+  "name_for_model": "pulse_yf_backup",
+  "description_for_model": "Use this backup API to fetch OHLCV bars via Yahoo Finance when the primary feed is unavailable.",
+  "description_for_human": "Backup market data (Yahoo Finance) via Django",
+  "auth": {"type": "none"},
+  "api": {"type": "openapi", "url": "https://yf.zanalytics.app/openapi.yf.yaml"},
+  "logo_url": "https://example.com/logo.png",
+  "contact_email": "support@example.com",
+  "legal_info_url": "https://example.com/legal"
+}

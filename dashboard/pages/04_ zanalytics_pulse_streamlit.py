@@ -1,6 +1,5 @@
 import streamlit as st
 import plotly.graph_objects as go
-import plotly.express as px
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -21,7 +20,6 @@ from dashboard.utils.streamlit_api import (
     fetch_trade_history_filtered,
     fetch_symbols,
 )
-import time
 from dashboard.components.ui_concentric import concentric_ring
 
 # Page configuration
@@ -144,47 +142,7 @@ if 'discipline_score' not in st.session_state:
     except Exception:
         pass
 
-# Simulated real-time data
-def get_market_data():
-    return {
-        'vix': 14.82 + np.random.randn() * 0.5,
-        'dxy': 103.45 + np.random.randn() * 0.2,
-        'regime': np.random.choice(['Risk-On', 'Neutral', 'Risk-Off'], p=[0.3, 0.5, 0.2])
-    }
-
-def calculate_discipline_events():
-    """Generate discipline-impacting events for the session"""
-    events = [
-        {'time': '09:30', 'type': 'positive', 'impact': +5, 'description': 'Followed pre-market checklist'},
-        {'time': '10:15', 'type': 'negative', 'impact': -8, 'description': 'Oversized position on B-setup'},
-        {'time': '11:00', 'type': 'positive', 'impact': +3, 'description': 'Respected cooling-off period'},
-        {'time': '14:30', 'type': 'negative', 'impact': -12, 'description': 'Potential revenge trade detected'},
-        {'time': '15:45', 'type': 'positive', 'impact': +7, 'description': 'Protected profits at target'}
-    ]
-    return events
-
-def generate_session_trajectory():
-    """Generate session P&L trajectory with behavioral markers"""
-    hours = pd.date_range(start='2025-01-01 09:30', end='2025-01-01 16:00', freq='15min')
-    base_pnl = np.cumsum(np.random.randn(len(hours)) * 50)
-    
-    # Add behavioral impact points
-    behavioral_events = [
-        {'time': 10, 'type': 'revenge', 'impact': -150},
-        {'time': 20, 'type': 'overconfidence', 'impact': -80},
-        {'time': 35, 'type': 'milestone', 'impact': 200}
-    ]
-    
-    for event in behavioral_events:
-        if event['time'] < len(base_pnl):
-            base_pnl[event['time']:] += event['impact']
-    
-    return pd.DataFrame({
-        'time': hours,
-        'pnl': base_pnl,
-        'events': ['revenge' if i == 10 else 'overconfidence' if i == 20 else 'milestone' if i == 35 else None 
-                   for i in range(len(hours))]
-    })
+"""All data below uses live feeds where available; no mock series."""
 
 # Header Section
 st.markdown("# 🧭 Zanalytics Pulse")
@@ -198,25 +156,56 @@ risk = safe_api_call('GET', 'api/v1/account/risk')
 whispers_resp = safe_api_call('GET', 'api/pulse/whispers')
 equity_series = safe_api_call('GET', 'api/v1/feed/equity/series')
 
-# Market Context Bar
+# Live P&L helpers (shared across sections)
+def _safe_float(x, default=0.0):
+    try:
+        return float(x)
+    except Exception:
+        return float(default)
+
+_acct = acct or {}
+_risk = risk or {}
+live_equity = _safe_float(_acct.get('equity'))
+live_balance = _safe_float(_acct.get('balance'))
+live_sod = _safe_float(_risk.get('sod_equity') or live_balance or live_equity)
+live_target_amt = _safe_float(_risk.get('target_amount'))
+live_loss_amt = _safe_float(_risk.get('loss_amount'))
+live_pnl_today = live_equity - live_sod
+
+# Market Context Bar (use live mini payload)
+vix_obj = (mini.get('vix') or {}) if isinstance(mini, dict) else {}
+dxy_obj = (mini.get('dxy') or {}) if isinstance(mini, dict) else {}
+vix_val = vix_obj.get('value') or 0.0
+dxy_val = dxy_obj.get('value') or 0.0
+vix_series = vix_obj.get('series') or []
+dxy_series = dxy_obj.get('series') or []
+def _delta(series):
+    try:
+        return float(series[-1] - series[-2]) if isinstance(series, list) and len(series) >= 2 else None
+    except Exception:
+        return None
+vix_delta = _delta(vix_series)
+dxy_delta = _delta(dxy_series)
 market_data = {
-    'vix': (mini.get('vix') or {}).get('value') or 0.0,
-    'dxy': (mini.get('dxy') or {}).get('value') or 0.0,
-    'regime': mini.get('regime') or '—',
+    'vix': float(vix_val) if isinstance(vix_val, (int, float)) else 0.0,
+    'dxy': float(dxy_val) if isinstance(dxy_val, (int, float)) else 0.0,
+    'regime': (mini.get('regime') if isinstance(mini, dict) else None) or '—',
 }
 col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
 
 with col1:
-    st.metric("VIX", f"{market_data['vix']:.2f}", 
-              f"{np.random.choice(['+', '-'])}{abs(np.random.randn()*0.5):.2f}")
+    delta = (f"{vix_delta:+.2f}" if isinstance(vix_delta, (int, float)) else "—")
+    st.metric("VIX", f"{market_data['vix']:.2f}", delta)
 
 with col2:
-    st.metric("DXY", f"{market_data['dxy']:.2f}",
-              f"{np.random.choice(['+', '-'])}{abs(np.random.randn()*0.2):.2f}")
+    delta = (f"{dxy_delta:+.2f}" if isinstance(dxy_delta, (int, float)) else "—")
+    st.metric("DXY", f"{market_data['dxy']:.2f}", delta)
 
 with col3:
-    regime_color = {'Risk-On': '🟢', 'Neutral': '🟡', 'Risk-Off': '🔴'}
-    st.metric("Regime", f"{regime_color[market_data['regime']]} {market_data['regime']}")
+    regime_map = {'Risk-On': '🟢', 'Neutral': '🟡', 'Risk-Off': '🔴'}
+    regime_val = market_data.get('regime') or '—'
+    regime_emoji = regime_map.get(regime_val, '⚪')
+    st.metric("Regime", f"{regime_emoji} {regime_val}")
 
 with col4:
     render_status_row()
@@ -310,12 +299,12 @@ with col_center:
     
     vital_cols = st.columns(3)
     with vital_cols[0]:
-        pnl_color = '#22C55E' if st.session_state.current_pnl >= 0 else '#EF4444'
+        pnl_color = '#22C55E' if live_pnl_today >= 0 else '#EF4444'
         st.markdown(
             f"<div class='metric-card'>"
             f"<div class='metric-label'>P&L</div>"
             f"<div class='big-metric' style='color: {pnl_color};'>"
-            f"${st.session_state.current_pnl:+.2f}</div>"
+            f"${live_pnl_today:+.2f}</div>"
             f"</div>",
             unsafe_allow_html=True
         )
@@ -324,13 +313,17 @@ with col_center:
         st.markdown(
             f"<div class='metric-card'>"
             f"<div class='metric-label'>Equity</div>"
-            f"<div class='big-metric'>${st.session_state.session_equity:,.0f}</div>"
+            f"<div class='big-metric'>${live_equity:,.0f}</div>"
             f"</div>",
             unsafe_allow_html=True
         )
     
     with vital_cols[2]:
-        target_progress = min((st.session_state.current_pnl / 2000) * 100, 100)
+        # Toward daily target; show only positive progress
+        if live_target_amt > 0 and live_pnl_today > 0:
+            target_progress = min((live_pnl_today / live_target_amt) * 100.0, 100.0)
+        else:
+            target_progress = 0.0
         st.markdown(
             f"<div class='metric-card'>"
             f"<div class='metric-label'>Target Progress</div>"
@@ -339,82 +332,38 @@ with col_center:
             unsafe_allow_html=True
         )
     
-    # Session Trajectory Chart
+    # Session Trajectory Chart (live equity series)
     st.markdown("### 📈 Session Trajectory")
-    
-    trajectory_data = generate_session_trajectory()
-    
-    fig_trajectory = go.Figure()
-    
-    # Add P&L line
-    fig_trajectory.add_trace(go.Scatter(
-        x=trajectory_data['time'],
-        y=trajectory_data['pnl'],
-        mode='lines',
-        name='P&L',
-        line=dict(color='#22C55E', width=2),
-        fill='tozeroy',
-        fillcolor='rgba(34, 197, 94, 0.1)'
-    ))
-    
-    # Add behavioral event markers
-    event_colors = {
-        'revenge': '#EF4444',
-        'overconfidence': '#FBBF24', 
-        'milestone': '#22C55E'
-    }
-    
-    for event_type, color in event_colors.items():
-        event_data = trajectory_data[trajectory_data['events'] == event_type]
-        if not event_data.empty:
-            fig_trajectory.add_trace(go.Scatter(
-                x=event_data['time'],
-                y=event_data['pnl'],
-                mode='markers',
-                name=event_type.capitalize(),
-                marker=dict(size=12, color=color, symbol='circle'),
-                hovertemplate=f'{event_type.capitalize()} Event<br>P&L: %{{y:.2f}}<extra></extra>'
-            ))
-    
-    # Add zero line
-    fig_trajectory.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.3)
-    
-    fig_trajectory.update_layout(
-        height=300,
-        margin=dict(t=0, b=20, l=0, r=0),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        xaxis=dict(
-            showgrid=False,
-            color='#9CA3AF',
-            tickformat='%H:%M'
-        ),
-        yaxis=dict(
-            showgrid=True,
-            gridcolor='rgba(75, 85, 99, 0.2)',
-            color='#9CA3AF',
-            title='P&L ($)'
-        ),
-        showlegend=True,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1,
-            bgcolor='rgba(0,0,0,0)',
-            font=dict(color='#9CA3AF', size=10)
-        ),
-        hovermode='x unified'
-    )
-    
-    st.plotly_chart(fig_trajectory, use_container_width=True)
+    try:
+        points = equity_series.get('points') if isinstance(equity_series, dict) else []
+        if points:
+            df = pd.DataFrame(points)
+            df['time'] = pd.to_datetime(df['ts'], errors='coerce')
+            df['pnl'] = pd.to_numeric(df['pnl'], errors='coerce').fillna(0.0)
+            fig_tr = go.Figure(go.Scatter(x=df['time'], y=df['pnl'], mode='lines', name='P&L',
+                                          line=dict(color='#22C55E', width=2), fill='tozeroy',
+                                          fillcolor='rgba(34, 197, 94, 0.1)'))
+            fig_tr.add_hline(y=0, line_dash='dash', line_color='gray', opacity=0.3)
+            fig_tr.update_layout(height=300, margin=dict(t=0,b=20,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig_tr, use_container_width=True)
+        else:
+            st.info("No trades today — trajectory will appear once trades close.")
+    except Exception:
+        st.info("Trajectory feed unavailable.")
     
     # Discipline Posture
     st.markdown("### 📊 Discipline Posture")
     
-    # Generate discipline data for last 10 trades
-    discipline_history = [78, 82, 75, 88, 92, 85, 79, 83, 87, st.session_state.discipline_score]
+    # Discipline data (use 7-day summary if available)
+    dsum = safe_api_call('GET', 'api/v1/discipline/summary')
+    discipline_history = []
+    if isinstance(dsum, dict) and isinstance(dsum.get('seven_day'), list) and dsum['seven_day']:
+        try:
+            discipline_history = [int(x.get('score') or 0) for x in dsum['seven_day']][-10:]
+        except Exception:
+            discipline_history = []
+    if not discipline_history:
+        discipline_history = [78, 82, 75, 88, 92, 85, 79, 83, 87, st.session_state.discipline_score]
     
     fig_discipline = go.Figure()
     
@@ -453,7 +402,9 @@ with col_center:
 
 # RIGHT COLUMN - The Whisperer (live)
 with col_right:
-    st.markdown("### 🤖 The Whisperer")
+    status = get_sse_status()
+    badge_col = "#10B981" if status == "connected" else ("#F59E0B" if status not in ("idle", "disconnected") else "#EF4444")
+    st.markdown(f"### 🤖 The Whisperer <span style='font-size:12px;color:{badge_col};margin-left:6px'>[{status}]</span>", unsafe_allow_html=True)
     # Start SSE and combine with HTTP polls
     start_whisper_sse()
     sse_items = drain_whisper_sse()
@@ -534,15 +485,13 @@ bottom_cols = st.columns(4)
 
 with bottom_cols[0]:
     st.markdown("### Trade Quality")
-    quality_data = pd.DataFrame({'Setup': [], 'Count': []})
-    
-    fig_quality = go.Figure(go.Bar(
-        x=quality_data['Setup'],
-        y=quality_data['Count'],
-        marker_color=['#22C55E', '#FBBF24', '#EF4444'],
-        text=quality_data['Count'],
-        textposition='outside'
-    ))
+    q = safe_api_call('GET', 'api/pulse/analytics/trades/quality')
+    labels = q.get('labels') if isinstance(q, dict) else None
+    counts = q.get('counts') if isinstance(q, dict) else None
+    if not (isinstance(labels, list) and isinstance(counts, list) and len(labels) == len(counts)):
+        labels, counts = ["A+", "B", "C"], [0, 0, 0]
+    colors = ['#22C55E', '#FBBF24', '#EF4444'][:len(labels)]
+    fig_quality = go.Figure(go.Bar(x=labels, y=counts, marker_color=colors, text=counts, textposition='outside'))
     
     fig_quality.update_layout(
         height=150,
@@ -554,18 +503,57 @@ with bottom_cols[0]:
         showlegend=False
     )
     
-    st.plotly_chart(fig_quality, use_container_width=True)
+st.plotly_chart(fig_quality, use_container_width=True)
 
 with bottom_cols[1]:
     st.markdown("### Profit Efficiency")
-    st.metric("Captured vs Potential", "—")
-    st.progress(0.0)
-    st.caption("Awaiting feed")
+    try:
+        eff = safe_api_call('GET', 'api/pulse/analytics/trades/efficiency')
+        pct = eff.get('captured_vs_potential_pct') if isinstance(eff, dict) else None
+        val = float(pct) if isinstance(pct, (int, float)) else None
+        if val is not None and 0.0 <= val <= 1.0:
+            st.metric("Captured vs Potential", f"{val*100:.0f}%")
+            st.progress(max(0.0, min(1.0, val)))
+            st.caption("Trade analytics")
+        else:
+            # Fallback to mirror if available
+            eff_raw = (mirror or {}).get('efficiency') if isinstance(mirror, dict) else None
+            if isinstance(eff_raw, (int, float)):
+                v = eff_raw if eff_raw <= 1.0 else eff_raw/100.0
+                st.metric("Captured vs Potential", f"{v*100:.0f}%")
+                st.progress(max(0.0, min(1.0, v)))
+                st.caption("Behavioral mirror (fallback)")
+            else:
+                st.metric("Captured vs Potential", "—")
+                st.progress(0.0)
+                st.caption("Awaiting feed")
+    except Exception:
+        st.metric("Captured vs Potential", "—")
+        st.progress(0.0)
+        st.caption("Awaiting feed")
 
 with bottom_cols[2]:
     st.markdown("### Risk Management")
-    st.metric("Avg Risk/Trade", "—")
-    st.metric("Max Exposure", "—")
+    try:
+        summ = safe_api_call('GET', 'api/pulse/analytics/trades/summary')
+        avg_r = summ.get('avg_r') if isinstance(summ, dict) else None
+        if isinstance(avg_r, (int, float)):
+            st.metric("Avg Risk/Trade", f"{float(avg_r):.2f}R")
+        else:
+            st.metric("Avg Risk/Trade", "—")
+        mx_exp = None
+        for k in ('max_exposure_pct', 'exposure_pct'):
+            v = (risk or {}).get(k) if isinstance(risk, dict) else None
+            if isinstance(v, (int, float)):
+                mx_exp = float(v)
+                break
+        if mx_exp is not None:
+            st.metric("Max Exposure", f"{(mx_exp if mx_exp>1.0 else mx_exp*100):.1f}%")
+        else:
+            st.metric("Max Exposure", "—")
+    except Exception:
+        st.metric("Avg Risk/Trade", "—")
+        st.metric("Max Exposure", "—")
 
 with bottom_cols[3]:
     st.markdown("### Session Momentum")
@@ -574,24 +562,56 @@ with bottom_cols[3]:
     st.progress(momentum/100)
     st.caption("Maintaining discipline")
 
-# Session trajectory from equity series
-st.markdown("### 📈 Session Trajectory")
-try:
-    points = equity_series.get('points') if isinstance(equity_series, dict) else []
-    if points:
-        df = pd.DataFrame(points)
-        df['time'] = pd.to_datetime(df['ts'], errors='coerce')
-        df['pnl'] = pd.to_numeric(df['pnl'], errors='coerce').fillna(0.0)
-        fig_tr = go.Figure(go.Scatter(x=df['time'], y=df['pnl'], mode='lines', name='P&L',
-                                      line=dict(color='#22C55E', width=2), fill='tozeroy',
-                                      fillcolor='rgba(34, 197, 94, 0.1)'))
-        fig_tr.add_hline(y=0, line_dash='dash', line_color='gray', opacity=0.3)
-        fig_tr.update_layout(height=260, margin=dict(t=0,b=20,l=0,r=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig_tr, use_container_width=True)
-    else:
-        st.info("No trades today — trajectory will appear once trades close.")
-except Exception:
-    st.info("Trajectory feed unavailable.")
+# Analytics: R distribution and Setups by Quality (uses filters above)
+st.divider()
+ana1, ana2 = st.columns(2)
+q_params = []
+if sym:
+    q_params.append(f"symbol={sym}")
+if df_str_from:
+    q_params.append(f"date_from={df_str_from}")
+if df_str_to:
+    q_params.append(f"date_to={df_str_to}")
+qstr = ("?" + "&".join(q_params)) if q_params else ""
+
+with ana1:
+    st.markdown("### R Distribution")
+    try:
+        b = safe_api_call('GET', f'api/pulse/analytics/trades/buckets{qstr}')
+        edges = b.get('edges') if isinstance(b, dict) else None
+        counts = b.get('counts') if isinstance(b, dict) else None
+        if isinstance(edges, list) and isinstance(counts, list) and len(edges) == len(counts):
+            # Render as bar at edge positions
+            fig_b = go.Figure(go.Bar(x=edges, y=counts, marker_color='#60A5FA'))
+            fig_b.update_layout(height=200, margin=dict(t=10, b=20, l=0, r=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            fig_b.update_xaxes(title='R', color='#9CA3AF')
+            fig_b.update_yaxes(title='Trades', color='#9CA3AF')
+            st.plotly_chart(fig_b, use_container_width=True, config={'displayModeBar': False})
+        else:
+            st.info("No distribution available yet.")
+    except Exception:
+        st.info("Distribution unavailable.")
+
+with ana2:
+    st.markdown("### Top Setups by Quality")
+    try:
+        s = safe_api_call('GET', f'api/pulse/analytics/trades/setups{qstr}')
+        setups = s.get('setups') if isinstance(s, dict) else []
+        if isinstance(setups, list) and setups:
+            df_set = pd.DataFrame(setups)
+            # Add total and show top 8
+            if 'A+' in df_set.columns and 'B' in df_set.columns and 'C' in df_set.columns:
+                df_set['Total'] = pd.to_numeric(df_set['A+'], errors='coerce').fillna(0) + pd.to_numeric(df_set['B'], errors='coerce').fillna(0) + pd.to_numeric(df_set['C'], errors='coerce').fillna(0)
+                cols = [c for c in ['name', 'A+', 'B', 'C', 'Total'] if c in df_set.columns]
+                st.dataframe(df_set[cols].head(8), use_container_width=True, height=240)
+            else:
+                st.dataframe(df_set.head(8), use_container_width=True, height=240)
+        else:
+            st.info("No setup data yet.")
+    except Exception:
+        st.info("Setups unavailable.")
+
+# (Removed duplicate Session Trajectory section — already rendered above)
 
 # Session Vitals (prototype)
 with st.expander("🫀 Session Vitals (Prototype)", expanded=True):
@@ -600,6 +620,7 @@ with st.expander("🫀 Session Vitals (Prototype)", expanded=True):
         bal = float((acct or {}).get('balance') or 0)
         risk_env = risk or {}
         sod = float(risk_env.get('sod_equity') or bal or eq)
+        prev_close = risk_env.get('prev_close_equity')
         target_amt = float(risk_env.get('target_amount') or 0)
         loss_amt = float(risk_env.get('loss_amount') or 0)
         pnl = eq - sod
@@ -624,6 +645,16 @@ with st.expander("🫀 Session Vitals (Prototype)", expanded=True):
             else:
                 st.progress(prog_loss)
                 st.caption(f"Toward loss cap: {prog_loss*100:.0f}% (P&L -${abs(pnl):,.0f} of -${loss_amt:,.0f})")
+        # SoD and Prev Close quick readout
+        c4, c5 = st.columns(2)
+        with c4:
+            st.caption(f"SoD (11pm): ${sod:,.0f}")
+        with c5:
+            try:
+                pv = float(prev_close) if isinstance(prev_close, (int, float, str)) and str(prev_close).strip() != '' else None
+            except Exception:
+                pv = None
+            st.caption(f"Prev Close: ${pv:,.0f}" if pv is not None else "Prev Close: —")
     except Exception:
         st.info("Vitals unavailable")
 

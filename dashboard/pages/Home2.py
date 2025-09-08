@@ -462,20 +462,43 @@ class ZanalyticsDashboard:
             </style>
             """
             st.markdown(background_style, unsafe_allow_html=True)
-        # Patch: Add semi-transparent panel background after image is set
-        st.markdown("""
-        <style>
-        .main .block-container {
-            background-color: rgba(0,0,0,0.025) !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+            # Patch: Add semi-transparent panel background after image is set
+            st.markdown("""
+                <style>
+                .main .block-container {
+                    background-color: rgba(0,0,0,0.025) !important;
+                }
+                </style>
+                """, unsafe_allow_html=True)
+
+            # Agent Ops — Quick Checklist (price integrity)
+            with st.expander("Price Confirmation Checklist", expanded=False):
+            st.markdown(
+                "- Confirm latest price via `/api/v1/feed/bars-enriched` (preferred)\n"
+                "- If primary feed is down, use Yahoo chart API (e.g., `XAUUSD=X`, `GC=F`)\n"
+                "- Never state a price if no feed is reachable\n"
+                "- When quoting, include instrument + timeframe + time (e.g., M15 close at 13:45Z)"
+            )
+            st.caption("See full guidance in Agent Ops → GPT Instructions below.")
+
+            # Agent Ops — GPT Instructions (inline reference)
+            with st.expander("Agent Ops — GPT Instructions", expanded=False):
+            try:
+                from pathlib import Path
+                p = Path(__file__).resolve().parents[2] / "docs" / "custom_gpt_instructions.md"
+                text = p.read_text(encoding="utf-8") if p.exists() else ""
+                if text:
+                    st.markdown(text)
+                else:
+                    st.info("Instructions file not found: docs/custom_gpt_instructions.md")
+            except Exception:
+                st.info("Unable to load instructions.")
 
 
-        # Directory scanning/parquet dependency removed — live and DB feeds only
+            # Directory scanning/parquet dependency removed — live and DB feeds only
 
-        # --- Tick Data from API ---
-        with st.expander("📡 Tick Data – XAUUSD (Last 100 Ticks)", expanded=False):
+            # --- Tick Data from API ---
+            with st.expander("📡 Tick Data – XAUUSD (Last 100 Ticks)", expanded=False):
             try:
                 df_ticks = self.fetch_tick_data("XAUUSD", 100)
                 if df_ticks.empty:
@@ -487,11 +510,11 @@ class ZanalyticsDashboard:
             except Exception as e:
                 st.error(f"Failed to load tick data: {e}")
 
-        # Move straight into main content (no local directory scan)
-        self.display_home_page(None)
-        # PATCH: Reset refresh flag at end of run
-        if "refresh_home_data" in st.session_state and st.session_state["refresh_home_data"]:
-            st.session_state["refresh_home_data"] = False
+            # Move straight into main content (no local directory scan)
+            self.display_home_page(None)
+            # PATCH: Reset refresh flag at end of run
+            if "refresh_home_data" in st.session_state and st.session_state["refresh_home_data"]:
+                st.session_state["refresh_home_data"] = False
 
     def display_home_page(self, data_sources=None):
         # --- Quant-Desk Welcome Block (Updated Design) ---

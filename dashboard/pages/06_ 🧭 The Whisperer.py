@@ -27,6 +27,29 @@ st.markdown("# 🧭 Whisperer Cockpit — Unified")
 st.caption("Behavioral compass • Session vitals • Trajectory • Pattern watch • Discipline posture • Whisper actions")
 render_status_row()
 
+# Agent Ops — Quick Checklist (price integrity)
+with st.expander("Price Confirmation Checklist", expanded=False):
+    st.markdown(
+        "- Confirm latest price via `/api/v1/feed/bars-enriched` (preferred)\n"
+        "- If primary feed is down, use Yahoo chart API (e.g., `XAUUSD=X`, `GC=F`)\n"
+        "- Never state a price if no feed is reachable\n"
+        "- When quoting, include instrument + timeframe + time (e.g., M15 close at 13:45Z)"
+    )
+    st.caption("See full guidance in Agent Ops → GPT Instructions below.")
+
+# Agent Ops — GPT Instructions (inline reference)
+with st.expander("Agent Ops — GPT Instructions", expanded=False):
+    try:
+        from pathlib import Path
+        p = Path(__file__).resolve().parents[2] / "docs" / "custom_gpt_instructions.md"
+        text = p.read_text(encoding="utf-8") if p.exists() else ""
+        if text:
+            st.markdown(text)
+        else:
+            st.info("Instructions file not found: docs/custom_gpt_instructions.md")
+    except Exception:
+        st.info("Unable to load instructions.")
+
 # Pulse Confidence (default symbol) + donut snapshot
 try:
     syms = fetch_symbols() or []

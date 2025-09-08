@@ -205,7 +205,7 @@ services:
       - ALERTS_SCORE_HI=90
       - ALERTS_TOXICITY_LIMIT=0.30
       - ALERTS_DD_INTRADAY_WARN=0.025
-      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      # Avoid overriding secret key with empty value; single definition above is sufficient
     depends_on:
       postgres:
         condition: service_started
@@ -280,14 +280,15 @@ services:
       dockerfile: backend/django/Dockerfile
     container_name: celery
     working_dir: /app/backend/django
-    entrypoint: ["sh", "-c", "celery -A ${CELERY_APP:-zanalytics} worker --loglevel=info --concurrency=${CELERY_CONCURRENCY:-3}"]
+    entrypoint: ["sh", "-c", "celery -A app worker --loglevel=info --concurrency=${CELERY_CONCURRENCY:-3}"]
     volumes:
       - static_volume:/app/staticfiles
       - ./data/cold:/app/data/cold
+      - ./agents:/app/agents
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/app:/app/components:/app/utils:/app/backend
+      - PYTHONPATH=/app/backend/django:/app/agents:/app:/app/components:/app/utils:/app/backend
       - DJANGO_SETTINGS_MODULE=app.settings
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - CELERY_APP=app
@@ -308,14 +309,15 @@ services:
       dockerfile: backend/django/Dockerfile
     container_name: celery-beat
     working_dir: /app/backend/django
-    entrypoint: ["sh", "-c", "celery -A ${CELERY_APP:-zanalytics} beat --loglevel=info"]
+    entrypoint: ["sh", "-c", "celery -A app beat --loglevel=info"]
     volumes:
       - static_volume:/app/staticfiles
       - ./data/cold:/app/data/cold
+      - ./agents:/app/agents
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/app:/app/components:/app/utils:/app/backend
+      - PYTHONPATH=/app/backend/django:/app/agents:/app:/app/components:/app/utils:/app/backend
       - DJANGO_SETTINGS_MODULE=app.settings
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - CELERY_APP=app
@@ -547,11 +549,11 @@ services:
 
   pulse-kernel:
     build: .
-    command: python -m uvicorn api.pulse_api:app --host 0.0.0.0 --port 8000
+    command: python -m uvicorn services.pulse_api.main:app --host 0.0.0.0 --port 8000
     environment:
       - PULSE_CONFIG=/app/pulse_config.yaml
       - PULSE_JOURNAL_PATH=/app/data/journal
-      - PYTHONPATH=/app:/app/pulse_kernel
+      - PYTHONPATH=/app:/app/services:/app/pulse_kernel
     volumes:
       - ./pulse_kernel.py:/app/pulse_kernel.py
       - ./pulse_config.yaml:/app/pulse_config.yaml
@@ -564,7 +566,7 @@ services:
       django:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/pulse/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/pulse/health"]
       interval: 15s
       timeout: 5s
       retries: 10
