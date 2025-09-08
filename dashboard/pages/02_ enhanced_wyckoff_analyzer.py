@@ -19,11 +19,20 @@ except Exception:
 
 import streamlit as st
 
+EnhancedWyckoffAnalyzer = None  # type: ignore
 try:
-    from core.wyckoff.unified_wyckoff_engine import UnifiedWyckoffEngine
-    EnhancedWyckoffAnalyzer = UnifiedWyckoffEngine
+    from core.wyckoff.unified_wyckoff_engine import UnifiedWyckoffEngine as _E
+    EnhancedWyckoffAnalyzer = _E
 except Exception:
-    EnhancedWyckoffAnalyzer = None  # type: ignore
+    try:
+        from utils.wyckoff_analyzer import WyckoffAnalyzer as _E
+        EnhancedWyckoffAnalyzer = _E
+    except Exception:
+        try:
+            from utils.analysis_engines import WyckoffAnalyzer as _E
+            EnhancedWyckoffAnalyzer = _E
+        except Exception:
+            EnhancedWyckoffAnalyzer = None  # type: ignore
 
 if EnhancedWyckoffAnalyzer is None:
     st.warning("Wyckoff engine module not available — showing limited UI."
