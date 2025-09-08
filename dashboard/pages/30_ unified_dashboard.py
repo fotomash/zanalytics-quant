@@ -65,6 +65,60 @@ show_analytics = st.sidebar.checkbox("Show Analytics", value=True)
 
 st.title("📊 ZAnalytics Unified Trading Dashboard")
 
+# --- Decision Bar (top row) ---------------------------------------------------
+import requests, contextlib
+
+BASE = os.getenv("PULSE_BASE_URL") or os.getenv("DJANGO_API_URL", "http://django:8000")
+BASE = str(BASE).rstrip("/") + "/api/pulse"
+
+@st.cache_data(ttl=2.0, show_spinner=False)
+def _get_json(url: str, method: str = "GET", payload=None, timeout: float = 1.0, default=None):
+    try:
+        if method.upper() == "POST":
+            r = requests.post(url, json=(payload or {}), timeout=timeout)
+        else:
+            r = requests.get(url, timeout=timeout)
+        return r.json() if r.ok else (default if default is not None else {})
+    except Exception:
+        return default if default is not None else {}
+
+def decision_bar():
+    with st.container(border=True):
+        c1, c2, c3, c4 = st.columns([1.4, 1, 1, 1.4])
+        # 1) Confluence Score snapshot
+        score = _get_json(f"{BASE}/score/peek", method="POST", default={})
+        c1.metric("Confluence Score", score.get("score", "—"), score.get("grade", ""))
+        # 2) Risk summary
+        risk = _get_json(f"{BASE}/risk/summary", default={})
+        c2.metric("Risk Left", risk.get("risk_left", "—"))
+        c3.metric("Trades Left", risk.get("trades_left", "—"))
+        # 3) Adapter health / latency
+        adapter = _get_json(f"{BASE}/adapter/status", default={})
+        lag = adapter.get("lag_ms", "—")
+        fps = adapter.get("fps")
+        status = adapter.get("status") or "down"
+        c4.metric("Kernel/Adapter", f"{status}", f"lag {lag} ms" + (f" • {float(fps):.1f} fps" if isinstance(fps, (int, float)) else ""))
+        # Explain reasons
+        reasons = score.get("reasons") or []
+        if reasons:
+            with st.expander("Explain"):
+                for r in reasons:
+                    st.write(f"• {r}")
+        # Optional warnings
+        warns = risk.get("warnings") or []
+        if warns:
+            st.warning(" / ".join([str(w) for w in warns]))
+
+decision_bar()
+
+# Footer legal links (public URLs for policy pages)
+with st.container():
+    st.caption(
+        "—  "
+        "[Privacy Policy](/Privacy%20Policy)  ·  "
+        "[Terms of Use](/Terms%20of%20Use)"
+    )
+
 if auto_refresh:
     time.sleep(refresh_interval)
     st.rerun()

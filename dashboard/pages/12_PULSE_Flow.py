@@ -1,7 +1,7 @@
 import streamlit as st
 import json
 from pathlib import Path
-from dashboard.utils.user_prefs import fetch_symbols_list
+from dashboard.utils.streamlit_api import fetch_symbols as _api_fetch_symbols
 from dashboard.utils.confluence_visuals import render_confluence_donut
 import os
 import time
@@ -51,8 +51,15 @@ def load_playbook():
 
 playbook = load_playbook()
 
-# --- Symbols source + favorite default -------------------------------------
-    
+# --- Symbols source + favorite default (API-driven) -------------------------
+try:
+    _symbols = _api_fetch_symbols() or []
+except Exception:
+    _symbols = []
+if not _symbols:
+    _symbols = ["EURUSD"]
+symbol = st.selectbox("Symbol", _symbols, index=0)
+st.session_state['pulse_fav_symbol'] = symbol
 # Agent Ops — Quick Checklist (price integrity)
 with st.expander("Price Confirmation Checklist", expanded=False):
     st.markdown(

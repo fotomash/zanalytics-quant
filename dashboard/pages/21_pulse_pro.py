@@ -21,6 +21,7 @@ from dashboard.utils.streamlit_api import (
     post_whisper_act,
     fetch_symbols,
 )
+from dashboard.utils.plotly_gates import gate_donut, confluence_donut
 
 
 # Page configuration
@@ -536,3 +537,52 @@ with ac2:
             st.info("No setup data yet.")
     except Exception:
         st.info("Setups unavailable.")
+
+# Gate Scores (Behavioral)
+st.divider()
+st.markdown("#### 🧭 Behavioral Gates")
+try:
+    gates_raw = {
+        'Discipline': (mirror or {}).get('discipline'),
+        'Patience': (mirror or {}).get('patience'),
+        'Conviction': (mirror or {}).get('conviction'),
+        'Efficiency': (mirror or {}).get('efficiency'),
+    }
+    # Normalize 0..1 to 0..100 if needed
+    gates: dict[str, float] = {}
+    for k, v in gates_raw.items():
+        try:
+            x = float(v)
+            if 0.0 <= x <= 1.0:
+                x *= 100.0
+            gates[k] = max(0.0, min(100.0, x))
+        except Exception:
+            gates[k] = 0.0
+    # Simple subtitles based on current posture
+    subs: dict[str, str | None] = {
+        'Discipline': "Watch impulsive behavior" if gates['Discipline'] < 70 else None,
+        'Patience': None,
+        'Conviction': "Limit size on low confidence" if gates['Conviction'] < 70 else None,
+        'Efficiency': "Improve capture vs potential" if gates['Efficiency'] < 70 else None,
+    }
+    # If mirror exposes patience_ratio, reflect tempo bias in subtitle
+    try:
+        pr = (mirror or {}).get('patience_ratio')
+        if isinstance(pr, (int, float)):
+            subs['Patience'] = 'Tempo high' if float(pr) < 0 else 'Tempo conservative'
+    except Exception:
+        pass
+
+    gc1, gc2, gc3, gc4, gc5 = st.columns(5)
+    with gc1:
+        st.plotly_chart(gate_donut(title='Discipline', score=gates['Discipline'], threshold=70, subtitle=subs['Discipline']), use_container_width=True, config={'displayModeBar': False})
+    with gc2:
+        st.plotly_chart(gate_donut(title='Patience', score=gates['Patience'], threshold=70, subtitle=subs['Patience']), use_container_width=True, config={'displayModeBar': False})
+    with gc3:
+        st.plotly_chart(gate_donut(title='Conviction', score=gates['Conviction'], threshold=70, subtitle=subs['Conviction']), use_container_width=True, config={'displayModeBar': False})
+    with gc4:
+        st.plotly_chart(gate_donut(title='Efficiency', score=gates['Efficiency'], threshold=70, subtitle=subs['Efficiency']), use_container_width=True, config={'displayModeBar': False})
+    with gc5:
+        st.plotly_chart(confluence_donut(title='Confluence', gates=gates), use_container_width=True, config={'displayModeBar': False})
+except Exception:
+    st.info("Behavioral gates unavailable")
