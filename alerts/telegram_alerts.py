@@ -13,6 +13,12 @@ import threading
 import time
 import urllib.request
 from typing import Any, Dict
+from typing import Optional
+
+try:
+    import redis  # type: ignore
+except Exception:
+    redis = None  # type: ignore
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
@@ -21,6 +27,20 @@ MIN_GAP = float(os.getenv("ALERTS_MIN_INTERVAL_SECONDS", "60"))
 
 _last_sent: Dict[str, float] = {}
 _lock = threading.Lock()
+_rds: Optional["redis.Redis"] = None
+
+def _redis_client() -> Optional["redis.Redis"]:
+    global _rds
+    if _rds is not None:
+        return _rds
+    if not redis:
+        return None
+    try:
+        url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        _rds = redis.from_url(url)
+        return _rds
+    except Exception:
+        return None
 
 
 def _send(text: str) -> None:
@@ -39,6 +59,19 @@ def _send(text: str) -> None:
 
 def _should_throttle(key: str) -> bool:
     """Return True if a message for ``key`` was recently sent."""
+    # Prefer Redis-based cooldown if available
+    try:
+        r = _redis_client()
+        if r is not None:
+            k = f"pulse:alerts:dedupe:{key}"
+            # Set with NX, expire in MIN_GAP seconds
+            created = r.set(k, str(int(time.time())), ex=max(1, int(MIN_GAP)), nx=True)
+            if created:
+                return False
+            return True
+    except Exception:
+        pass
+    # Fallback to in-memory throttle (per-process)
     now = time.time()
     with _lock:
         last = _last_sent.get(key, 0.0)
@@ -110,4 +143,3 @@ def notify(event: Dict[str, Any]) -> None:
 
 
 __all__ = ["notify"]
-

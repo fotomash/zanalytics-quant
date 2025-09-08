@@ -12,6 +12,11 @@ from app.nexus.models import Trade
 import datetime as _dt
 from collections import Counter
 from .serializers import PulseDetailSerializer
+import os as _os
+import json as _json
+import urllib.request as _urlreq
+import urllib.error as _urlerr
+from .schema_validation import validate_pulse_status, validate_pulse_detail
 
 
 class PulseStatus(views.APIView):
@@ -40,6 +45,12 @@ class PulseStatus(views.APIView):
             status = {k: 0 for k in [
                 'context', 'liquidity', 'structure', 'imbalance', 'risk', 'confluence'
             ]}
+        # Optional JSON Schema validation (non-fatal)
+        try:
+            ok, err = validate_pulse_status(status)
+            _ = ok or err  # silence unused vars in case of stripped logging
+        except Exception:
+            pass
         return Response(status)
 
 
@@ -84,6 +95,12 @@ class PulseDetail(views.APIView):
             # Validate against serializer (non-fatal)
             try:
                 PulseDetailSerializer(data=payload).is_valid(raise_exception=True)
+            except Exception:
+                pass
+            # Optional JSON Schema validation (non-fatal)
+            try:
+                ok, err = validate_pulse_detail(payload)
+                _ = ok or err
             except Exception:
                 pass
             try:
@@ -529,6 +546,9 @@ class TradesSetups(views.APIView):
         return Response({"setups": setups})
 
 
+# NOTE: TradesHistory is provided under app.nexus.views.TradeHistoryView and routed under /api/v1/trades/history
+
+
 class YFBars(views.APIView):
     """Fetch bars via yfinance as a redundant feed for LLM agents.
 
@@ -576,3 +596,57 @@ class YFBars(views.APIView):
             return Response({"items": items, "symbol": symbol, "interval": interval, "range": rng})
         except Exception as e:
             return Response({"items": [], "error": str(e)}, status=500)
+
+
+class TelegramHealth(views.APIView):
+    """Lightweight Telegram ping to verify configuration/connectivity.
+
+    GET query params:
+      text: optional message text (default: "Pulse ping ✅")
+      send: optional bool-like flag (default true). When false, only reports config state.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        token = _os.getenv("TELEGRAM_BOT_TOKEN") or ""
+        chat_id = _os.getenv("TELEGRAM_CHAT_ID") or ""
+        text = request.query_params.get("text") or "Pulse ping ✅"
+        send_flag = str(request.query_params.get("send") or "true").lower() != "false"
+
+        configured = bool(token and chat_id)
+        if not configured:
+            return Response({
+                "configured": False,
+                "sent": False,
+                "status": "missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID",
+            }, status=200)
+
+        if not send_flag:
+            return Response({"configured": True, "sent": False})
+
+        try:
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            data = _json.dumps({
+                "chat_id": chat_id,
+                "text": text,
+                # Avoid parse errors by default; callers can include markup if desired
+                # "parse_mode": "HTML",
+                "disable_web_page_preview": True,
+            }).encode()
+            req = _urlreq.Request(url, data=data, headers={"Content-Type": "application/json"})
+            with _urlreq.urlopen(req, timeout=5) as resp:
+                ok = (getattr(resp, 'status', 200) == 200)
+                return Response({"configured": True, "sent": bool(ok)})
+        except _urlerr.HTTPError as e:
+            try:
+                body = e.read().decode() if hasattr(e, 'read') else str(e)
+            except Exception:
+                body = str(e)
+            return Response({
+                "configured": True,
+                "sent": False,
+                "error": f"HTTP {getattr(e, 'code', 0)}",
+                "detail": body[:3000],
+            }, status=200)
+        except Exception as e:
+            return Response({"configured": True, "sent": False, "error": str(e)}, status=200)

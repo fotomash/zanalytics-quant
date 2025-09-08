@@ -5,8 +5,12 @@ from dashboard.utils.streamlit_api import fetch_symbols as _api_fetch_symbols
 from dashboard.utils.confluence_visuals import render_confluence_donut
 import os
 import time
+import math
 import requests
 import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+from datetime import datetime, timedelta
  
 
 st.set_page_config(page_title="PULSE Predictive Flow", page_icon="🧠", layout="wide")
@@ -294,3 +298,423 @@ try:
             )
 except Exception:
     pass
+
+# ---------------------------------------------------------------------------
+# Enhancements: Pac-Man donut, correlated watchboard, trades panel
+# ---------------------------------------------------------------------------
+
+DJ_API = os.getenv('DJANGO_API_URL', 'http://django:8000').rstrip('/')
+
+def _safe_get_json(url: str, *, params: dict | None = None, timeout: float = 2.0):
+    try:
+        r = requests.get(url, params=params, timeout=timeout)
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        return None
+    return None
+
+def fetch_pulse_detail(sym: str) -> dict:
+    return _safe_get_json(f"{DJ_API}/api/v1/feed/pulse-detail", params={"symbol": sym}, timeout=1.5) or {}
+
+def build_gate_map(pulse_status: dict, pulse_detail: dict) -> list[dict]:
+    weights = (pulse_status or {}).get("weights", {})
+    flags   = {k: bool(v) for k, v in (pulse_status or {}).items() if k in {"context","liquidity","structure","imbalance","risk"}}
+    # Derive per-gate detail if present
+    detail_by_gate = {
+        "context": (pulse_detail or {}).get("context") or {},
+        "liquidity": (pulse_detail or {}).get("liquidity") or {},
+        "structure": (pulse_detail or {}).get("structure") or {},
+        "imbalance": (pulse_detail or {}).get("imbalance") or {},
+        "risk": (pulse_detail or {}).get("risk") or {},
+    }
+    gates = []
+    for gate in ["context","liquidity","structure","imbalance","risk"]:
+        d = detail_by_gate.get(gate, {})
+        gates.append({
+            "gate": gate,
+            "weight": float(weights.get(gate, 0.0) or 0.0),
+            "passed": bool(flags.get(gate, False)),
+            "score": float(d.get("score") or (1.0 if flags.get(gate) else 0.0)),
+            "explain": d.get("explain") or "—",
+            "evidence": d if isinstance(d, dict) else {},
+        })
+    return gates
+
+def plot_pulse_pacman(sym: str, pulse_status: dict, gates: list[dict]):
+    labels  = [sym] + [g["gate"].title() for g in gates]
+    parents = [""]  + [sym for _ in gates]
+    # Avoid zero total by ensuring non-zero root value
+    values  = [max(1.0, sum(max(0.01, g["weight"]) for g in gates)*100.0)] + [max(0.01, g["weight"]) * 100.0 for g in gates]
+
+    def gate_color(g):
+        if g["passed"] and g["score"] >= 0.7: return "#22C55E"
+        if g["passed"] and g["score"] >= 0.4: return "#F59E0B"
+        return "#EF4444"
+
+    colors = ["#0f172a"] + [gate_color(g) for g in gates]
+    custom = [""]
+    for g in gates:
+        txt = (
+            f"Gate: {g['gate']}\n"
+            f"Weight: {g['weight']:.2f}\n"
+            f"Score: {g['score']:.2f}\n"
+            f"Passed: {g['passed']}\n"
+            f"{g['explain']}"
+        )
+        custom.append(txt)
+
+    fig = go.Figure(go.Sunburst(
+        labels=labels,
+        parents=parents,
+        values=values,
+        branchvalues="total",
+        marker=dict(colors=colors, line=dict(color="#0e1117", width=1)),
+        hovertemplate="%{customdata}<extra></extra>",
+        customdata=custom,
+    ))
+    conf = float(pulse_status.get("confidence", 0.0) or 0.0)
+    fig.update_layout(
+        height=280,
+        margin=dict(t=10, l=0, r=0, b=10),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        annotations=[dict(text=f"{int(conf*100)}%", x=0.5, y=0.5, showarrow=False, font=dict(size=20, color="#fff"))],
+    )
+    return fig
+
+def _load_bars(symbol: str, timeframe: str = "M15", limit: int = 300) -> pd.DataFrame:
+    data = _safe_get_json(f"{DJ_API}/api/v1/feed/bars-enriched", params={"symbol": symbol, "timeframe": timeframe, "limit": limit}, timeout=2.0) or {}
+    items = data.get("items") if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        return pd.DataFrame()
+    df = pd.DataFrame(items)
+    # Normalize
+    for c in ["open","high","low","close","volume"]:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+    if "timestamp" in df.columns:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
+    return df
+
+def _choose_correlated(base_symbol: str, universe: list[str], timeframe: str = "M15", n: int = 6) -> list[str]:
+    series = {}
+    for s in [base_symbol] + [u for u in universe if u != base_symbol]:
+        try:
+            df = _load_bars(s, timeframe=timeframe, limit=400)
+            if not df.empty and "close" in df.columns:
+                series[s] = df.set_index("timestamp")["close"].astype(float)
+        except Exception:
+            continue
+    if base_symbol not in series:
+        return []
+    aligned = pd.concat(series.values(), axis=1, join="inner")
+    aligned.columns = list(series.keys())
+    rets = aligned.pct_change().dropna()
+    if rets.empty:
+        return []
+    corrs = rets.corr()[base_symbol].sort_values(ascending=False)
+    return [s for s in corrs.index if s != base_symbol][:n]
+
+def render_correlated_watchboard(base_symbol: str):
+    st.subheader("🧭 Correlated Watchboard")
+    try:
+        universe = _api_fetch_symbols() or []
+    except Exception:
+        universe = []
+    if not universe:
+        st.info("No universe available.")
+        return
+    picks = _choose_correlated(base_symbol, universe, timeframe="M15", n=6)
+    if not picks:
+        st.info("No correlated symbols found or data unavailable.")
+        return
+    cols = st.columns(min(3, len(picks)))
+    for i, sym in enumerate(picks):
+        ps = fetch_status(sym)
+        pdz = fetch_pulse_detail(sym)
+        gates = build_gate_map(ps or {}, pdz or {})
+        fig = plot_pulse_pacman(sym, ps or {}, gates)
+        with cols[i % len(cols)]:
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            if st.button(f"Focus {sym}", key=f"focus_{sym}"):
+                try:
+                    st.session_state['pulse_fav_symbol'] = sym
+                    st.experimental_set_query_params(sym=sym)
+                except Exception:
+                    pass
+                st.experimental_rerun()
+
+SESSIONS = {
+    "Asian":   {"start": 21, "end": 24},
+    "London":  {"start": 7,  "end": 10},
+    "New_York":{"start": 13, "end": 16},
+}
+
+def _session_window_utc(name: str, ref: datetime | None = None):
+    ref = ref or datetime.utcnow()
+    h1, h2 = SESSIONS[name]["start"], SESSIONS[name]["end"]
+    start = ref.replace(hour=h1, minute=0, second=0, microsecond=0)
+    end   = ref.replace(hour=h2, minute=0, second=0, microsecond=0)
+    if ref < end:
+        start -= timedelta(days=1)
+        end   -= timedelta(days=1)
+    return pd.to_datetime(start, utc=True), pd.to_datetime(end, utc=True)
+
+def _fetch_trades(limit: int = 200) -> pd.DataFrame:
+    # Prefer recent endpoint if available; fallback to history
+    data = _safe_get_json(f"{DJ_API}/api/v1/trades/recent", params={"limit": limit}, timeout=2.0)
+    if not isinstance(data, list):
+        data = _safe_get_json(f"{DJ_API}/api/v1/trades/history", params={"limit": limit}, timeout=2.0)
+    data = data or []
+    df = pd.DataFrame(data if isinstance(data, list) else [])
+    for col in ("ts_open","ts_close"):
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce", utc=True)
+    # Backfill ts_open from ts if needed
+    if 'ts_open' not in df.columns and 'ts' in df.columns:
+        try:
+            df['ts_open'] = pd.to_datetime(df['ts'], errors='coerce', utc=True)
+        except Exception:
+            pass
+    for col in ("pnl","rr","entry","exit"):
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    return df
+
+def _compute_trade_kpis(df: pd.DataFrame) -> dict:
+    if df.empty:
+        return dict(win_rate=0.0, pnl=0.0, wins=0, losses=0, avg_rr=float("nan"))
+    pnl = float(df.get("pnl", pd.Series(dtype=float)).sum()) if "pnl" in df.columns else 0.0
+    wins = int((df.get("pnl", pd.Series(dtype=float)) > 0).sum()) if "pnl" in df.columns else 0
+    losses = int((df.get("pnl", pd.Series(dtype=float)) <= 0).sum()) if "pnl" in df.columns else 0
+    total = max(1, wins + losses)
+    win_rate = round(100.0 * wins / total, 1)
+    avg_rr = float(df.get("rr", pd.Series(dtype=float)).replace([np.inf,-np.inf], np.nan).dropna().mean()) if "rr" in df.columns else float("nan")
+    return dict(win_rate=win_rate, pnl=pnl, wins=wins, losses=losses, avg_rr=avg_rr)
+
+def render_trades_panel():
+    st.subheader("📒 Trades Overview (experimental)")
+    df = _fetch_trades(limit=300)
+    k = _compute_trade_kpis(df)
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Win Rate", f"{k['win_rate']}%")
+    c2.metric("Net PnL", f"{k['pnl']:+.2f}")
+    c3.metric("Wins", k['wins'])
+    c4.metric("Losses", k['losses'])
+    c5.metric("Avg R:R", f"{k['avg_rr']:.2f}" if not math.isnan(k['avg_rr']) else "—")
+    session_choice = st.selectbox("Session filter", ["All","Asian","London","New_York"], index=1)
+    df_view = df.copy()
+    if session_choice != "All" and not df_view.empty and "ts_open" in df_view.columns:
+        s, e = _session_window_utc({"Asian":"Asian","London":"London","New_York":"New_York"}[session_choice])
+        df_view = df_view[(df_view["ts_open"] >= s) & (df_view["ts_open"] <= e)].copy()
+    st.markdown("### ⏱ Last Session Entries")
+    if not df_view.empty:
+        cols = [c for c in ["ts_open","symbol","side","entry","exit","pnl","rr","strategy","session"] if c in df_view.columns]
+        st.dataframe(df_view.sort_values("ts_open", ascending=False)[cols].head(30), use_container_width=True)
+    else:
+        st.info("No trades in the selected session.")
+    st.markdown("### 📌 Open Positions")
+    try:
+        pos = _safe_get_json(f"{DJ_API}/api/v1/account/positions", timeout=1.5) or []
+        if isinstance(pos, list) and pos:
+            dfp = pd.DataFrame(pos)
+            c = [x for x in ["ticket","symbol","type","volume","price_open","sl","tp","profit"] if x in dfp.columns]
+            st.dataframe(dfp[c], use_container_width=True)
+        else:
+            st.caption("No open positions.")
+    except Exception as e:
+        st.caption(f"Positions unavailable: {e}")
+
+# Render Pac-Man donut for selected symbol
+try:
+    pdz = fetch_pulse_detail(symbol)
+    gates = build_gate_map(status or {}, pdz or {})
+    fig_pm = plot_pulse_pacman(symbol, status or {}, gates)
+    st.markdown("### Confluence Pac‑Man")
+    st.plotly_chart(fig_pm, use_container_width=True, config={"displayModeBar": False})
+except Exception:
+    pass
+
+render_correlated_watchboard(symbol)
+render_trades_panel()
+
+# ---------------- Behavioral Compass & Panels -----------------
+def fetch_behavior_events():
+    return _safe_get_json(f"{DJ_API}/api/v1/behavior/events/today", timeout=2.0) or []
+
+def fetch_equity_today():
+    return _safe_get_json(f"{DJ_API}/api/v1/equity/today", timeout=2.0) or []
+
+def _today_window(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty or 'ts_open' not in df.columns:
+        return df
+    start = pd.Timestamp.utcnow().tz_localize('UTC').normalize()
+    return df[df['ts_open'] >= start].copy()
+
+def compute_patience_index(trades_df: pd.DataFrame, lookback_days: int = 7) -> dict:
+    if trades_df.empty or 'ts_open' not in trades_df.columns:
+        return dict(score=float('nan'), delta_pct=0, baseline_s=0, current_s=0)
+    df = trades_df.sort_values('ts_open').copy()
+    df['gap'] = df['ts_open'].diff().dt.total_seconds()
+    baseline_cut = pd.Timestamp.utcnow().tz_localize('UTC').normalize()
+    base = df[df['ts_open'] < baseline_cut]
+    baseline = float(base['gap'].median()) if not base.empty else float('nan')
+    today = _today_window(df)
+    current = float(today['gap'].tail(3).median()) if not today.empty else float('nan')
+    if not (baseline and baseline > 0) or not current:
+        return dict(score=float('nan'), delta_pct=0, baseline_s=baseline or 0, current_s=current or 0)
+    delta = (current - baseline) / baseline
+    import numpy as _np
+    score = float(_np.clip(50 + 50 * _np.tanh(delta), 0, 100))
+    return dict(score=score, delta_pct=100*delta, baseline_s=baseline, current_s=current)
+
+def compute_conviction_rates(trades_df: pd.DataFrame, high_thresh: float = 0.7) -> dict:
+    if trades_df.empty:
+        return dict(hc_win=0.0, lc_win=0.0, counts=(0,0))
+    if 'conviction' in trades_df.columns:
+        hc = trades_df[trades_df['conviction'].astype(str).str.lower()=='high']
+        lc = trades_df[trades_df['conviction'].astype(str).str.lower()!='high']
+    elif 'pulse_conf_at_entry' in trades_df.columns:
+        hc = trades_df[trades_df['pulse_conf_at_entry'].astype(float) >= high_thresh]
+        lc = trades_df[trades_df['pulse_conf_at_entry'].astype(float) <  high_thresh]
+    else:
+        if 'rr' in trades_df.columns:
+            thr = trades_df['rr'].median()
+            hc = trades_df[trades_df['rr'] >= thr]
+            lc = trades_df[trades_df['rr'] < thr]
+        else:
+            hc = trades_df.iloc[:0]
+            lc = trades_df
+    def _win_rate(d: pd.DataFrame) -> float:
+        if d.empty or 'pnl' not in d.columns:
+            return 0.0
+        n = len(d); w = int((d['pnl'] > 0).sum())
+        return (w / n) if n else 0.0
+    return dict(hc_win=_win_rate(hc), lc_win=_win_rate(lc), counts=(len(hc), len(lc)))
+
+def compute_profit_efficiency(trades_df: pd.DataFrame) -> dict:
+    if trades_df.empty:
+        return dict(avg=float('nan'))
+    rr = trades_df['rr'] if 'rr' in trades_df.columns else pd.Series(dtype=float)
+    mfe = trades_df['mfe_rr'] if 'mfe_rr' in trades_df.columns else rr.abs()
+    eff = []
+    for r, m in zip(rr.fillna(0), mfe.replace(0, pd.NA).fillna(pd.NA)):
+        try:
+            val = float(max(0.0, min(1.0, (r / m) if m and m != 0 else 0.0)))
+            eff.append(val)
+        except Exception:
+            continue
+    avg = float(pd.Series(eff).mean()) if eff else float('nan')
+    return dict(avg=avg)
+
+def compute_discipline_score(trades_today: pd.DataFrame, events_today: list, conf_thresh: float = 0.6) -> float:
+    import numpy as _np
+    if (trades_today is None or trades_today.empty) and not events_today:
+        return float('nan')
+    score = 100.0
+    penalties = {"oversize": 25, "low_confluence_trade": 15, "cooldown_violation": 20, "overtrading": 10, "revenge_trade": 20, "chasing": 10}
+    if 'pulse_conf_at_entry' in (trades_today.columns if trades_today is not None else []):
+        try:
+            low_conf = int((trades_today['pulse_conf_at_entry'].astype(float) < conf_thresh).sum())
+            score -= low_conf * penalties['low_confluence_trade']
+        except Exception:
+            pass
+    for e in (events_today or []):
+        t = str(e.get('type') or '').lower()
+        w = float(e.get('weight') or penalties.get(t, 10))
+        score -= w
+    return float(max(0.0, min(100.0, score)))
+
+def plot_behavioral_compass(metrics: dict):
+    disc = float(metrics.get('discipline') or float('nan'))
+    pat  = float(metrics.get('patience_score') or float('nan'))
+    pe   = float(metrics.get('profit_eff') or float('nan'))
+    hc_w = float(metrics.get('hc_win') or 0.0)
+    lc_w = float(metrics.get('lc_win') or 0.0)
+    green, red, amber, blue, gray = "#22C55E", "#EF4444", "#F59E0B", "#3B82F6", "#374151"
+    fig = go.Figure()
+    if not math.isnan(disc):
+        fig.add_trace(go.Pie(values=[max(0.1, disc), max(0.1, 100-disc)], labels=['Discipline',''], hole=0.55, sort=False, textinfo='none', marker=dict(colors=[green, 'rgba(255,255,255,0.05)']), hovertemplate=f"Discipline: {disc:.0f}%<extra></extra>", domain=dict(x=[0,1], y=[0,1])))
+    if not math.isnan(pat):
+        color = blue if pat >= 50 else amber
+        fig.add_trace(go.Pie(values=[max(0.1, pat), max(0.1, 100-pat)], labels=['Patience',''], hole=0.65, sort=False, textinfo='none', marker=dict(colors=[color, 'rgba(255,255,255,0.05)']), hovertemplate=f"Patience: {pat:.0f}<extra></extra>", domain=dict(x=[0,1], y=[0,1])))
+    if not math.isnan(pe):
+        pe_pct = 100*pe
+        fig.add_trace(go.Pie(values=[max(0.1, pe_pct), max(0.1, 100-pe_pct)], labels=['Profit Efficiency',''], hole=0.75, sort=False, textinfo='none', marker=dict(colors=['#00D1FF', 'rgba(255,255,255,0.05)']), hovertemplate=f"Profit Efficiency: {pe_pct:.0f}%<extra></extra>", domain=dict(x=[0,1], y=[0,1])))
+    fig.add_trace(go.Pie(values=[50*hc_w, 50*(1-hc_w), 50*lc_w, 50*(1-lc_w)], labels=['HC Wins','HC Remainder','LC Wins','LC Remainder'], hole=0.85, sort=False, textinfo='none', marker=dict(colors=[green, gray, red, gray]), rotation=90, hovertemplate="%{label}: %{value:.1f}<extra></extra>", domain=dict(x=[0,1], y=[0,1])))
+    fig.update_layout(margin=dict(t=10,b=10,l=10,r=10), showlegend=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+    return fig
+
+def plot_profit_horizon(trades_df: pd.DataFrame, max_trades: int = 20):
+    if trades_df.empty:
+        return go.Figure()
+    cols = [c for c in ['id','rr','mfe_rr','ts_open','symbol'] if c in trades_df.columns]
+    d = trades_df.sort_values('ts_open', ascending=False).head(max_trades)[cols].copy()
+    d['rr'] = pd.to_numeric(d.get('rr'), errors='coerce').fillna(0.0)
+    d['mfe_rr'] = pd.to_numeric(d.get('mfe_rr', d['rr'].abs()), errors='coerce').fillna(d['rr'].abs())
+    d['peak_extra'] = d['mfe_rr'] - d['rr']
+    x = [f"{r.symbol} #{r.id}" if 'id' in d.columns and 'symbol' in d.columns else str(i) for i, r in d.iterrows()]
+    fig = go.Figure()
+    fig.add_trace(go.Bar(x=x, y=d['rr'], name='Final RR', marker_color='#4cd137'))
+    fig.add_trace(go.Bar(x=x, y=d['peak_extra'], name='Peak unrealized gap', marker_color='rgba(76,209,55,0.25)'))
+    fig.update_layout(barmode='stack', margin=dict(t=20,l=10,r=10,b=80), xaxis_title='Trade', yaxis_title='R-multiple', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+    return fig
+
+def render_discipline_posture(trades_df: pd.DataFrame, events_today: list):
+    td = _today_window(trades_df)
+    today_score = compute_discipline_score(td, events_today)
+    # London as a proxy for last full session
+    s, e = _session_window_utc('London')
+    last_session_trades = trades_df[(trades_df.get('ts_open') >= s) & (trades_df.get('ts_open') <= e)] if not trades_df.empty and 'ts_open' in trades_df.columns else trades_df.iloc[:0]
+    last_score = compute_discipline_score(last_session_trades, [])
+    col1, col2 = st.columns(2)
+    col1.metric('Discipline (Today)', f"{today_score:.0f}%" if not math.isnan(today_score) else '—')
+    col2.metric('Discipline (Last Session)', f"{last_score:.0f}%" if not math.isnan(last_score) else '—')
+    if 'ts_open' in trades_df.columns and not trades_df.empty:
+        t = trades_df.copy()
+        t['date'] = t['ts_open'].dt.date
+        daily = t.groupby('date').apply(lambda g: compute_discipline_score(g, [])).reset_index(name='score')
+        st.line_chart(daily.set_index('date')['score'])
+
+def render_session_trajectory():
+    eq = fetch_equity_today()
+    if not isinstance(eq, list) or not eq:
+        st.info('No intraday equity data.')
+        return
+    df = pd.DataFrame(eq)
+    if not {'ts','equity'} <= set(df.columns):
+        st.info('Equity payload missing fields.')
+        return
+    df['ts'] = pd.to_datetime(df['ts'], errors='coerce', utc=True)
+    fig = go.Figure(go.Scatter(x=df['ts'], y=df['equity'], mode='lines', line=dict(color='#9b59b6')))
+    fig.update_layout(margin=dict(t=10,l=10,r=10,b=10), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_title='Time (UTC)', yaxis_title='Equity')
+    st.plotly_chart(fig, use_container_width=True)
+
+def render_behavioral_section():
+    st.subheader('🧭 Behavioral Compass')
+    trades = _fetch_trades(limit=300)
+    events = fetch_behavior_events()
+    pat = compute_patience_index(trades)
+    conv = compute_conviction_rates(trades)
+    pe = compute_profit_efficiency(trades)
+    disc = compute_discipline_score(_today_window(trades), events)
+    compass = dict(discipline=disc, patience_score=pat.get('score'), profit_eff=pe.get('avg'), hc_win=conv.get('hc_win'), lc_win=conv.get('lc_win'))
+    fig = plot_behavioral_compass(compass)
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    with st.expander('Why these scores?'):
+        if not math.isnan(disc):
+            st.markdown(f"- Discipline: {disc:.0f}% (penalized by events/low-confluence trades)")
+        if not math.isnan(pat.get('score') or float('nan')):
+            st.markdown(f"- Patience: {pat['score']:.0f} (Δ vs {pat['baseline_s']:.0f}s baseline = {pat['delta_pct']:+.0f}%)")
+        if not math.isnan(pe.get('avg') or float('nan')):
+            st.markdown(f"- Profit Efficiency: {100*pe['avg']:.0f}% (avg realized/peak RR)")
+    st.markdown('### 🌅 Profit Horizon')
+    st.plotly_chart(plot_profit_horizon(trades), use_container_width=True, config={"displayModeBar": False})
+    st.markdown('### 🧱 Discipline Posture')
+    render_discipline_posture(trades, events)
+    st.markdown('### 📈 Session Trajectory')
+    render_session_trajectory()
+
+with st.container():
+    render_behavioral_section()

@@ -155,6 +155,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PulseDetailResponse'
+
+  # /api/v1/health/telegram intentionally omitted from Actions surface to keep op-count < 30
   
   /api/v1/account/positions:
     get:
@@ -534,21 +536,7 @@ paths:
                 tags: { type: array, items: { type: string } }
       responses:
         '200': { description: OK }
-  /api/v1/session/set_focus:
-    post:
-      summary: Set daily psychological focus
-      operationId: postSessionSetFocus
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [focus]
-              properties:
-                focus: { type: string }
-      responses:
-        '200': { description: OK }
+  # /api/v1/session/set_focus trimmed from Actions surface (can re-add if needed)
   /api/v1/positions/{ticket}/protect:
     get:
       summary: Suggested protection options for an open position
@@ -584,6 +572,10 @@ paths:
       summary: Trade history with filters (behavioral-friendly)
       operationId: getTradeHistory
       parameters:
+        - in: query
+          name: source
+          schema: { type: string, enum: [db, mt5], nullable: true }
+          description: Use `source=mt5` to return live MT5 deals (bypass DB)
         - in: query
           name: symbol
           schema: { type: string, nullable: true }

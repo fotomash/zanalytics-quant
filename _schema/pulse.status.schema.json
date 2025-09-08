@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pulse.status.schema.json",
+  "title": "PulseStatus",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "context",
+    "liquidity",
+    "structure",
+    "imbalance",
+    "risk",
+    "confluence",
+    "confidence"
+  ],
+  "properties": {
+    "context": { "type": "integer", "minimum": 0, "maximum": 1 },
+    "liquidity": { "type": "integer", "minimum": 0, "maximum": 1 },
+    "structure": { "type": "integer", "minimum": 0, "maximum": 1 },
+    "imbalance": { "type": "integer", "minimum": 0, "maximum": 1 },
+    "risk": { "type": "integer", "minimum": 0, "maximum": 1 },
+    "confluence": { "type": "integer", "minimum": 0, "maximum": 1 },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}
+

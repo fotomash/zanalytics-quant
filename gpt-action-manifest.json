@@ -1,8 +1,8 @@
 {
   "schema_version": "v1",
   "name_for_model": "pulse_api",
-  "description_for_model": "Use this API to fetch real-time tick data from Redis.",
-  "description_for_human": "Real-time tick data API via Django",
+  "description_for_model": "Use this API to read Pulse gates, behavioral mirrors, account/risk, whispers, and trades to assist the trader with context-aware guidance.",
+  "description_for_human": "Pulse API: gates, risk, behavior, whispers, trades",
   "auth": {"type": "none"},
   "api": {"type": "openapi", "url": "https://django2.zanalytics.app/openapi.yaml"},
   "logo_url": "https://example.com/logo.png",

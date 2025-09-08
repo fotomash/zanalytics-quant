@@ -849,6 +849,36 @@ class EquitySeriesView(views.APIView):
         _publish_feed('equity_series', out)
         return Response(out)
 
+
+class EquityTodayView(views.APIView):
+    """Return intraday equity time series by adding SoD equity to cumulative PnL.
+
+    Shape: [{ ts: ISO8601, equity: number }]
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        # Reuse EquitySeriesView logic to compute cumulative PnL and SoD equity
+        try:
+            es = EquitySeriesView()
+            resp = es.get(request)
+            data = resp.data if hasattr(resp, 'data') else {}
+            points = data.get('points') if isinstance(data, dict) else []
+            sod_equity = data.get('sod_equity') if isinstance(data, dict) else None
+        except Exception:
+            points, sod_equity = [], None
+        out = []
+        base = float(sod_equity) if isinstance(sod_equity, (int, float)) else None
+        for p in (points or []):
+            ts = p.get('ts')
+            pnl = p.get('pnl')
+            try:
+                eq = (base + float(pnl)) if (base is not None and pnl is not None) else None
+            except Exception:
+                eq = None
+            out.append({'ts': ts, 'equity': eq})
+        return Response(out)
+
 class FeedTradeView(views.APIView):
     permission_classes = [AllowAny]
 
@@ -1064,6 +1094,42 @@ class TradeHistoryView(views.APIView):
                     'exit': float(t.close_price) if t.close_price is not None else None,
                     'pnl': float(t.pnl) if t.pnl is not None else None,
                     'status': 'closed' if t.close_time else 'open',
+                })
+            except Exception:
+                continue
+        return Response(out)
+
+
+class TradesRecentView(views.APIView):
+    """Recent trades with minimal normalized fields.
+
+    GET /api/v1/trades/recent?limit=200
+    Returns [{ id, ts_open, ts_close, symbol, side, entry, exit, pnl, rr, strategy, session }]
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            limit = int(request.GET.get('limit', '200'))
+        except Exception:
+            limit = 200
+        limit = max(1, min(1000, limit))
+        qs = Trade.objects.all().order_by('-entry_time')[:limit]
+        out = []
+        for t in qs:
+            try:
+                out.append({
+                    'id': t.id,
+                    'ts_open': t.entry_time.isoformat() if t.entry_time else None,
+                    'ts_close': t.close_time.isoformat() if t.close_time else None,
+                    'symbol': t.symbol,
+                    'side': (t.type or '').lower(),
+                    'entry': float(t.entry_price) if t.entry_price is not None else None,
+                    'exit': float(t.close_price) if t.close_price is not None else None,
+                    'pnl': float(t.pnl) if t.pnl is not None else None,
+                    'rr': None,
+                    'strategy': t.strategy,
+                    'session': None,
                 })
             except Exception:
                 continue
@@ -1810,6 +1876,35 @@ class DisciplineEventsView(views.APIView):
             except Exception:
                 out = []
         return Response(out)
+
+
+class BehaviorEventsTodayView(views.APIView):
+    """Return today's behavior events as [{ts, type, weight, explain}]."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from django.utils import timezone
+        day = timezone.now().strftime('%Y-%m-%d')
+        key = f"events:discipline:{day.replace('-', '')}"
+        r = _redis_client()
+        items = []
+        if r is not None:
+            try:
+                raw = r.lrange(key, 0, -1) or []
+                for b in raw:
+                    try:
+                        e = json.loads(b)
+                        items.append({
+                            'ts': e.get('ts'),
+                            'type': e.get('kind'),
+                            'weight': e.get('delta'),
+                            'explain': e.get('note') or None,
+                        })
+                    except Exception:
+                        continue
+            except Exception:
+                items = []
+        return Response(items)
 
 
 class DisciplineEventAppendView(views.APIView):

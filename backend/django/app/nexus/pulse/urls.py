@@ -3,6 +3,7 @@ from .views import (
     PulseStatus, PulseDetail, PulseWeights, PulseGateHits, BarsEnriched, YFBars,
     TradeQualityDist,
     TradesQuality, TradesSummary, TradesEfficiency, TradesBuckets, TradesSetups,
+    TelegramHealth,
 )
 
 urlpatterns = [
@@ -19,4 +20,6 @@ urlpatterns = [
     path('analytics/trades/efficiency', TradesEfficiency.as_view(), name='analytics-trades-efficiency'),
     path('analytics/trades/buckets', TradesBuckets.as_view(), name='analytics-trades-buckets'),
     path('analytics/trades/setups', TradesSetups.as_view(), name='analytics-trades-setups'),
+    # Health
+    path('health/telegram', TelegramHealth.as_view(), name='telegram-health'),
 ]
