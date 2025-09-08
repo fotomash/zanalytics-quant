@@ -285,30 +285,30 @@ class BarsEnriched(views.APIView):
             payload = {"items": items, "symbol": symbol, "timeframe": tf}
             # Back-compat alias: provide dataframe-like 'bars' key
             payload["bars"] = items
-            # Optional strategies: leverage existing gates on timeframe-relevant data without mockups
+            # Optional strategies: derive from existing gates only (no mock scores)
             strategies = []
             try:
-                # Liquidity sweep detection works best on M15
+                # Liquidity sweep signal on M15
                 if tf == 'M15':
                     from .gates import liquidity_gate
                     m15 = _load_minute_data(symbol).get('M15')
                     liq = liquidity_gate(m15) if m15 is not None else {"passed": False}
-                    if isinstance(liq, dict) and liq.get('passed'):
+                    if isinstance(liq, dict):
                         strategies.append({
                             "tag": "liquidity_sweep",
-                            "confidence": 0.82,  # heuristic static score; actual scoring engine can replace
-                            "bar_index": max(0, len(items) - 1)
+                            "passed": bool(liq.get('passed')),
+                            "evidence": {k: v for k, v in liq.items() if k != 'passed'}
                         })
-                # Structure (CHoCH) detection on M1
+                # Structure (CHoCH) signal on M1
                 if tf == 'M1':
                     from .gates import structure_gate
                     m1 = _load_minute_data(symbol).get('M1')
                     st = structure_gate(m1) if m1 is not None else {"passed": False}
-                    if isinstance(st, dict) and st.get('passed'):
+                    if isinstance(st, dict):
                         strategies.append({
                             "tag": "choch",
-                            "confidence": 0.74,
-                            "bar_index": max(0, len(items) - 1)
+                            "passed": bool(st.get('passed')),
+                            "evidence": {k: v for k, v in st.items() if k != 'passed'}
                         })
             except Exception:
                 strategies = []
