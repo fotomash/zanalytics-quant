@@ -134,7 +134,7 @@ class WhisperEngine:
         if (s.trades_today >= 2 * max(1, int(60 / max(1, s.window_minutes)))) and not Cooldowns.hit(f"{s.user_id}:overconf"):
             cands.append(self._overconfidence(s))
 
-        return self._dedupe_and_arm_cooldowns(cands)
+        return self._dedupe_and_arm_cooldowns(cands, s.user_id)
 
     # --- renderers -----------------------------------------------------
     def _low_confluence(self, s: State) -> Whisper:
@@ -254,7 +254,7 @@ class WhisperEngine:
         )
 
     # --- utilities -----------------------------------------------------
-    def _dedupe_and_arm_cooldowns(self, ws: List[Whisper]) -> List[Whisper]:
+    def _dedupe_and_arm_cooldowns(self, ws: List[Whisper], user_id: str) -> List[Whisper]:
         seen = set()
         out: List[Whisper] = []
         for w in ws:
@@ -262,7 +262,8 @@ class WhisperEngine:
             if key in seen:
                 continue
             seen.add(key)
-            Cooldowns.set(f"{w.id.split('-')[0]}:{w.cooldown_key}", w.cooldown_seconds)
+            # Scope cooldown keys by user
+            Cooldowns.set(f"{user_id}:{w.cooldown_key}", w.cooldown_seconds)
             out.append(w)
         return out
 

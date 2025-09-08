@@ -90,14 +90,20 @@ with st.expander("Agent Ops — GPT Instructions", expanded=False):
 
 # Settings: favorite symbol (session + optional env)
 with st.sidebar.expander("Settings", expanded=False):
-    all_symbols = fetch_symbols_list()
+    try:
+        all_symbols = _api_fetch_symbols() or []
+    except Exception:
+        all_symbols = []
     fav_default = os.getenv('PULSE_DEFAULT_SYMBOL', 'XAUUSD').upper()
     fav_symbol = st.session_state.get('pulse_fav_symbol', fav_default)
     fav_symbol = st.selectbox("Favorite symbol", all_symbols, index=all_symbols.index(fav_symbol) if fav_symbol in all_symbols else 0)
     st.session_state['pulse_fav_symbol'] = fav_symbol
 
 # Symbol selector (use favorite as default; URL param overrides)
-all_symbols = fetch_symbols_list()
+try:
+    all_symbols = _api_fetch_symbols() or []
+except Exception:
+    all_symbols = []
 sym_qp = st.experimental_get_query_params().get('sym', [None])[0]
 default_sym = (sym_qp or st.session_state.get('pulse_fav_symbol') or os.getenv('PULSE_DEFAULT_SYMBOL', 'XAUUSD')).upper()
 if default_sym not in all_symbols:
@@ -465,7 +471,8 @@ def _fetch_trades(limit: int = 200) -> pd.DataFrame:
     # Prefer recent endpoint if available; fallback to history
     data = _safe_get_json(f"{DJ_API}/api/v1/trades/recent", params={"limit": limit}, timeout=2.0)
     if not isinstance(data, list):
-        data = _safe_get_json(f"{DJ_API}/api/v1/trades/history", params={"limit": limit}, timeout=2.0)
+        # /trades/history does not accept 'limit'; retry without params
+        data = _safe_get_json(f"{DJ_API}/api/v1/trades/history", params=None, timeout=2.0)
     data = data or []
     df = pd.DataFrame(data if isinstance(data, list) else [])
     for col in ("ts_open","ts_close"):
@@ -703,29 +710,50 @@ def render_behavioral_section():
     fig = plot_behavioral_compass(compass)
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-    # Quick Whisper (local heuristic; provider integration can replace this)
+    # Quick Whisper via Actions Bus (fallback to local heuristic)
+    def _fetch_whisper_bus(sym: str) -> dict | None:
+        try:
+            user_id = os.getenv('PULSE_USER_ID') or os.getenv('USER') or 'local'
+            r = requests.post(
+                f"{DJ_API}/api/v1/actions/query",
+                json={"type": "whisper_suggest", "payload": {"symbol": sym, "user_id": user_id}},
+                timeout=1.8,
+            )
+            if r.ok:
+                return r.json()
+        except Exception:
+            return None
+        return None
+
     try:
-        flags = []
-        if not math.isnan(disc) and disc < 60:
-            flags.append('discipline_low')
-        if (pe.get('avg') or 1.0) < 0.5:
-            flags.append('profit_efficiency_low')
-        if (conv.get('hc_win') or 0.0) < 0.5 and (conv.get('lc_win') or 0.0) > 0.5:
-            flags.append('conviction_misaligned')
+        bus = _fetch_whisper_bus(symbol)
         k = _compute_trade_kpis(trades)
-        whisper = None
-        if flags:
+        msg = None
+        if isinstance(bus, dict):
+            msg = (bus.get('message') or '').strip() or None
+        if not msg:
+            # Fallback local heuristic
+            flags = []
+            if not math.isnan(disc) and disc < 60:
+                flags.append('discipline_low')
+            if (pe.get('avg') or 1.0) < 0.5:
+                flags.append('profit_efficiency_low')
+            if (conv.get('hc_win') or 0.0) < 0.5 and (conv.get('lc_win') or 0.0) > 0.5:
+                flags.append('conviction_misaligned')
             if 'discipline_low' in flags:
-                whisper = "Discipline is soft today. Would you consider a brief reset and smaller size for the next setup?"
+                msg = "Discipline is soft today. Would you consider a brief reset and smaller size for the next setup?"
             elif 'profit_efficiency_low' in flags:
-                whisper = "Efficiency is lagging. Would you consider protecting winners earlier and reducing chase entries?"
+                msg = "Efficiency is lagging. Would you consider protecting winners earlier and reducing chase entries?"
             elif 'conviction_misaligned' in flags:
-                whisper = "Conviction looks inverted. Would you re‑check confluence before the next trade?"
-        else:
-            whisper = "Posture looks balanced. Would you keep waiting for clean confluence and protect gains near targets?"
+                msg = "Conviction looks inverted. Would you re‑check confluence before the next trade?"
+            else:
+                msg = "Posture looks balanced. Would you keep waiting for clean confluence and protect gains near targets?"
         with st.expander('🤖 The Whisperer — Quick Suggestion', expanded=False):
-            st.write(whisper)
-            st.caption(f"Ref: {len(trades)} trades, Win {k['win_rate']}%, Avg R:R {k['avg_rr']:.2f if not math.isnan(k['avg_rr']) else 0.0}, Eff {int(100*(pe.get('avg') or 0))}%")
+            st.write(msg)
+            eff_pct = int(100 * (pe.get('avg') or 0))
+            avg_rr = k['avg_rr']
+            avg_rr_str = f"{avg_rr:.2f}" if not math.isnan(avg_rr) else "0.00"
+            st.caption(f"Ref: {len(trades)} trades • Win {k['win_rate']}% • Avg R:R {avg_rr_str} • Eff {eff_pct}%")
     except Exception:
         pass
     with st.expander('Why these scores?'):

@@ -1222,6 +1222,54 @@ class ActionsQueryView(views.APIView):
             if typ == 'market_snapshot':
                 # Minimal: reuse market/mini
                 return MarketMiniView().get(request)
+            if typ == 'whisper_suggest':
+                # Heuristic-driven quick whisper; best-effort inputs
+                try:
+                    from whisper_engine import WhisperEngine, State  # type: ignore
+                except Exception:
+                    return Response({"message": None, "heuristics": []})
+                user_id = str(payload.get('user_id') or request.META.get('REMOTE_USER') or 'local')
+                symbol = str(payload.get('symbol') or 'XAUUSD')
+                # Pull mirror and risk (best-effort)
+                ms = MirrorStateView().get(request).data or {}
+                rk = AccountRiskView().get(request).data or {}
+                # Pulse status
+                req = request._request
+                req.GET = req.GET.copy()
+                req.GET['symbol'] = symbol
+                try:
+                    from app.nexus.pulse.views import PulseStatus  # type: ignore
+                    ps = PulseStatus().get(request).data or {}
+                except Exception:
+                    ps = {}
+                # Trades today count (within session)
+                start_utc, end_utc, _ = session_bounds()
+                try:
+                    n_trades = Trade.objects.filter(entry_time__gte=start_utc).count()
+                except Exception:
+                    n_trades = 0
+                # Build state
+                confluence = float(ps.get('confidence') or 0.0) * 100.0
+                patience_score = float(ms.get('discipline') or 80.0)  # placeholder; mirror may not expose patience score
+                # No baseline delta → set 0
+                st_obj = State(
+                    confluence=confluence,
+                    confluence_trend_up=False,
+                    patience_index=patience_score,
+                    patience_drop_pct=0.0,
+                    loss_streak=0,
+                    window_minutes=30,
+                    recent_winrate_similar=0.5,
+                    hard_cooldown_active=False,
+                    risk_budget_used_pct=float((rk.get('used_pct') or 0.0) if isinstance(rk.get('used_pct'), (int, float)) else 0.0) / (100.0 if (isinstance(rk.get('used_pct'), (int, float)) and rk.get('used_pct') > 1) else 1.0),
+                    trades_today=int(n_trades),
+                    user_id=user_id,
+                )
+                engine = WhisperEngine(cfg={})
+                hs = engine.evaluate(st_obj)
+                from whisper_engine import serialize_whispers  # type: ignore
+                top_msg = hs[0].message if hs else None
+                return Response({"message": top_msg, "heuristics": serialize_whispers(hs), "meta": {"user_id": user_id, "symbol": symbol}})
             return Response({'error': 'unknown type'}, status=400)
         except Exception as e:
             return Response({'error': str(e)}, status=500)
