@@ -1,6 +1,6 @@
 import streamlit as st
 import requests
-import os
+from dashboard.utils.streamlit_api import api_url
 
 
 def _sparkline(values, color="#93c5fd"):
@@ -14,13 +14,12 @@ def render_market_header():
     """Slim header with VIX, DXY sparklines and next high-impact news.
     Tries optional internal endpoints; degrades gracefully if unavailable.
     """
-    dj = os.getenv("DJANGO_API_URL", "http://django:8000").rstrip('/')
     vix = {'series': [], 'value': None}
     dxy = {'series': [], 'value': None}
     news = {'label': None, 'countdown': None}
     # Optional internal endpoints
     try:
-        r = requests.get(f"{dj}/api/v1/market/mini", timeout=1.2)
+        r = requests.get(api_url("api/v1/market/mini"), timeout=1.2)
         if r.ok:
             data = r.json() or {}
             vix = data.get('vix') or vix

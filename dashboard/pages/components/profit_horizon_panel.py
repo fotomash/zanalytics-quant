@@ -1,13 +1,12 @@
 import streamlit as st
 import plotly.graph_objects as go
 import requests
-import os
+from dashboard.utils.streamlit_api import api_url
 
 
 def render_profit_horizon(limit: int = 20):
-    dj = os.getenv("DJANGO_API_URL", "http://django:8000").rstrip('/')
     try:
-        data = requests.get(f"{dj}/api/v1/profit-horizon?limit={limit}", timeout=2).json()
+        data = requests.get(api_url(f"api/v1/profit-horizon?limit={limit}"), timeout=2).json()
     except Exception:
         st.info("Profit Horizon unavailable.")
         return
@@ -51,4 +50,3 @@ def render_profit_horizon(limit: int = 20):
         yaxis=dict(title=('P&L (USD)' if use_usd else 'R multiple')),
     )
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-

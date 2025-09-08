@@ -1,14 +1,13 @@
-import os
 import time
 import requests
 import plotly.graph_objects as go
 import streamlit as st
+from dashboard.utils.streamlit_api import api_url
 
 
 def render_discipline_posture_panel():
-    dj = os.getenv("DJANGO_API_URL", "http://django:8000").rstrip('/')
     try:
-        data = requests.get(f"{dj}/api/v1/discipline/summary", timeout=2).json()
+        data = requests.get(api_url("api/v1/discipline/summary"), timeout=2).json()
     except Exception:
         st.info("Discipline summary unavailable.")
         return
