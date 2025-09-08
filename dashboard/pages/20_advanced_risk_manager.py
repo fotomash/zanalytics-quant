@@ -1874,7 +1874,7 @@ def _render_unified_whisperer_block(account_info: Dict, risk_env: Dict):
     # The Whisperer (reuse component)
     st.subheader("🤖 The Whisperer")
     try:
-        render_whisper_panel(api=os.getenv("DJANGO_API_URL", "http://django:8000").rstrip('/') + "/api/pulse/whispers")
+        render_whisper_panel()
     except Exception:
         st.info("Whisperer unavailable")
 
