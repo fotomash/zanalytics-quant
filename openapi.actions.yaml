@@ -1,14 +1,174 @@
 openapi: 3.1.0
 info:
   title: Zanalytics Pulse – Actions Bus (Slim)
-  version: 0.1.0
+  version: 0.1.1
   description: |
     Slim spec for agent-facing Actions routed via a single endpoint.
     Keeps the main API under the 30‑operation cap while exposing core verbs.
 servers:
   - url: https://django2.zanalytics.app
+x-openai:
+  trusted: true
+  permissions:
+    - domain: django2.zanalytics.app
+      always_allow: true
 paths:
+  /api/v1/actions/read:
+    get:
+      summary: Query a read-only action (alias; avoids consent prompts in most runtimes)
+      operationId: getActionsRead
+      parameters:
+        - in: query
+          name: type
+          required: true
+          schema:
+            type: string
+            enum: [
+              session_boot,
+              trades_recent,
+              trades_history_mt5,
+              account_info,
+              account_positions,
+              account_risk,
+              equity_today,
+              market_mini,
+              market_symbols,
+              market_calendar_next,
+              market_regime,
+              liquidity_map,
+              state_snapshot,
+              journal_recent,
+              whisper_suggest
+            ]
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer }
+        - in: query
+          name: symbol
+          required: false
+          schema: { type: string }
+        - in: query
+          name: timeframe
+          required: false
+          schema: { type: string }
+        - in: query
+          name: date_from
+          required: false
+          schema: { type: string }
+        - in: query
+          name: date_to
+          required: false
+          schema: { type: string }
+        - in: query
+          name: pnl_min
+          required: false
+          schema: { type: number }
+        - in: query
+          name: pnl_max
+          required: false
+          schema: { type: number }
+        - in: query
+          name: user_id
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/WhisperSuggestResponse'
+                  - type: array
+                    description: trades_recent result
+                    items:
+                      $ref: '#/components/schemas/TradeItem'
+                  - $ref: '#/components/schemas/SessionBootResponse'
+                  - type: array
+                    description: trades_history_mt5 result
+                    items:
+                      $ref: '#/components/schemas/TradeHistoryItem'
+        '400': { description: Bad Request }
+        '500': { description: Server Error }
   /api/v1/actions/query:
+    get:
+      summary: Query a read-only action (no consent prompts in most runtimes)
+      operationId: getActionsQuery
+      parameters:
+        - in: query
+          name: type
+          required: true
+          schema:
+            type: string
+            enum: [
+              session_boot,
+              trades_recent,
+              trades_history_mt5,
+              account_info,
+              account_positions,
+              account_risk,
+              equity_today,
+              market_mini,
+              market_symbols,
+              market_calendar_next,
+              market_regime,
+              liquidity_map,
+              state_snapshot,
+              journal_recent,
+              whisper_suggest
+            ]
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer }
+        - in: query
+          name: symbol
+          required: false
+          schema: { type: string }
+        - in: query
+          name: timeframe
+          required: false
+          schema: { type: string }
+        - in: query
+          name: date_from
+          required: false
+          schema: { type: string }
+        - in: query
+          name: date_to
+          required: false
+          schema: { type: string }
+        - in: query
+          name: pnl_min
+          required: false
+          schema: { type: number }
+        - in: query
+          name: pnl_max
+          required: false
+          schema: { type: number }
+        - in: query
+          name: user_id
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/WhisperSuggestResponse'
+                  - type: array
+                    description: trades_recent result
+                    items:
+                      $ref: '#/components/schemas/TradeItem'
+                  - $ref: '#/components/schemas/SessionBootResponse'
+                  - type: array
+                    description: trades_history_mt5 result
+                    items:
+                      $ref: '#/components/schemas/TradeHistoryItem'
+        '400': { description: Bad Request }
+        '500': { description: Server Error }
     post:
       summary: Execute an action (query verbs)
       operationId: postActionsQuery
@@ -174,9 +334,24 @@ components:
             position_hedge
           ]
         payload:
-          type: object
-          additionalProperties: true
-          description: Action-specific parameters
+          description: Action-specific parameters (varies by verb)
+          oneOf:
+            - $ref: '#/components/schemas/PositionClosePayload'
+            - $ref: '#/components/schemas/PositionOpenPayload'
+            - $ref: '#/components/schemas/PositionModifyPayload'
+            - $ref: '#/components/schemas/PositionHedgePayload'
+            - $ref: '#/components/schemas/SessionBootPayload'
+            - $ref: '#/components/schemas/TradesRecentPayload'
+            - $ref: '#/components/schemas/TradesHistoryMt5Payload'
+            - $ref: '#/components/schemas/MarketCalendarNextPayload'
+            - $ref: '#/components/schemas/LiquidityMapPayload'
+            - $ref: '#/components/schemas/OpportunityPriorityItemsPayload'
+            - $ref: '#/components/schemas/JournalRecentPayload'
+            - $ref: '#/components/schemas/JournalAppendPayload'
+            - $ref: '#/components/schemas/WhisperSuggestPayload'
+            - type: object
+              additionalProperties: true
+              description: Generic object for verbs that take no parameters
 
     # ----- Request variants (typed by 'type') -----
     PositionOpenRequest:

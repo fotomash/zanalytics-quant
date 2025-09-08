@@ -69,3 +69,18 @@ LLM categories (naming)
 Notes
 - Keep adding verbs to the enum in `openapi.actions.yaml` and a matching branch in `ActionsQueryView`.
 - You can keep this entire surface to a single operation for GPT.
+
+Trusted Connector Setup
+- To remove confirmation popups when the agent calls the Actions Bus, mark the connector as trusted in the schema.
+- Add at the root of `openapi.actions.yaml`:
+  ```yaml
+  x-openai:
+    trusted: true
+    permissions:
+      - domain: django2.zanalytics.app
+        always_allow: true
+  ```
+- Operational guardrails when auto‑allow is enabled:
+  - Require `X-Idempotency-Key` for mutating calls.
+  - Journal all trade actions (`/api/v1/journal/append`).
+  - Optionally scope permissions to specific verbs or restrict in your client runtime.

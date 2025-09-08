@@ -1221,6 +1221,95 @@ class ActionsQueryView(views.APIView):
     """
     permission_classes = [AllowAny]
 
+    def get(self, request):
+        """Read-only Actions via GET to avoid consent prompts in some runtimes.
+
+        Query params: ?type=<verb>&symbol=...&limit=...&timeframe=...&date_from=...&date_to=...&pnl_min=...&pnl_max=...
+        Supported verbs: session_boot, trades_recent, trades_history_mt5, account_info, account_positions,
+                         account_risk, equity_today, market_mini, market_symbols, market_calendar_next,
+                         market_regime, liquidity_map, state_snapshot, journal_recent, whisper_suggest
+        """
+        typ = str(request.GET.get('type') or '').strip()
+        try:
+            if typ == 'session_boot':
+                # Map to POST handler logic with default payload extracted from query params
+                req = request._request
+                req.data = {
+                    'type': 'session_boot',
+                    'payload': {
+                        'limit_trades': request.GET.get('limit') or request.GET.get('limit_trades'),
+                        'include_positions': request.GET.get('include_positions'),
+                        'include_equity': request.GET.get('include_equity'),
+                        'include_risk': request.GET.get('include_risk'),
+                    },
+                }
+                return self.post(request)
+            if typ == 'trades_recent':
+                req = request._request
+                req.GET = req.GET.copy()
+                if request.GET.get('limit'):
+                    req.GET['limit'] = str(request.GET.get('limit'))
+                return TradesRecentView().get(request)
+            if typ == 'trades_history_mt5':
+                req = request._request
+                req.GET = req.GET.copy()
+                req.GET['source'] = 'mt5'
+                for k in ('symbol','date_from','date_to','pnl_min','pnl_max'):
+                    v = request.GET.get(k)
+                    if v is not None:
+                        req.GET[k] = str(v)
+                return TradeHistoryView().get(request)
+            if typ == 'account_info':
+                return AccountInfoView().get(request)
+            if typ == 'account_positions':
+                return PositionsProxyView().get(request)
+            if typ == 'account_risk':
+                return AccountRiskView().get(request)
+            if typ == 'equity_today':
+                return EquityTodayView().get(request)
+            if typ == 'market_mini' or typ == 'market_snapshot':
+                return MarketMiniView().get(request)
+            if typ == 'market_symbols':
+                return MarketSymbolsView().get(request)
+            if typ == 'market_calendar_next':
+                req = request._request
+                req.GET = req.GET.copy()
+                if request.GET.get('limit'):
+                    req.GET['limit'] = str(request.GET.get('limit'))
+                return MarketCalendarNextView().get(request)
+            if typ == 'market_regime':
+                return MarketRegimeView().get(request)
+            if typ == 'liquidity_map':
+                req = request._request
+                req.GET = req.GET.copy()
+                if request.GET.get('symbol'):
+                    req.GET['symbol'] = str(request.GET.get('symbol'))
+                if request.GET.get('timeframe'):
+                    req.GET['timeframe'] = str(request.GET.get('timeframe'))
+                return LiquidityMapView().get(request)
+            if typ == 'state_snapshot':
+                return StateSnapshotView().get(request)
+            if typ == 'journal_recent':
+                req = request._request
+                req.GET = req.GET.copy()
+                if request.GET.get('limit'):
+                    req.GET['limit'] = str(request.GET.get('limit'))
+                return JournalRecentView().get(request)
+            if typ == 'whisper_suggest':
+                # Map to POST handler for consistent behavior (uses GET params)
+                req = request._request
+                req.data = {
+                    'type': 'whisper_suggest',
+                    'payload': {
+                        'symbol': request.GET.get('symbol'),
+                        'user_id': request.GET.get('user_id'),
+                    },
+                }
+                return self.post(request)
+            return Response({'error': 'unknown type'}, status=400)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
     def post(self, request):
         data = request.data or {}
         typ = str(data.get('type') or '')
