@@ -174,6 +174,7 @@ I support whatever you decide."
   - `/api/v1/behavioral/patterns` — Pattern detection
   - `/api/v1/discipline/summary` — Discipline tracking
   - `/api/v1/account/risk` — Risk management
+  - `/api/v1/market/mini` — VIX/DXY mini header (requires cache seeding; see below)
   - `/api/v1/trades/recent` — Recent trades (normalized; all symbols)
   - `/api/v1/behavior/events/today` — Today’s discipline/behavior events
   - `/api/v1/equity/today` — Intraday equity (SoD‑anchored) time series
@@ -188,11 +189,54 @@ Notes:
 - SoD equity can be overridden ad‑hoc via `POST /api/v1/account/sod`.
 - Some endpoints exist but are intentionally omitted from OpenAPI to keep the 30‑action cap; use them only when instructed.
 
+VIX/DXY cache seeding (mini header)
+
+- `/api/v1/market/mini` returns VIX/DXY only when DB bars exist or Redis caches are populated.
+- Seed via: `GET /api/v1/market/fetch` (Yahoo 1d/5m) and retry `/api/v1/market/mini`. Schedule every 5 minutes in production.
+
+Trades API usage
+
+- Last N trades: `GET /api/v1/trades/recent?limit=N` (preferred for small samples).
+- History windows: `GET /api/v1/trades/history` (no `limit` parameter).
+- If an integration sends `limit` to `/trades/history`, retry without it.
+
 ### Actions Bus (Prototype)
 - Consolidates many logical ops under two endpoints (keeps path count low):
   - `POST /api/v1/actions/query` with `{ type, payload }` → e.g., `trades_recent`, `behavior_events`, `equity_today`, `pulse_status`.
   - `POST /api/v1/actions/mutate` with `{ type, payload }` → e.g., `note_create`.
 - Prefer documented endpoints when building UIs; use the bus when action count is constrained.
+
+Current verbs (query)
+
+- `trades_recent` → array of trade items.
+- `whisper_suggest` → `{ message, heuristics, meta }` (single concise suggestion; heuristic + rate‑limited).
+
+Examples
+
+- Recent trades (100):
+  ```
+  POST /api/v1/actions/query
+  { "type": "trades_recent", "payload": { "limit": 100 } }
+  ```
+- Whisper suggest (symbol/user scoped):
+  ```
+  POST /api/v1/actions/query
+  { "type": "whisper_suggest", "payload": { "symbol": "XAUUSD", "user_id": "local" } }
+  ```
+
+Spec for agents
+
+- Use the slim spec `openapi.actions.yaml` to document the bus without growing the main spec.
+- See also: `docs/gpt_llm/actions_bus.md` for verb shapes and examples.
+
+Price confirmation (minimal)
+
+- Confirm last bar without quoting stale data:
+  `GET /api/v1/feed/bars-enriched?symbol={SYM}&timeframe=M15&limit=1`
+
+Telegram note
+
+- LLMs should not post to Telegram directly. The backend handles chat sends; return human‑readable text for dashboards/alerts.
 
 ## Remember
 - You’re a mirror, not a master.
