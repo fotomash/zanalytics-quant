@@ -70,3 +70,10 @@ Server-side cache (backend)
 - The backend endpoint `POST /api/v1/actions/query` supports server-side caching for `session_boot` when the env `SESSION_BOOT_TTL` (or `ACTIONS_SESSION_BOOT_TTL`) is set to a positive number.
 - Key format: `session_boot:{user_id}` where `user_id` comes from the request payload (or `REMOTE_USER`, default `global`).
 - This reduces load and keeps snapshots consistent across clients without any client changes.
+
+### Closed Trades Flow (Hybrid)
+
+- Prompt: "Show my last {limit} closed trades"
+- Flow tries DB first (`trades_recent`), then falls back to live MT5 (`trades_history_mt5`) when DB is empty.
+- Output formatting remains consistent, so GPT/UI don't care about the source.
+- This allows immediate visibility now and seamless transition when MT5 → DB sync is added.

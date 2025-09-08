@@ -154,6 +154,26 @@ prompt_flows:
       Today: {trades_count} trades | Win% {win_pct}% | RR avg {rr_avg}.
       Rule adherence {adherence}% — {key_lesson}
 
+  show_closed_trades:
+    input: "Show my last {limit} closed trades"
+    sequence:
+      - try_trades_db:
+          call: POST /api/v1/actions/query
+          body: { type: trades_recent, payload: { limit: "{limit}" } }
+      - if_empty_then:
+          call: POST /api/v1/actions/query
+          body: { type: trades_history_mt5, payload: { date_from: "2025-09-01" } }
+          post: limit_results {limit}
+    output: |
+      📂 Closed Trades (last {limit})
+      {% if trades|length == 0 %}
+      No closed trades available yet.
+      {% else %}
+      {% for t in trades %}
+      - {{t.symbol}} | {{t.direction}} | Entry {{t.entry}} → Exit {{t.exit}} | PnL {{t.pnl}} | Status {{t.status}}
+      {% endfor %}
+      {% endif %}
+
 startup_actions:
   - type: session_boot
     payload:
