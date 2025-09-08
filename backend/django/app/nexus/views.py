@@ -2331,10 +2331,10 @@ class OrderCloseProxyView(views.APIView):
         fraction = data.get('fraction')
         try:
             base = os.getenv("MT5_URL") or os.getenv("MT5_API_URL") or "http://mt5:5001"
-            payload = {'ticket': ticket}
-            if fraction is not None:
-                payload['fraction'] = float(fraction)
-            r = requests.post(f"{str(base).rstrip('/')}/partial_close", json=payload, timeout=6.0)
+            # Default to full close when no fraction specified
+            payload = {'ticket': ticket, 'fraction': float(fraction) if fraction is not None else 1.0}
+            # Use enhanced endpoint that infers symbol from ticket and allows fraction or volume
+            r = requests.post(f"{str(base).rstrip('/')}/partial_close_v2", json=payload, timeout=6.0)
             if r.ok:
                 return Response(r.json() if isinstance(r.json(), dict) else {'ok': True})
             return Response({'error': 'bridge_http', 'status': r.status_code}, status=502)
