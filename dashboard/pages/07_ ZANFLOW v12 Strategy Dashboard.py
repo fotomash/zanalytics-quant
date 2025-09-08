@@ -279,7 +279,31 @@ def get_candles(symbol: str, timeframe: str = "1min", lookback: str = "2D") -> p
     """
     mode = st.session_state.get("data_mode", "Parquet")
     if mode == "Live":
-        return _get_live_feed().get_candles(symbol, timeframe, lookback=lookback)
+        df_live = _get_live_feed().get_candles(symbol, timeframe, lookback=lookback)
+        if isinstance(df_live, pd.DataFrame) and not df_live.empty:
+            return df_live
+        # Fallbacks if bridge has no ticks yet
+        try:
+            df_db = load_db_candles(symbol, timeframe, lookback=lookback)
+            if isinstance(df_db, pd.DataFrame) and not df_db.empty:
+                return df_db
+        except Exception:
+            pass
+        try:
+            df_pq = load_parquet_candles(symbol, timeframe)
+            if isinstance(df_pq, pd.DataFrame) and not df_pq.empty:
+                return df_pq
+        except Exception:
+            pass
+        return df_live
+    # Database mode
+    try:
+        df_db = load_db_candles(symbol, timeframe, lookback=lookback)
+        if isinstance(df_db, pd.DataFrame) and not df_db.empty:
+            return df_db
+    except Exception:
+        pass
+    # Final fallback to parquet if configured
     return load_parquet_candles(symbol, timeframe)
 
 # --- Tiny spark tile (transparent) for equity/price/score trends ---
@@ -602,7 +626,7 @@ def setup_zanflow_page():
 
     # --- Data Source Toggle (Live vs Parquet) & LIVE badge ---
     if "data_mode" not in st.session_state:
-        st.session_state["data_mode"] = "Parquet"
+        st.session_state["data_mode"] = "Live"
     st.sidebar.markdown("### Data Source")
     # Determine defaults based on availability
     db_ok = False
@@ -668,6 +692,20 @@ def setup_zanflow_page():
     st.sidebar.markdown("### Sources (status)")
     st.sidebar.markdown(f"{'✅' if db_ok else '⚠️'} Database")
     st.sidebar.markdown(f"{'✅' if bridge_ok else '⚠️'} MT5 Bridge")
+
+    # Settings: favorite symbol (shared across pages)
+    from dashboard.utils.user_prefs import fetch_symbols_list
+    with st.sidebar.expander("Settings", expanded=False):
+        _all_syms = fetch_symbols_list()
+        _fav_default = os.getenv('PULSE_DEFAULT_SYMBOL', 'XAUUSD').upper()
+        _fav_symbol = st.session_state.get('pulse_fav_symbol', _fav_default)
+        _fav_symbol = st.selectbox(
+            "Favorite symbol",
+            _all_syms,
+            index=_all_syms.index(_fav_symbol) if _fav_symbol in _all_syms else 0,
+            key='fav_sym_07'
+        )
+        st.session_state['pulse_fav_symbol'] = _fav_symbol
 
 
 # --- Helper: Show current mode as badge in headers ---
@@ -1827,7 +1865,15 @@ def main():
                 symbols_found = []
 
         st.markdown("### 💱 Instrument")
-        selected_symbol = st.text_input("Symbol", value="EURUSD", help="Enter instrument symbol for Live/Database")
+        # Use favorite as default where possible
+        from dashboard.utils.user_prefs import fetch_symbols_list
+        try:
+            _all_syms = fetch_symbols_list()
+        except Exception:
+            _all_syms = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "US500", "SPX500"]
+        _fav = (st.session_state.get('pulse_fav_symbol') or os.getenv('PULSE_DEFAULT_SYMBOL', 'XAUUSD')).upper()
+        _idx = _all_syms.index(_fav) if _fav in _all_syms else 0
+        selected_symbol = st.selectbox("Symbol", _all_syms, index=_idx, help="Select instrument for Live/Database")
     # Load data
     with st.spinner("🔄 Loading ZANFLOW v12 data..."):
         try:

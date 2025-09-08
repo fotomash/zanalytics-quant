@@ -23,6 +23,7 @@ from dashboard.components.ui_tri_vitals import fig_behavior_concentric_from_mirr
 from dashboard.utils.plotly_donuts import bipolar_donut, oneway_donut, behavioral_score_from_mirror
 from dashboard.pages.components.profit_horizon_panel import render_profit_horizon
 from dashboard.pages.components.whisper_panel import render_whisper_panel
+from dashboard.utils.user_prefs import render_favorite_selector
 from dashboard.pages.components.whisper_timeline import render_whisper_timeline
 from dashboard.pages.components.discipline_posture_panel import render_discipline_posture_panel
 from dashboard.pages.components.market_header import render_market_header
@@ -91,6 +92,9 @@ if _img_base64:
 
 # Market Conditions header
 render_market_header()
+
+# Settings: favorite symbol (shared across pages)
+_all_syms, _fav_symbol = render_favorite_selector(key='fav_sym_20')
 
 # --- Session Vitals (three donuts • Equity/Exposure/Behavior) ---
 # Identical logic to page 06 for consistent look & numbers

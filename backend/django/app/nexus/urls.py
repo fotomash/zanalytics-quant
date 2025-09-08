@@ -44,6 +44,7 @@ from .views import (
     JournalEntryPostView,
     SessionSetFocusView,
     PositionProtectOptionsView,
+    UserPrefsView,
 )
 from .playbook_stub_views import (
     PlaybookSessionInit,
@@ -135,6 +136,8 @@ urlpatterns = [
     path('positions/<int:ticket>/protect', PositionProtectOptionsView.as_view(), name='position-protect-options'),
     # Include pulse module endpoints
     path('', include('app.nexus.pulse.urls')),
+    # User prefs (unauthenticated, minimal)
+    path('user/prefs', UserPrefsView.as_view(), name='user-prefs'),
     # Playbook stubs
     path('playbook/session-init', PlaybookSessionInit.as_view(), name='playbook-session-init'),
     path('liquidity/map', LiquidityMapView.as_view(), name='liquidity-map'),

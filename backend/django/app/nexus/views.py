@@ -2087,6 +2087,51 @@ class PositionProtectOptionsView(views.APIView):
             return Response({'actions': []})
 
 
+class UserPrefsView(views.APIView):
+    """Very small, unauthenticated user prefs store.
+
+    GET  /api/v1/user/prefs -> { favorite_symbol?: str }
+    POST /api/v1/user/prefs { favorite_symbol?: str } -> { ok: true }
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        out = {}
+        try:
+            r = _redis_client()
+            if r is not None:
+                raw = r.get('user:prefs')
+                if raw:
+                    import json as _json
+                    out = _json.loads(raw)
+        except Exception:
+            out = {}
+        return Response(out)
+
+    def post(self, request):
+        data = request.data or {}
+        fav = data.get('favorite_symbol')
+        try:
+            r = _redis_client()
+            if r is None:
+                return Response({'error': 'redis unavailable'}, status=503)
+            import json as _json
+            # Merge with existing prefs if present
+            current = {}
+            raw = r.get('user:prefs')
+            if raw:
+                try:
+                    current = _json.loads(raw)
+                except Exception:
+                    current = {}
+            if fav:
+                current['favorite_symbol'] = str(fav).upper()
+            r.set('user:prefs', _json.dumps(current))
+            return Response({'ok': True, **current})
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
 class PulseStatusView(views.APIView):
     """Return gate statuses for the PULSE Predictive Flow Framework.
 

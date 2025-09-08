@@ -17,6 +17,7 @@ import urllib.parse as urlparse
 from typing import Dict, List, Optional
 import requests
 import base64
+from dashboard.utils.user_prefs import render_favorite_selector
 
 # Page configuration
 st.set_page_config(
@@ -25,6 +26,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+render_favorite_selector(key='fav_sym_17')
 
 # Helper for background image (cached)
 @st.cache_data(ttl=3600)

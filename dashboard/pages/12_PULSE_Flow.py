@@ -1,5 +1,7 @@
 import streamlit as st
 import json
+from pathlib import Path
+from dashboard.utils.user_prefs import fetch_symbols_list
 import os
 import requests
 import pandas as pd
@@ -10,17 +12,51 @@ st.title("PULSE Predictive Flow Framework")
 # Load playbook JSON
 def load_playbook():
     try:
-        with open("config/playbooks/pulse_v1.json", "r") as f:
-            return json.load(f)
+        # Try multiple candidate paths: env var, relative to this file, repo root
+        cand = []
+        envp = os.getenv('PULSE_PLAYBOOK_PATH')
+        if envp:
+            cand.append(Path(envp))
+        here = Path(__file__).resolve()
+        cand.append((here.parents[2] / 'config' / 'playbooks' / 'pulse_v1.json'))  # repo root
+        cand.append((here.parents[0] / 'pulse_v1.json'))  # same dir (unlikely)
+        cand.append(Path('config/playbooks/pulse_v1.json'))  # CWD based
+        for p in cand:
+            try:
+                if Path(p).exists():
+                    with open(p, 'r') as f:
+                        return json.load(f)
+            except Exception:
+                continue
+        raise FileNotFoundError('pulse_v1.json not found in candidates')
     except Exception as e:
         st.warning(f"Unable to load playbook: {e}")
         return {"gates": []}
 
 playbook = load_playbook()
 
-# Symbol selector
-symbols = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "SPX500"]
-symbol = st.selectbox("Symbol", symbols, index=0)
+# --- Symbols source + favorite default -------------------------------------
+    
+
+# Settings: favorite symbol (session + optional env)
+with st.sidebar.expander("Settings", expanded=False):
+    all_symbols = fetch_symbols_list()
+    fav_default = os.getenv('PULSE_DEFAULT_SYMBOL', 'XAUUSD').upper()
+    fav_symbol = st.session_state.get('pulse_fav_symbol', fav_default)
+    fav_symbol = st.selectbox("Favorite symbol", all_symbols, index=all_symbols.index(fav_symbol) if fav_symbol in all_symbols else 0)
+    st.session_state['pulse_fav_symbol'] = fav_symbol
+
+# Symbol selector (use favorite as default; URL param overrides)
+all_symbols = fetch_symbols_list()
+sym_qp = st.experimental_get_query_params().get('sym', [None])[0]
+default_sym = (sym_qp or st.session_state.get('pulse_fav_symbol') or os.getenv('PULSE_DEFAULT_SYMBOL', 'XAUUSD')).upper()
+if default_sym not in all_symbols:
+    default_sym = all_symbols[0] if all_symbols else 'XAUUSD'
+symbol = st.selectbox("Symbol", all_symbols, index=all_symbols.index(default_sym) if default_sym in all_symbols else 0)
+try:
+    st.experimental_set_query_params(sym=symbol)
+except Exception:
+    pass
 
 # Gate table (human narrative)
 if playbook.get("gates"):
@@ -56,3 +92,34 @@ for col, gate in zip(cols, playbook.get("gates", [])):
         f"{label}<br>●</div>",
         unsafe_allow_html=True
     )
+
+# Optional: show Structure details under the lights
+try:
+    base = os.getenv('DJANGO_API_URL', 'http://django:8000').rstrip('/')
+    r = requests.get(f"{base}/api/v1/feed/pulse-detail", params={"symbol": symbol}, timeout=1.5)
+    if r.ok:
+        details = r.json() or {}
+        struct = details.get('structure') or {}
+        if isinstance(struct, dict) and struct.get('impulse_volume') is not None:
+            st.caption(
+                f"Structure: {struct.get('direction') or '—'} | "
+                f"CHoCH: {struct.get('choch_price') if struct.get('choch_price') is not None else '—'} | "
+                f"BoS: {struct.get('bos_price') if struct.get('bos_price') is not None else '—'} "
+                f"| Vol: {float(struct.get('impulse_volume') or 0):,.0f}/"
+                f"{float(struct.get('median_volume') or 0):,.0f}"
+            )
+        liq = details.get('liquidity') or {}
+        if isinstance(liq, dict) and (liq.get('sweep_type') or liq.get('direction')):
+            st.caption(
+                f"Liquidity: {liq.get('sweep_type') or '—'} • {liq.get('direction') or '—'}"
+                + (f" • Snap-back: {liq.get('snapback_ts')}" if liq.get('snapback_ts') else "")
+            )
+        rsk = details.get('risk') or {}
+        if isinstance(rsk, dict) and rsk.get('passed'):
+            tgs = rsk.get('targets') or []
+            tg_str = ", ".join(f"{t:,.4f}" for t in tgs[:3]) if tgs else "—"
+            st.caption(
+                f"Risk: entry {rsk.get('entry') or '—'} • stop {rsk.get('stop') or '—'} • targets {tg_str}"
+            )
+except Exception:
+    pass

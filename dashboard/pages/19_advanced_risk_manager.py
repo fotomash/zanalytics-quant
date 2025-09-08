@@ -22,6 +22,7 @@ from dashboard.components.behavioral_compass import make_behavioral_compass
 from dashboard.components.ui_tri_vitals import fig_behavior_concentric_from_mirror
 from dashboard.utils.plotly_donuts import bipolar_donut, oneway_donut, behavioral_score_from_mirror
 from dashboard.pages.components.profit_horizon_panel import render_profit_horizon
+from dashboard.utils.user_prefs import render_favorite_selector
 from dashboard.pages.components.whisper_panel import render_whisper_panel
 from dashboard.pages.components.whisper_timeline import render_whisper_timeline
 from dashboard.pages.components.discipline_posture_panel import render_discipline_posture_panel
@@ -93,6 +94,9 @@ if _img_base64:
 
 # Market Conditions header
 render_market_header()
+
+# Global Settings: favorite symbol (shared across pages)
+_all_syms, _fav_symbol = render_favorite_selector(key='fav_sym_19')
 
 # --- Session Vitals (three donuts • Equity/Exposure/Behavior) ---
 try:
@@ -1146,7 +1150,10 @@ def _render_session_trajectory(account_info: Dict, risk_summary: Dict):
         st.subheader("Trade History")
         sym_list = fetch_symbols() or []
         sym_opts = ['All'] + sym_list
-        sel = st.selectbox("Filter by Symbol", sym_opts, key='hist_sym')
+        # Default to favorite symbol when present
+        fav = (st.session_state.get('pulse_fav_symbol') or os.getenv('PULSE_DEFAULT_SYMBOL','')).upper()
+        idx = sym_opts.index(fav) if fav in sym_opts else 0
+        sel = st.selectbox("Filter by Symbol", sym_opts, index=idx, key='hist_sym')
         sym = None if sel == 'All' else sel
         c1, c2, c3, c4 = st.columns(4)
         with c1:

@@ -15,6 +15,7 @@ import requests
 from typing import Dict, List, Optional, Tuple
 import os
 from dotenv import load_dotenv
+from dashboard.utils.user_prefs import render_favorite_selector
 import base64
 
 # Safe MT5 import
@@ -149,6 +150,9 @@ with st.sidebar:
 
     st.session_state["daily_risk_pct"] = daily_risk_pct
     st.session_state["anticipated_positions"] = anticipated_positions
+
+    # Settings: favorite symbol (used across pages)
+    render_favorite_selector(key='fav_sym_16')
 
 # ---------- Helper utilities for formatting & stats ----------
 def currency_symbol(ccy: str) -> str:
