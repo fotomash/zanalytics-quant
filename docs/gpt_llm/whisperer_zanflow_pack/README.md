@@ -49,3 +49,80 @@ Operational Notes
 
 This pack keeps the LLM specialized from the first token: identity + rules + menus + flows + KBs. It boots as a disciplined co‑pilot aligned to your Zanflow v17 execution logic.
 
+
+
+# Whisperer × Zanzibar × Zanflow v17 — Boot Orchestrator Pack
+
+This pack provides a **self-contained boot environment** for The Whisperer LLM trading co-pilot.
+It fuses the **behavioral layer (Whisperer)**, the **constitutional rules (Zanzibar)**, and the 
+**strategy engine (Zanflow v17)** into one canonical archive.
+
+---
+
+## 📦 Pack Contents
+
+whisperer_zanflow_pack/
+│
+├── whisperer_zanflow_master.yaml # Master boot config (identity, KBs, flows, actions)
+├── README.md # This file
+│
+├── behavioral/
+│ ├── mental_support.yaml
+│ ├── prompt_library.yaml
+│ ├── prompts.yaml
+│ ├── suggestions.yaml
+│
+├── strategy/
+│ ├── zanflow_logical_blocks.yaml
+│ ├── zanflow_prompt_engineering_system.json
+│ ├── zanflow_structural_flow.json
+│ ├── zanflow_v17_menu_system.json
+│ ├── zanflow_v17_quick_reference.txt
+│
+├── constitutional/
+│ └── ZANZIBAR_AGENT_INSTRUCTIONS.md
+│
+├── support/
+│ ├── personal_assistant.yaml
+│ └── natural_language_dsl.yaml
+
+---
+
+## 🚀 Boot Flow
+
+1. **Upload this zip** at session start.  
+2. **Extract** into the workspace.  
+3. **Loader (orchestrator.py)** will:  
+   - Read `whisperer_zanflow_master.yaml`  
+   - Mount all KBs listed under `knowledge_bases`  
+   - Register actions (via ActionBus `/api/v1/actions/query`)  
+   - Run the **opening action** (`session_boot`) to hydrate:  
+     - Recent trades  
+     - Open positions  
+     - Account equity  
+     - Risk profile  
+   - Output `startup_confirmation.message`  
+
+---
+
+## 🧭 Opening Action (Default)
+
+```json
+{
+  "type": "session_boot",
+  "payload": {
+    "limit_trades": 10,
+    "include_positions": true,
+    "include_equity": true,
+    "include_risk": true
+  }
+}
+Ensures Whisperer boots aware of last trades, equity, and risk.
+Default reflection:
+“I’ve loaded your last trades, account equity, and risk profile.
+Would you like me to review your account health now, or scan for setups?”
+📖 Extension Notes
+Add a new strategy: extend zanflow_logical_blocks.yaml + zanflow_structural_flow.json
+Add a new behavioral flow: extend mental_support.yaml
+Add a new ActionBus verb: update openapi.actions.yaml
+Extend loader (orchestrator.py) to dynamically pull new verbs on boot

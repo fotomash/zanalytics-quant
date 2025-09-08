@@ -30,6 +30,7 @@ paths:
                     description: trades_recent result
                     items:
                       $ref: '#/components/schemas/TradeItem'
+                  - $ref: '#/components/schemas/SessionBootResponse'
         '400': { description: Bad Request }
         '500': { description: Server Error }
 
@@ -42,7 +43,7 @@ components:
         type:
           type: string
           description: Action verb
-          enum: [whisper_suggest, trades_recent]
+          enum: [whisper_suggest, trades_recent, session_boot]
         payload:
           type: object
           additionalProperties: true
@@ -77,5 +78,33 @@ components:
         rr: { type: number, nullable: true }
         strategy: { type: string, nullable: true }
         session: { type: string, nullable: true }
+
+    SessionBootResponse:
+      type: object
+      description: Composite boot snapshot for LLM initialization
+      properties:
+        trades:
+          type: array
+          items: { $ref: '#/components/schemas/TradeItem' }
+        positions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        equity:
+          type: object
+          nullable: true
+          properties:
+            balance_usd: { type: number, nullable: true }
+            pnl_ytd_pct: { type: number, nullable: true }
+            drawdown_pct: { type: number, nullable: true }
+        risk:
+          type: object
+          nullable: true
+          properties:
+            daily_profit_pct: { type: number, nullable: true }
+            daily_risk_pct: { type: number, nullable: true }
+            used_pct: { type: number, nullable: true }
+            exposure_pct: { type: number, nullable: true }
 
 security: []

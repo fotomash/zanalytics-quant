@@ -1193,7 +1193,7 @@ class ActionsQueryView(views.APIView):
     """Consolidated query endpoint (prototype). Not documented in OpenAPI actions cap.
 
     POST { type: str, payload: dict }
-    type ∈ { market_snapshot, pulse_status, trades_recent, behavior_events, equity_today }
+    type ∈ { market_snapshot, pulse_status, trades_recent, behavior_events, equity_today, session_boot }
     """
     permission_classes = [AllowAny]
 
@@ -1202,6 +1202,97 @@ class ActionsQueryView(views.APIView):
         typ = str(data.get('type') or '')
         payload = data.get('payload') or {}
         try:
+            if typ == 'session_boot':
+                # Composite boot snapshot for LLM initialization
+                # Payload: { limit_trades?: int, include_positions?: bool, include_equity?: bool, include_risk?: bool }
+                limit = 10
+                try:
+                    limit = int(payload.get('limit_trades') or payload.get('limit') or 10)
+                except Exception:
+                    limit = 10
+                include_positions = str(payload.get('include_positions') if payload.get('include_positions') is not None else True).lower() != 'false'
+                include_equity = str(payload.get('include_equity') if payload.get('include_equity') is not None else True).lower() != 'false'
+                include_risk = str(payload.get('include_risk') if payload.get('include_risk') is not None else True).lower() != 'false'
+
+                # Trades (recent N)
+                req = request._request
+                req.GET = req.GET.copy()
+                req.GET['limit'] = str(limit)
+                trades = []
+                try:
+                    trades = TradesRecentView().get(request).data or []
+                except Exception:
+                    trades = []
+
+                # Positions (proxy)
+                positions = []
+                if include_positions:
+                    try:
+                        positions = PositionsProxyView().get(request).data or []
+                    except Exception:
+                        positions = []
+
+                # Equity summary (balance + optional YTD; drawdown est from SoD)
+                equity = None
+                if include_equity:
+                    equity = { 'balance_usd': None, 'pnl_ytd_pct': None, 'drawdown_pct': None }
+                    try:
+                        acct = AccountInfoView().get(request).data or {}
+                    except Exception:
+                        acct = {}
+                    try:
+                        risk_env = AccountRiskView().get(request).data or {}
+                    except Exception:
+                        risk_env = {}
+                    try:
+                        bal = acct.get('balance') or acct.get('equity')
+                        equity['balance_usd'] = float(bal) if isinstance(bal, (int, float)) else None
+                    except Exception:
+                        pass
+                    # YTD pnl pct is currently exposed via FeedBalanceView markers; best-effort None if unavailable
+                    try:
+                        fb = FeedBalanceView().get(request).data or {}
+                        ytd = fb.get('pnl_ytd_pct')
+                        equity['pnl_ytd_pct'] = float(ytd) if isinstance(ytd, (int, float)) else None
+                    except Exception:
+                        pass
+                    # Drawdown vs SoD (session): negative percentage of loss relative to SoD
+                    try:
+                        sod = risk_env.get('sod_equity')
+                        eq_now = acct.get('equity') or acct.get('balance')
+                        if isinstance(sod, (int, float)) and isinstance(eq_now, (int, float)) and sod > 0:
+                            dd = (float(eq_now) - float(sod)) / float(sod) * 100.0
+                            # If below SoD, report negative; else 0 or positive drift
+                            equity['drawdown_pct'] = float(dd) if dd < 0 else 0.0
+                    except Exception:
+                        pass
+
+                # Risk envelope
+                risk = None
+                if include_risk:
+                    try:
+                        rk = AccountRiskView().get(request).data or {}
+                        # Normalize risk fields and coerce %-like fields to numeric
+                        def _num(x):
+                            try:
+                                return float(x)
+                            except Exception:
+                                return None
+                        risk = {
+                            'daily_profit_pct': _num(rk.get('daily_profit_pct')),
+                            'daily_risk_pct': _num(rk.get('daily_risk_pct')),
+                            'used_pct': _num(rk.get('used_pct')),
+                            'exposure_pct': _num(rk.get('exposure_pct')),
+                        }
+                    except Exception:
+                        risk = None
+
+                return Response({
+                    'trades': trades,
+                    'positions': (positions if include_positions else []),
+                    'equity': (equity if include_equity else None),
+                    'risk': (risk if include_risk else None),
+                })
             if typ == 'trades_recent':
                 req = request._request
                 req.GET = req.GET.copy()

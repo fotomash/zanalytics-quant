@@ -350,6 +350,34 @@ if latest_slice:
             else:
                 st.error(f"Act failed: {res}")
 
+# Agent Actions Menu (from whisperer_zanflow_master.yaml)
+st.divider()
+st.subheader("🧭 Agent Actions Menu")
+try:
+    import yaml
+    from pathlib import Path
+    cfg_path = Path(__file__).resolve().parents[2] / "docs" / "gpt_llm" / "whisperer_zanflow_pack" / "whisperer_zanflow_master.yaml"
+    actions_list = []
+    action_info = {}
+    if cfg_path.exists():
+        data = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+        arr = data.get('actions_available') or []
+        if isinstance(arr, list):
+            actions_list = [str(x) for x in arr]
+        bindings = data.get('action_bindings') or {}
+        if isinstance(bindings, dict):
+            for k, v in bindings.items():
+                if isinstance(v, dict):
+                    action_info[k] = v.get('description') or ''
+    if actions_list:
+        choice = st.selectbox("Available agent actions", actions_list)
+        desc = action_info.get(choice) or '—'
+        st.caption(desc)
+    else:
+        st.info("No actions_available found in master config.")
+except Exception:
+    st.info("Unable to load agent actions menu.")
+
 # Bottom tiles (placeholders tied to future feeds)
 st.divider()
 bc1, bc2, bc3, bc4 = st.columns(4)
