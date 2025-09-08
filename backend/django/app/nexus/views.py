@@ -1379,6 +1379,55 @@ class ActionsQueryView(views.APIView):
             if typ == 'market_snapshot':
                 # Minimal: reuse market/mini
                 return MarketMiniView().get(request)
+            if typ == 'state_snapshot':
+                return StateSnapshotView().get(request)
+            if typ == 'account_info':
+                return AccountInfoView().get(request)
+            if typ == 'account_positions':
+                return PositionsProxyView().get(request)
+            if typ == 'account_risk':
+                return AccountRiskView().get(request)
+            if typ == 'market_mini':
+                return MarketMiniView().get(request)
+            if typ == 'market_symbols':
+                return MarketSymbolsView().get(request)
+            if typ == 'market_calendar_next':
+                req = request._request
+                req.GET = req.GET.copy()
+                if payload.get('limit') is not None:
+                    req.GET['limit'] = str(payload.get('limit'))
+                return MarketCalendarNextView().get(request)
+            if typ == 'market_regime':
+                return MarketRegimeView().get(request)
+            if typ == 'liquidity_map':
+                # payload: { symbol?, timeframe? }
+                req = request._request
+                req.GET = req.GET.copy()
+                if payload.get('symbol'):
+                    req.GET['symbol'] = str(payload.get('symbol'))
+                if payload.get('timeframe'):
+                    req.GET['timeframe'] = str(payload.get('timeframe'))
+                return LiquidityMapView().get(request)
+            if typ == 'opportunity_priority_items':
+                # payload: { candidates?, symbols?, constraints? }
+                req = request._request
+                req.data = payload
+                return PriorityItemsView().post(request)
+            if typ == 'journal_recent':
+                req = request._request
+                req.GET = req.GET.copy()
+                if payload.get('limit') is not None:
+                    req.GET['limit'] = str(payload.get('limit'))
+                return JournalRecentView().get(request)
+            if typ == 'journal_append':
+                req = request._request
+                req.data = payload
+                return JournalEntryPostView().post(request)
+            if typ == 'position_open':
+                # payload: { symbol, volume, side, sl?, tp?, comment? }
+                req = request._request
+                req.data = payload
+                return OrderMarketProxyView().post(request)
             if typ == 'position_close':
                 # { ticket, fraction?, volume? }
                 try:

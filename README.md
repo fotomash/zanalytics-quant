@@ -1,66 +1,35 @@
 # Zanalytics Quant Platform
 
-> **Strictly proprietary and protected IP. For authorized use only.**
+Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, Postgres, and Streamlit. Now with LLM‑native Actions and safe position control (partials, scaling, hedging).
 
----
+Contents
+- What’s Inside
+- Quick Start
+- MT5 Bridge & Orders
+- Positions (Partials, Hedge)
+- Actions Bus for GPT (≤30 ops)
+- Dashboards & Diagnostics
+- Journaling (Schema)
+- Troubleshooting
 
-## Table of Contents
+What’s Inside
+- `backend/mt5`: Flask bridge to MetaTrader5 (send orders, partial close, hedge, scale)
+- `backend/django`: REST API, Actions Bus router, positions aliases, journal
+- `dashboard/`: Streamlit UI (Pulse, Whisperer, diagnostics)
+- `openapi.actions.yaml`: the single schema to upload to Custom GPT
+- `docs/`: deep dives (Actions Bus, Positions & Orders, Journaling schema)
 
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [System Overview](#system-overview)
-- [Getting Started – Quick Launch](#getting-started--quick-launch)
-- [How It Works (Practical Flow)](#how-it-works-practical-flow)
-- [Data Integrity and Deduplication: MD5 Flow](#data-integrity-and-deduplication-md5-flow)
-- [Typical User Scenarios](#typical-user-scenarios)
-- [Data Enrichment & Customization](#data-enrichment--customization)
-- [Example .env Configuration (Partial)](#example-env-configuration-partial)
-- [Security & Access Control](#security--access-control)
-- [Contributing](#contributing)
-- [Running Tests](#running-tests)
-- [Known Issues & Best Practices](#known-issues--best-practices)
-- [Future Directions & Next Steps](#future-directions--next-steps)
-- [License (Strict, Non-Transferable)](#license-strict-non-transferable)
-- [Advanced Usage: Adding a New Dashboard](#advanced-usage-adding-a-new-dashboard)
-- [Full API Documentation](#full-api-documentation)
-- [FAQ](#faq)
-
----
-
-## Overview
-
-**Zanalytics Quant** is a proprietary, IP-protected quant trading and data analysis platform built for professional and in-house research use.  
-It leverages MetaTrader 5 (MT5), Django, Streamlit, Redis, Postgres, and custom enrichment pipelines to power live and historical financial dashboards and APIs.
-
----
-
-## Architecture
-
-This platform is multi-container and modular, designed for reliability, security, and easy extensibility.
-
+Architecture
 ```mermaid
 graph LR
-    subgraph Core
-        MT5[MT5 (Docker/Wine)] -- Market Data/API --> DjangoAPI[Django API]
-        DjangoAPI -- REST/WS --> Dashboard[Streamlit Dashboard]
-        Dashboard -- Fetch/Stream --> DjangoAPI
-        DjangoAPI -- ORM --> Postgres[(Postgres)]
-        DjangoAPI -- Cache --> Redis[(Redis)]
-        Enrichment[Enrichment Scripts (utils/)] -- ETL/Batch --> Postgres
-        Enrichment -- Cache --> Redis
-        MT5 -- CSV/Parquet --> Enrichment
-    end
+  Trader/LLM -->|Action| ActionsBus[/POST /api/v1/actions/query/]
+  ActionsBus -->|verb route| Django[Django API]
+  Django -->|orders proxy| MT5[MT5 Bridge]
+  Django --> Postgres[(Postgres)]
+  Django --> Redis[(Redis)]
+  Streamlit[Dashboards] --> Django
+  MT5 -->|positions/history| Django
 ```
-
-**Components:**
-- **MT5**: Runs MetaTrader 5 via Wine in Docker; exposes HTTP/REST API.
-- **Django API**: Handles authentication, orchestration, REST endpoints, and DB sync.
-- **Redis**: Fast in-memory store for real-time tick/bars, event streams, and enrichment cache.
-- **Postgres**: Main DB for tick, bar, position, and enrichment data.
-- **Enrichment Scripts**: Python scripts (`utils/`) for data ETL, aggregation, feature generation, and historical sync.
-- **Streamlit Dashboard**: User UI for analytics, charts, and operations.
-
----
 
 ## System Overview
 
@@ -156,6 +125,47 @@ To ensure data integrity and prevent duplication of tick data, the platform empl
 This MD5 hash is then used within the enrichment scripts (notably within components like `TickVectorizer`) to detect duplicate ticks before insertion into the database or cache. By comparing incoming tick hashes against existing entries in Redis or Postgres, the system avoids redundant processing and storage, which is critical for maintaining accurate real-time analytics.
 
 This approach improves both data quality and system efficiency, ensuring that dashboards and APIs reflect consistent, deduplicated market data streams.
+
+---
+
+## MT5 Bridge & Orders (Execution)
+
+- Bridge (Flask) provides:
+  - `POST /send_market_order` (type: BUY/SELL)
+  - `POST /partial_close_v2` (fraction or absolute volume)
+  - `POST /scale_position` (increase size)
+  - `POST /hedge` (opposite side; nets on netting accounts)
+- Django proxies:
+  - `POST /api/v1/orders/market | modify | close`
+  - Friendly aliases: `POST /api/v1/positions/close | modify | hedge`
+
+Deep dive: `docs/POSITIONS_AND_ORDERS.md`
+
+---
+
+## Actions Bus for GPT (≤30 operations)
+
+- Upload schema: `openapi.actions.yaml`
+- Single endpoint: `POST /api/v1/actions/query`
+- Put verbs in body: `{ "type": "position_close", "payload": { ... } }`
+- Router: `ActionsQueryView.post()` maps verbs to existing views.
+
+Deep dive: `docs/ACTIONS_BUS.md`
+
+---
+
+## Dashboards & Diagnostics
+
+- Streamlit pages under `dashboard/pages/` (Pulse, Whisperer, Pro).
+- Diagnostics: `24_Trades_Diagnostics.py` shows closed trades (DB), MT5 history, and open positions.
+
+---
+
+## Journaling (ZBAR)
+
+- Structured entries are appended via `/api/v1/journal/append` from positions views.
+- JSON Schema: `docs/schemas/journal_entry.schema.json`
+- Guide: `docs/JOURNALING.md`
 
 ---
 
