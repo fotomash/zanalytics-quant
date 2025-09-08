@@ -1,6 +1,10 @@
-# Risk Management Dashboard Setup
+# Risk Management Dashboard Setup (Retired)
 
-## 1. File Placement
+> Status: Retired. This guide documents an early bootstrap for the risk
+> dashboards. The current, actively maintained direction is documented in
+> `docs/README.md` and the per‑page code/README files under `dashboard/pages/`.
+
+## 1. File Placement (historical)
 
 Place the dashboard file in your Streamlit pages directory:
 ```bash
@@ -9,7 +13,7 @@ cp 16_risk_manager.py dashboard/pages/
 cp 16_risk_manager_mock.py dashboard/pages/16_risk_manager.py
 ```
 
-## 2. Environment Configuration
+## 2. Environment Configuration (historical)
 
 Create or update your `.env` file with MT5 credentials:
 ```bash

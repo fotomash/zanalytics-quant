@@ -15,6 +15,7 @@ WORKDIR /app
 
 # 1) Install deps
 COPY requirements.txt /app/requirements.txt
+ENV PIP_ROOT_USER_ACTION=ignore
 RUN pip install --no-cache-dir --upgrade pip \
  && pip install --no-cache-dir -r /app/requirements.txt
 

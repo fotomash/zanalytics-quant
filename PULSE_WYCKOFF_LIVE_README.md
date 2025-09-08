@@ -1,4 +1,9 @@
-# 🔥 Pulse Wyckoff Live Terminal
+# 🔥 Pulse Wyckoff Live Terminal (Retired)
+
+> Status: Retired. This legacy terminal doc is kept for historical context.
+> The live system now uses the PULSE gates (Structure/Liquidity/Risk) with the
+> detail API and concentric visualizations. See `docs/README.md` for the active
+> docs and direction.
 
 ## Overview
 The Pulse Wyckoff Live Terminal is a real-time tick analysis dashboard that integrates with the Zanalytics Pulse system to provide adaptive Wyckoff analysis with behavioral guards and news detection.

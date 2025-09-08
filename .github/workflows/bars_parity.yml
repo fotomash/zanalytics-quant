@@ -1,0 +1,33 @@
+name: Bars Parity Reconciler
+
+on:
+  schedule:
+    - cron: '15 3 * * *'  # daily at 03:15 UTC
+  workflow_dispatch: {}
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install confluent-kafka redis
+      - name: Run reconciler
+        env:
+          KAFKA_BROKERS: ${{ secrets.KAFKA_BROKERS }}
+          BARS_TOPIC: ${{ vars.BARS_TOPIC || 'bars.BTCUSDT.1m' }}
+          KAFKA_PARTITION: '0'
+          WINDOW_BARS: '1440'
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          REDIS_BARS_KEY: ${{ vars.REDIS_BARS_KEY || 'bars:BTCUSDT:1m' }}
+          PIP_SIZE: '0.01'
+          TOL_PRICE_TICKS: '1'
+          TOL_VOLUME: '1.0'
+        run: |
+          python services/bars_reconcile.py

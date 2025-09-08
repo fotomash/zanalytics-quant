@@ -42,6 +42,26 @@ services:
       - kafka
     restart: unless-stopped
 
+  bars-reconcile:
+    profiles: ["ops"]
+    image: python:3.11-slim
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      - KAFKA_BROKERS=kafka:9092
+      - BARS_TOPIC=${BARS_TOPIC:-bars.BTCUSDT.1m}
+      - KAFKA_PARTITION=0
+      - WINDOW_BARS=${WINDOW_BARS:-1440}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - REDIS_BARS_KEY=${REDIS_BARS_KEY:-bars:BTCUSDT:1m}
+      - PIP_ROOT_USER_ACTION=ignore
+    depends_on:
+      - kafka
+      - redis
+    command: >
+      sh -c "pip install --no-cache-dir redis confluent-kafka && python services/bars_reconcile.py"
+
 volumes:
   redpanda-data:
 
