@@ -19,6 +19,7 @@ from .gates import (
     imbalance_gate,
     risk_gate,
     confluence_gate,
+    wyckoff_gate,
 )
 from .confluence_score_engine import compute_confluence_score
 from .gates import KafkaJournalEngine as _KafkaJournalEngine
@@ -120,7 +121,7 @@ def _resolve_weights(weights: Optional[Dict[str, float]] = None, *, symbol: Opti
                         return {k: float(v) for k, v in w.items() if isinstance(v, (int, float))}
     except Exception:
         pass
-    # Try env var JSON: PULSE_CONF_WEIGHTS='{"context":0.2,"liquidity":0.2,"structure":0.25,"imbalance":0.15,"risk":0.2}'
+    # Try env var JSON: PULSE_CONF_WEIGHTS='{"context":0.2,"liquidity":0.2,"structure":0.25,"imbalance":0.15,"risk":0.15,"wyckoff":0.05}'
     try:
         raw = os.getenv('PULSE_CONF_WEIGHTS')
         if raw:
@@ -129,8 +130,16 @@ def _resolve_weights(weights: Optional[Dict[str, float]] = None, *, symbol: Opti
                 return {k: float(v) for k, v in obj.items() if isinstance(v, (int, float))}
     except Exception:
         pass
-    # Fallback defaults (balanced)
-    return {"context": 0.2, "liquidity": 0.2, "structure": 0.25, "imbalance": 0.15, "risk": 0.2}
+    # Fallback defaults (Wyckoff emphasized)
+    # Sum = 1.0 → Wyckoff carries highest contribution by default
+    return {
+        "context": 0.15,
+        "liquidity": 0.15,
+        "structure": 0.25,
+        "imbalance": 0.10,
+        "risk": 0.10,
+        "wyckoff": 0.25,
+    }
 
 
 def _resolve_threshold(*, symbol: Optional[str] = None, default: float = 0.6) -> float:
@@ -183,6 +192,7 @@ def pulse_status(symbol: str, *, weights: Optional[Dict[str, float]] = None, thr
     struct = structure_gate(data.get("M1"))
     imb = imbalance_gate(data.get("M1"))
     rsk = risk_gate(imb, struct, symbol)
+    wyk = wyckoff_gate(data.get("M15") or data.get("M1"))
     # Confluence score from gate results
     w = _resolve_weights(weights, symbol=symbol)
     thr = float(threshold) if isinstance(threshold, (int, float)) else _resolve_threshold(symbol=symbol, default=0.6)
@@ -192,6 +202,7 @@ def pulse_status(symbol: str, *, weights: Optional[Dict[str, float]] = None, thr
         "structure": struct,
         "imbalance": imb,
         "risk": rsk,
+        "wyckoff": wyk,
     }
     score, details = compute_confluence_score(gates_for_score, w, threshold=thr)
     conf = {"passed": bool(details.get("score_passed")), "confidence": float(score)}
@@ -202,6 +213,7 @@ def pulse_status(symbol: str, *, weights: Optional[Dict[str, float]] = None, thr
         "structure": int(bool(struct.get("passed"))),
         "imbalance": int(bool(imb.get("passed"))),
         "risk": int(bool(rsk.get("passed"))),
+        "wyckoff": int(bool(wyk.get("passed"))),
         "confluence": int(bool(conf.get("passed"))),
         "confidence": round(float(score), 4),
     }
@@ -222,7 +234,7 @@ def pulse_status(symbol: str, *, weights: Optional[Dict[str, float]] = None, thr
                 now_iso = _dt.datetime.utcfromtimestamp(now_ts).isoformat() + "Z"
             except Exception:
                 now_iso = None
-            for g in ("context", "liquidity", "structure", "imbalance", "risk"):
+            for g in ("context", "liquidity", "structure", "imbalance", "risk", "wyckoff"):
                 try:
                     ev = {
                         "ts": now_ts,
@@ -247,7 +259,7 @@ def pulse_status(symbol: str, *, weights: Optional[Dict[str, float]] = None, thr
         if _KafkaJournalEngine is not None:
             kj = _KafkaJournalEngine()
             if getattr(kj, "enabled", False):
-                for g in ("context", "liquidity", "structure", "imbalance", "risk"):
+                for g in ("context", "liquidity", "structure", "imbalance", "risk", "wyckoff"):
                     try:
                         kj.emit({
                             "ts": _time.time(),

@@ -70,7 +70,7 @@ try:
         )
         # Donut: gate snapshot
         try:
-            gate_order = ["context", "liquidity", "structure", "imbalance", "risk"]
+            gate_order = ["context", "liquidity", "structure", "imbalance", "risk", "wyckoff"]
             summary = {}
             for g in gate_order:
                 v = st_status.get(g)

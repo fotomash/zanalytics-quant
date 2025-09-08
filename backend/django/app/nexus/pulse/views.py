@@ -43,7 +43,7 @@ class PulseStatus(views.APIView):
         except Exception:
             # Hard fallback: empty lights rather than erroring
             status = {k: 0 for k in [
-                'context', 'liquidity', 'structure', 'imbalance', 'risk', 'confluence'
+                'context', 'liquidity', 'structure', 'imbalance', 'risk', 'wyckoff', 'confluence'
             ]}
         # Optional JSON Schema validation (non-fatal)
         try:
