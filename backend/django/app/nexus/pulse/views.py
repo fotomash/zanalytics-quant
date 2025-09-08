@@ -282,7 +282,38 @@ class BarsEnriched(views.APIView):
                     "fvg_bull": bool(row.get('fvg_bull')) if 'fvg_bull' in df.columns else False,
                     "fvg_bear": bool(row.get('fvg_bear')) if 'fvg_bear' in df.columns else False,
                 })
-            return Response({"items": items, "symbol": symbol, "timeframe": tf})
+            payload = {"items": items, "symbol": symbol, "timeframe": tf}
+            # Back-compat alias: provide dataframe-like 'bars' key
+            payload["bars"] = items
+            # Optional strategies: leverage existing gates on timeframe-relevant data without mockups
+            strategies = []
+            try:
+                # Liquidity sweep detection works best on M15
+                if tf == 'M15':
+                    from .gates import liquidity_gate
+                    m15 = _load_minute_data(symbol).get('M15')
+                    liq = liquidity_gate(m15) if m15 is not None else {"passed": False}
+                    if isinstance(liq, dict) and liq.get('passed'):
+                        strategies.append({
+                            "tag": "liquidity_sweep",
+                            "confidence": 0.82,  # heuristic static score; actual scoring engine can replace
+                            "bar_index": max(0, len(items) - 1)
+                        })
+                # Structure (CHoCH) detection on M1
+                if tf == 'M1':
+                    from .gates import structure_gate
+                    m1 = _load_minute_data(symbol).get('M1')
+                    st = structure_gate(m1) if m1 is not None else {"passed": False}
+                    if isinstance(st, dict) and st.get('passed'):
+                        strategies.append({
+                            "tag": "choch",
+                            "confidence": 0.74,
+                            "bar_index": max(0, len(items) - 1)
+                        })
+            except Exception:
+                strategies = []
+            payload["strategies"] = strategies
+            return Response(payload)
         except Exception as e:
             return Response({"items": [], "error": str(e)}, status=500)
 

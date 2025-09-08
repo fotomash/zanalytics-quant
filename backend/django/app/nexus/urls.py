@@ -52,6 +52,7 @@ from .views import (
     SessionSetFocusView,
     PositionProtectOptionsView,
     UserPrefsView,
+    StateSnapshotView,
 )
 from .playbook_stub_views import (
     PlaybookSessionInit,
@@ -155,6 +156,7 @@ urlpatterns = [
     path('opportunity/priority-items', PriorityItemsView.as_view(), name='opportunity-priority-items'),
     path('ai/explain-signal', ExplainSignalView.as_view(), name='ai-explain-signal'),
     path('report/daily-summary', DailySummaryView.as_view(), name='report-daily-summary'),
+    path('state/snapshot', StateSnapshotView.as_view(), name='state-snapshot'),
     # Actions bus (prototype; not exposed in openapi.yaml to keep op count)
     path('actions/query', ActionsQueryView.as_view(), name='actions-query'),
     path('actions/mutate', ActionsMutateView.as_view(), name='actions-mutate'),

@@ -1324,6 +1324,43 @@ class ActionsSpecView(views.APIView):
         return HttpResponse('# actions spec not found', content_type='text/yaml; charset=utf-8', status=404)
 
 
+class StateSnapshotView(views.APIView):
+    """Consolidated state snapshot for LLMs/dashboards.
+
+    GET /api/v1/state/snapshot -> {
+      mirror: {...},
+      patterns: {...},
+      risk: {...},
+      equity: {...}
+    }
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            mirror = MirrorStateView().get(request).data or {}
+        except Exception:
+            mirror = {}
+        try:
+            patterns = BehavioralPatternsView().get(request).data or {}
+        except Exception:
+            patterns = {}
+        try:
+            risk = AccountRiskView().get(request).data or {}
+        except Exception:
+            risk = {}
+        try:
+            equity = FeedEquityView().get(request).data or {}
+        except Exception:
+            equity = {}
+        return Response({
+            'mirror': mirror,
+            'patterns': patterns,
+            'risk': risk,
+            'equity': equity,
+        })
+
+
 class MirrorStateView(views.APIView):
     """Minimal behavioral mirror state for the concentric dial.
 
@@ -2598,6 +2635,33 @@ class PositionProtectOptionsView(views.APIView):
                 actions.append({'label': 'Trail 50%', 'action': 'protect_trail_50', 'params': {'ticket': ticket, 'symbol': sym, 'lock_ratio': 0.5, 'suggested_sl': round(lock, 5)}})
                 actions.append({'label': 'Partial 25%', 'action': 'partial_close_25', 'params': {'ticket': ticket, 'symbol': sym, 'fraction': 0.25}})
                 actions.append({'label': 'Partial 50%', 'action': 'partial_close_50', 'params': {'ticket': ticket, 'symbol': sym, 'fraction': 0.50}})
+            # ATR-based trailing suggestion from recent M15 bars
+            try:
+                from .pulse.service import _load_minute_data  # reuse loader
+                import pandas as _p
+                bars = _load_minute_data(sym).get('M15')
+                if bars is not None and not bars.empty and {'high','low','close'}.issubset(set(bars.columns)):
+                    tr = (bars['high'] - bars['low']).abs()
+                    atr14 = float(_p.to_numeric(tr, errors='coerce').rolling(14, min_periods=5).mean().iloc[-1])
+                    if atr14 and atr14 > 0:
+                        if typ == 'BUY':
+                            lock = pc - 1.0 * atr14
+                        else:
+                            lock = pc + 1.0 * atr14
+                        actions.append({'label': 'Trail SL (ATR14)', 'action': 'protect_trail_atr', 'params': {'ticket': ticket, 'symbol': sym, 'atr14': round(atr14, 5), 'suggested_sl': round(lock, 5)}})
+            except Exception:
+                pass
+            # Structure-based stop (if recent swing available via structure gate)
+            try:
+                from app.nexus.pulse.gates import structure_gate  # type: ignore
+                m1 = _load_minute_data(sym).get('M1')
+                st = structure_gate(m1) if m1 is not None else {"passed": False}
+                choch_price = st.get('choch_price') if isinstance(st, dict) else None
+                if choch_price is not None:
+                    sl = float(choch_price)
+                    actions.append({'label': 'Structure SL (CHoCH)', 'action': 'protect_structure_sl', 'params': {'ticket': ticket, 'symbol': sym, 'suggested_sl': round(sl, 5)}})
+            except Exception:
+                pass
             return Response({'actions': actions})
         except Exception:
             return Response({'actions': []})
