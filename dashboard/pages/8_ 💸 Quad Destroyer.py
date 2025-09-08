@@ -41,7 +41,10 @@ def get_image_as_base64(path):
         # Only warn after config is set
         return None
 
-img_base64 = get_image_as_base64("theme/image_af247b.jpg")
+# Resolve background image relative to this page file
+from pathlib import Path
+_IMG_PATH = Path(__file__).resolve().parent / "image_af247b.jpg"
+img_base64 = get_image_as_base64(str(_IMG_PATH)) if _IMG_PATH.exists() else None
 if img_base64:
     st.markdown(f"""
     <style>
@@ -64,6 +67,8 @@ elif img_base64 is None:
 
 # === DYNAMIC PARQUET LOADING FOR MULTI-SYMBOL SUPPORT ===
 PARQUET_DATA_DIR = Path(st.secrets.get("PARQUET_DATA_DIR", "/Users/tom/Documents/_trade/_exports/_tick/out/parquet"))
+if not PARQUET_DATA_DIR.exists():
+    st.info("Set st.secrets['PARQUET_DATA_DIR'] to your tick parquet root to enable data loading.")
 def load_available_parquet_files(parquet_dir):
     symbol_timeframes = []
     for symbol_folder in parquet_dir.glob("*"):

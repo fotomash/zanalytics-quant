@@ -34,9 +34,14 @@ def set_background(image_file_path):
         """,
         unsafe_allow_html=True
     )
-# Set fixed full-page background image using local asset
+# Set fixed full-page background image using local asset (robust path)
+from pathlib import Path
 try:
-    set_background("./theme/image_af247b.jpg")
+    _IMG = (Path(__file__).resolve().parent / "image_af247b.jpg")
+    if _IMG.exists():
+        set_background(str(_IMG))
+    else:
+        st.info("Background image not found alongside page; skipping background.")
 except Exception:
     st.warning("Background image file not found or could not be loaded.")
 
