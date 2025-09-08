@@ -1,0 +1,81 @@
+openapi: 3.1.0
+info:
+  title: Zanalytics Pulse – Actions Bus (Slim)
+  version: 0.1.0
+  description: |
+    Slim spec for agent-facing Actions routed via a single endpoint.
+    Keeps the main API under the 30‑operation cap while exposing core verbs.
+servers:
+  - url: https://django2.zanalytics.app
+paths:
+  /api/v1/actions/query:
+    post:
+      summary: Execute an action (query verbs)
+      operationId: postActionsQuery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActionQueryRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/WhisperSuggestResponse'
+                  - type: array
+                    description: trades_recent result
+                    items:
+                      $ref: '#/components/schemas/TradeItem'
+        '400': { description: Bad Request }
+        '500': { description: Server Error }
+
+components:
+  schemas:
+    ActionQueryRequest:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          description: Action verb
+          enum: [whisper_suggest, trades_recent]
+        payload:
+          type: object
+          additionalProperties: true
+          description: Action-specific parameters
+
+    WhisperSuggestResponse:
+      type: object
+      properties:
+        message: { type: string, nullable: true }
+        heuristics:
+          type: array
+          items:
+            type: object
+            description: Serialized heuristic whispers
+        meta:
+          type: object
+          properties:
+            user_id: { type: string }
+            symbol: { type: string }
+
+    TradeItem:
+      type: object
+      properties:
+        id: { type: integer }
+        ts_open: { type: string, nullable: true }
+        ts_close: { type: string, nullable: true }
+        symbol: { type: string }
+        side: { type: string, nullable: true }
+        entry: { type: number, nullable: true }
+        exit: { type: number, nullable: true }
+        pnl: { type: number, nullable: true }
+        rr: { type: number, nullable: true }
+        strategy: { type: string, nullable: true }
+        session: { type: string, nullable: true }
+
+security: []
