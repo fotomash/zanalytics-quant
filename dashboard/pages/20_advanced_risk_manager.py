@@ -42,6 +42,11 @@ except ImportError:
 
 # Load environment variables
 load_dotenv()
+import socket
+try:
+    from confluent_kafka import AdminClient  # type: ignore
+except Exception:
+    AdminClient = None  # type: ignore
 
 # Baseline equity override (keeps mock aligned with production baseline)
 try:
@@ -95,6 +100,37 @@ render_market_header()
 
 # Settings: favorite symbol (shared across pages)
 _all_syms, _fav_symbol = render_favorite_selector(key='fav_sym_20')
+
+# --- Kafka Health Tile (minimal) ---
+def _kafka_health() -> Dict[str, Optional[str]]:
+    brokers = os.getenv('KAFKA_BROKERS', 'kafka:9092')
+    host, sep, port = brokers.partition(':')
+    info: Dict[str, Optional[str]] = {"brokers": brokers, "status": None, "topics": None}
+    # Quick TCP probe
+    try:
+        with socket.create_connection((host, int(port or '9092')), timeout=0.8):
+            info["status"] = "TCP OK"
+    except Exception:
+        info["status"] = "UNREACHABLE"
+        return info
+    # Metadata probe if AdminClient available
+    if AdminClient is not None:
+        try:
+            adm = AdminClient({'bootstrap.servers': brokers})
+            md = adm.list_topics(timeout=1.0)
+            info["topics"] = str(len(md.topics) if md and md.topics else 0)
+            info["status"] = "UP"
+        except Exception:
+            pass
+    return info
+
+with st.sidebar:
+    st.markdown("### Kafka Health")
+    kh = _kafka_health()
+    st.caption(f"Brokers: {kh.get('brokers')}")
+    st.metric("Broker", kh.get("status") or "—")
+    if kh.get("topics") is not None:
+        st.metric("Topics", kh.get("topics"))
 
 # --- Session Vitals (three donuts • Equity/Exposure/Behavior) ---
 # Identical logic to page 06 for consistent look & numbers

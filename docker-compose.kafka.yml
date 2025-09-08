@@ -19,7 +19,7 @@ services:
   redis-to-kafka-mirror:
     build:
       context: .
-      dockerfile: ./services/Dockerfile.mirror
+      dockerfile: services/Dockerfile.mirror
     environment:
       - REDIS_URL=redis://redis:6379/0
       - KAFKA_BROKERS=kafka:9092
@@ -32,7 +32,7 @@ services:
   kafka-tick-to-bar:
     build:
       context: .
-      dockerfile: ./services/Dockerfile.bars
+      dockerfile: services/Dockerfile.bars
     environment:
       - KAFKA_BROKERS=kafka:9092
       - TICKS_TOPIC=ticks.BTCUSDT

@@ -226,26 +226,48 @@ st.divider()
 # Main Dashboard Layout
 col_left, col_center, col_right = st.columns([1.5, 2, 1.5])
 
-    # --- Behavioral Compass (concentric, center-locked rings) ---
-    # Pull live values from mirror API when present; fall back to session_state
-    def _get_mirror_pct(key: str, default_val: float) -> float:
-        try:
-            if isinstance(mirror, dict) and key in mirror:
-                v = mirror.get(key)
-                # accept {value: x} or raw number
-                if isinstance(v, dict) and "value" in v:
-                    return float(v["value"])
-                return float(v)
-        except Exception:
-            pass
-        return float(default_val)
+# --- Behavioral Compass (concentric, center-locked rings) ---
+# Pull live values from mirror API when present; fall back to session_state
+def _get_mirror_pct(key: str, default_val: float) -> float:
+    try:
+        if isinstance(mirror, dict) and key in mirror:
+            v = mirror.get(key)
+            # accept {value: x} or raw number
+            if isinstance(v, dict) and "value" in v:
+                return float(v["value"])
+            return float(v)
+    except Exception:
+        pass
+    return float(default_val)
 
-    metrics = [
-        {"name": "Discipline", "value": _get_mirror_pct("discipline", st.session_state.discipline_score), "color": "#22C55E"},
-        {"name": "Patience",   "value": _get_mirror_pct("patience",   st.session_state.patience_index),   "color": "#3B82F6"},
-        {"name": "Efficiency", "value": _get_mirror_pct("efficiency", st.session_state.profit_efficiency),"color": "#06B6D4"},
-        {"name": "Conviction", "value": _get_mirror_pct("conviction", st.session_state.conviction_rate),  "color": "#8B5CF6"},
-    ]
+# metrics: List of behavioral trading metrics to visualize in concentric rings.
+# Each metric's value should be a percentage (0-100), representing the trader's score for:
+# - Discipline: Adherence to trading rules and plans.
+# - Patience: Ability to wait for optimal setups.
+# - Profit Efficiency: Effectiveness in capturing available profits.
+# - Conviction: Confidence in trade decisions.
+metrics = [
+    {"name": "Discipline", "value": _get_mirror_pct("discipline", st.session_state.discipline_score), "color": "#22C55E"},
+    {"name": "Patience",   "value": _get_mirror_pct("patience",   st.session_state.patience_index),   "color": "#3B82F6"},
+    {"name": "Profit Efficiency", "value": _get_mirror_pct("efficiency", st.session_state.profit_efficiency),"color": "#06B6D4"},
+    {"name": "Conviction", "value": _get_mirror_pct("conviction", st.session_state.conviction_rate),  "color": "#8B5CF6"},
+]
+    {
+        "name":   "Patience",
+        "value":  _get_mirror_pct("patience",     st.session_state.patience_index),
+        "color":  "#3B82F6",
+    },
+    {
+        "name":   "Efficiency",
+        "value":  _get_mirror_pct("efficiency",   st.session_state.profit_efficiency),
+        "color":  "#06B6D4",
+    },
+    {
+        "name":   "Conviction Rate",
+        "value":  _get_mirror_pct("conviction",   st.session_state.conviction_rate),
+        "color":  "#8B5CF6",
+    },
+]
 
     # Concentric geometry: keep the same center for all traces, vary domain size to set radius,
     # and adjust `hole` so the **visual** band thickness is constant.

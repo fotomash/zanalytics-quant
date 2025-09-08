@@ -3,6 +3,12 @@ from __future__ import annotations
 from typing import Dict, Any
 import pandas as pd
 import numpy as np
+import os
+import time
+try:  # optional journal sink
+    from .journal.kafka_journal import KafkaJournalEngine  # type: ignore
+except Exception:
+    KafkaJournalEngine = None  # type: ignore
 
 # Tunables (can be adjusted as needed)
 ASIA_START_UTC = "00:00"
@@ -326,6 +332,26 @@ def risk_gate(imbalance: Dict[str, Any], structure: Dict[str, Any], symbol: str 
             targets = [entry - 1 * risk, entry - 2 * risk, entry - 3 * risk]
 
         out.update(passed=True, stop=stop, targets=[float(t) for t in targets], entry=float(entry), risk_r=float(risk))
+        # Journal the computed risk plan (feature-flagged; safe no-op)
+        try:
+            if KafkaJournalEngine is not None:
+                je = KafkaJournalEngine()
+                je.emit({
+                    "ts": time.time(),
+                    "stream": "pulse.risk_gate",
+                    "symbol": str(symbol) if symbol is not None else None,
+                    "frame": "1m",
+                    "payload": {
+                        "v": 1,
+                        "direction": direction,
+                        "entry": float(entry),
+                        "stop": float(stop),
+                        "targets": [float(t) for t in targets],
+                        "risk_r": float(risk),
+                    },
+                })
+        except Exception:
+            pass
         return out
     except Exception:
         return out
