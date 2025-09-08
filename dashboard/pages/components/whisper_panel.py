@@ -1,12 +1,13 @@
-import os, time
+import time
 import requests
 import streamlit as st
+from dashboard.utils.streamlit_api import api_url
 
 
-def render_whisper_panel(api: str = "http://localhost:8000/api/pulse/whispers"):
+def render_whisper_panel():
     st.subheader("🫢 The Whisperer")
     try:
-        data = requests.get(api, timeout=2).json().get("whispers", [])
+        data = requests.get(api_url("api/pulse/whispers"), timeout=2).json().get("whispers", [])
     except Exception:
         st.info("No whispers yet.")
         return
@@ -15,7 +16,6 @@ def render_whisper_panel(api: str = "http://localhost:8000/api/pulse/whispers"):
         st.info("No whispers yet.")
         return
 
-    dj = os.getenv("DJANGO_API_URL", "http://django:8000").rstrip('/')
     for w in data[:20]:
         with st.container(border=True):
             left, right = st.columns([0.8, 0.2])
@@ -37,9 +37,9 @@ def render_whisper_panel(api: str = "http://localhost:8000/api/pulse/whispers"):
                     if st.button(label, key=f"{w.get('id','')}:{act}"):
                         try:
                             # Journal intent
-                            requests.post(f"{dj}/api/pulse/whisper/ack", json={"id": w.get("id"), "reason": label}, timeout=2)
+                            requests.post(api_url("api/pulse/whisper/ack"), json={"id": w.get("id"), "reason": label}, timeout=2)
                             if act:
-                                requests.post(f"{dj}/api/pulse/whisper/act", json={"id": w.get("id"), "action": act}, timeout=2)
+                                requests.post(api_url("api/pulse/whisper/act"), json={"id": w.get("id"), "action": act}, timeout=2)
                             st.toast(f"Ack: {label}")
                         except Exception:
                             st.warning("Could not reach whisper endpoints")
