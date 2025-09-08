@@ -13,19 +13,19 @@ system_identity:
     - "Always follow Zanzibar (safety, tone, scope)"
 
 knowledge_bases:
-  # Relative to repo root; loader resolves and mounts if available
-  - docs/gpt_llm/whisperer_zanflow_pack/behavioral/mental_support.yaml
-  - docs/gpt_llm/whisperer_zanflow_pack/behavioral/prompt_library.yaml
-  - docs/gpt_llm/whisperer_zanflow_pack/behavioral/prompts.yaml
-  - docs/gpt_llm/whisperer_zanflow_pack/behavioral/suggestions.yaml
-  - docs/gpt_llm/whisperer_zanflow_pack/constitutional/ZANZIBAR_AGENT_INSTRUCTIONS.md
-  - docs/gpt_llm/whisperer_zanflow_pack/strategy/zanflow_logical_blocks.yaml
-  - docs/gpt_llm/whisperer_zanflow_pack/strategy/zanflow_prompt_engineering_system.json
-  - docs/gpt_llm/whisperer_zanflow_pack/strategy/zanflow_structural_flow.json
-  - docs/gpt_llm/whisperer_zanflow_pack/strategy/zanflow_v17_menu_system.json
-  - docs/gpt_llm/whisperer_zanflow_pack/strategy/zanflow_v17_quick_reference.txt
-  - docs/gpt_llm/whisperer_zanflow_pack/support/personal_assistant.yaml
-  - docs/gpt_llm/whisperer_zanflow_pack/support/natural_language_dsl.yaml
+  # Normalized to filenames for portability (flat upload or extracted pack)
+  - zanflow_logical_blocks.yaml
+  - zanflow_prompt_engineering_system.json
+  - zanflow_structural_flow.json
+  - zanflow_v17_menu_system.json
+  - zanflow_v17_quick_reference.txt
+  - mental_support.yaml
+  - prompt_library.yaml
+  - prompts.yaml
+  - suggestions.yaml
+  - natural_language_dsl.yaml
+  - personal_assistant.yaml
+  - whisperer_prompts.yaml
 
 actions_available:
   # Exposed to UI; map to flows + API calls
@@ -88,6 +88,72 @@ prompt_flows:
       - journal_log (POST /api/v1/journal/entry)
     output: "Entry {entry}, SL {sl}, TP1 {tp1}. RR = {rr}"
 
+  post_boot_health_review:
+    input: "Boot complete"
+    sequence:
+      - GET /api/v1/state/snapshot
+      - compute_account_health_summary
+      - check_intervention_triggers
+    output: |
+      Equity {equity}, risk used {risk_used_pct}%, open {open_positions}.
+      Loss streak {losses}. Discipline {discipline}%.
+      Recommendation: {recommendation} (confidence {confidence}%).
+
+  setup_triage_intraday:
+    input: "Scan intraday setups for {symbol}"
+    sequence:
+      - GET /api/v1/feed/bars-enriched?symbol={symbol}&timeframe=M15&limit=200
+      - context_analysis
+      - structure_detection
+      - poi_identification
+      - scoring_validation
+    output: |
+      Bias {htf_bias}. Setups found: {count}.
+      Top POI: {poi_desc} | Score {confluence_score}/100 | Prob {success_probability}%.
+      Next action: {next_step}
+
+  tilt_guard:
+    input: "Check for tilt"
+    sequence:
+      - GET /api/v1/state/snapshot
+      - summarize_discipline_and_events
+      - if_tilt_then:
+        - suggest_reset_or_size_cut
+        - whisper_suggest (POST /api/v1/actions/query)
+    output: |
+      Tilt risk: {tilt_flag}. {nudge}
+
+  killzone_watch:
+    input: "London/NY killzone watch for {symbol}"
+    sequence:
+      - GET /api/v1/feed/bars-enriched?symbol={symbol}&timeframe=M1&limit=200
+      - session_analysis
+      - structure_detection
+      - poi_identification
+      - scoring_validation
+    output: |
+      Session {session_name}: liquidity {liquidity_targets}. Killzone signal: {signal_flag}.
+      Candidate: {poi_candidate} | Confirm on {entry_timeframe} with {confirmation_types}.
+
+  conflict_check:
+    input: "Check directional conflicts"
+    sequence:
+      - GET /api/v1/state/snapshot
+      - predictive_scorer_conflict_sweep
+    output: |
+      Conflicts: {conflict_count}. Highest risk: {conflict_tag}. Suggest review: {suggest_review}
+
+  session_close_debrief:
+    input: "End-of-session debrief"
+    sequence:
+      - GET /api/v1/state/snapshot
+      - gather_today_trades
+      - compute_rr_and_adherence
+      - journal_log (POST /api/v1/journal/entry)
+    output: |
+      Today: {trades_count} trades | Win% {win_pct}% | RR avg {rr_avg}.
+      Rule adherence {adherence}% — {key_lesson}
+
 startup_actions:
   - type: session_boot
     payload:
@@ -111,3 +177,11 @@ notes:
   - "Pull consolidated context via GET /api/v1/state/snapshot to minimize calls."
   - "Respect server‑side cooldowns; do not spam suggestions."
 
+conversation_starters:
+  - Review post-boot account health and readiness
+  - Scan M15 → M1 setups for XAUUSD within current killzone
+  - Run tilt guard and advise position size cap if needed
+  - Generate conflict check against all active positions
+  - Produce session close debrief and ZBAR journal entry
+  - Show top POIs ranked by confluence and maturity score
+  - Validate last three trades for rule adherence and RR hygiene
