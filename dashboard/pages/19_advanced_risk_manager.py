@@ -164,6 +164,127 @@ try:
     st.divider()
 except Exception:
     st.info("Vitals unavailable")
+
+# --- Atom‑style 3D Behavioral Compass (elliptical orbits) ---
+try:
+    st.subheader("🧭 Behavioral Atom (3D)")
+
+    # Optional: pull pulse confidence for a 4th particle
+    conf_pct = None
+    try:
+        base = os.getenv('DJANGO_API_URL', 'http://django:8000').rstrip('/')
+        r = requests.get(f"{base}/api/v1/feed/pulse-status", params={"symbol": _fav_symbol}, timeout=1.2)
+        if r.ok:
+            data = r.json() or {}
+            c = data.get('confidence')
+            if isinstance(c, (int, float)):
+                conf_pct = float(c) * 100.0
+    except Exception:
+        pass
+
+    # Define metrics as electrons; value 0..100 maps to angle along the orbit
+    electrons = [
+        {"name": "Equity",    "value": max(0.0, min(100.0, (pnl_today/target_amt*100.0) if (target_amt and pnl_today>0) else 50.0)), "color": "#22C55E", "orbit": 0},
+        {"name": "Exposure",  "value": max(0.0, min(100.0, exp_ratio*100.0 if exp_ratio else 0.0)),               "color": "#0EA5E9", "orbit": 1},
+        {"name": "Behavior",  "value": max(0.0, min(100.0, bhv_score or 0.0)),                                    "color": "#A78BFA", "orbit": 2},
+    ]
+    if conf_pct is not None:
+        electrons.append({"name": "Confluence", "value": max(0.0, min(100.0, conf_pct)), "color": "#F59E0B", "orbit": 3})
+
+    # Controls: animation + speed
+    with st.expander("Atom Controls", expanded=False):
+        animate = st.checkbox("Animate 5s", value=False, help="Preview a short orbit animation")
+        speed = st.slider("Speed", 0.1, 2.0, value=0.6, step=0.1)
+
+    # Orbits (a, b, z, tilt_x_deg, tilt_y_deg) for 3D depth
+    orbit_defs = [
+        (1.00, 0.65, -0.05, 18.0,  0.0),
+        (1.20, 0.80,  0.04, -10.0, 12.0),
+        (1.35, 0.95, -0.08,  0.0, -18.0),
+        (1.55, 1.10,  0.06, 22.0, 10.0),
+    ]
+    t = np.linspace(0, 2*np.pi, 300)
+
+    def _render_atom(phase: float = 0.0) -> go.Figure:
+        fig = go.Figure()
+        # Nucleus
+        fig.add_trace(go.Scatter3d(x=[0], y=[0], z=[0], mode='markers', marker=dict(size=8, color='#ffffff', opacity=0.9), name='Nucleus', hoverinfo='skip'))
+        # Orbits + electrons
+        for idx, (a, b, zoff, tilt_x, tilt_y) in enumerate(orbit_defs):
+            # Build a thicker, more 3D orbit by layering several nearby rings
+            n_layers = 6
+            for k in range(n_layers):
+                # Slight radial and z offsets per layer
+                scale = 1.0 + (k - (n_layers-1)/2.0) * 0.01
+                dz = (k - (n_layers-1)/2.0) * 0.01
+                xo = (a*scale) * np.cos(t)
+                yo = (b*scale) * np.sin(t)
+                zo = np.full_like(t, zoff + dz)
+                # Apply tilt rotations
+                # Rotation around X then Y
+                tx = np.deg2rad(tilt_x)
+                ty = np.deg2rad(tilt_y)
+                # Rotate around X: y,z
+                y1 = yo*np.cos(tx) - zo*np.sin(tx)
+                z1 = yo*np.sin(tx) + zo*np.cos(tx)
+                # Rotate around Y: x,z1
+                x2 = xo*np.cos(ty) + z1*np.sin(ty)
+                z2 = -xo*np.sin(ty) + z1*np.cos(ty)
+                alpha = 0.35 if k == 0 or k == n_layers-1 else 0.22
+                fig.add_trace(go.Scatter3d(
+                    x=x2, y=y1, z=z2,
+                    mode='lines',
+                    line=dict(color=f'rgba(148,163,184,{alpha})', width=6 if k in (0, n_layers-1) else 4),
+                    hoverinfo='skip', showlegend=False
+                ))
+            for e in [e for e in electrons if e['orbit'] == idx]:
+                angle = (e['value'] / 100.0) * 2*np.pi + phase
+                # Electron base pos
+                xe = a * np.cos(angle)
+                ye = b * np.sin(angle)
+                ze = zoff
+                # Apply same tilt to electron
+                y1e = ye*np.cos(np.deg2rad(tilt_x)) - ze*np.sin(np.deg2rad(tilt_x))
+                z1e = ye*np.sin(np.deg2rad(tilt_x)) + ze*np.cos(np.deg2rad(tilt_x))
+                x2e = xe*np.cos(np.deg2rad(tilt_y)) + z1e*np.sin(np.deg2rad(tilt_y))
+                z2e = -xe*np.sin(np.deg2rad(tilt_y)) + z1e*np.cos(np.deg2rad(tilt_y))
+                fig.add_trace(go.Scatter3d(
+                    x=[x2e], y=[y1e], z=[z2e], mode='markers+text',
+                    marker=dict(size=6, color=e['color'], opacity=0.95),
+                    text=[e['name']], textposition='top center', textfont=dict(color='#e5e7eb', size=10),
+                    name=e['name'], hovertemplate=f"{e['name']}: {e['value']:.0f}%<extra></extra>", showlegend=False,
+                ))
+        fig.update_layout(
+            height=360, margin=dict(l=0, r=0, t=10, b=0),
+            scene=dict(
+                xaxis=dict(visible=False), yaxis=dict(visible=False), zaxis=dict(visible=False),
+                aspectmode='data'
+            ),
+            scene_camera=dict(eye=dict(x=1.6, y=1.6, z=0.9)),
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+        )
+        return fig
+
+    # Render static or short animation preview
+    if animate:
+        holder = st.empty()
+        start = time.time()
+        while time.time() - start < 5.0:
+            phase = (time.time() - start) * speed
+            holder.plotly_chart(_render_atom(phase), use_container_width=True, config={'displayModeBar': False})
+            time.sleep(0.08)
+    else:
+        st.plotly_chart(_render_atom(0.0), use_container_width=True, config={'displayModeBar': False})
+
+    # Compact legend
+    chips = []
+    for e in electrons:
+        chips.append(f"<span style='display:inline-block;margin-right:10px;color:#e5e7eb'>"
+                     f"<span style='display:inline-block;width:10px;height:10px;background:{e['color']};border-radius:50%;margin-right:6px'></span>"
+                     f"{e['name']}</span>")
+    st.markdown("""<div style='margin-top:4px'>""" + "".join(chips) + """</div>""", unsafe_allow_html=True)
+except Exception:
+    pass
 # Custom CSS for enhanced styling
 st.markdown("""
 <style>

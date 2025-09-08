@@ -687,3 +687,85 @@ components:
       name: X-Pulse-Key
       in: header
 security: []
+  /api/v1/feed/bars-enriched:
+    get:
+      summary: Normalized bars with lightweight enrichments (LLM-friendly)
+      operationId: getBarsEnriched
+      parameters:
+        - in: query
+          name: symbol
+          schema: { type: string, default: XAUUSD }
+        - in: query
+          name: timeframe
+          schema: { type: string, enum: [H4, H1, M15, M1], default: M15 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 300, minimum: 1, maximum: 800 }
+        - in: query
+          name: enrich
+          schema: { type: boolean, default: true }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  symbol: { type: string }
+                  timeframe: { type: string }
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        timestamp: { type: string }
+                        open: { type: number }
+                        high: { type: number }
+                        low: { type: number }
+                        close: { type: number }
+                        volume: { type: number }
+                        ret_close_pct: { type: number, nullable: true }
+                        atr14: { type: number, nullable: true }
+                        sma20: { type: number, nullable: true }
+                        sma50: { type: number, nullable: true }
+                        vwap: { type: number, nullable: true }
+                        fvg_bull: { type: boolean, nullable: true }
+                        fvg_bear: { type: boolean, nullable: true }
+
+  /api/v1/feed/yf-bars:
+    get:
+      summary: YFinance bars (redundant feed)
+      operationId: getYFBars
+      parameters:
+        - in: query
+          name: symbol
+          schema: { type: string, default: SPY }
+        - in: query
+          name: interval
+          schema: { type: string, default: 1h }
+        - in: query
+          name: range
+          schema: { type: string, default: 60d }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  symbol: { type: string }
+                  interval: { type: string }
+                  range: { type: string }
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        timestamp: { type: string }
+                        open: { type: number }
+                        high: { type: number }
+                        low: { type: number }
+                        close: { type: number }
+                        volume: { type: number }

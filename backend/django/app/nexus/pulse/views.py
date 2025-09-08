@@ -166,3 +166,136 @@ class PulseGateHits(views.APIView):
             return Response({"items": items})
         except Exception as e:
             return Response({"items": [], "error": str(e)}, status=500)
+
+
+class BarsEnriched(views.APIView):
+    """Return normalized bars with lightweight enrichments for LLM agents.
+
+    Query:
+      symbol: e.g. XAUUSD
+      timeframe: one of H4,H1,M15,M1 (default M15)
+      limit: max bars to return (<= 800)
+      enrich: optional bool (default true) to include basic extras
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        symbol = request.query_params.get("symbol") or "XAUUSD"
+        tf = (request.query_params.get("timeframe") or "M15").upper()
+        try:
+            limit = int(request.query_params.get("limit") or 300)
+        except Exception:
+            limit = 300
+        try:
+            enrich = str(request.query_params.get("enrich") or "true").lower() != "false"
+        except Exception:
+            enrich = True
+
+        data = _load_minute_data(symbol)
+        df = data.get(tf)
+        if df is None or df.empty:
+            return Response({"items": []})
+        # Tail to limit
+        df = df.tail(max(1, min(limit, 800))).copy()
+        # Basic enrichments
+        if enrich:
+            try:
+                import pandas as _p
+                # pct change
+                df["ret_close_pct"] = _p.to_numeric(df["close"], errors='coerce').pct_change().fillna(0.0)
+                # ATR14 approximation (HL range SMA)
+                rng = (_p.to_numeric(df['high'], errors='coerce') - _p.to_numeric(df['low'], errors='coerce')).abs()
+                df["atr14"] = rng.rolling(14, min_periods=3).mean()
+                # SMA20/50
+                df["sma20"] = _p.to_numeric(df['close'], errors='coerce').rolling(20, min_periods=3).mean()
+                df["sma50"] = _p.to_numeric(df['close'], errors='coerce').rolling(50, min_periods=3).mean()
+                # VWAP (anchored from start)
+                tp = (_p.to_numeric(df['high'], errors='coerce') + _p.to_numeric(df['low'], errors='coerce') + _p.to_numeric(df['close'], errors='coerce')) / 3.0
+                vol = _p.to_numeric(df['volume'], errors='coerce').fillna(0)
+                cumv = vol.cumsum().replace(0, _p.NA)
+                df["vwap"] = (tp * vol).cumsum() / cumv
+                # Simple Fair Value Gap flags (three-candle model)
+                df["fvg_bull"] = False
+                df["fvg_bear"] = False
+                for i in range(2, len(df)):
+                    try:
+                        low_i = float(df.iloc[i]["low"]) if _p.notna(df.iloc[i]["low"]) else None
+                        high_im2 = float(df.iloc[i-2]["high"]) if _p.notna(df.iloc[i-2]["high"]) else None
+                        high_i = float(df.iloc[i]["high"]) if _p.notna(df.iloc[i]["high"]) else None
+                        low_im2 = float(df.iloc[i-2]["low"]) if _p.notna(df.iloc[i-2]["low"]) else None
+                        if low_i is not None and high_im2 is not None and low_i > high_im2:
+                            df.at[df.index[i], "fvg_bull"] = True
+                        if high_i is not None and low_im2 is not None and high_i < low_im2:
+                            df.at[df.index[i], "fvg_bear"] = True
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+        # Serialize
+        try:
+            items = []
+            for _, row in df.iterrows():
+                try:
+                    ts = row.get('timestamp')
+                    ts_str = str(ts) if not hasattr(ts, 'isoformat') else ts.isoformat()
+                except Exception:
+                    ts_str = str(row.get('timestamp'))
+                items.append({
+                    "timestamp": ts_str,
+                    "open": float(row.get('open') or 0),
+                    "high": float(row.get('high') or 0),
+                    "low": float(row.get('low') or 0),
+                    "close": float(row.get('close') or 0),
+                    "volume": float(row.get('volume') or 0),
+                    "ret_close_pct": float(row.get('ret_close_pct')) if 'ret_close_pct' in df.columns else None,
+                    "atr14": float(row.get('atr14')) if 'atr14' in df.columns else None,
+                    "sma20": float(row.get('sma20')) if 'sma20' in df.columns else None,
+                    "sma50": float(row.get('sma50')) if 'sma50' in df.columns else None,
+                    "vwap": float(row.get('vwap')) if 'vwap' in df.columns else None,
+                    "fvg_bull": bool(row.get('fvg_bull')) if 'fvg_bull' in df.columns else False,
+                    "fvg_bear": bool(row.get('fvg_bear')) if 'fvg_bear' in df.columns else False,
+                })
+            return Response({"items": items, "symbol": symbol, "timeframe": tf})
+        except Exception as e:
+            return Response({"items": [], "error": str(e)}, status=500)
+
+
+class YFBars(views.APIView):
+    """Fetch bars via yfinance as a redundant feed for LLM agents.
+
+    Query:
+      symbol: e.g. SPY, EURUSD=X, GC=F
+      interval: e.g. 1m, 5m, 15m, 1h, 1d (default 1h)
+      range: e.g. 5d, 30d, 60d, 1y (default 60d)
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        import datetime as _dt
+        symbol = request.query_params.get('symbol') or 'SPY'
+        interval = request.query_params.get('interval') or '1h'
+        rng = request.query_params.get('range') or '60d'
+        try:
+            import yfinance as _yf
+        except Exception as e:
+            return Response({"items": [], "error": f"yfinance not available: {e}"}, status=500)
+        try:
+            tk = _yf.Ticker(symbol)
+            hist = tk.history(period=rng, interval=interval)
+            if hist is None or hist.empty:
+                return Response({"items": []})
+            hist = hist.tail(1500)
+            items = []
+            for idx, row in hist.iterrows():
+                ts = idx.to_pydatetime() if hasattr(idx, 'to_pydatetime') else idx
+                items.append({
+                    "timestamp": ts.isoformat() if hasattr(ts, 'isoformat') else str(ts),
+                    "open": float(row.get('Open') or row.get('open') or 0),
+                    "high": float(row.get('High') or row.get('high') or 0),
+                    "low": float(row.get('Low') or row.get('low') or 0),
+                    "close": float(row.get('Close') or row.get('close') or 0),
+                    "volume": float(row.get('Volume') or row.get('volume') or 0),
+                })
+            return Response({"items": items, "symbol": symbol, "interval": interval, "range": rng})
+        except Exception as e:
+            return Response({"items": [], "error": str(e)}, status=500)
