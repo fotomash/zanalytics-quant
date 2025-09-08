@@ -63,7 +63,7 @@ except Exception:
     _symbols = []
 if not _symbols:
     _symbols = ["EURUSD"]
-symbol = st.selectbox("Symbol", _symbols, index=0)
+symbol = st.selectbox("Symbol", _symbols, index=0, key="pf_sym_top")
 st.session_state['pulse_fav_symbol'] = symbol
 # Agent Ops — Quick Checklist (price integrity)
 with st.expander("Price Confirmation Checklist", expanded=False):
@@ -97,7 +97,7 @@ with st.sidebar.expander("Settings", expanded=False):
         all_symbols = []
     fav_default = os.getenv('PULSE_DEFAULT_SYMBOL', 'XAUUSD').upper()
     fav_symbol = st.session_state.get('pulse_fav_symbol', fav_default)
-    fav_symbol = st.selectbox("Favorite symbol", all_symbols, index=all_symbols.index(fav_symbol) if fav_symbol in all_symbols else 0)
+    fav_symbol = st.selectbox("Favorite symbol", all_symbols, index=all_symbols.index(fav_symbol) if fav_symbol in all_symbols else 0, key="pf_fav_symbol")
     st.session_state['pulse_fav_symbol'] = fav_symbol
 
 # Symbol selector (use favorite as default; URL param overrides)
@@ -109,7 +109,7 @@ sym_qp = st.experimental_get_query_params().get('sym', [None])[0]
 default_sym = (sym_qp or st.session_state.get('pulse_fav_symbol') or os.getenv('PULSE_DEFAULT_SYMBOL', 'XAUUSD')).upper()
 if default_sym not in all_symbols:
     default_sym = all_symbols[0] if all_symbols else 'XAUUSD'
-symbol = st.selectbox("Symbol", all_symbols, index=all_symbols.index(default_sym) if default_sym in all_symbols else 0)
+symbol = st.selectbox("Symbol", all_symbols, index=all_symbols.index(default_sym) if default_sym in all_symbols else 0, key="pf_sym_main")
 try:
     st.experimental_set_query_params(sym=symbol)
 except Exception:
