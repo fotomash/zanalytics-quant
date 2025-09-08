@@ -4,6 +4,10 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
+# Add backend django app path to import components if needed
+_dj_app = project_root / "backend" / "django" / "app"
+if _dj_app.exists() and str(_dj_app) not in sys.path:
+    sys.path.insert(0, str(_dj_app))
 """
 Enhanced Wyckoff Analysis Dashboard v4.0 - Professional Quant Edition
 Integrates Wyckoff Method with Microstructure Analysis and Tick Manipulation Detection
@@ -105,7 +109,16 @@ def apply_dashboard_style(fig, title=None, height=800):
     return fig
 
 import streamlit as st
-from components.wyckoff_adaptive import analyze_wyckoff_adaptive
+# Robust import for adaptive Wyckoff analyzer
+try:
+    from components.wyckoff_adaptive import analyze_wyckoff_adaptive
+except Exception:
+    try:
+        from backend.django.app.components.wyckoff_adaptive import analyze_wyckoff_adaptive  # type: ignore
+    except Exception:
+        # Minimal fallback to keep UI functional without adaptive engine
+        def analyze_wyckoff_adaptive(df, win: int = 50, **kwargs):  # type: ignore
+            return None
 
 # Sidebar toggles
 use_adaptive = st.sidebar.toggle("Use Adaptive Wyckoff (Z-Bands)", value=True)
