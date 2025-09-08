@@ -558,9 +558,18 @@ try:
             gates[k] = max(0.0, min(100.0, x))
         except Exception:
             gates[k] = 0.0
-    # Simple subtitles based on current posture
+    # Pull discipline events for richer subtitles
+    try:
+        events = safe_api_call('GET', 'api/v1/discipline/events')
+        last_evt = events[0] if isinstance(events, list) and events else None
+        last_kind = last_evt.get('kind') if isinstance(last_evt, dict) else None
+    except Exception:
+        last_evt = None
+        last_kind = None
+
+    # Simple subtitles based on current posture and last discipline event
     subs: dict[str, str | None] = {
-        'Discipline': "Watch impulsive behavior" if gates['Discipline'] < 70 else None,
+        'Discipline': (f"Event: {last_kind}" if last_kind else "Watch impulsive behavior") if gates['Discipline'] < 70 else None,
         'Patience': None,
         'Conviction': "Limit size on low confidence" if gates['Conviction'] < 70 else None,
         'Efficiency': "Improve capture vs potential" if gates['Efficiency'] < 70 else None,
@@ -586,3 +595,12 @@ try:
         st.plotly_chart(confluence_donut(title='Confluence', gates=gates), use_container_width=True, config={'displayModeBar': False})
 except Exception:
     st.info("Behavioral gates unavailable")
+
+# Sources & semantics explainer
+with st.expander("Gate Sources & Semantics", expanded=False):
+    st.markdown(
+        "- Behavioral (Discipline/Patience/Conviction/Efficiency): mirror/state only — no account/macro\n"
+        "- System Gates (Context/Liquidity/Structure/Imbalance/Risk): pulse gates & risk envelope\n"
+        "- Confluence: weighted composite of system gates\n"
+        "- Macro/Status: market mini (VIX/DXY/regime); Account vitals: info/risk endpoints\n"
+    )

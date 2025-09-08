@@ -11,6 +11,7 @@ from app.nexus.views import _redis_client
 from app.nexus.models import Trade
 import datetime as _dt
 from collections import Counter
+from .serializers import PulseDetailSerializer
 
 
 class PulseStatus(views.APIView):
@@ -80,6 +81,11 @@ class PulseDetail(views.APIView):
             except Exception:
                 conf = {"confidence": 0.0, "passed": False}
             payload = {"structure": struct, "liquidity": liq, "wyckoff": wyk, "risk": rsk, "confluence": conf}
+            # Validate against serializer (non-fatal)
+            try:
+                PulseDetailSerializer(data=payload).is_valid(raise_exception=True)
+            except Exception:
+                pass
             try:
                 r = _redis_client()
                 if r is not None:

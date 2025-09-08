@@ -55,7 +55,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MirrorState'
+                $ref: '#/components/schemas/BehavioralMirror'
   /api/v1/discipline/summary:
     get:
       summary: Discipline daily/7‑day summary with events
@@ -138,6 +138,23 @@ paths:
                   unrealized_usd: { type: number, nullable: true }
                   profit_efficiency: { type: number, nullable: true }
                   eff_trend_15m: { type: number, nullable: true }
+
+  /api/v1/feed/pulse-detail:
+    get:
+      summary: Pulse gate snapshot (structure/liquidity/wyckoff/risk/confluence)
+      operationId: getPulseDetail
+      parameters:
+        - in: query
+          name: symbol
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PulseDetailResponse'
   
   /api/v1/account/positions:
     get:
@@ -637,6 +654,50 @@ paths:
   
 components:
   schemas:
+    GateResult:
+      type: object
+      properties:
+        passed: { type: boolean }
+        direction: { type: string, nullable: true }
+        details: { type: object, additionalProperties: true }
+      required: [passed]
+    WyckoffGate:
+      type: object
+      properties:
+        passed: { type: boolean }
+        phase: { type: string, nullable: true }
+        direction: { type: string, nullable: true }
+      required: [passed]
+    Confluence:
+      type: object
+      properties:
+        confidence: { type: number, format: float }
+        passed: { type: boolean }
+      required: [confidence, passed]
+    RiskEnvelope:
+      type: object
+      properties:
+        used_pct: { type: number, format: float, nullable: true }
+        exposure_pct: { type: number, format: float, nullable: true }
+        target_amount: { type: number, format: float, nullable: true }
+        loss_amount: { type: number, format: float, nullable: true }
+    PulseDetailResponse:
+      type: object
+      properties:
+        structure: { $ref: '#/components/schemas/GateResult' }
+        liquidity: { $ref: '#/components/schemas/GateResult' }
+        wyckoff: { $ref: '#/components/schemas/WyckoffGate' }
+        risk: { $ref: '#/components/schemas/RiskEnvelope' }
+        confluence: { $ref: '#/components/schemas/Confluence' }
+      required: [structure, liquidity, wyckoff, risk, confluence]
+    BehavioralMirror:
+      type: object
+      properties:
+        discipline: { type: number, format: float, nullable: true }
+        patience: { type: number, format: float, nullable: true }
+        patience_ratio: { type: number, format: float, nullable: true }
+        conviction: { type: number, format: float, nullable: true }
+        efficiency: { type: number, format: float, nullable: true }
     MirrorState:
       type: object
       additionalProperties: false
