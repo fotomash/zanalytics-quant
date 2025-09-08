@@ -77,6 +77,34 @@ def _trading_day_start_utc(now=None) -> "timezone.datetime":
         anchor_local = anchor_local - timedelta(days=1)
     return anchor_local.astimezone(ZoneInfo("UTC"))
 
+# Session window helper (explicit bounds and stable session key)
+SESSION_TZ = os.getenv("PULSE_SESSION_TZ", "Europe/London")
+SESSION_CUTOFF_HOUR = int(os.getenv("PULSE_SESSION_CUTOFF_HOUR", "23"))
+
+def session_bounds(now=None, cutoff_hour: int = SESSION_CUTOFF_HOUR, tz_name: str = SESSION_TZ):
+    """Return (start_utc, end_utc, session_key) for the current trading session.
+
+    Session runs from cutoff_hour local to cutoff_hour next day.
+    session_key = date (YYYYMMDD) of the session END in local tz.
+    """
+    from django.utils import timezone
+    now = now or timezone.now()
+    try:
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        tz = ZoneInfo("UTC")
+    local = now.astimezone(tz)
+    cut = local.replace(hour=cutoff_hour, minute=0, second=0, microsecond=0)
+    if local >= cut:
+        start_local = cut
+        end_local = cut + timedelta(days=1)
+        session_key = end_local.strftime("%Y%m%d")
+    else:
+        start_local = cut - timedelta(days=1)
+        end_local = cut
+        session_key = end_local.strftime("%Y%m%d")
+    return start_local.astimezone(ZoneInfo("UTC")), end_local.astimezone(ZoneInfo("UTC")), session_key
+
 class TradeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Trade.objects.all()
     serializer_class = TradeSerializer
@@ -839,8 +867,8 @@ class EquitySeriesView(views.APIView):
 
     def get(self, request):
         from django.utils import timezone
-        sod = _trading_day_start_utc()
-        qs = Trade.objects.filter(close_time__gte=sod, close_time__isnull=False).order_by('close_time')
+        start_utc, end_utc, _ = session_bounds()
+        qs = Trade.objects.filter(close_time__gte=start_utc, close_time__lt=end_utc, close_time__isnull=False).order_by('close_time')
         points = []
         cum = 0.0
         for t in qs:
@@ -1771,20 +1799,60 @@ class AccountRiskView(views.APIView):
                     sod_equity = float(env_override)
             except Exception:
                 pass
-        # If missing and we are past the anchor for this trading day, snapshot current equity
+
+        # Compute session bounds (current and previous)
+        start_utc, end_utc, _tk = session_bounds(now)
+        y_start_utc, y_end_utc, _yk = session_bounds(start_utc - timedelta(seconds=1))
+
+        # If SoD still missing, derive from previous session close (SoD_yesterday + PnL_yesterday)
+        prev_close_equity = None
+        if sod_equity is None:
+            try:
+                sod_y = None
+                if r is not None:
+                    rawy = r.get(f"sod_equity_override:{yesterday_key}") or r.get(f"sod_equity:{yesterday_key}")
+                    if rawy:
+                        sod_y = float(rawy)
+                pnl_y = float(sum([
+                    (t.pnl or 0.0)
+                    for t in Trade.objects.filter(
+                        close_time__gte=y_start_utc,
+                        close_time__lt=y_end_utc,
+                        close_time__isnull=False
+                    )
+                ]))
+                if sod_y is not None:
+                    prev_close_equity = sod_y + pnl_y
+                    sod_equity = prev_close_equity
+                    if r is not None:
+                        try:
+                            r.setex(f"sod_equity:{today_key}", 72*3600, str(sod_equity))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+        # As a final fallback: snapshot current equity once past anchor
         if sod_equity is None and equity is not None and r is not None and now >= anchor_utc:
             try:
                 r.setex(f"sod_equity:{today_key}", 72*3600, str(equity))
                 sod_equity = equity
             except Exception:
                 sod_equity = equity
-        # Previous close equity (yesterday 23:00 snapshot; honor override if set)
-        prev_close_equity = None
-        if r is not None:
+        # Previous close equity (prefer computed from previous session; else stored snapshot)
+        if prev_close_equity is None and r is not None:
             try:
                 rawp = r.get(f"sod_equity_override:{yesterday_key}") or r.get(f"sod_equity:{yesterday_key}")
                 if rawp:
-                    prev_close_equity = float(rawp)
+                    # If stored yesterday SoD; add pnl_y to estimate close
+                    pnl_y = float(sum([
+                        (t.pnl or 0.0)
+                        for t in Trade.objects.filter(
+                            close_time__gte=y_start_utc,
+                            close_time__lt=y_end_utc,
+                            close_time__isnull=False
+                        )
+                    ]))
+                    prev_close_equity = float(rawp) + pnl_y
             except Exception:
                 prev_close_equity = None
 
