@@ -22,6 +22,10 @@ from dashboard.utils.streamlit_api import (
     fetch_symbols,
 )
 from dashboard.utils.plotly_gates import gate_donut, confluence_donut
+try:
+    from dashboard.pages.components.gate_confluence_donut import render as render_gate_confluence
+except Exception:
+    render_gate_confluence = None  # optional component
 
 
 # Page configuration
@@ -537,6 +541,18 @@ with ac2:
             st.info("No setup data yet.")
     except Exception:
         st.info("Setups unavailable.")
+
+# Gate Confluence Snapshot
+st.divider()
+st.markdown("#### Gate Confluence Snapshot")
+try:
+    if render_gate_confluence is not None:
+        sym_for_det = _sym or (_syms[0] if _syms else "XAUUSD")
+        render_gate_confluence(sym_for_det, height=180)
+    else:
+        st.caption("Confluence component not available")
+except Exception:
+    st.info("Confluence snapshot unavailable")
 
 # Gate Scores (Behavioral)
 st.divider()
