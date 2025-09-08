@@ -40,6 +40,55 @@ paths:
 
 components:
   schemas:
+    ActionQuery:
+      description: Polymorphic action request selected by the 'type' discriminator.
+      oneOf:
+        - $ref: '#/components/schemas/PositionOpenRequest'
+        - $ref: '#/components/schemas/PositionCloseRequest'
+        - $ref: '#/components/schemas/PositionModifyRequest'
+        - $ref: '#/components/schemas/PositionHedgeRequest'
+        - $ref: '#/components/schemas/SessionBootRequest'
+        - $ref: '#/components/schemas/StateSnapshotRequest'
+        - $ref: '#/components/schemas/TradesRecentRequest'
+        - $ref: '#/components/schemas/TradesHistoryMt5Request'
+        - $ref: '#/components/schemas/AccountInfoRequest'
+        - $ref: '#/components/schemas/AccountPositionsRequest'
+        - $ref: '#/components/schemas/AccountRiskRequest'
+        - $ref: '#/components/schemas/EquityTodayRequest'
+        - $ref: '#/components/schemas/MarketMiniRequest'
+        - $ref: '#/components/schemas/MarketSymbolsRequest'
+        - $ref: '#/components/schemas/MarketCalendarNextRequest'
+        - $ref: '#/components/schemas/MarketRegimeRequest'
+        - $ref: '#/components/schemas/LiquidityMapRequest'
+        - $ref: '#/components/schemas/OpportunityPriorityItemsRequest'
+        - $ref: '#/components/schemas/JournalRecentRequest'
+        - $ref: '#/components/schemas/JournalAppendRequest'
+        - $ref: '#/components/schemas/WhisperSuggestRequest'
+      discriminator:
+        propertyName: type
+        mapping:
+          position_open: '#/components/schemas/PositionOpenRequest'
+          position_close: '#/components/schemas/PositionCloseRequest'
+          position_modify: '#/components/schemas/PositionModifyRequest'
+          position_hedge: '#/components/schemas/PositionHedgeRequest'
+          session_boot: '#/components/schemas/SessionBootRequest'
+          state_snapshot: '#/components/schemas/StateSnapshotRequest'
+          trades_recent: '#/components/schemas/TradesRecentRequest'
+          trades_history_mt5: '#/components/schemas/TradesHistoryMt5Request'
+          account_info: '#/components/schemas/AccountInfoRequest'
+          account_positions: '#/components/schemas/AccountPositionsRequest'
+          account_risk: '#/components/schemas/AccountRiskRequest'
+          equity_today: '#/components/schemas/EquityTodayRequest'
+          market_mini: '#/components/schemas/MarketMiniRequest'
+          market_symbols: '#/components/schemas/MarketSymbolsRequest'
+          market_calendar_next: '#/components/schemas/MarketCalendarNextRequest'
+          market_regime: '#/components/schemas/MarketRegimeRequest'
+          liquidity_map: '#/components/schemas/LiquidityMapRequest'
+          opportunity_priority_items: '#/components/schemas/OpportunityPriorityItemsRequest'
+          journal_recent: '#/components/schemas/JournalRecentRequest'
+          journal_append: '#/components/schemas/JournalAppendRequest'
+          whisper_suggest: '#/components/schemas/WhisperSuggestRequest'
+
     ActionQueryRequest:
       type: object
       required: [type]
@@ -74,6 +123,257 @@ components:
           type: object
           additionalProperties: true
           description: Action-specific parameters
+
+    # ----- Request variants (typed by 'type') -----
+    PositionOpenRequest:
+      type: object
+      required: [type, payload]
+      properties:
+        type: { type: string, const: position_open }
+        payload: { $ref: '#/components/schemas/PositionOpenPayload' }
+
+    PositionCloseRequest:
+      type: object
+      required: [type, payload]
+      properties:
+        type: { type: string, const: position_close }
+        payload: { $ref: '#/components/schemas/PositionClosePayload' }
+
+    PositionModifyRequest:
+      type: object
+      required: [type, payload]
+      properties:
+        type: { type: string, const: position_modify }
+        payload: { $ref: '#/components/schemas/PositionModifyPayload' }
+
+    PositionHedgeRequest:
+      type: object
+      required: [type, payload]
+      properties:
+        type: { type: string, const: position_hedge }
+        payload: { $ref: '#/components/schemas/PositionHedgePayload' }
+
+    SessionBootRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: session_boot }
+        payload: { $ref: '#/components/schemas/SessionBootPayload' }
+
+    StateSnapshotRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: state_snapshot }
+        payload: { type: object, additionalProperties: false }
+
+    TradesRecentRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: trades_recent }
+        payload: { $ref: '#/components/schemas/TradesRecentPayload' }
+
+    TradesHistoryMt5Request:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: trades_history_mt5 }
+        payload: { $ref: '#/components/schemas/TradesHistoryMt5Payload' }
+
+    AccountInfoRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: account_info }
+        payload: { type: object, additionalProperties: false }
+
+    AccountPositionsRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: account_positions }
+        payload: { type: object, additionalProperties: false }
+
+    AccountRiskRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: account_risk }
+        payload: { type: object, additionalProperties: false }
+
+    EquityTodayRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: equity_today }
+        payload: { type: object, additionalProperties: false }
+
+    MarketMiniRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: market_mini }
+        payload: { type: object, additionalProperties: false }
+
+    MarketSymbolsRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: market_symbols }
+        payload: { type: object, additionalProperties: false }
+
+    MarketCalendarNextRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: market_calendar_next }
+        payload: { $ref: '#/components/schemas/MarketCalendarNextPayload' }
+
+    MarketRegimeRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: market_regime }
+        payload: { type: object, additionalProperties: false }
+
+    LiquidityMapRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: liquidity_map }
+        payload: { $ref: '#/components/schemas/LiquidityMapPayload' }
+
+    OpportunityPriorityItemsRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: opportunity_priority_items }
+        payload: { $ref: '#/components/schemas/OpportunityPriorityItemsPayload' }
+
+    JournalRecentRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: journal_recent }
+        payload: { $ref: '#/components/schemas/JournalRecentPayload' }
+
+    JournalAppendRequest:
+      type: object
+      required: [type, payload]
+      properties:
+        type: { type: string, const: journal_append }
+        payload: { $ref: '#/components/schemas/JournalAppendPayload' }
+
+    WhisperSuggestRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: whisper_suggest }
+        payload: { $ref: '#/components/schemas/WhisperSuggestPayload' }
+
+    # ----- Payload schemas -----
+    PositionOpenPayload:
+      type: object
+      required: [symbol, volume, side]
+      properties:
+        symbol: { type: string }
+        volume: { type: number }
+        side: { type: string, enum: [buy, sell] }
+        sl: { type: number, nullable: true }
+        tp: { type: number, nullable: true }
+        comment: { type: string, nullable: true }
+
+    PositionClosePayload:
+      type: object
+      required: [ticket]
+      properties:
+        ticket: { type: integer }
+        fraction: { type: number, minimum: 0.01, maximum: 1.0, nullable: true }
+        volume: { type: number, nullable: true }
+      anyOf:
+        - required: [fraction]
+        - required: [volume]
+        - properties: { }
+
+    PositionModifyPayload:
+      type: object
+      required: [ticket]
+      properties:
+        ticket: { type: integer }
+        sl: { type: number, nullable: true }
+        tp: { type: number, nullable: true }
+      anyOf:
+        - required: [sl]
+        - required: [tp]
+
+    PositionHedgePayload:
+      type: object
+      required: [ticket]
+      properties:
+        ticket: { type: integer }
+        volume: { type: number, nullable: true }
+
+    SessionBootPayload:
+      type: object
+      properties:
+        limit_trades: { type: integer, minimum: 1, maximum: 100 }
+        include_positions: { type: boolean }
+        include_equity: { type: boolean }
+        include_risk: { type: boolean }
+
+    TradesRecentPayload:
+      type: object
+      properties:
+        limit: { type: integer, minimum: 1, maximum: 1000 }
+
+    TradesHistoryMt5Payload:
+      type: object
+      properties:
+        symbol: { type: string, nullable: true }
+        date_from: { type: string, format: date, nullable: true }
+        date_to: { type: string, format: date, nullable: true }
+        pnl_min: { type: number, nullable: true }
+        pnl_max: { type: number, nullable: true }
+
+    MarketCalendarNextPayload:
+      type: object
+      properties:
+        limit: { type: integer, minimum: 1, maximum: 50 }
+
+    LiquidityMapPayload:
+      type: object
+      properties:
+        symbol: { type: string, nullable: true }
+        timeframe: { type: string, nullable: true, example: 'M5' }
+
+    OpportunityPriorityItemsPayload:
+      type: object
+      properties:
+        candidates: { type: array, items: { type: object } }
+        symbols: { type: array, items: { type: string } }
+        constraints: { type: object, additionalProperties: true }
+
+    JournalRecentPayload:
+      type: object
+      properties:
+        limit: { type: integer, minimum: 1, maximum: 200 }
+
+    JournalAppendPayload:
+      type: object
+      required: [trade_id]
+      properties:
+        trade_id: { type: integer }
+        kind: { type: string, enum: [ENTRY, CLOSE, PARTIAL_CLOSE, HEDGE, ORDER_MODIFY], nullable: true }
+        text: { type: string, nullable: true }
+        tags: { type: array, items: { type: string } }
+        meta: { type: object, additionalProperties: true }
+
+    WhisperSuggestPayload:
+      type: object
+      properties:
+        user_id: { type: string, nullable: true }
+        symbol: { type: string, nullable: true }
 
     WhisperSuggestResponse:
       type: object
