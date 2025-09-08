@@ -18,6 +18,7 @@ except Exception:
             pass
 
 import streamlit as st
+from dashboard.utils.streamlit_api import safe_api_call
 
 EnhancedWyckoffAnalyzer = None  # type: ignore
 try:
@@ -40,6 +41,38 @@ if EnhancedWyckoffAnalyzer is None:
 if ta is None:
     st.warning("Python package 'ta' not installed — some indicators disabled."
                " Add 'ta' to requirements or install in the dashboard environment.")
+
+# --- Environment Check Panel -------------------------------------------------
+def _resolved_engine_name():
+    try:
+        return getattr(EnhancedWyckoffAnalyzer, "__name__", str(EnhancedWyckoffAnalyzer))
+    except Exception:
+        return str(EnhancedWyckoffAnalyzer)
+
+with st.expander("Environment Check", expanded=False):
+    st.caption("Quick sanity check for dependencies and backend reachability")
+    # Wyckoff engine
+    eng = _resolved_engine_name()
+    if EnhancedWyckoffAnalyzer is None:
+        st.error("Wyckoff engine: NOT RESOLVED")
+    else:
+        st.success(f"Wyckoff engine: {eng}")
+    # TA package
+    try:
+        import ta as _ta
+        ver = getattr(_ta, "__version__", "unknown")
+        st.success(f"ta package: present (v{ver})")
+    except Exception:
+        st.error("ta package: missing")
+    # Backend health and risk endpoint
+    try:
+        ping = safe_api_call('GET', 'api/pulse/health') or {}
+        ok = isinstance(ping, dict) and (ping.get('status') == 'ok')
+        st.write(f"API health: {'ok' if ok else 'unavailable'}")
+        rk = safe_api_call('GET', 'api/v1/account/risk') or {}
+        st.write(f"Risk endpoint: {'ok' if isinstance(rk, dict) and rk else 'empty'}")
+    except Exception:
+        st.write("API check: error")
 
 # ==== Local Dashboard Styling (copied from Home.py) ====
 CHART_THEME = "plotly_dark"
