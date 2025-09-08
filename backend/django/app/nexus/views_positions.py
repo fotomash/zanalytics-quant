@@ -42,7 +42,42 @@ class PositionsCloseView(APIView):
         )
         if ok:
             action = "PARTIAL_CLOSE" if (fraction is not None or volume is not None) else "CLOSE"
-            journal_append(kind=action, text=f"Closed ticket={ticket}", meta={"req": payload, "resp": data})
+            # Build structured meta
+            try:
+                vol_before = float(pos.get("volume")) if pos.get("volume") is not None else None
+                if volume is not None:
+                    vol_action = float(volume)
+                elif fraction is not None and vol_before is not None:
+                    vol_action = max(0.0, vol_before * float(fraction))
+                else:
+                    vol_action = vol_before
+                vol_remaining = None
+                if vol_before is not None and vol_action is not None:
+                    vol_remaining = max(0.0, float(vol_before) - float(vol_action))
+                ptype = pos.get("type")
+                try:
+                    pnum = int(ptype)
+                    side = "BUY" if pnum == 0 else "SELL"
+                except Exception:
+                    side = "BUY" if str(ptype).lower().startswith("buy") else "SELL"
+                meta = {
+                    "ticket": int(ticket),
+                    "symbol": pos.get("symbol"),
+                    "side": side,
+                    "volume_before": vol_before,
+                    "volume_action": vol_action,
+                    "volume_remaining": vol_remaining,
+                    "reason": "manual_request",
+                }
+            except Exception:
+                meta = {"req": payload, "resp": data}
+            journal_append(
+                kind=action,
+                text=(f"Closed {float(fraction)*100:.0f}% of {pos.get('symbol')}" if fraction is not None else f"Closed ticket={ticket}"),
+                meta=meta,
+                trade_id=int(ticket),
+                tags=["position_close", "partial" if action == "PARTIAL_CLOSE" else "full"],
+            )
             return Response(data)
         return Response(data, status=status.HTTP_400_BAD_REQUEST)
 
@@ -65,7 +100,13 @@ class PositionsModifyView(APIView):
             idempotency_key=request.headers.get("X-Idempotency-Key"),
         )
         if ok:
-            journal_append(kind="ORDER_MODIFY", text=f"Modify SL/TP ticket={ticket}", meta={"req": payload, "resp": data})
+            meta = {
+                "ticket": int(ticket),
+                "sl": payload.get("sl"),
+                "tp": payload.get("tp"),
+                "reason": "manual_request",
+            }
+            journal_append(kind="ORDER_MODIFY", text=f"Modify SL/TP ticket={ticket}", meta=meta, trade_id=int(ticket), tags=["order_modify"])
             return Response(data)
         return Response(data, status=status.HTTP_400_BAD_REQUEST)
 
@@ -111,7 +152,13 @@ class PositionsHedgeView(APIView):
             if str(acct.get("mode")).lower().startswith("net"):
                 note = "Account likely in netting mode; hedge nets exposure."
             data["note"] = note
-            journal_append(kind="ORDER_HEDGE", text=f"Hedged ticket={ticket}", meta={"req": payload, "resp": data})
+            meta = {
+                "ticket": int(ticket),
+                "symbol": pos.get("symbol"),
+                "side": "SELL" if side == "sell" else "BUY",
+                "volume_action": float(volume) if volume is not None else float(pos.get("volume")),
+                "reason": "manual_request",
+            }
+            journal_append(kind="HEDGE", text=f"Hedged ticket={ticket}", meta=meta, trade_id=int(ticket), tags=["hedge"])            
             return Response(data)
         return Response(data, status=status.HTTP_400_BAD_REQUEST)
-
