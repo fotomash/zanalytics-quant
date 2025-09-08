@@ -28,7 +28,20 @@ def load_playbook():
                         return json.load(f)
             except Exception:
                 continue
-        raise FileNotFoundError('pulse_v1.json not found in candidates')
+        # Fallback: embedded minimal playbook
+        return {
+            "id": "pulse_v1",
+            "name": "PULSE Predictive Flow Framework",
+            "version": "1.0.0",
+            "gates": [
+                {"id": "context", "name": "Context Gate", "rule": "HTF bias aligns with POI & session", "optional": False},
+                {"id": "liquidity", "name": "Liquidity Gate", "rule": "Asian/swing sweep then snap-back", "optional": False},
+                {"id": "structure", "name": "Structure Gate", "rule": "M1 CHoCH on impulse vol ≥1.5× median", "optional": False},
+                {"id": "imbalance", "name": "Imbalance Gate", "rule": "FVG/LPS from flip impulse; entry zone ±50%", "optional": False},
+                {"id": "risk", "name": "Risk Gate", "rule": "Stop at swing ±3 pips; targets 1R/2R/3R", "optional": False},
+                {"id": "confluence", "name": "Confluence Gate", "rule": "Weighted enhancers; size down if <0.75", "optional": True},
+            ],
+        }
     except Exception as e:
         st.warning(f"Unable to load playbook: {e}")
         return {"gates": []}
@@ -92,6 +105,10 @@ for col, gate in zip(cols, playbook.get("gates", [])):
         f"{label}<br>●</div>",
         unsafe_allow_html=True
     )
+
+# If backend is unreachable, provide a clear hint but keep UI usable
+if not status:
+    st.info("Live status unavailable — showing framework layout only. Ensure DJANGO_API_URL is reachable.")
 
 # Optional: show Structure details under the lights
 try:

@@ -226,105 +226,54 @@ st.divider()
 # Main Dashboard Layout
 col_left, col_center, col_right = st.columns([1.5, 2, 1.5])
 
-# --- Behavioral Compass (concentric, center-locked rings) ---
-# Pull live values from mirror API when present; fall back to session_state
-def _get_mirror_pct(key: str, default_val: float) -> float:
-    try:
-        if isinstance(mirror, dict) and key in mirror:
-            v = mirror.get(key)
-            # accept {value: x} or raw number
-            if isinstance(v, dict) and "value" in v:
-                return float(v["value"])
-            return float(v)
-    except Exception:
-        pass
-    return float(default_val)
+with col_left:
+    # --- Behavioral Compass (concentric, center-locked rings) ---
+    # Pull live values from mirror API when present; fall back to session_state
+    def _get_mirror_pct(key: str, default_val: float) -> float:
+        try:
+            if isinstance(mirror, dict) and key in mirror:
+                v = mirror.get(key)
+                # accept {value: x} or raw number
+                if isinstance(v, dict) and "value" in v:
+                    return float(v["value"])
+                return float(v)
+        except Exception:
+            pass
+        return float(default_val)
 
-# metrics: List of behavioral trading metrics to visualize in concentric rings.
-# Each metric's value should be a percentage (0-100), representing the trader's score for:
-# - Discipline: Adherence to trading rules and plans.
-# - Patience: Ability to wait for optimal setups.
-# - Profit Efficiency: Effectiveness in capturing available profits.
-# - Conviction: Confidence in trade decisions.
-metrics = [
-    {"name": "Discipline", "value": _get_mirror_pct("discipline", st.session_state.discipline_score), "color": "#22C55E"},
-    {"name": "Patience",   "value": _get_mirror_pct("patience",   st.session_state.patience_index),   "color": "#3B82F6"},
-    {"name": "Profit Efficiency", "value": _get_mirror_pct("efficiency", st.session_state.profit_efficiency),"color": "#06B6D4"},
-    {"name": "Conviction", "value": _get_mirror_pct("conviction", st.session_state.conviction_rate),  "color": "#8B5CF6"},
-]
-    {
-        "name":   "Patience",
-        "value":  _get_mirror_pct("patience",     st.session_state.patience_index),
-        "color":  "#3B82F6",
-    },
-    {
-        "name":   "Efficiency",
-        "value":  _get_mirror_pct("efficiency",   st.session_state.profit_efficiency),
-        "color":  "#06B6D4",
-    },
-    {
-        "name":   "Conviction Rate",
-        "value":  _get_mirror_pct("conviction",   st.session_state.conviction_rate),
-        "color":  "#8B5CF6",
-    },
-]
+    metrics = [
+        {"name": "Discipline", "value": _get_mirror_pct("discipline", st.session_state.discipline_score), "color": "#22C55E"},
+        {"name": "Patience",   "value": _get_mirror_pct("patience",   st.session_state.patience_index),   "color": "#3B82F6"},
+        {"name": "Profit Efficiency", "value": _get_mirror_pct("efficiency", st.session_state.profit_efficiency),"color": "#06B6D4"},
+        {"name": "Conviction", "value": _get_mirror_pct("conviction", st.session_state.conviction_rate),  "color": "#8B5CF6"},
+    ]
 
-    # Concentric geometry: keep the same center for all traces, vary domain size to set radius,
-    # and adjust `hole` so the **visual** band thickness is constant.
+    # Concentric geometry
     fig = go.Figure()
-    sizes = [1.00, 0.82, 0.64, 0.46]          # outer → inner radius as a fraction of the full plot area
-    band_px_ratio = 0.16                      # target ring thickness relative to each ring's radius
-    track_color = "rgba(31,41,55,0.30)"       # subtle background/track
-    start_at_noon = 90                        # 12 o'clock
+    sizes = [1.00, 0.82, 0.64, 0.46]
+    band_px_ratio = 0.16
+    track_color = "rgba(31,41,55,0.30)"
+    start_at_noon = 90
     for i, metric in enumerate(metrics):
         s = sizes[i]
-        off = (1.0 - s) / 2.0                 # keep the same center (0.5, 0.5)
-        # Maintain approx. constant band thickness visually by adapting hole to the ring radius
+        off = (1.0 - s) / 2.0
         hole = max(0.0, min(0.95, 1.0 - band_px_ratio))
-        # BACKGROUND TRACK (full 100%)
-        fig.add_trace(go.Pie(
-            values=[100],
-            labels=[""],
-            hole=hole,
-            rotation=start_at_noon,
-            direction="clockwise",
-            marker=dict(colors=[track_color]),
-            textinfo="none",
-            showlegend=False,
-            sort=False,
-            domain=dict(x=[off, 1.0 - off], y=[off, 1.0 - off]),
-        ))
-        # ACTUAL VALUE
+        fig.add_trace(go.Pie(values=[100], labels=[""], hole=hole, rotation=start_at_noon, direction="clockwise",
+                              marker=dict(colors=[track_color]), textinfo="none", showlegend=False, sort=False,
+                              domain=dict(x=[off, 1.0 - off], y=[off, 1.0 - off]),))
         val = max(0.0, min(100.0, float(metric["value"])))
-        fig.add_trace(go.Pie(
-            values=[val, 100 - val],
-            labels=[metric["name"], ""],
-            hole=hole,
-            rotation=start_at_noon,
-            direction="clockwise",
-            marker=dict(colors=[metric["color"], "rgba(0,0,0,0)"]),
-            textinfo="none",
-            hovertemplate=f"{metric['name']}: {{%}}%&lt;extra&gt;&lt;/extra&gt;",
-            showlegend=False,
-            sort=False,
-            domain=dict(x=[off, 1.0 - off], y=[off, 1.0 - off]),
-        ))
+        fig.add_trace(go.Pie(values=[val, 100 - val], labels=[metric["name"], ""], hole=hole, rotation=start_at_noon,
+                              direction="clockwise", marker=dict(colors=[metric["color"], "rgba(0,0,0,0)"]),
+                              textinfo="none", hovertemplate=f"{metric['name']}: {{%}}%&lt;extra&gt;&lt;/extra&gt;", showlegend=False,
+                              sort=False, domain=dict(x=[off, 1.0 - off], y=[off, 1.0 - off]),))
 
-    # Center label (overall average)
     overall = int(np.mean([m["value"] for m in metrics if isinstance(m.get("value"), (int, float))]))
-    fig.add_annotation(
-        text=f"<b>{overall}%</b><br>Overall",
-        x=0.5, y=0.5, showarrow=False,
-        font=dict(size=20, color="#ffffff")
-    )
-    fig.update_layout(
-        height=300,
-        margin=dict(t=0, b=0, l=0, r=0),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)"
-    )
+    fig.add_annotation(text=f"<b>{overall}%</b><br>Overall", x=0.5, y=0.5, showarrow=False,
+                       font=dict(size=20, color="#ffffff"))
+    fig.update_layout(height=300, margin=dict(t=0, b=0, l=0, r=0), paper_bgcolor="rgba(0,0,0,0)",
+                      plot_bgcolor="rgba(0,0,0,0)")
     st.plotly_chart(fig, use_container_width=True)
-    
+
     # Behavioral Metrics Details
     for metric in metrics:
         col_m1, col_m2 = st.columns([3, 1])
@@ -332,21 +281,18 @@ metrics = [
             st.markdown(f"**{metric['name']}**")
         with col_m2:
             color = metric['color']
-            st.markdown(f"<span style='color: {color}; font-weight: bold;'>{metric['value']}%</span>", 
-                       unsafe_allow_html=True)
-    
+            st.markdown(f"<span style='color: {color}; font-weight: bold;'>{metric['value']}%</span>", unsafe_allow_html=True)
+
     st.divider()
-    
+
     # Pattern Watch
     st.markdown("### 🎯 Pattern Watch")
-    
     patterns = [
         {'name': 'Revenge Trading', 'status': 'OK', 'color': '#22C55E'},
         {'name': 'FOMO', 'status': 'OK', 'color': '#22C55E'},
         {'name': 'Fear (Cut Winners)', 'status': 'ALERT', 'color': '#FBBF24'},
         {'name': 'Overconfidence', 'status': 'OK', 'color': '#22C55E'}
     ]
-    
     for pattern in patterns:
         st.markdown(
             f"<div style='padding: 8px; margin: 4px 0; background: rgba(31,41,55,0.3); "

@@ -214,14 +214,15 @@ class ZanalyticsDashboard:
         self.mt5_client = Mt5APIClient(base_url=self.api_url)
 
         fred_api_key = get_config_var("FRED_API_KEY")
+        self.fred = None
         if not fred_api_key:
-            st.error("FRED_API_KEY is missing. Please set it in your environment or Streamlit secrets.")
-            raise RuntimeError("FRED_API_KEY is missing. Please set it in your environment or Streamlit secrets.")
-        try:
-            self.fred = Fred(api_key=fred_api_key)
-        except Exception as e:
-            st.error(f"Failed to initialize FRED API: {e}")
-            raise
+            # Degrade gracefully if no key is provided
+            st.info("FRED_API_KEY not set — skipping DXY/10Y charts.")
+        else:
+            try:
+                self.fred = Fred(api_key=fred_api_key)
+            except Exception as e:
+                st.warning(f"FRED init failed — skipping DXY/10Y charts: {e}")
 
         # Example: Add Alpha Vantage/YFinance/MT5 as needed
         # To add more APIs, always use get_config_var("KEY_NAME")
@@ -876,16 +877,19 @@ class ZanalyticsDashboard:
 
         # --- DXY (Broad Dollar Index) Chart using FRED API ---
         try:
-            dxy_data = self.fred.get_series('DTWEXBGS')  # Broad Dollar Index
-            dxy_data = dxy_data.dropna()
-            fig_dxy = go.Figure()
-            fig_dxy.add_trace(go.Scatter(x=dxy_data.index, y=dxy_data.values, mode='lines', name='DXY'))
-            fig_dxy.update_layout(title='DXY (Broad Dollar Index)', template='plotly_dark')
-            st.plotly_chart(fig_dxy, use_container_width=True)
-            # --- PATCH: Show original DXY green bar chart after FRED DXY line chart ---
-            self.display_original_dxy_chart()
+            if self.fred is not None:
+                dxy_data = self.fred.get_series('DTWEXBGS')  # Broad Dollar Index
+                dxy_data = dxy_data.dropna()
+                fig_dxy = go.Figure()
+                fig_dxy.add_trace(go.Scatter(x=dxy_data.index, y=dxy_data.values, mode='lines', name='DXY'))
+                fig_dxy.update_layout(title='DXY (Broad Dollar Index)', template='plotly_dark')
+                st.plotly_chart(fig_dxy, use_container_width=True)
+                # --- PATCH: Show original DXY green bar chart after FRED DXY line chart ---
+                self.display_original_dxy_chart()
+            else:
+                st.caption("DXY feed disabled (no FRED key)")
         except Exception as e:
-            st.error(f"Failed to load DXY chart: {e}")
+            st.warning(f"Failed to load DXY chart: {e}")
 
         # --- XAUUSD 3D Visualization of FVG & SMC (15min) ---
         try:
