@@ -1,0 +1,9 @@
+# Session close schedule (UTC)
+# Adjust as needed; the scheduler reads this file.
+London:
+  hour: 16
+  minute: 30
+NewYork:
+  hour: 21
+  minute: 0
+
