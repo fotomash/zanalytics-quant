@@ -29,7 +29,8 @@ st.caption("Real-time Wyckoff scoring (adaptive + news-aware) from live MT5 tick
 
 # --- Service endpoints (adjust hostnames/ports if needed) ---
 MT5_API_URL   = st.secrets.get("MT5_API_URL",   "http://mt5:8000")          # e.g., docker service name
-PULSE_API_URL = st.secrets.get("PULSE_API_URL", "http://django:8000")       # Django app host
+# Prefer DJANGO_API_URL then secrets override
+PULSE_API_URL = os.getenv("DJANGO_API_URL", st.secrets.get("PULSE_API_URL", "http://django:8000"))
 
 # --- Sidebar controls ---
 with st.sidebar:
@@ -111,7 +112,7 @@ def score_bars(bars: pd.DataFrame) -> dict:
          "low": float(r.low), "close": float(r.close), "volume": float(r.volume)}
         for ts, r in bars.iterrows()
     ]}
-    r = requests.post(f"{PULSE_API_URL}/api/pulse/wyckoff/score", json=payload, timeout=5)
+    r = requests.post(f"{PULSE_API_URL.rstrip('/')}/api/pulse/wyckoff/score", json=payload, timeout=5)
     r.raise_for_status()
     return r.json()
 

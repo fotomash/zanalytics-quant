@@ -14,7 +14,8 @@ import time
 st.set_page_config(page_title="Enhanced Wyckoff Dashboard", layout="wide", initial_sidebar_state="expanded")
 
 # API Configuration
-MT5_API_URL = "http://localhost:8000"  # Adjust based on your docker-compose setup (mt5 service)
+import os
+MT5_API_URL = os.getenv("MT5_API_URL", "http://mt5:5001")
 
 def fetch_tick_data(symbol, count=5000):
     """Fetch raw tick data from MT5 API (GET /ticks)"""
@@ -114,11 +115,11 @@ st.title("Enhanced Wyckoff Dashboard - Live MT5 Ticks")
 
 # Sidebar
 with st.sidebar:
-    symbol = st.selectbox("Symbol", ["EURUSD", "GBPUSD", "USDJPY", "EURGBP", "XAUUSD", "DXY"])
-    tick_count = st.slider("Ticks to Fetch", 1000, 20000, 5000)
-    timeframe = st.selectbox("Timeframe", ["1min", "5min", "15min"])
-    auto_refresh = st.toggle("Auto Refresh (30s)", value=True)
-    analysis_win = st.slider("Analysis Window", 20, 200, 50)
+    symbol = st.selectbox("Symbol", ["EURUSD", "GBPUSD", "USDJPY", "EURGBP", "XAUUSD", "DXY"], key="wy15_sym")
+    tick_count = st.slider("Ticks to Fetch", 1000, 20000, 5000, key="wy15_ticks")
+    timeframe = st.selectbox("Timeframe", ["1min", "5min", "15min"], key="wy15_tf")
+    auto_refresh = st.toggle("Auto Refresh (30s)", value=True, key="wy15_auto")
+    analysis_win = st.slider("Analysis Window", 20, 200, 50, key="wy15_win")
 
 # Fetch & Process
 if st.sidebar.button("Fetch Data") or auto_refresh:

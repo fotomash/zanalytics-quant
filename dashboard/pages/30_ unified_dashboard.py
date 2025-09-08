@@ -67,13 +67,12 @@ st.title("📊 ZAnalytics Unified Trading Dashboard")
 
 # --- Decision Bar (top row) ---------------------------------------------------
 import requests, contextlib
-
-BASE = os.getenv("PULSE_BASE_URL") or os.getenv("DJANGO_API_URL", "http://django:8000")
-BASE = str(BASE).rstrip("/") + "/api/pulse"
+from dashboard.utils.streamlit_api import api_url
 
 @st.cache_data(ttl=2.0, show_spinner=False)
-def _get_json(url: str, method: str = "GET", payload=None, timeout: float = 1.0, default=None):
+def _get_json(path: str, method: str = "GET", payload=None, timeout: float = 1.0, default=None):
     try:
+        url = api_url(path)
         if method.upper() == "POST":
             r = requests.post(url, json=(payload or {}), timeout=timeout)
         else:
@@ -86,14 +85,14 @@ def decision_bar():
     with st.container(border=True):
         c1, c2, c3, c4 = st.columns([1.4, 1, 1, 1.4])
         # 1) Confluence Score snapshot
-        score = _get_json(f"{BASE}/score/peek", method="POST", default={})
+        score = _get_json("api/pulse/score/peek", method="POST", default={})
         c1.metric("Confluence Score", score.get("score", "—"), score.get("grade", ""))
         # 2) Risk summary
-        risk = _get_json(f"{BASE}/risk/summary", default={})
+        risk = _get_json("api/pulse/risk/summary", default={})
         c2.metric("Risk Left", risk.get("risk_left", "—"))
         c3.metric("Trades Left", risk.get("trades_left", "—"))
         # 3) Adapter health / latency
-        adapter = _get_json(f"{BASE}/adapter/status", default={})
+        adapter = _get_json("api/pulse/adapter/status", default={})
         lag = adapter.get("lag_ms", "—")
         fps = adapter.get("fps")
         status = adapter.get("status") or "down"
