@@ -285,6 +285,59 @@ paths:
                 ticket: { type: integer }
                 fraction: { type: number, nullable: true, description: 0..1 }
       responses: { '200': { description: OK } }
+
+  /api/v1/positions/close:
+    post:
+      summary: Close full or partial position (alias → orders/close)
+      operationId: postPositionsClose
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket]
+              properties:
+                ticket: { type: integer }
+                fraction: { type: number, minimum: 0.01, maximum: 1.0, nullable: true }
+                volume: { type: number, nullable: true }
+      responses:
+        '200': { description: OK }
+
+  /api/v1/positions/modify:
+    post:
+      summary: Modify SL/TP for an existing position (alias → orders/modify)
+      operationId: postPositionsModify
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket]
+              properties:
+                ticket: { type: integer }
+                sl: { type: number, nullable: true }
+                tp: { type: number, nullable: true }
+      responses:
+        '200': { description: OK }
+
+  /api/v1/positions/hedge:
+    post:
+      summary: Open opposite-side hedge order for a position
+      operationId: postPositionsHedge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket]
+              properties:
+                ticket: { type: integer }
+                volume: { type: number, nullable: true, description: Defaults to position volume }
+      responses:
+        '200': { description: OK }
   
   
   /api/v1/market/symbols:

@@ -47,7 +47,7 @@ components:
         type:
           type: string
           description: Action verb
-          enum: [whisper_suggest, trades_recent, session_boot, trades_history_mt5]
+          enum: [whisper_suggest, trades_recent, session_boot, trades_history_mt5, position_close, position_modify, position_hedge]
         payload:
           type: object
           additionalProperties: true

@@ -54,6 +54,11 @@ from .views import (
     UserPrefsView,
     StateSnapshotView,
 )
+from .views_positions import (
+    PositionsCloseView,
+    PositionsModifyView,
+    PositionsHedgeView,
+)
 from .playbook_stub_views import (
     PlaybookSessionInit,
     LiquidityMapView,
@@ -128,6 +133,10 @@ urlpatterns = [
     path('account/positions', PositionsProxyView.as_view(), name='account-positions'),
     # Convenience alias: open a position via orders/market
     path('positions/open', OrderMarketProxyView.as_view(), name='positions-open'),
+    # LLM-friendly aliases
+    path('positions/close', PositionsCloseView.as_view(), name='positions-close'),
+    path('positions/modify', PositionsModifyView.as_view(), name='positions-modify'),
+    path('positions/hedge', PositionsHedgeView.as_view(), name='positions-hedge'),
     path('account/info', AccountInfoView.as_view(), name='account-info'),
     path('journal/append', JournalAppendView.as_view(), name='journal-append'),
     path('journal/recent', JournalRecentView.as_view(), name='journal-recent'),

@@ -1379,6 +1379,64 @@ class ActionsQueryView(views.APIView):
             if typ == 'market_snapshot':
                 # Minimal: reuse market/mini
                 return MarketMiniView().get(request)
+            if typ == 'position_close':
+                # { ticket, fraction?, volume? }
+                try:
+                    from .orders_service import close_position_partial_or_full, get_position
+                except Exception:
+                    return Response({'error': 'service_unavailable'}, status=503)
+                ticket = payload.get('ticket')
+                if ticket is None:
+                    return Response({'error': 'ticket required'}, status=400)
+                try:
+                    pos = get_position(ticket)
+                    if not pos:
+                        return Response({'error': f'position {ticket} not found'}, status=404)
+                except Exception:
+                    pass
+                ok, data = close_position_partial_or_full(
+                    int(ticket), fraction=payload.get('fraction'), volume=payload.get('volume'),
+                    idempotency_key=request.headers.get('X-Idempotency-Key')
+                )
+                return Response(data, status=200 if ok else 400)
+            if typ == 'position_modify':
+                # { ticket, sl?, tp? }
+                try:
+                    from .orders_service import modify_sl_tp
+                except Exception:
+                    return Response({'error': 'service_unavailable'}, status=503)
+                ticket = payload.get('ticket')
+                if ticket is None:
+                    return Response({'error': 'ticket required'}, status=400)
+                ok, data = modify_sl_tp(int(ticket), sl=payload.get('sl'), tp=payload.get('tp'),
+                                        idempotency_key=request.headers.get('X-Idempotency-Key'))
+                return Response(data, status=200 if ok else 400)
+            if typ == 'position_hedge':
+                # { ticket, volume? }
+                try:
+                    from .orders_service import get_position, get_account_info, place_market_order
+                except Exception:
+                    return Response({'error': 'service_unavailable'}, status=503)
+                ticket = payload.get('ticket')
+                if ticket is None:
+                    return Response({'error': 'ticket required'}, status=400)
+                pos = get_position(ticket)
+                if not pos:
+                    return Response({'error': f'position {ticket} not found'}, status=404)
+                ptype = pos.get('type')
+                try:
+                    pnum = int(ptype)
+                    side = 'sell' if pnum == 0 else 'buy'
+                except Exception:
+                    side = 'sell' if str(ptype).lower().startswith('buy') else 'buy'
+                vol = payload.get('volume') or pos.get('volume')
+                ok, data = place_market_order(symbol=pos.get('symbol'), volume=float(vol), side=side,
+                                              comment=f'hedge ticket={ticket}',
+                                              idempotency_key=request.headers.get('X-Idempotency-Key'))
+                acct = get_account_info() or {}
+                if ok and str(acct.get('mode')).lower().startswith('net'):
+                    data['note'] = 'Account likely in netting mode; hedge nets exposure.'
+                return Response(data, status=200 if ok else 400)
             if typ == 'whisper_suggest':
                 # Heuristic-driven quick whisper; best-effort inputs
                 try:
@@ -2329,10 +2387,18 @@ class OrderCloseProxyView(views.APIView):
         except Exception:
             return Response({'error': 'ticket required'}, status=400)
         fraction = data.get('fraction')
+        volume = data.get('volume')
         try:
             base = os.getenv("MT5_URL") or os.getenv("MT5_API_URL") or "http://mt5:5001"
-            # Default to full close when no fraction specified
-            payload = {'ticket': ticket, 'fraction': float(fraction) if fraction is not None else 1.0}
+            # Prefer absolute volume if provided; else use fraction (default full)
+            payload = {'ticket': ticket}
+            if volume is not None:
+                try:
+                    payload['volume'] = float(volume)
+                except Exception:
+                    return Response({'error': 'volume must be numeric'}, status=400)
+            else:
+                payload['fraction'] = float(fraction) if fraction is not None else 1.0
             # Use enhanced endpoint that infers symbol from ticket and allows fraction or volume
             r = requests.post(f"{str(base).rstrip('/')}/partial_close_v2", json=payload, timeout=6.0)
             if r.ok:
