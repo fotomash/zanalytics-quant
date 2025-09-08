@@ -1193,7 +1193,7 @@ class ActionsQueryView(views.APIView):
     """Consolidated query endpoint (prototype). Not documented in OpenAPI actions cap.
 
     POST { type: str, payload: dict }
-    type ∈ { market_snapshot, pulse_status, trades_recent, behavior_events, equity_today, session_boot }
+    type ∈ { market_snapshot, pulse_status, trades_recent, behavior_events, equity_today, session_boot, trades_history_mt5 }
     """
     permission_classes = [AllowAny]
 
@@ -1205,6 +1205,28 @@ class ActionsQueryView(views.APIView):
             if typ == 'session_boot':
                 # Composite boot snapshot for LLM initialization
                 # Payload: { limit_trades?: int, include_positions?: bool, include_equity?: bool, include_risk?: bool }
+                # Optional cache: use Redis with TTL from env SESSION_BOOT_TTL (seconds)
+                ttl = 0
+                try:
+                    ttl = int(os.getenv('SESSION_BOOT_TTL') or os.getenv('ACTIONS_SESSION_BOOT_TTL') or 0)
+                except Exception:
+                    ttl = 0
+                cache_key = None
+                if ttl and redis_lib is not None:
+                    try:
+                        user_id = str(payload.get('user_id') or request.META.get('REMOTE_USER') or 'global')
+                        cache_key = f"session_boot:{user_id}"
+                        rcli = _redis_client()
+                        if rcli is not None:
+                            raw = rcli.get(cache_key)
+                            if raw:
+                                try:
+                                    cached = _json.loads(raw)
+                                    return Response(cached)
+                                except Exception:
+                                    pass
+                    except Exception:
+                        cache_key = None
                 limit = 10
                 try:
                     limit = int(payload.get('limit_trades') or payload.get('limit') or 10)
@@ -1287,17 +1309,37 @@ class ActionsQueryView(views.APIView):
                     except Exception:
                         risk = None
 
-                return Response({
+                out_obj = {
                     'trades': trades,
                     'positions': (positions if include_positions else []),
                     'equity': (equity if include_equity else None),
                     'risk': (risk if include_risk else None),
-                })
+                }
+                # Store in cache if enabled
+                if ttl and redis_lib is not None and cache_key:
+                    try:
+                        rcli = _redis_client()
+                        if rcli is not None:
+                            rcli.setex(cache_key, int(ttl), _json.dumps(out_obj))
+                    except Exception:
+                        pass
+                return Response(out_obj)
             if typ == 'trades_recent':
                 req = request._request
                 req.GET = req.GET.copy()
                 req.GET['limit'] = str(payload.get('limit') or 200)
                 return TradesRecentView().get(request)
+            if typ == 'trades_history_mt5':
+                # Proxy to TradeHistoryView with source=mt5 and optional filters
+                req = request._request
+                req.GET = req.GET.copy()
+                req.GET['source'] = 'mt5'
+                # Optional filters: symbol, date_from, date_to, pnl_min, pnl_max
+                for k in ('symbol', 'date_from', 'date_to', 'pnl_min', 'pnl_max'):
+                    v = payload.get(k)
+                    if v is not None:
+                        req.GET[k] = str(v)
+                return TradeHistoryView().get(request)
             if typ == 'behavior_events':
                 return BehaviorEventsTodayView().get(request)
             if typ == 'equity_today':

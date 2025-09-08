@@ -31,6 +31,10 @@ paths:
                     items:
                       $ref: '#/components/schemas/TradeItem'
                   - $ref: '#/components/schemas/SessionBootResponse'
+                  - type: array
+                    description: trades_history_mt5 result
+                    items:
+                      $ref: '#/components/schemas/TradeHistoryItem'
         '400': { description: Bad Request }
         '500': { description: Server Error }
 
@@ -43,7 +47,7 @@ components:
         type:
           type: string
           description: Action verb
-          enum: [whisper_suggest, trades_recent, session_boot]
+          enum: [whisper_suggest, trades_recent, session_boot, trades_history_mt5]
         payload:
           type: object
           additionalProperties: true
@@ -106,5 +110,17 @@ components:
             daily_risk_pct: { type: number, nullable: true }
             used_pct: { type: number, nullable: true }
             exposure_pct: { type: number, nullable: true }
+
+    TradeHistoryItem:
+      type: object
+      properties:
+        id: { type: string }
+        ts: { type: string, nullable: true }
+        symbol: { type: string }
+        direction: { type: string, nullable: true }
+        entry: { type: number, nullable: true }
+        exit: { type: number, nullable: true }
+        pnl: { type: number, nullable: true }
+        status: { type: string, nullable: true }
 
 security: []
