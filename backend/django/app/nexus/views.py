@@ -961,6 +961,64 @@ class TradeHistoryView(views.APIView):
         date_to = request.GET.get('date_to')
         pnl_min = request.GET.get('pnl_min')
         pnl_max = request.GET.get('pnl_max')
+        source = (request.GET.get('source') or '').lower()
+
+        # MT5-only source (bypass DB and fetch live from bridge)
+        if source == 'mt5':
+            try:
+                # Resolve date window
+                now = timezone.now()
+                try:
+                    dfrom = datetime.fromisoformat(date_from) if date_from else (now - timedelta(days=7))
+                except Exception:
+                    dfrom = now - timedelta(days=7)
+                try:
+                    dto = datetime.fromisoformat(date_to) if date_to else now
+                except Exception:
+                    dto = now
+                base = os.getenv("MT5_URL") or os.getenv("MT5_API_URL") or "http://mt5:5001"
+                url = f"{str(base).rstrip('/')}/history_deals_get"
+                params = {
+                    'from_date': dfrom.isoformat(),
+                    'to_date': dto.isoformat(),
+                }
+                r = requests.get(url, params=params, timeout=3.0)
+                items = r.json() if r.ok else []
+                out = []
+                if isinstance(items, list):
+                    for it in items:
+                        try:
+                            if symbol and str(it.get('symbol') or '') != str(symbol):
+                                continue
+                            ts_val = it.get('time') or it.get('timestamp')
+                            try:
+                                ts_iso = datetime.fromtimestamp(float(ts_val), tz=timezone.utc).isoformat()
+                            except Exception:
+                                ts_iso = str(ts_val)
+                            dline = {
+                                'id': it.get('ticket') or it.get('position') or it.get('order') or None,
+                                'ts': ts_iso,
+                                'symbol': it.get('symbol'),
+                                'direction': 'BUY' if str(it.get('type') or '').upper().endswith('BUY') else 'SELL' if str(it.get('type') or '').upper().endswith('SELL') else None,
+                                'entry': it.get('price'),
+                                'exit': None,
+                                'pnl': it.get('profit'),
+                                'status': 'deal',
+                            }
+                            # PnL filters
+                            try:
+                                if pnl_min is not None and dline['pnl'] is not None and float(dline['pnl']) < float(pnl_min):
+                                    continue
+                                if pnl_max is not None and dline['pnl'] is not None and float(dline['pnl']) > float(pnl_max):
+                                    continue
+                            except Exception:
+                                pass
+                            out.append(dline)
+                        except Exception:
+                            continue
+                return Response(out)
+            except Exception:
+                return Response([])
 
         qs = Trade.objects.all().order_by('-entry_time')
         if symbol:
