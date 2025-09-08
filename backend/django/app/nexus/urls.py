@@ -45,6 +45,13 @@ from .views import (
     SessionSetFocusView,
     PositionProtectOptionsView,
 )
+from .playbook_stub_views import (
+    PlaybookSessionInit,
+    LiquidityMapView,
+    PriorityItemsView,
+    ExplainSignalView,
+    DailySummaryView,
+)
 
 # --- Minimal, dependency-free Pulse endpoints (stubs) ---
 def pulse_health(request):
@@ -126,4 +133,12 @@ urlpatterns = [
     path('journal/entry', JournalEntryPostView.as_view(), name='journal-entry'),
     path('session/set_focus', SessionSetFocusView.as_view(), name='session-set-focus'),
     path('positions/<int:ticket>/protect', PositionProtectOptionsView.as_view(), name='position-protect-options'),
+    # Include pulse module endpoints
+    path('', include('app.nexus.pulse.urls')),
+    # Playbook stubs
+    path('playbook/session-init', PlaybookSessionInit.as_view(), name='playbook-session-init'),
+    path('liquidity/map', LiquidityMapView.as_view(), name='liquidity-map'),
+    path('opportunity/priority-items', PriorityItemsView.as_view(), name='opportunity-priority-items'),
+    path('ai/explain-signal', ExplainSignalView.as_view(), name='ai-explain-signal'),
+    path('report/daily-summary', DailySummaryView.as_view(), name='report-daily-summary'),
 ]

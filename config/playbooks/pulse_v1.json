@@ -1,0 +1,58 @@
+{
+  "id": "pulse_v1",
+  "name": "PULSE Predictive Flow Framework",
+  "version": "1.0.0",
+  "description": "Six-gate macro-to-micro pipeline.  Generates `pulse_ready` signals once all gates have passed.",
+  "gates": [
+    {
+      "id": "context",
+      "name": "Context Gate",
+      "inputs": ["H4", "H1"],
+      "rule": "Trend = HH/HL or LH/LL AND unmitigated POI aligns with discount (bull) or premium (bear) AND upcoming session historically favours the bias",
+      "output": { "bias": "bull|bear", "poi": "price_level" }
+    },
+    {
+      "id": "liquidity",
+      "name": "Liquidity Gate",
+      "inputs": ["M15", "session_extremes"],
+      "rule": "Must observe (Asian sweep OR 2-hour swing sweep OR Wyckoff Spring/UTAD) followed by an impulsive snap-back",
+      "output": { "sweep_confirmed": true, "sweep_type": "asian|swing|wyckoff" }
+    },
+    {
+      "id": "structure",
+      "name": "Structure Gate",
+      "inputs": ["M1"],
+      "rule": "Change-of-Character on high volume (≥1.5× 30-bar median).  Optional BoS strengthens score.",
+      "output": { "choch_price": "number", "bos_price": "number|null" }
+    },
+    {
+      "id": "imbalance",
+      "name": "Imbalance Gate",
+      "inputs": ["M1"],
+      "rule": "FVG (or Wyckoff LPS) created by the structure-flip impulse.  Entry zone = gap edges ±50 %.",
+      "output": { "entry_zone": ["float", "float"] }
+    },
+    {
+      "id": "risk",
+      "name": "Risk Gate",
+      "inputs": ["entry_zone", "structure_swing"],
+      "rule": "Stop three pips beyond swing.  TP ladder: M1/M5 liquidity → M15 POI → HTF objective.",
+      "output": { "stop": "float", "targets": ["float"] }
+    },
+    {
+      "id": "confluence",
+      "name": "Confluence Gate",
+      "optional": true,
+      "inputs": ["fib", "volume", "killzone_clock", "p_and_f", "behavioural_compass"],
+      "rule": "Score = Σ(weights × checks).  Reduce position size 50 % if score < 0.75.",
+      "output": { "confidence": "0-1 float" }
+    }
+  ],
+  "signal_name": "pulse_ready",
+  "minimum_confidence": 0.75,
+  "risk_rules": {
+    "abort_if_daily_loss_pct": -0.03,
+    "abort_if_daily_win_pct": 0.66
+  }
+}
+

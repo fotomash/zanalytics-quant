@@ -44,25 +44,7 @@ paths:
                       countdown: { type: string, nullable: true }
                   regime:
                     type: string
-  /api/v1/market/fetch:
-    get:
-      summary: Fetch VIX/DXY from public source and cache to Redis
-      operationId: fetchMarketData
-      responses: { '200': { description: OK } }
-  /api/v1/market/news/next:
-    post:
-      summary: Publish next high‑impact news item to Redis
-      operationId: publishNextNews
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                label: { type: string }
-                ts: { type: string, nullable: true, description: ISO8601 timestamp }
-      responses: { '200': { description: OK } }
+  
   /api/v1/mirror/state:
     get:
       summary: Behavioral mirror state
@@ -156,11 +138,7 @@ paths:
                   unrealized_usd: { type: number, nullable: true }
                   profit_efficiency: { type: number, nullable: true }
                   eff_trend_15m: { type: number, nullable: true }
-  /api/v1/feed/behavior:
-    get:
-      summary: Behavior feed (awaiting-friendly)
-      operationId: getFeedBehavior
-      responses: { '200': { description: OK } }
+  
   /api/v1/account/positions:
     get:
       summary: Normalized open positions proxy
@@ -174,19 +152,7 @@ paths:
                 type: array
                 items:
                   type: object
-  /api/v1/positions/open:
-    get:
-      summary: Normalized open positions (alias)
-      operationId: getPositionsOpen
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
+  
   /api/v1/account/info:
     get:
       summary: Normalized MT5 account info
@@ -208,23 +174,7 @@ paths:
                   login: { type: string, nullable: true }
                   server: { type: string, nullable: true }
                   currency: { type: string, nullable: true }
-  /api/v1/journal/append:
-    post:
-      summary: Append a structured journal entry (linked to trade)
-      operationId: postJournalAppend
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                trade_id: { type: integer }
-                kind: { type: string }
-                text: { type: string }
-                tags: { type: array, items: { type: string } }
-                meta: { type: object }
-      responses: { '200': { description: OK } }
+  
   /api/v1/journal/recent:
     get:
       summary: Recent journal entries
@@ -316,43 +266,8 @@ paths:
                 ticket: { type: integer }
                 fraction: { type: number, nullable: true, description: 0..1 }
       responses: { '200': { description: OK } }
-  /api/v1/discipline/events:
-    get:
-      summary: Discipline ledger for a date
-      operationId: getDisciplineEvents
-      parameters:
-        - in: query
-          name: date
-          schema: { type: string, description: YYYY-MM-DD }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    ts: { type: string }
-                    kind: { type: string }
-                    delta: { type: integer }
-  /api/v1/discipline/event:
-    post:
-      summary: Append a discipline ledger event
-      operationId: postDisciplineEvent
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [kind, delta]
-              properties:
-                kind: { type: string }
-                delta: { type: integer }
-                ts: { type: string, nullable: true }
-      responses: { '200': { description: OK } }
+  
+  
   /api/v1/market/symbols:
     get:
       summary: Available symbols list
@@ -718,37 +633,8 @@ paths:
                 id: { type: string }
                 action: { type: string }
       responses: { '200': { description: OK } }
-  /api/pulse/whispers/log:
-    get:
-      summary: Human‑readable whisper timeline
-      operationId: getWhispersLog
-      responses: { '200': { description: OK } }
-  /api/v1/feeds/stream:
-    get:
-      summary: Server-Sent Events stream (whispers, market, mirror)
-      description: |
-        SSE endpoint emitting events: `whisper`, `market`, `mirror`, plus `heartbeat`.
-        Note: GPT Actions cannot consume SSE; use this for browser/dev tools only.
-      operationId: getFeedsStream
-      parameters:
-        - in: query
-          name: topics
-          schema: { type: string, example: "mirror,whispers,market" }
-          description: Comma-separated topics to subscribe to.
-      responses:
-        '200':
-          description: text/event-stream
-          content:
-            text/event-stream:
-              schema:
-                type: string
-              examples:
-                hello:
-                  summary: Hello event
-                  value: |
-                    event: hello
-                    data: {"ok":true,"topics":["mirror","whispers","market"]}
-        '503': { description: Redis/unavailable }
+  
+  
 components:
   schemas:
     MirrorState:
@@ -795,7 +681,6 @@ components:
               ts: { type: string }
               type: { type: string }
               meta: { type: object }
-  schemas: {}
   securitySchemes:
     pulseKey:
       type: apiKey

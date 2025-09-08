@@ -633,10 +633,6 @@ def setup_zanflow_page():
     st.session_state["data_mode"] = data_mode_choice
     if data_mode_choice == "Live":
         st.caption("🔴 LIVE feed via MetaTrader HTTP bridge")
-        # soft auto-refresh when Live (no st.autorefresh in core Streamlit)
-        st.sidebar.toggle("Auto-refresh", value=True, key="live_autorefresh")
-        if st.session_state.get("live_autorefresh", True):
-            st.markdown("<meta http-equiv='refresh' content='2'>", unsafe_allow_html=True)
 
     # --- Source Overrides (Bridge URL + Parquet dir) ---
     with st.sidebar.expander("Sources (override)", expanded=False):
@@ -664,8 +660,7 @@ def setup_zanflow_page():
                     except Exception as e:
                         st.error(f"Bridge error: {e}")
         with colB:
-            autoref = st.session_state.get("live_autorefresh", False)
-            st.caption(f"Auto-refresh: {'ON' if autoref else 'OFF'}")
+            pass
 
         # Parquet directory controls removed
 

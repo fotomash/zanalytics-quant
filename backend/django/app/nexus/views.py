@@ -2085,3 +2085,34 @@ class PositionProtectOptionsView(views.APIView):
             return Response({'actions': actions})
         except Exception:
             return Response({'actions': []})
+
+
+class PulseStatusView(views.APIView):
+    """Return gate statuses for the PULSE Predictive Flow Framework.
+
+    Response shape: {"context": 0|1, "liquidity": 0|1, "structure": 0|1,
+                     "imbalance": 0|1, "risk": 0|1, "confluence": 0|1}
+    Values are best-effort from Redis key 'pulse:status' when present, else zeros.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        gates = {k: 0 for k in [
+            'context', 'liquidity', 'structure', 'imbalance', 'risk', 'confluence'
+        ]}
+        try:
+            r = _redis_client()
+            if r is not None:
+                raw = r.get('pulse:status')
+                if raw:
+                    import json as _json
+                    data = _json.loads(raw)
+                    for k in list(gates.keys()):
+                        v = data.get(k)
+                        if isinstance(v, bool):
+                            gates[k] = 1 if v else 0
+                        elif isinstance(v, (int, float)):
+                            gates[k] = 1 if float(v) > 0 else 0
+        except Exception:
+            pass
+        return Response(gates)
