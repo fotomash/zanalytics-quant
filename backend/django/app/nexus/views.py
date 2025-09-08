@@ -1150,6 +1150,30 @@ class TradeHistoryView(views.APIView):
                 })
             except Exception:
                 continue
+        # Optional fallback: if DB is empty and no explicit source provided, proxy to MT5 history
+        try:
+            fallback_flag = str(os.getenv('TRADE_HISTORY_FALLBACK_TO_MT5') or 'true').lower() != 'false'
+        except Exception:
+            fallback_flag = True
+        if fallback_flag and not out:
+            # Reuse MT5 branch with the same filters
+            try:
+                req = request._request
+                req.GET = req.GET.copy()
+                req.GET['source'] = 'mt5'
+                if symbol:
+                    req.GET['symbol'] = symbol
+                if date_from:
+                    req.GET['date_from'] = date_from
+                if date_to:
+                    req.GET['date_to'] = date_to
+                if pnl_min is not None:
+                    req.GET['pnl_min'] = str(pnl_min)
+                if pnl_max is not None:
+                    req.GET['pnl_max'] = str(pnl_max)
+                return TradeHistoryView().get(request)
+            except Exception:
+                pass
         return Response(out)
 
 
