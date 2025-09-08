@@ -1,8 +1,6 @@
-version: "3.9"
-
 services:
   kafka:
-    image: vectorized/redpanda:v23.1.11
+    image: redpandadata/redpanda:v23.3.10
     command:
       - redpanda start
       - --smp 1
@@ -17,11 +15,32 @@ services:
       - "29092:29092"
     volumes:
       - redpanda-data:/var/lib/redpanda/data
-    healthcheck:
-      test: ["CMD-SHELL", "rpk cluster info --brokers=localhost:29092 >/dev/null 2>&1 || exit 1"]
-      interval: 10s
-      timeout: 3s
-      retries: 10
+
+  redis-to-kafka-mirror:
+    build:
+      context: .
+      dockerfile: ./services/Dockerfile.mirror
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - KAFKA_BROKERS=kafka:9092
+      - TICKS_PATTERN=ticks.*
+    depends_on:
+      - redis
+      - kafka
+    restart: unless-stopped
+
+  kafka-tick-to-bar:
+    build:
+      context: .
+      dockerfile: ./services/Dockerfile.bars
+    environment:
+      - KAFKA_BROKERS=kafka:9092
+      - TICKS_TOPIC=ticks.BTCUSDT
+      - BARS_TOPIC=bars.BTCUSDT.1m
+      - KAFKA_GROUP=bars-1m-builder
+    depends_on:
+      - kafka
+    restart: unless-stopped
 
 volumes:
   redpanda-data:

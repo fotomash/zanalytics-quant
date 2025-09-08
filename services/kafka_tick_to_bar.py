@@ -1,136 +1,78 @@
+import os
 import json
-import logging
-from collections import defaultdict
+import time
+from typing import Dict, Any
 from datetime import datetime, timezone
 
-import requests
-from confluent_kafka import Consumer, KafkaException
-
-log = logging.getLogger(__name__)
-
-# ----------------------------------------------------------------------
-# Configuration – adjust via env vars or a small config file if you prefer
-# ----------------------------------------------------------------------
-KAFKA_BOOTSTRAP = "localhost:9092"
-KAFKA_GROUP_ID = "pulsekernel-bar-consumer"
-KAFKA_TOPIC = "mt5.ticks"
-BAR_INTERVAL_SECONDS = 60  # 1‑minute bars (change as needed)
-PULSE_API_URL = "http://localhost:8000/api/pulse/score"  # FastAPI endpoint
-# ----------------------------------------------------------------------
+try:
+    from confluent_kafka import Consumer, Producer  # type: ignore
+except Exception:  # pragma: no cover
+    Consumer = None  # type: ignore
+    Producer = None  # type: ignore
 
 
-class BarAggregator:
-    """
-    Simple in-memory bar builder. Keeps a dict per symbol with the
-    current open/high/low/close and volume. When the interval expires,
-    the bar is emitted and the bucket is reset.
-    """
-
-    def __init__(self, interval_seconds: int):
-        self.interval = interval_seconds
-        self.buckets = defaultdict(self._new_bucket)
-
-    @staticmethod
-    def _new_bucket():
-        return {
-            "open": None,
-            "high": -float("inf"),
-            "low": float("inf"),
-            "close": None,
-            "volume": 0,
-            "start_ts": None,
-        }
-
-    def _reset_bucket(self, bucket, ts):
-        bucket["open"] = bucket["high"] = bucket["low"] = bucket["close"] = None
-        bucket["volume"] = 0
-        bucket["start_ts"] = ts
-
-    def add_tick(self, symbol: str, price: float, volume: float, ts: datetime):
-        bucket = self.buckets[symbol]
-
-        if bucket["start_ts"] is None:
-            bucket["start_ts"] = ts
-            bucket["open"] = price
-
-        bucket["high"] = max(bucket["high"], price)
-        bucket["low"] = min(bucket["low"], price)
-        bucket["close"] = price
-        bucket["volume"] += volume
-
-        elapsed = (ts - bucket["start_ts"]).total_seconds()
-        if elapsed >= self.interval:
-            bar = {
-                "symbol": symbol,
-                "open": bucket["open"],
-                "high": bucket["high"],
-                "low": bucket["low"],
-                "close": bucket["close"],
-                "volume": bucket["volume"],
-                "timestamp": bucket["start_ts"].isoformat(),
-            }
-            self._reset_bucket(bucket, ts)
-            return bar
-        return None
+BROKERS = os.getenv("KAFKA_BROKERS", "kafka:9092")
+TOP_IN = os.getenv("TICKS_TOPIC", "ticks.BTCUSDT")
+TOP_OUT = os.getenv("BARS_TOPIC", "bars.BTCUSDT.1m")
+GROUP = os.getenv("KAFKA_GROUP", "bars-1m-builder")
 
 
-def make_consumer() -> Consumer:
-    cfg = {
-        "bootstrap.servers": KAFKA_BOOTSTRAP,
-        "group.id": KAFKA_GROUP_ID,
-        "auto.offset.reset": "earliest",
-        "enable.auto.commit": True,
-        "enable.partition.eof": False,
-        "session.timeout.ms": 30000,
-        "max.poll.interval.ms": 300000,
-    }
-    consumer = Consumer(cfg)
-    consumer.subscribe([KAFKA_TOPIC])
-    return consumer
+def bucket_minute(ts: float) -> int:
+    return int(ts // 60 * 60)
 
 
-def post_bar_to_pulse(bar: dict):
-    """Sends the aggregated bar to the PulseKernel FastAPI endpoint."""
-    try:
-        resp = requests.post(PULSE_API_URL, json=bar, timeout=5)
-        resp.raise_for_status()
-        log.debug(f"Bar posted: {bar['symbol']} @ {bar['timestamp']}")
-    except Exception as exc:
-        log.error(f"Failed to post bar {bar}: {exc}")
-
-
-def run():
-    consumer = make_consumer()
-    aggregator = BarAggregator(BAR_INTERVAL_SECONDS)
-
+def main() -> None:
+    if Consumer is None or Producer is None:
+        print("confluent_kafka not available; exiting")
+        return
+    c = Consumer({
+        "bootstrap.servers": BROKERS,
+        "group.id": GROUP,
+        "auto.offset.reset": "latest",
+    })
+    p = Producer({"bootstrap.servers": BROKERS})
+    c.subscribe([TOP_IN])
+    agg: Dict[int, Dict[str, Any]] = {}
     try:
         while True:
-            msg = consumer.poll(1.0)
+            msg = c.poll(0.2)
             if msg is None:
                 continue
             if msg.error():
-                raise KafkaException(msg.error())
-
-            tick = json.loads(msg.value().decode("utf-8"))
-            symbol = tick["symbol"]
-            price = float(tick["price"])
-            volume = float(tick.get("volume", 0))
-            ts_raw = tick.get("timestamp")
-            if isinstance(ts_raw, (int, float)):
-                ts = datetime.fromtimestamp(ts_raw, tz=timezone.utc)
-            else:
-                ts = datetime.fromisoformat(ts_raw).replace(tzinfo=timezone.utc)
-
-            bar = aggregator.add_tick(symbol, price, volume, ts)
-            if bar:
-                post_bar_to_pulse(bar)
-
-    except KeyboardInterrupt:
-        log.info("Graceful shutdown requested")
+                continue
+            try:
+                tick = json.loads(msg.value())
+                ts = float(tick.get("ts") or time.time())
+                price = float(tick["price"])  # required
+                vol = float(tick.get("volume") or 0.0)
+            except Exception:
+                continue
+            b = bucket_minute(ts)
+            prev = b - 60
+            bar = agg.get(b)
+            if bar is None:
+                agg[b] = bar = {"ts": b, "o": price, "h": price, "l": price, "c": price, "v": 0.0}
+            bar["h"] = max(bar["h"], price)
+            bar["l"] = min(bar["l"], price)
+            bar["c"] = price
+            bar["v"] += vol
+            if prev in agg:
+                out = agg.pop(prev)
+                try:
+                    p.produce(TOP_OUT, json.dumps(out).encode("utf-8"))
+                except Exception:
+                    pass
     finally:
-        consumer.close()
+        try:
+            c.close()
+        except Exception:
+            pass
+        try:
+            p.flush(2.0)
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    run()
+    main()
+
