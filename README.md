@@ -5,6 +5,7 @@ Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, 
 Contents
 - What’s Inside
 - Quick Start
+- MT5 service vs. Django API
 - MT5 Bridge & Orders
 - Positions (Partials, Hedge)
 - Actions Bus for GPT (≤30 ops)
@@ -104,6 +105,17 @@ This modular design facilitates secure separation of concerns, easy extensibilit
 - `DJANGO_API_URL`: Base URL of the Django API service (e.g., `http://django:8000`).
 - `DJANGO_API_PREFIX`: Path prefix for all Django API endpoints (default `/api/v1`).
 - `DJANGO_SECRET_KEY`: your-secret
+
+
+## MT5 service vs. Django API
+
+History and order endpoints are served by the MT5 bridge rather than the Django API, so they must be accessed via `MT5_API_URL`.
+
+```bash
+curl "$MT5_API_URL/history_deals_get"
+```
+
+See [backend/mt5/app/routes/history.py](backend/mt5/app/routes/history.py) for details.
 
 
 ## How It Works (Practical Flow)
