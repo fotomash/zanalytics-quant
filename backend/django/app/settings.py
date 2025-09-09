@@ -14,11 +14,19 @@ import os
 import sys
 from dotenv import load_dotenv
 
+
 # Ensure project root is on PYTHONPATH so top-level packages (e.g. ``bridge``)
 # can be imported without installing the project as a package.
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+# Add the project root to the Python path, which is 3 levels above this file's directory.
+# This allows absolute imports from the project root, e.g., `from bridge.mt5 import ...`.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+import bridge
+
 
 # Load environment variables from .env file if present
 load_dotenv()
