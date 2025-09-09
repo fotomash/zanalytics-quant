@@ -88,9 +88,15 @@ def score_peek(request):
     """Get current confluence score with explainable reasons"""
     try:
         payload = json.loads(request.body or "{}")
-        bars = payload.get("bars", [])
+        bars = payload.get("bars")
         if not bars:
-            return HttpResponseBadRequest("'bars' field required")
+            return JsonResponse(
+                {
+                    "error": "'bars' field required",
+                    "timestamp": datetime.now().isoformat(),
+                },
+                status=400,
+            )
 
         df = pd.DataFrame(bars)
         result = compute_confluence(df)
