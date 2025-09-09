@@ -1,3 +1,11 @@
+"""Streamlit page for the intraday Pulse dashboard.
+
+The page aggregates configuration from YAML and prompt files, queries MT5 and
+Django REST services for account and position data, and can post trade actions
+back to the Django gateway.  Data retrieved from these sources feeds the
+Streamlit UI to render real‑time trading metrics and controls.
+"""
+
 import os, json, time, uuid, math, datetime as dt
 from typing import Any, Dict, List
 import requests
@@ -20,11 +28,44 @@ ACTIONS_URL = f"{DJANGO_URL}{DJANGO_PREF}/actions/query"
 # ---------------- Utils ----------------
 @st.cache_data(ttl=5.0)
 def load_yaml(path: str) -> Dict[str, Any]:
+    """Return the contents of a YAML file.
+
+    Parameters
+    ----------
+    path: str
+        File system path to the YAML document.
+
+    Returns
+    -------
+    dict
+        Parsed YAML data or an empty dictionary if the file is empty.
+
+    Raises
+    ------
+    OSError
+        If the file cannot be opened.
+    yaml.YAMLError
+        On malformed YAML content.
+    """
+
     with open(path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f) or {}
 
 @st.cache_data(ttl=5.0)
 def load_prompt(path: str) -> str:
+    """Load a text prompt from ``path``.
+
+    Parameters
+    ----------
+    path: str
+        Location of the plain-text prompt file.
+
+    Returns
+    -------
+    str
+        Stripped file contents, or ``""`` if the file is missing.
+    """
+
     try:
         with open(path, 'r', encoding='utf-8') as f:
             return f.read().strip()
@@ -32,6 +73,24 @@ def load_prompt(path: str) -> str:
         return ''
 
 def get_json(url: str, headers=None, timeout=3):
+    """HTTP GET ``url`` and parse a JSON response.
+
+    Parameters
+    ----------
+    url: str
+        Endpoint to query.
+    headers: dict | None
+        Optional request headers.
+    timeout: int
+        Seconds before the request times out.
+
+    Returns
+    -------
+    Any | None
+        Decoded JSON content, or ``None`` if the request fails or the response
+        is not valid JSON.
+    """
+
     try:
         r = requests.get(url, headers=headers or {}, timeout=timeout)
         r.raise_for_status()
@@ -40,6 +99,24 @@ def get_json(url: str, headers=None, timeout=3):
         return None
 
 def post_actions(body: Dict[str, Any], idempotency_key: str | None = None, timeout=5):
+    """Send an action request to the Django gateway.
+
+    Parameters
+    ----------
+    body: dict
+        JSON-serialisable payload describing the action.
+    idempotency_key: str | None
+        Optional key to guard against duplicate submissions.
+    timeout: int
+        Request timeout in seconds.
+
+    Returns
+    -------
+    tuple[bool, dict]
+        ``(ok, data)`` where ``ok`` indicates HTTP success and ``data`` is the
+        parsed JSON response or an error description.
+    """
+
     headers = {'Content-Type': 'application/json'}
     if idempotency_key:
         headers['X-Idempotency-Key'] = idempotency_key
@@ -56,6 +133,20 @@ def post_actions(body: Dict[str, Any], idempotency_key: str | None = None, timeo
         return False, {'error': str(e)}
 
 def donut(value: float, minv: float, maxv: float, label: str, unit: str = '', color='#2dd4bf'):
+    """Render a donut chart for ``value`` within ``minv``–``maxv``.
+
+    Parameters
+    ----------
+    value, minv, maxv: float
+        Range values used to compute the filled and empty portions.
+    label: str
+        Caption displayed beneath the numeric value.
+    unit: str
+        Optional units appended to the value text.
+    color: str
+        Hex color for the filled portion of the chart.
+    """
+
     value = max(min(value, maxv), minv)
     filled = value - minv
     total = max(maxv - minv, 1.0)
@@ -78,6 +169,16 @@ def donut(value: float, minv: float, maxv: float, label: str, unit: str = '', co
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 def chip(text: str, kind: str = 'neutral'):
+    """Render a colored pill with ``text``.
+
+    Parameters
+    ----------
+    text: str
+        Content of the pill.
+    kind: str
+        One of ``good``, ``warn``, ``bad`` or ``neutral`` to select colours.
+    """
+
     bg = {'good': '#dcfce7', 'warn': '#fef9c3', 'bad': '#fee2e2', 'neutral': '#f3f4f6'}.get(kind, '#f3f4f6')
     color = {'good': '#166534', 'warn': '#854d0e', 'bad': '#991b1b', 'neutral': '#374151'}.get(kind, '#374151')
     st.markdown(
@@ -86,18 +187,44 @@ def chip(text: str, kind: str = 'neutral'):
     )
 
 def dim_block(start: bool = True):
+    """Context manager helper to dim or restore a UI block.
+
+    Parameters
+    ----------
+    start: bool
+        When ``True`` begin a dimmed block; otherwise close the block.
+    """
+
     if start:
         st.markdown("<div style='opacity:0.5; pointer-events:none;'>", unsafe_allow_html=True)
     else:
         st.markdown("</div>", unsafe_allow_html=True)
 
 def get_account_info():
+    """Fetch MT5 account information.
+
+    Returns
+    -------
+    dict | None
+        Parsed JSON payload or ``None`` on error.
+    """
+
     return get_json(f"{MT5_URL}/account_info", headers=GATEWAY_HEADERS, timeout=3)
 
 def get_positions() -> List[Dict[str, Any]]:
+    """Return the list of open MT5 positions.
+
+    Returns
+    -------
+    list[dict]
+        A list of position dictionaries; empty on error.
+    """
+
     return get_json(f"{MT5_URL}/positions_get", headers=GATEWAY_HEADERS, timeout=3) or []
 
 def get_session_time_remaining():
+    """Compute time remaining until the end of the trading session (21:00 UTC)."""
+
     now = dt.datetime.utcnow()
     end = now.replace(hour=21, minute=0, second=0, microsecond=0)
     if now > end:
@@ -105,16 +232,27 @@ def get_session_time_remaining():
     return (end - now)
 
 def pnl_unrealized(positions: list) -> float:
+    """Aggregate unrealised profit across ``positions``."""
+
     return float(sum(float(p.get('profit', 0.0)) for p in positions))
 
 def exposure_percent_stub(positions: list, account: dict) -> float:
+    """Placeholder exposure metric until risk engine integration.
+
+    Returns a simple percentage based on the number of ``positions``.
+    """
+
     # ↪ Replace with live risk_enforcer metric when available
     return min(100.0, max(0.0, 10.0 * len(positions)))
 
 def type_to_text(t: int) -> str:
+    """Convert MT5 position type ``t`` to a human readable string."""
+
     return 'BUY' if int(t) == 0 else 'SELL' if int(t) == 1 else str(t)
 
 def secs_to_hms(seconds: int) -> str:
+    """Convert seconds to ``H:MM:SS``; ``'—'`` if ``seconds`` <= 0."""
+
     if seconds <= 0:
         return '—'
     h, rem = divmod(seconds, 3600)
@@ -212,6 +350,8 @@ bm = metrics_cfg.get('behavioral_metrics', {})
 bcols = st.columns(5)
 
 def placeholder_chip(name: str):
+    """Render a placeholder chip stating that ``name`` is pending."""
+
     with st.container():
         dim_block(True); chip(f"{name}: pending", 'neutral'); dim_block(False)
 
