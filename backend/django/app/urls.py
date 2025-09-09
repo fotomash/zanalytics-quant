@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from django.http import JsonResponse
-from app.nexus.views import Healthz
+from app.nexus.views import Healthz, HistoryDealsProxyView, HistoryOrdersProxyView
 from .api.views_wyckoff import wyckoff_score, wyckoff_health
 from app import pulse_views
 from .whisper_views import whisper_stream, whisper_ack, whisper_act, whisper_log
@@ -12,6 +12,10 @@ def health(request):
 urlpatterns = [
     # Admin & base
     path('admin/', admin.site.urls),
+
+    # MT5 history proxies (forward to MT5_API_URL)
+    path('history_deals_get', HistoryDealsProxyView.as_view(), name='history-deals-get'),
+    path('history_orders_get', HistoryOrdersProxyView.as_view(), name='history-orders-get'),
 
     # v1 api
     path('api/v1/', include('app.nexus.urls')),
