@@ -33,11 +33,15 @@ import json as _json
 import math
 from zoneinfo import ZoneInfo
 from datetime import timedelta
+import logging
 
 try:
     import redis as redis_lib  # optional
 except Exception:
     redis_lib = None
+
+
+logger = logging.getLogger(__name__)
 
 
 class PingView(views.APIView):
@@ -1375,7 +1379,9 @@ class ActionsQueryView(views.APIView):
                 positions = []
                 if include_positions:
                     try:
-                        positions = PositionsProxyView().get(request).data or []
+                        resp = PositionsProxyView().get(request)
+                        if resp.status_code == 200:
+                            positions = resp.data or []
                     except Exception:
                         positions = []
 
@@ -1384,7 +1390,8 @@ class ActionsQueryView(views.APIView):
                 if include_equity:
                     equity = { 'balance_usd': None, 'pnl_ytd_pct': None, 'drawdown_pct': None }
                     try:
-                        acct = AccountInfoView().get(request).data or {}
+                        resp = AccountInfoView().get(request)
+                        acct = resp.data if resp.status_code == 200 else {}
                     except Exception:
                         acct = {}
                     try:
@@ -2089,10 +2096,12 @@ class MarketNewsPublisherView(views.APIView):
 
 
 class PositionsProxyView(views.APIView):
-    """Proxy positions from MT5 bridge with normalization and safe fallback.
+    """Proxy positions from MT5 bridge with normalization.
 
-    GET /api/v1/account/positions -> [] on failure.
+    Returns an error payload with non-200 status if the MT5 bridge is
+    unreachable or responds with an error.
     """
+
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -2104,10 +2113,12 @@ class PositionsProxyView(views.APIView):
         try:
             r = requests.get(f"{str(base).rstrip('/')}/positions_get", timeout=2.5)
             if not r.ok:
-                return Response([], status=200)
+                logger.error("positions_get failed with status %s", r.status_code)
+                return Response({"error": "mt5 bridge unreachable"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             data = r.json() or []
             if not isinstance(data, list):
-                return Response([], status=200)
+                logger.error("positions_get returned non-list payload")
+                return Response({"error": "invalid response from mt5"}, status=status.HTTP_502_BAD_GATEWAY)
             # Normalize time fields to ISO strings (if present)
             out = []
             for p in data:
@@ -2125,14 +2136,17 @@ class PositionsProxyView(views.APIView):
                 out.append(q)
             return Response(out)
         except Exception:
-            return Response([], status=200)
+            logger.exception("positions_get request failed")
+            return Response({"error": "mt5 bridge unreachable"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 class AccountInfoView(views.APIView):
     """Return normalized MT5 account info with stable lowercase keys.
 
-    GET /api/v1/account/info -> { equity, balance, margin, free_margin, margin_level, profit, login, server, currency }
+    Returns an error payload with non-200 status if the MT5 bridge is
+    unreachable or responds with an error.
     """
+
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -2144,12 +2158,14 @@ class AccountInfoView(views.APIView):
         try:
             r = requests.get(f"{str(base).rstrip('/')}/account_info", timeout=2.5)
             if not r.ok:
-                return Response({}, status=200)
+                logger.error("account_info failed with status %s", r.status_code)
+                return Response({"error": "mt5 bridge unreachable"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             data = r.json() or {}
             if isinstance(data, list) and data:
                 data = data[0]
             if not isinstance(data, dict):
-                return Response({}, status=200)
+                logger.error("account_info returned non-dict payload")
+                return Response({"error": "invalid response from mt5"}, status=status.HTTP_502_BAD_GATEWAY)
             # normalize keys to lowercase
             norm = {str(k).lower(): v for k, v in data.items()}
             # keep only common fields
@@ -2159,7 +2175,8 @@ class AccountInfoView(views.APIView):
             out = {k: norm.get(k) for k in keep}
             return Response(out)
         except Exception:
-            return Response({}, status=200)
+            logger.exception("account_info request failed")
+            return Response({"error": "mt5 bridge unreachable"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 class JournalAppendView(views.APIView):

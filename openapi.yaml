@@ -171,6 +171,15 @@ paths:
                 type: array
                 items:
                   type: object
+        '503':
+          description: MT5 bridge unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
   
   /api/v1/account/info:
     get:
@@ -193,6 +202,15 @@ paths:
                   login: { type: string, nullable: true }
                   server: { type: string, nullable: true }
                   currency: { type: string, nullable: true }
+        '503':
+          description: MT5 bridge unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
   
   /api/v1/journal/recent:
     get:
