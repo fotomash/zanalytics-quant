@@ -12,7 +12,7 @@ import streamlit as st
 
 from datetime import datetime
 
-from pages import Edges, Home, RiskOpsRunbook, Strategies, HowTo
+import pages
 
 
 # ---------------------------------------------------------------------------
@@ -94,13 +94,14 @@ st.markdown(
 # ---------------------------------------------------------------------------
 
 page_modules = {
-    "Home": Home,
-    "Strategies": Strategies,
-    "Edges": Edges,
-    "Risk, Ops & Runbook": RiskOpsRunbook,
-    "HowTo": HowTo,
+    "Home": pages.Home,
+    "Strategies": pages.Strategies,
+    "Edges": pages.Edges,
+    "Risk, Ops & Runbook": pages.RiskOpsRunbook,
+    "HowTo": pages.HowTo,
 }
-page = st.sidebar.selectbox("Pages", list(page_modules.keys()))
+selected_name = st.sidebar.selectbox("Pages", list(page_modules.keys()))
+selected_page = page_modules[selected_name]
 
 # Link to documentation
 st.sidebar.markdown(
@@ -109,12 +110,14 @@ st.sidebar.markdown(
 
 st.sidebar.markdown("<div class='ask-whisperer'>", unsafe_allow_html=True)
 st.sidebar.subheader("Ask Whisperer")
-for prompt in mock_data["whisperer_prompts"].get(page.lower(), []):
+for prompt in mock_data["whisperer_prompts"].get(selected_name.lower(), []):
     st.sidebar.write(f"- {prompt}")
 whisper_input = st.sidebar.text_input("Your question:")
 if whisper_input:
-    st.sidebar.write("Whisperer: Processing... (structured response: Signal • Risk • Action • Journal note)")
+    st.sidebar.write(
+        "Whisperer: Processing... (structured response: Signal • Risk • Action • Journal note)"
+    )
 st.sidebar.markdown("</div>", unsafe_allow_html=True)
 
-page_modules[page].render(mock_data)
+selected_page.render(mock_data)
 
