@@ -12,9 +12,15 @@ from app.utils.constants import MT5Timeframe
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-# Prefer MT5_API_URL, then bridge MT5_URL, then default docker service
-BASE_URL = os.getenv('MT5_API_URL') or os.getenv('MT5_URL') or 'http://mt5:5001'
+# Prefer MT5_URL (bridge in single-container setup), then MT5_API_URL, then default
+BASE_URL = os.getenv('MT5_URL') or os.getenv('MT5_API_URL') or 'http://mt5:5001'
 DEFAULT_TIMEOUT = float(os.getenv('MT5_HTTP_TIMEOUT', '2.5'))
+
+# Feature flags: disable unsupported endpoints when only bridge is present
+FLAGS = {
+    'ticks_enabled': str(os.getenv('MT5_TICKS_ENABLED', '0')).lower() not in ('0', 'false', 'no'),
+    'bars_enabled': str(os.getenv('MT5_BARS_ENABLED', '0')).lower() not in ('0', 'false', 'no'),
+}
 
 def symbol_info_tick(symbol: str) -> pd.DataFrame:
     try:
@@ -79,6 +85,9 @@ def fetch_data_range(symbol: str, timeframe: MT5Timeframe, from_date: datetime, 
 def fetch_ticks(symbol: str, limit: int = 100) -> pd.DataFrame:
     """Fetch recent ticks for a symbol"""
     try:
+        if not FLAGS['ticks_enabled']:
+            logger.info("MT5 ticks disabled by flag; returning empty DataFrame")
+            return pd.DataFrame()
         url = f"{BASE_URL}/ticks"
         params = {"symbol": symbol, "limit": limit}
         response = requests.get(url, params=params, timeout=DEFAULT_TIMEOUT)
@@ -96,6 +105,9 @@ def fetch_ticks(symbol: str, limit: int = 100) -> pd.DataFrame:
 def fetch_bars(symbol: str, timeframe: MT5Timeframe, limit: int = 100) -> pd.DataFrame:
     """Fetch OHLC bars for a symbol and timeframe"""
     try:
+        if not FLAGS['bars_enabled']:
+            logger.info("MT5 bars disabled by flag; returning empty DataFrame")
+            return pd.DataFrame()
         url = f"{BASE_URL}/bars/{symbol}/{timeframe.value}"
         params = {"limit": limit}
         response = requests.get(url, params=params, timeout=DEFAULT_TIMEOUT)
