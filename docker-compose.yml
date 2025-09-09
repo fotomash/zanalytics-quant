@@ -117,6 +117,12 @@ services:
     logging: *default-logging
     depends_on:
       - traefik
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "5001"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
 
   mt5-api:
     image: python:3.11-slim
@@ -134,17 +140,13 @@ services:
       - DJANGO_API_URL=http://django:8000
       - DJANGO_API_PREFIX=/api/v1
       - BRIDGE_TOKEN=${BRIDGE_TOKEN:-}
-      - MT5_URL=http://mt5:5001
-      - DJANGO_API_URL=http://django:8000
-      - DJANGO_API_PREFIX=/api/v1
-      - BRIDGE_TOKEN=${BRIDGE_TOKEN:-}
       - MT5_API_STUB_FALLBACK=1
     networks:
       - traefik-public
       - default
     depends_on:
       mt5:
-        condition: service_started
+        condition: service_healthy
     labels:
       <<: *default-labels
       traefik.enable: true
@@ -163,6 +165,12 @@ services:
       traefik.http.routers.api-mt5-https.service: api-mt5-service
 
       traefik.http.services.api-mt5-service.loadbalancer.server.port: 5001
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   postgres:
     image: postgres:15-alpine
@@ -211,15 +219,17 @@ services:
       - ALERTS_SCORE_HI=90
       - ALERTS_TOXICITY_LIMIT=0.30
       - ALERTS_DD_INTRADAY_WARN=0.025
-      - MT5_API_URL=http://mt5:5001
+      - MT5_API_URL=http://mt5-api:5001
       # Avoid overriding secret key with empty value; single definition above is sufficient
     depends_on:
       postgres:
-        condition: service_started
+        condition: service_healthy
       traefik:
         condition: service_started
       redis:
-        condition: service_started
+        condition: service_healthy
+      mt5-api:
+        condition: service_healthy
     networks:
       - default
       - traefik-public
@@ -265,8 +275,8 @@ services:
     environment:
       - PYTHONPATH=/app:/app/components:/app/utils
       - PULSE_API_URL=http://django:8000
-      - MT5_API_URL=http://mt5:5001
-      - MT5_API_BASE=http://mt5:5001
+      - MT5_API_URL=http://mt5-api:5001
+      - MT5_API_BASE=http://mt5-api:5001
       - PULSE_API_BASE=http://django:8000
       - REDIS_HOST=redis
     command: redis-server /usr/local/etc/redis/redis.conf
@@ -303,7 +313,7 @@ services:
       django:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     networks:
       - default
     labels:
@@ -332,7 +342,7 @@ services:
       celery:
         condition: service_started
       redis:
-        condition: service_started
+        condition: service_healthy
     networks:
       - default
     labels:
@@ -595,14 +605,14 @@ services:
     environment:
       - PYTHONPATH=/app:/app/components:/app/utils:/app/api_integration
       - PULSE_API_URL=http://django:8000
-      - MT5_API_URL=http://mt5:5001
-      - MT5_URL=http://mt5:5001
+      - MT5_API_URL=http://mt5-api:5001
+      - MT5_URL=http://mt5-api:5001
       - DJANGO_API_URL=http://django:8000
       - DJANGO_API_PREFIX=/api/v1
       - BRIDGE_TOKEN=${BRIDGE_TOKEN:-}
     depends_on:
-      mt5:
-        condition: service_started
+      mt5-api:
+        condition: service_healthy
       django:
         condition: service_healthy
     command: >
