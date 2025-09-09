@@ -55,6 +55,7 @@ from .views import (
     StateSnapshotView,
 )
 from .views_positions import (
+    PositionsOpenView,
     PositionsCloseView,
     PositionsModifyView,
     PositionsHedgeView,
@@ -131,8 +132,8 @@ urlpatterns = [
     path('market/fetch', MarketFetchView.as_view(), name='market-fetch'),
     path('market/news/next', MarketNewsPublisherView.as_view(), name='market-news-next'),
     path('account/positions', PositionsProxyView.as_view(), name='account-positions'),
-    # Convenience alias: open a position via orders/market
-    path('positions/open', OrderMarketProxyView.as_view(), name='positions-open'),
+    # Open position
+    path('positions/open', PositionsOpenView.as_view(), name='positions-open'),
     # LLM-friendly aliases
     path('positions/close', PositionsCloseView.as_view(), name='positions-close'),
     path('positions/modify', PositionsModifyView.as_view(), name='positions-modify'),

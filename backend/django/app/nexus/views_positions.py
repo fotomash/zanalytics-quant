@@ -14,6 +14,49 @@ from .orders_service import (
 from .journal_service import journal_append
 
 
+def _alias(d: dict, key: str, *aliases: str, default=None):
+    """Return value for key or first found alias; ignore unknown keys."""
+    if key in d and d[key] is not None:
+        return d[key]
+    for a in aliases:
+        if a in d and d[a] is not None:
+            return d[a]
+    return default
+
+
+class PositionsOpenView(APIView):
+    """POST /api/v1/positions/open
+
+    Body: { symbol: str, side: str, volume: float, sl?: float, tp?: float }
+    Accepts aliases: instrument→symbol, action→side, lots/qty→volume.
+    """
+
+    def post(self, request):
+        data = request.data or {}
+        symbol = _alias(data, "symbol", "instrument")
+        side = (_alias(data, "side", "action") or "").lower()
+        volume_raw = _alias(data, "volume", "lots", "qty")
+        try:
+            volume = float(volume_raw)
+        except (TypeError, ValueError):
+            volume = None
+        sl = data.get("sl")
+        tp = data.get("tp")
+        if not symbol or side not in ("buy", "sell") or volume is None or volume <= 0:
+            return Response({"error": "symbol, volume, side required"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        ok, resp = place_market_order(
+            symbol=symbol,
+            side=side,
+            volume=volume,
+            sl=sl,
+            tp=tp,
+            idempotency_key=request.headers.get("X-Idempotency-Key"),
+        )
+        if ok:
+            return Response(resp)
+        return Response(resp, status=status.HTTP_502_BAD_GATEWAY)
+
+
 class PositionsCloseView(APIView):
     """POST /api/v1/positions/close
 
@@ -23,9 +66,9 @@ class PositionsCloseView(APIView):
 
     def post(self, request):
         payload = request.data or {}
-        ticket = payload.get("ticket")
+        ticket = _alias(payload, "ticket", "id")
         if ticket is None:
-            return Response({"error": "ticket required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "ticket required"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
         # Optional: verify position exists for clearer error messages
         pos = get_position(ticket)
@@ -79,7 +122,7 @@ class PositionsCloseView(APIView):
                 tags=["position_close", "partial" if action == "PARTIAL_CLOSE" else "full"],
             )
             return Response(data)
-        return Response(data, status=status.HTTP_400_BAD_REQUEST)
+        return Response(data, status=status.HTTP_502_BAD_GATEWAY)
 
 
 class PositionsModifyView(APIView):
@@ -90,13 +133,17 @@ class PositionsModifyView(APIView):
 
     def post(self, request):
         payload = request.data or {}
-        ticket = payload.get("ticket")
+        ticket = _alias(payload, "ticket", "id")
         if ticket is None:
-            return Response({"error": "ticket required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "ticket required"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        sl = payload.get("sl")
+        tp = payload.get("tp")
+        if sl is None and tp is None:
+            return Response({"error": "Provide sl and/or tp"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
         ok, data = modify_sl_tp(
             ticket=int(ticket),
-            sl=payload.get("sl"),
-            tp=payload.get("tp"),
+            sl=sl,
+            tp=tp,
             idempotency_key=request.headers.get("X-Idempotency-Key"),
         )
         if ok:
@@ -108,7 +155,7 @@ class PositionsModifyView(APIView):
             }
             journal_append(kind="ORDER_MODIFY", text=f"Modify SL/TP ticket={ticket}", meta=meta, trade_id=int(ticket), tags=["order_modify"])
             return Response(data)
-        return Response(data, status=status.HTTP_400_BAD_REQUEST)
+        return Response(data, status=status.HTTP_502_BAD_GATEWAY)
 
 
 class PositionsHedgeView(APIView):

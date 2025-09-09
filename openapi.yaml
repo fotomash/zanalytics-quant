@@ -286,6 +286,26 @@ paths:
                 fraction: { type: number, nullable: true, description: 0..1 }
       responses: { '200': { description: OK } }
 
+  /api/v1/positions/open:
+    post:
+      summary: Open a new market position (alias → orders/market)
+      operationId: postPositionsOpen
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [symbol, side, volume]
+              properties:
+                symbol: { type: string }
+                side: { type: string, enum: [buy, sell] }
+                volume: { type: number }
+                sl: { type: number, nullable: true }
+                tp: { type: number, nullable: true }
+      responses:
+        '200': { description: OK }
+
   /api/v1/positions/close:
     post:
       summary: Close full or partial position (alias → orders/close)
