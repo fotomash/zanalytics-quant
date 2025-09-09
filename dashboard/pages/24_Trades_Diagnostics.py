@@ -15,7 +15,7 @@ import pandas as pd
 import requests
 import streamlit as st
 
-from dashboard.utils.streamlit_api import api_url, get_api_base, inject_glass_css
+from dashboard.utils.streamlit_api import api_url, get_api_base, inject_glass_css, fetch_symbols
 
 
 st.set_page_config(page_title="Trades Diagnostics", page_icon="🧪", layout="wide")
@@ -23,6 +23,18 @@ inject_glass_css()
 
 st.markdown("### 🧪 Trades Diagnostics")
 st.caption("Verify that DB trades, MT5 history, and open positions are flowing.")
+
+# Symbol scope (consistent with other pages)
+_symbols = fetch_symbols() or []
+if 'diag_symbol' not in st.session_state:
+    st.session_state['diag_symbol'] = (_symbols[0] if _symbols else 'XAUUSD')
+sel_sym = st.selectbox(
+    "Symbol",
+    _symbols or ['XAUUSD'],
+    index=(_symbols.index(st.session_state['diag_symbol']) if (_symbols and st.session_state['diag_symbol'] in _symbols) else 0),
+    key="diag_symbol"
+)
+symbol = st.session_state.get('diag_symbol', 'XAUUSD')
 
 with st.expander("API Base Settings", expanded=False):
     base = get_api_base()
@@ -41,8 +53,7 @@ def _get_json(url: str, *, params: Dict[str, Any] | None = None, timeout: float 
 
 
 def _as_df(rows: List[Dict[str, Any]] | Any) -> pd.DataFrame:
-    """Accept list OR dict containers like {'results': [...]}, {'data': [...]}, {'items': [...]}, {'history': [...]}, or {'rows': [...]}.
-    """
+    """Accept list OR dict containers like {'results': [...]}, {'data': [...]}, {'items': [...]}, {'history': [...]}, or {'rows': [...]}."""
     try:
         if isinstance(rows, list):
             return pd.DataFrame(rows)
@@ -69,18 +80,19 @@ with cc3:
 url_db = api_url("api/v1/trades/recent")
 url_mt5 = api_url("api/v1/trades/history")
 url_pos = api_url("api/v1/account/positions")
+base_params = {"symbol": symbol, "limit": int(limit)}
+db_trades = _get_json(url_db, params=base_params)
 
-db_trades = _get_json(url_db, params={"limit": int(limit)})
-mt5_trades = _get_json(
-    url_mt5,
-    params={
-        "source": "mt5",
-        "date_from": date_from.isoformat(),
-        "date_to": dt.date.today().isoformat(),
-        "limit": int(limit),
-    },
-)
-positions = _get_json(url_pos)
+mt5_params = {
+    "source": "mt5",
+    "date_from": date_from.isoformat(),
+    "date_to": dt.date.today().isoformat(),
+    "symbol": symbol,
+    "limit": int(limit),
+}
+mt5_trades = _get_json(url_mt5, params=mt5_params)
+
+positions = _get_json(url_pos, params={"symbol": symbol})
 
 # Fallback: some backends expect 'provider=mt5' instead of 'source=mt5'
 if isinstance(mt5_trades, dict) and not _as_df(mt5_trades).shape[0]:
@@ -90,6 +102,7 @@ if isinstance(mt5_trades, dict) and not _as_df(mt5_trades).shape[0]:
             "provider": "mt5",
             "date_from": date_from.isoformat(),
             "date_to": dt.date.today().isoformat(),
+            "symbol": symbol,
             "limit": int(limit),
         },
     )
@@ -97,6 +110,14 @@ if isinstance(mt5_trades, dict) and not _as_df(mt5_trades).shape[0]:
 df_db = _as_df(db_trades)
 df_mt5 = _as_df(mt5_trades)
 df_pos = _as_df(positions)
+
+# Client-side filter (defensive)
+if not df_db.empty and 'symbol' in df_db.columns:
+    df_db = df_db[df_db['symbol'] == symbol]
+if not df_mt5.empty and 'symbol' in df_mt5.columns:
+    df_mt5 = df_mt5[df_mt5['symbol'] == symbol]
+if not df_pos.empty and 'symbol' in df_pos.columns:
+    df_pos = df_pos[df_pos['symbol'] == symbol]
 
 # Surface any API errors
 for label, payload in (("DB Trades", db_trades), ("MT5 History", mt5_trades), ("Positions", positions)):
@@ -113,7 +134,10 @@ def _normalize_cols(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
     return df[cols]
 
 
-st.markdown("#### Overview")
+st.markdown(
+    f"#### Overview · <span style='color:#9CA3AF'>Symbol:</span> <span style='font-weight:700'>{symbol}</span>",
+    unsafe_allow_html=True
+)
 ov1, ov2, ov3 = st.columns(3)
 with ov1:
     st.metric("DB Trades (recent)", len(df_db))
@@ -155,6 +179,8 @@ if len(df_mt5) < len(df_db) and not df_db.empty:
     notes.append("MT5 history shorter than DB recent — date_from filter may exclude older trades.")
 if df_pos.empty:
     notes.append("No open positions — if this is unexpected, confirm broker connection.")
+if symbol:
+    notes.append(f"Scope: symbol = {symbol}")
 if notes:
     for n in notes:
         st.info(n)

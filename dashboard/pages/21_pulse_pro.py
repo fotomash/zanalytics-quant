@@ -65,12 +65,14 @@ st.markdown(
 
 
 # --- Live API pulls ------------------------------------------------------------
+symbol = st.session_state.get("pro_symbol", "XAUUSD")
+
 mini = safe_api_call("GET", "api/v1/market/mini")
-mirror = safe_api_call("GET", "api/v1/mirror/state")
+mirror = safe_api_call("GET", f"api/v1/mirror/state?symbol={symbol}")
 acct = safe_api_call("GET", "api/v1/account/info")
 risk = safe_api_call("GET", "api/v1/account/risk")
-equity_series = safe_api_call("GET", "api/v1/feed/equity/series")
-whispers_resp = safe_api_call("GET", "api/pulse/whispers")
+equity_series = safe_api_call("GET", f"api/v1/feed/equity/series?symbol={symbol}")
+whispers_resp = safe_api_call("GET", f"api/pulse/whispers?symbol={symbol}")
 
 
 # --- Header -------------------------------------------------------------------
@@ -148,8 +150,13 @@ except Exception:
     _symbols = []
 if 'pro_symbol' not in st.session_state:
     st.session_state['pro_symbol'] = (_symbols[0] if _symbols else 'XAUUSD')
-sel_sym_pro = st.selectbox("Symbol", _symbols or ['XAUUSD'], index=(_symbols.index(st.session_state['pro_symbol']) if (_symbols and st.session_state['pro_symbol'] in _symbols) else 0), key="pro_symbol_select")
-st.session_state['pro_symbol'] = sel_sym_pro
+
+sel_sym_pro = st.selectbox(
+    "Symbol",
+    _symbols or ['XAUUSD'],
+    index=_symbols.index(st.session_state['pro_symbol']) if (_symbols and st.session_state['pro_symbol'] in _symbols) else 0,
+    key="pro_symbol"
+)
 st.divider()
 
 
