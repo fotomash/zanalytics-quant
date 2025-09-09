@@ -6,6 +6,9 @@ import os
 os.environ.setdefault("DJANGO_SECRET_KEY", "test-secret")
 from .settings import *
 
+# Allow default Django test hostnames
+ALLOWED_HOSTS = ["testserver", "test", "localhost", "127.0.0.1"]
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
