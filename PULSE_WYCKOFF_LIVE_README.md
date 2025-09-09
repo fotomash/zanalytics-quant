@@ -144,3 +144,5 @@ Update the `phase_colors` in the config or modify the `create_wyckoff_chart()` f
 ## Support
 
 For issues or questions, refer to the main Zanalytics documentation or contact the development team.
+
+Return to [main README](README.md)
