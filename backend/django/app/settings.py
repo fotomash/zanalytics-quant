@@ -20,6 +20,16 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Ensure project root is on PYTHONPATH so top-level packages (e.g. ``bridge``)
+# can be imported without installing the project as a package. This mirrors the
+# behaviour of running Django from the repository root and fixes
+# ``ModuleNotFoundError: No module named 'bridge'`` raised when importing
+# ``bridge.mt5`` in the positions views.
+import sys
+PROJECT_ROOT = BASE_DIR.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+
 # Ensure log directory exists
 os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
 
