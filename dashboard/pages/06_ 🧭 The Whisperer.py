@@ -200,26 +200,11 @@ try:
     sod = float(risk.get('sod_equity') or bal or eq)
     target_amt = float(risk.get('target_amount') or 0.0)
     loss_amt = float(risk.get('loss_amount') or 0.0)
-    exp_pct = risk.get('exposure_pct') or 0.0
-    exp_ratio = float(exp_pct/100.0 if exp_pct and exp_pct > 1 else (exp_pct or 0.0))
-
-    # Compute normalized PnL for the donut (+ towards target, - towards loss)
     pnl_today = eq - sod
-    if pnl_today >= 0 and target_amt > 0:
-        pnl_norm = min(1.0, pnl_today / target_amt)
-    elif pnl_today < 0 and loss_amt > 0:
-        pnl_norm = -min(1.0, abs(pnl_today) / loss_amt)
-    else:
-        pnl_norm = 0.0
-
-    # Daily drawdown used (0..1) for mid ring
-    dd_used = 0.0
-    if eq < sod and loss_amt > 0:
-        dd_used = max(0.0, min(1.0, (sod - eq) / loss_amt))
-
-    # Compute behavioral composite for posture donut
+    exp_pct = risk.get('exposure_pct') or 0.0
+    exp_ratio = float(exp_pct/100.0 if exp_pct > 1 else exp_pct)
     bhv_score = behavioral_score_from_mirror(mirror)
-    bhv_ratio = (bhv_score / 100.0) if isinstance(bhv_score, (int, float)) else 0.0
+    bhv_ratio = bhv_score/100.0
 
     cV1, cV2, cV3 = st.columns(3)
     with cV1:
