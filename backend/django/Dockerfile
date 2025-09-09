@@ -30,6 +30,7 @@ COPY backend/django /app/backend/django
 #    Shared modules at repo root (lowercase):
 COPY components /app/components
 COPY utils      /app/utils
+COPY bridge     /app/bridge
 
 # Ensure runtime log directory exists (matches settings.py LOG_DIR)
 RUN mkdir -p /app/backend/django/logs /app/backend/django/staticfiles /app/logs /app/staticfiles \

@@ -1552,8 +1552,8 @@ class ActionsQueryView(views.APIView):
             if typ == 'position_modify':
                 # { ticket, sl?, tp? }
                 try:
-                    from bridge.mt5 import modify_position
-                except Exception:
+                    from .tasks import modify_position_task
+                except ImportError:
                     return Response({'error': 'service_unavailable'}, status=503)
                 ticket = payload.get('ticket')
                 if ticket is None:
@@ -1562,8 +1562,11 @@ class ActionsQueryView(views.APIView):
                 tp = payload.get('tp')
                 if sl is None and tp is None:
                     return Response({'error': 'sl or tp required'}, status=400)
-                ok, data = modify_position(int(ticket), sl=sl, tp=tp)
-                return Response(data, status=200 if ok else 400)
+                
+                # Asynchronously execute the task
+                modify_position_task.delay(int(ticket), sl=sl, tp=tp)
+                
+                return Response({'status': 'accepted', 'ticket': ticket}, status=status.HTTP_202_ACCEPTED)
             if typ == 'position_hedge':
                 # { ticket, volume? }
                 try:

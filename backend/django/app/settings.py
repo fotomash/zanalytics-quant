@@ -9,30 +9,23 @@ https://docs.djangoproject.com/en/4.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
-from pathlib import Path
+
 import os
 import sys
+from pathlib import Path
 from dotenv import load_dotenv
-
-
-# Ensure project root is on PYTHONPATH so top-level packages (e.g. ``bridge``)
-# can be imported without installing the project as a package.
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-# Add the project root to the Python path, which is 3 levels above this file's directory.
-# This allows absolute imports from the project root, e.g., `from bridge.mt5 import ...`.
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-import bridge
-
 
 # Load environment variables from .env file if present
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent  # backend/django
+
+# Add repository root to Python path so top-level packages (e.g., 'bridge') resolve in Django app
+# Repo root is two levels up from BASE_DIR (…/repo)
+REPO_ROOT = BASE_DIR.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 # Ensure log directory exists
 os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)

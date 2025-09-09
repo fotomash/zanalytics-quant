@@ -509,8 +509,8 @@ with bc2:
             v = float(pct)
             st.metric("Captured vs Potential", f"{v*100:.0f}%")
             st.progress(max(0.0, min(1.0, v)))
-        except Exception:
-            pass
+    except Exception:
+        pass
 with bc3:
     st.markdown("#### Risk Management")
     try:
@@ -618,8 +618,8 @@ try:
         pr = (mirror or {}).get('patience_ratio')
         if isinstance(pr, (int, float)):
             subs['Patience'] = 'Tempo high' if float(pr) < 0 else 'Tempo conservative'
-        except Exception:
-            pass
+    except Exception:
+        pass
 
     # Trades Snapshot
     st.markdown("##### Trades Snapshot")
