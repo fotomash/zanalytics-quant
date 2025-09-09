@@ -1,0 +1,24 @@
+session_metrics:
+  start_of_day_balance: true
+  current_equity: true
+  daily_risk_allowance_percent: true
+  current_risk_used_percent: true
+  session_time_remaining: true
+
+trade_metrics:
+  unrealized_pnl: true
+  time_in_trade: true
+  exposure_percent: true
+  max_adverse_excursion: true
+
+behavioral_metrics:
+  composite_posture_score: true
+  patience_index: true
+  conviction_accuracy: true
+  profit_efficiency: true
+  overtrading_alert: true
+
+future_signals:
+  next_news_release: true
+  context_alerts: true
+  whisperer_rating: true
