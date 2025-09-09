@@ -600,8 +600,6 @@ services:
       - DJANGO_API_PREFIX=/api/v1
       - BRIDGE_TOKEN=${BRIDGE_TOKEN:-}
     depends_on:
-      mt5-api:
-        condition: service_healthy
       django:
         condition: service_healthy
     command: >
