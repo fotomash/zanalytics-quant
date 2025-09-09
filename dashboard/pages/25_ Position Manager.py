@@ -1,6 +1,6 @@
 """
-Zanalytics Pulse — Position Tracker
-A streamlined view of open positions and vitals.
+Zanalytics Pulse — Position Manager
+A streamlined view of open positions with integrated actions.
 """
 import streamlit as st
 import pandas as pd
@@ -9,45 +9,33 @@ import requests
 import json
 import base64
 from dotenv import load_dotenv
+from datetime import datetime, timedelta
 
-# Dashboard-local imports
-from dashboard.utils.plotly_donuts import bipolar_donut, oneway_donut, behavioral_score_from_mirror
-from dashboard.pages.components.market_header import render_market_header
-
-# Safe MT5 import
-try:
-    import MetaTrader5 as mt5
-    MT5_AVAILABLE = True
-except ImportError:
-    MT5_AVAILABLE = False
-    mt5 = None
-
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
 
 # Page configuration
 st.set_page_config(
-    page_title="🎯 Zanalytics Pulse — Position Tracker",
+    page_title="🎯 Zanalytics Pulse — Position Manager",
     page_icon="🎯",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- IMAGE BACKGROUND & STYLING ---
-@st.cache_data(ttl=3600)
-def _get_image_as_base64(path: str):
+# --- Styling ---
+def get_image_as_base64(path: str):
     try:
         with open(path, "rb") as image_file:
             return base64.b64encode(image_file.read()).decode()
     except Exception:
         return None
 
-_img_base64 = _get_image_as_base64("image_af247b.jpg")
-if _img_base64:
-    _background_style = f"""
+img_base64 = get_image_as_base64("image_af247b.jpg")
+if img_base64:
+    background_style = f"""
     <style>
     [data-testid="stAppViewContainer"] > .main {{
-        background-image: linear-gradient(rgba(0,0,0,0.80), rgba(0,0,0,0.80)), url(data:image/jpeg;base64,{_img_base64});
+        background-image: linear-gradient(rgba(0,0,0,0.80), rgba(0,0,0,0.80)), url(data:image/jpeg;base64,{img_base64});
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
@@ -58,384 +46,147 @@ if _img_base64:
     }}
     </style>
     """
-    st.markdown(_background_style, unsafe_allow_html=True)
+    st.markdown(background_style, unsafe_allow_html=True)
 
-# --- API UTILITIES (for vitals) ---
-def _pulse_url(path: str) -> str:
-    """Normalize paths to pulse endpoints."""
-    try:
-        base = os.getenv("DJANGO_API_URL", "http://django:8000").rstrip('/')
-    except Exception:
-        base = "http://django:8000"
-    p = path.lstrip('/')
-    if p.startswith('api/'):
-        return f"{base}/{p}"
-    return f"{base}/api/pulse/{p}"
+# --- API UTILITIES ---
+def get_api_base_url():
+    return os.getenv("DJANGO_API_URL", "http://django:8000").rstrip('/')
 
-def safe_api_call(method: str, path:str, payload: dict = None, timeout: float = 1.2) -> dict:
+def safe_api_call(method: str, path: str, payload: dict = None, timeout: float = 5.0) -> dict:
     """Safe API call with error handling."""
+    base_url = get_api_base_url()
+    url = f"{base_url}{path}" if path.startswith('/') else f"{base_url}/{path}"
     try:
-        url = _pulse_url(path)
         if method.upper() == "GET":
             response = requests.get(url, timeout=timeout)
         elif method.upper() == "POST":
             response = requests.post(url, json=payload or {}, timeout=timeout)
         else:
             return {"error": f"Unsupported method: {method}"}
-        if response.status_code == 200:
-            return response.json()
-        return {"error": f"HTTP {response.status_code}", "url": url}
+        response.raise_for_status()
+        return response.json()
     except requests.exceptions.RequestException as e:
-        return {"error": str(e), "url": _pulse_url(path)}
+        return {"error": str(e), "url": url}
 
-# --- POSITIONS FETCH HELPER (MT5 → API fallback) ---
-# --- POSITIONS FETCH HELPER (MT5 → API fallback, multi-endpoint, multi-shape) ---
-def _fetch_positions_df() -> pd.DataFrame:
-    """Fetch live positions from MT5 if available; otherwise via Pulse API.
-    Tries several endpoints and payload shapes, returns a normalized DataFrame.
-    Also records the source endpoint for debugging in st.session_state['positions_source'].
-    """
-    df = pd.DataFrame()
-    st.session_state['positions_source'] = '—'
+# --- DATA FETCHING ---
+def fetch_positions() -> pd.DataFrame:
+    """Fetch open positions from the backend."""
+    data = safe_api_call("GET", "/api/v1/positions/live")
+    if "error" in data or not isinstance(data, list):
+        return pd.DataFrame()
+    
+    df = pd.DataFrame(data)
+    
+    # Normalize columns
+    rename_map = {
+        'price_open': 'entry_price', 'profit': 'pnl', 'price_current': 'current_price',
+        'ticket': 'ticket_id', 'type': 'side'
+    }
+    df = df.rename(columns=rename_map)
+    
+    # Ensure essential columns exist
+    for col in ['symbol', 'side', 'entry_price', 'current_price', 'pnl', 'volume', 'time', 'ticket_id']:
+        if col not in df.columns:
+            df[col] = None
+            
+    # Normalize side
+    if 'side' in df.columns:
+        df['side'] = df['side'].apply(lambda x: 'BUY' if x == 0 else 'SELL' if x == 1 else x)
 
-    # 1) Try MT5 first (if available)
-    if MT5_AVAILABLE:
-        try:
-            if not mt5.terminal_state().connected:
-                login = os.getenv('MT5_LOGIN')
-                password = os.getenv('MT5_PASSWORD')
-                server = os.getenv('MT5_SERVER')
-                if login and password and server:
-                    try:
-                        mt5.initialize(login=int(login), password=password, server=server)
-                    except Exception:
-                        pass
-            if mt5.terminal_state().connected:
-                positions = mt5.positions_get()
-                if positions:
-                    df = pd.DataFrame(list(positions), columns=positions[0]._asdict().keys())
-                    st.session_state['positions_source'] = 'MT5'
-        except Exception:
-            df = pd.DataFrame()
-
-    # 2) Fallback to HTTP API (try multiple Pulse flavors)
-    if df.empty:
-        endpoints = [
-            # Auto-prefixed by _pulse_url to /api/pulse/
-            'positions/live',
-            'positions/open',
-            'positions',
-            # Explicit API v1 paths (bypass /api/pulse prefixing)
-            'api/v1/positions/live',
-            'api/v1/positions/open',
-            'api/v1/positions',
-        ]
-
-        api_payload = None
-        hit_ep = None
-        for ep in endpoints:
-            res = safe_api_call('GET', ep)
-            if isinstance(res, dict) and 'error' in res:
-                continue
-            api_payload = res
-            hit_ep = ep
-            break
-
-        # Parse payload into list-of-dicts
-        rows = []
-        if isinstance(api_payload, list):
-            rows = api_payload
-        elif isinstance(api_payload, dict):
-            for key in ('positions', 'open_positions', 'data', 'results', 'items'):
-                val = api_payload.get(key)
-                if isinstance(val, list) and val:
-                    rows = val
-                    break
-        # Build DataFrame
-        if rows:
-            try:
-                df = pd.DataFrame(rows)
-                st.session_state['positions_source'] = f"API:{hit_ep}"
-            except Exception:
-                df = pd.DataFrame()
-
-    # 3) Normalize columns when possible
-    if not df.empty:
-        rename_map = {
-            'price_open': 'entry_price',
-            'open_price': 'entry_price',
-            'OpenPrice': 'entry_price',
-            'entry': 'entry_price',
-            'price_current': 'current_price',
-            'current': 'current_price',
-            'CurrentPrice': 'current_price',
-            'bid': 'current_price',
-            'profit': 'pnl',
-            'unrealized_profit': 'pnl',
-            'UnrealizedPL': 'pnl',
-            'pl': 'pnl',
-            'cmd': 'type',
-            'position_type': 'type',
-            'side': 'type',
-            'instrument': 'symbol',
-            'ticket': 'ticket_id',
-            'order': 'ticket_id',
-            'lots': 'volume',
-            'volumeLots': 'volume',
-        }
-        existing_map = {k: v for k, v in rename_map.items() if k in df.columns}
-        if existing_map:
-            df.rename(columns=existing_map, inplace=True)
-
-        for col in ('entry_price', 'current_price', 'pnl', 'volume'):
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-
-        # Map numeric → string; normalize strings
-        if 'type' in df.columns:
-            if pd.api.types.is_numeric_dtype(df['type']):
-                df['type'] = df['type'].map({0: 'BUY', 1: 'SELL', 2: 'BUY', 3: 'SELL'}).fillna(df['type'])
-            else:
-                df['type'] = df['type'].astype(str).str.upper().replace({'LONG': 'BUY', 'SHORT': 'SELL'})
-
-        # Derive missing essentials
-        if 'current_price' not in df.columns:
-            for alt in ('ask', 'Bid', 'Ask', 'last', 'LastPrice'):
-                if alt in df.columns:
-                    df['current_price'] = pd.to_numeric(df[alt], errors='coerce')
-                    break
-        if 'entry_price' not in df.columns:
-            for alt in ('open', 'Open', 'avg_entry_price', 'AverageOpenPrice'):
-                if alt in df.columns:
-                    df['entry_price'] = pd.to_numeric(df[alt], errors='coerce')
-                    break
-        if 'symbol' not in df.columns:
-            for alt in ('Symbol', 'SYMBOL', 'ticker', 'Ticker', 'symbolName'):
-                if alt in df.columns:
-                    df['symbol'] = df[alt]
-                    break
-        if 'pnl' not in df.columns and 'profit' in df.columns:
-            df['pnl'] = pd.to_numeric(df['profit'], errors='coerce')
-
+    # Convert time
+    if 'time' in df.columns:
+        df['time'] = pd.to_datetime(df['time'], unit='s', errors='coerce')
+        
     return df
 
-# --- HEADER & VITALS ---
-render_market_header()
-
-# --- REAL‑TIME ACCOUNT MONITORING & RISK CONTROL (from Risk Manager mock) ---
-st.subheader("🔒 Real-Time Account Monitoring & Risk Control")
-
-# Pull live account/risk, and positions count
-acct = safe_api_call('GET', 'api/v1/account/info') or {}
-risk = safe_api_call('GET', 'api/v1/account/risk') or {}
-
-# Core numbers
-bal = float(acct.get('balance', 0.0) or 0.0)
-eq  = float(acct.get('equity', 0.0) or 0.0)
-sod = float(risk.get('sod_equity', bal or eq) or 0.0)
-loss_amt = float(risk.get('loss_amount', 0.0) or 0.0)
-
-# Positions (use shared helper)
-df_trades = _fetch_positions_df()
-_positions_count = int(len(df_trades)) if not df_trades.empty else 0
-
-# Today P&L and risk remaining
-pnl_today = eq - sod
-risk_left_amt = loss_amt - max(0.0, (sod - eq))  # remaining before breaching daily loss cap
-
-# Margin snapshot (if provided by bridge/API)
-_margin_used = float(acct.get('margin', 0.0) or 0.0)
-_free_margin = float(acct.get('free_margin', 0.0) or 0.0)
-_margin_level = acct.get('margin_level', None)
-try:
-    _margin_level_str = f"{float(_margin_level):,.0f}%" if _margin_level is not None else "—"
-except Exception:
-    _margin_level_str = "—"
-
-# Drawdown vs SoD
-try:
-    dd_pct = max(0.0, ((sod - eq) / sod) * 100.0) if sod > 0 else 0.0
-except Exception:
-    dd_pct = 0.0
-
-# --- Tiles row 1: Balance / Equity / P&L Today / Margin Used / Positions ---
-row1 = st.columns([1,1,1,1,1])
-with row1[0]:
-    st.metric("Balance", f"${bal:,.0f}")
-with row1[1]:
-    st.metric("Equity", f"${eq:,.0f}")
-with row1[2]:
-    st.metric("P&L (Today)", f"${pnl_today:+,.0f}")
-with row1[3]:
-    st.metric("Margin Used", f"${_margin_used:,.0f}" if _margin_used else "—")
-with row1[4]:
-    st.metric("Positions Open", f"{_positions_count}")
-
-# --- Tiles row 2: Free Margin / Margin Level / Risk Left / Drawdown ---
-row2 = st.columns([1,1,1,1])
-with row2[0]:
-    st.metric("Free Margin", f"${_free_margin:,.0f}" if _free_margin else "—")
-with row2[1]:
-    st.metric("Margin Level", _margin_level_str)
-with row2[2]:
-    st.metric("Risk Left Today", (f"${risk_left_amt:,.0f}" if loss_amt else "—"))
-with row2[3]:
-    st.metric("Drawdown (SoD)", f"{dd_pct:.2f}%")
-
-# Exposure alerting logic — if more than 5 positions
-try:
-    # Normalize floating PnL for alert text (fallback to sum of trade pnl if `acct.profit` missing)
-    _dfp = df_trades.rename(columns={'profit':'pnl'}) if not df_trades.empty else pd.DataFrame()
-    _pnl_sum = float(pd.to_numeric(_dfp.get('pnl'), errors='coerce').fillna(0).sum()) if not _dfp.empty else float(acct.get('profit') or 0.0)
-except Exception:
-    _pnl_sum = float(acct.get('profit') or 0.0)
-
-if _positions_count > 5:
-    if _pnl_sum < 0:
-        st.error(f"⚠️ High exposure: {_positions_count} open positions with net loss {_pnl_sum:+.2f}")
+# --- ACTIONS ---
+def close_position(ticket_id):
+    """Send a request to close a position."""
+    response = safe_api_call("POST", f"/api/v1/positions/{ticket_id}/close", payload={})
+    if "error" in response:
+        st.error(f"Failed to close position {ticket_id}: {response.get('error')}")
     else:
-        st.info(f"ℹ️ High exposure: {_positions_count} open positions (net profit {_pnl_sum:+.2f}).")
+        st.success(f"Close order for position {ticket_id} sent successfully.")
+        st.experimental_rerun()
 
+# --- UI RENDERING ---
+st.title("🛡️ Position Manager")
 
-st.subheader("💰 Session Vitals")
+positions_df = fetch_positions()
 
-try:
-    mirror = safe_api_call('GET', 'api/v1/mirror/state') or {}
-    # Use acct/risk as already fetched above
-    eq = float(acct.get('equity', 0.0))
-    bal = float(acct.get('balance', 0.0))
-    sod = float(risk.get('sod_equity', bal or eq))
-    target_amt = float(risk.get('target_amount', 0.0))
-    loss_amt = float(risk.get('loss_amount', 0.0))
-    pnl_today = eq - sod
-    exp_pct = risk.get('exposure_pct', 0.0)
-    exp_ratio = float(exp_pct / 100.0 if exp_pct and exp_pct > 1 else (exp_pct or 0.0))
-    bhv_score = behavioral_score_from_mirror(mirror)
-    bhv_ratio = float(bhv_score / 100.0) if bhv_score is not None else 0.0
-
-    cV1, cV2, cV3 = st.columns(3)
-    with cV1:
-        st.plotly_chart(
-            bipolar_donut(
-                title="Equity vs SoD",
-                value=pnl_today,
-                pos_max=max(1.0, target_amt),
-                neg_max=max(1.0, loss_amt),
-                center_title=f"{eq:,.0f}",
-                center_sub=f"{pnl_today:+,.0f} today",
-            ),
-            use_container_width=True,
-        )
-    with cV2:
-        st.plotly_chart(
-            oneway_donut(
-                title="Position Exposure",
-                frac=max(0.0, min(1.0, exp_ratio)),
-                center_title=f"{exp_ratio*100:.0f}%",
-                center_sub="of daily risk budget",
-            ),
-            use_container_width=True,
-        )
-    with cV3:
-        st.plotly_chart(
-            oneway_donut(
-                title="Behavioral Posture",
-                frac=max(0.0, min(1.0, bhv_ratio)),
-                center_title=f"{bhv_score:.0f}",
-                center_sub="composite",
-            ),
-            use_container_width=True,
-        )
-        # Quick legend for meaning
-        st.caption("Donuts: left = P&L vs SoD target/loss · middle = exposure vs daily risk budget · right = behavioral composite.")
-except Exception as e:
-    st.error(f"Could not load session vitals. Error: {e}")
-
-# --- OPEN POSITIONS ---
-st.subheader("📂 Open Positions")
-
-# Debug: show which source responded (MT5 or which API endpoint)
-try:
-    _src = st.session_state.get('positions_source', '—')
-    st.caption(f"Source: {_src}")
-except Exception:
-    pass
-
-# Fetch positions (reuse shared helper; avoids duplicate bridge/API calls)
-if 'df_trades' not in locals() or df_trades is None or getattr(df_trades, 'empty', True):
-    df_trades = _fetch_positions_df()
-
-if not df_trades.empty:
-    # Standardize column names from different sources
-    rename_map = {
-        'price_open': 'entry_price',
-        'profit': 'pnl',
-        'price_current': 'current_price'
-    }
-    df_trades.rename(columns=rename_map, inplace=True)
-
-    # Rescue fill for required columns if missing
-    if 'entry_price' not in df_trades.columns:
-        for alt in ('open','Open','avg_entry_price','AverageOpenPrice'):
-            if alt in df_trades.columns:
-                df_trades['entry_price'] = pd.to_numeric(df_trades[alt], errors='coerce')
-                break
-    if 'current_price' not in df_trades.columns:
-        for alt in ('current','CurrentPrice','bid','ask','LastPrice'):
-            if alt in df_trades.columns:
-                df_trades['current_price'] = pd.to_numeric(df_trades[alt], errors='coerce')
-                break
-    if 'pnl' not in df_trades.columns:
-        for alt in ('profit','unrealized_profit','UnrealizedPL','pl'):
-            if alt in df_trades.columns:
-                df_trades['pnl'] = pd.to_numeric(df_trades[alt], errors='coerce')
-                break
-    if 'type' in df_trades.columns and pd.api.types.is_numeric_dtype(df_trades['type']):
-        df_trades['type'] = df_trades['type'].map({0:'BUY',1:'SELL',2:'BUY',3:'SELL'}).fillna(df_trades['type'])
-    elif 'type' in df_trades.columns:
-        df_trades['type'] = df_trades['type'].astype(str).str.upper().replace({'LONG':'BUY','SHORT':'SELL'})
-    if 'symbol' not in df_trades.columns:
-        for alt in ('Symbol','SYMBOL','instrument','ticker','Ticker','symbolName'):
-            if alt in df_trades.columns:
-                df_trades['symbol'] = df_trades[alt]
-                break
-
-    # Map position type from integer to string (for MT5 source)
-    if 'type' in df_trades.columns and pd.api.types.is_numeric_dtype(df_trades['type']):
-        df_trades['type'] = df_trades['type'].map({0: 'BUY', 1: 'SELL'})
-
-    # Ensure all required columns are present
-    required_cols = ['symbol', 'type', 'entry_price', 'current_price', 'pnl']
-    if all(col in df_trades.columns for col in required_cols):
-        # High‑exposure secondary alert (contextual to table)
-        _pos_ct = len(df_trades)
-        try:
-            _pnl_total = float(pd.to_numeric(df_trades['pnl'], errors='coerce').fillna(0).sum())
-        except Exception:
-            _pnl_total = 0.0
-        if _pos_ct > 5:
-            if _pnl_total < 0:
-                st.error(f"⚠️ High exposure: {_pos_ct} open positions with net loss {_pnl_total:+.2f}")
-            else:
-                st.info(f"ℹ️ High exposure: {_pos_ct} open positions (net profit {_pnl_total:+.2f}).")
-
-        for idx, row in df_trades[required_cols].iterrows():
-            cols = st.columns([2, 2, 2, 2, 2, 3])
-            cols[0].write(row["symbol"])
-            cols[1].write(row["type"])
-            cols[2].write(f"{row['entry_price']:.5f}")
-            cols[3].write(f"{row['current_price']:.5f}")
-            pnl_color = "#22C55E" if row["pnl"] >= 0 else "#EF4444"
-            cols[4].markdown(f"<div style='color:{pnl_color}; font-weight:bold'>{row['pnl']:+.2f}</div>", unsafe_allow_html=True)
-            with cols[5]:
-                st.button("SL → BE", key=f"slbe_{idx}")
-                st.button("Trail 25%", key=f"trail25_{idx}")
-                st.button("Trail 50%", key=f"trail50_{idx}")
-                st.button("Partial 25%", key=f"partial25_{idx}")
-                st.button("Partial 50%", key=f"partial50_{idx}")
-    else:
-        st.warning("Positions data is missing required columns for the detailed view.")
-        st.dataframe(df_trades)
-else:
+if positions_df.empty:
     st.info("No open positions found.")
+else:
+    for _, row in positions_df.iterrows():
+        with st.container():
+            pnl = row.get('pnl', 0.0)
+            pnl_color = "green" if pnl >= 0 else "red"
+            pnl_arrow = "🔼" if pnl >= 0 else "🔽"
 
+            duration_str = "—"
+            duration_color = "white"
+            if pd.notna(row.get('time')):
+                duration = datetime.utcnow() - row['time']
+                duration_hours = duration.total_seconds() / 3600
+                duration_str = str(duration).split('.')[0] # HH:MM:SS
+                if duration_hours > 2:
+                    duration_color = "red"
+                elif duration_hours > 1:
+                    duration_color = "orange"
+
+            card_style = """
+                <div style='
+                    padding: 12px 16px;
+                    border-radius: 10px;
+                    background: rgba(40, 40, 50, 0.6);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    backdrop-filter: blur(5px);
+                    margin-bottom: 10px;
+                '>
+            """
+            st.markdown(card_style, unsafe_allow_html=True)
+
+            col1, col2, col3, col4, col5 = st.columns([3, 2, 2, 2, 4])
+
+            with col1:
+                st.markdown(f"""
+                    <div style='font-weight: 600; font-size: 1.1em;'>{row.get('symbol', '—')}</div>
+                    <div style='font-size: 0.9em; opacity: 0.8;'>{row.get('side', '—')} {row.get('volume', '')}</div>
+                """, unsafe_allow_html=True)
+
+            with col2:
+                st.markdown(f"""
+                    <div style='font-size: 0.8em; opacity: 0.7;'>PnL</div>
+                    <div style='color: {pnl_color}; font-weight: 600;'>
+                        {pnl_arrow} {pnl:+.2f}
+                    </div>
+                """, unsafe_allow_html=True)
+
+            with col3:
+                st.markdown(f"""
+                    <div style='font-size: 0.8em; opacity: 0.7;'>Duration</div>
+                    <div style='color: {duration_color};'>{duration_str}</div>
+                """, unsafe_allow_html=True)
+            
+            with col4:
+                 st.markdown(f"""
+                    <div style='font-size: 0.8em; opacity: 0.7;'>Entry</div>
+                    <div>{row.get('entry_price', 0.0):.5f}</div>
+                """, unsafe_allow_html=True)
+
+            with col5:
+                btn_cols = st.columns(4)
+                with btn_cols[0]:
+                    st.button("SL>BE", key=f"slbe_{row.get('ticket_id')}", help="Move Stop Loss to Break Even (Not Implemented)")
+                with btn_cols[1]:
+                    st.button("T25%", key=f"t25_{row.get('ticket_id')}", help="Trail Stop Loss by 25% (Not Implemented)")
+                with btn_cols[2]:
+                    st.button("T50%", key=f"t50_{row.get('ticket_id')}", help="Trail Stop Loss by 50% (Not Implemented)")
+                with btn_cols[3]:
+                    if st.button("Close", key=f"close_{row.get('ticket_id')}"):
+                        close_position(row.get('ticket_id'))
+            
+            st.markdown("</div>", unsafe_allow_html=True)
+
+if st.button("Refresh"):
+    st.experimental_rerun()
