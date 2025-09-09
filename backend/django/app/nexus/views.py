@@ -2095,6 +2095,19 @@ class MarketNewsPublisherView(views.APIView):
             return Response({'ok': False, 'error': str(e)}, status=500)
 
 
+def _mt5_bases():
+    bases = []
+    api = os.getenv("MT5_API_URL")
+    bridge = os.getenv("MT5_URL")
+    if api:
+        bases.append(api)
+    if bridge:
+        bases.append(bridge)
+    if not bases:
+        bases.append("http://mt5:5001")
+    return [str(b).rstrip('/') for b in bases]
+
+
 class PositionsProxyView(views.APIView):
     """Proxy positions from MT5 bridge with normalization.
 
@@ -2105,6 +2118,7 @@ class PositionsProxyView(views.APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+
         base = (
             os.getenv("MT5_URL")
             or os.getenv("MT5_API_URL")
@@ -2139,6 +2153,34 @@ class PositionsProxyView(views.APIView):
             logger.exception("positions_get request failed")
             return Response({"error": "mt5 bridge unreachable"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
+        for base in _mt5_bases():
+            try:
+                r = requests.get(f"{base}/positions_get", timeout=2.5)
+                if not r.ok:
+                    continue
+                data = r.json() or []
+                if not isinstance(data, list):
+                    continue
+                # Normalize time fields to ISO strings (if present)
+                out = []
+                for p in data:
+                    if not isinstance(p, dict):
+                        continue
+                    q = dict(p)
+                    for tkey in ("time", "time_update"):
+                        if tkey in q and q[tkey] is not None:
+                            try:
+                                # try milliseconds → ISO
+                                import pandas as _pd
+                                q[tkey] = _pd.to_datetime(int(q[tkey]), unit='s', errors='coerce').isoformat()
+                            except Exception:
+                                pass
+                    out.append(q)
+                return Response(out)
+            except Exception:
+                continue
+        return Response([], status=200)
+
 
 class AccountInfoView(views.APIView):
     """Return normalized MT5 account info with stable lowercase keys.
@@ -2150,34 +2192,6 @@ class AccountInfoView(views.APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        base = (
-            os.getenv("MT5_URL")
-            or os.getenv("MT5_API_URL")
-            or "http://mt5:5001"
-        )
-        try:
-            r = requests.get(f"{str(base).rstrip('/')}/account_info", timeout=2.5)
-            if not r.ok:
-                logger.error("account_info failed with status %s", r.status_code)
-                return Response({"error": "mt5 bridge unreachable"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-            data = r.json() or {}
-            if isinstance(data, list) and data:
-                data = data[0]
-            if not isinstance(data, dict):
-                logger.error("account_info returned non-dict payload")
-                return Response({"error": "invalid response from mt5"}, status=status.HTTP_502_BAD_GATEWAY)
-            # normalize keys to lowercase
-            norm = {str(k).lower(): v for k, v in data.items()}
-            # keep only common fields
-            keep = [
-                'equity','balance','margin','free_margin','margin_level','profit','login','server','currency'
-            ]
-            out = {k: norm.get(k) for k in keep}
-            return Response(out)
-        except Exception:
-            logger.exception("account_info request failed")
-            return Response({"error": "mt5 bridge unreachable"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-
 
 class JournalAppendView(views.APIView):
     """Append a journal entry; optionally linked to a trade by id.
