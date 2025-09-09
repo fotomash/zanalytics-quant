@@ -406,6 +406,7 @@ components:
         - $ref: '#/components/schemas/AccountPositionsRequest'
         - $ref: '#/components/schemas/AccountRiskRequest'
         - $ref: '#/components/schemas/EquityTodayRequest'
+        - $ref: '#/components/schemas/PulseStatusRequest'
         - $ref: '#/components/schemas/MarketMiniRequest'
         - $ref: '#/components/schemas/MarketSymbolsRequest'
         - $ref: '#/components/schemas/MarketCalendarNextRequest'
@@ -414,6 +415,7 @@ components:
         - $ref: '#/components/schemas/OpportunityPriorityItemsRequest'
         - $ref: '#/components/schemas/JournalRecentRequest'
         - $ref: '#/components/schemas/JournalAppendRequest'
+        - $ref: '#/components/schemas/BehaviorEventsRequest'
         - $ref: '#/components/schemas/WhisperSuggestRequest'
       discriminator:
         propertyName: type
@@ -430,7 +432,9 @@ components:
           account_positions: '#/components/schemas/AccountPositionsRequest'
           account_risk: '#/components/schemas/AccountRiskRequest'
           equity_today: '#/components/schemas/EquityTodayRequest'
+          pulse_status: '#/components/schemas/PulseStatusRequest'
           market_mini: '#/components/schemas/MarketMiniRequest'
+          market_snapshot: '#/components/schemas/MarketMiniRequest'
           market_symbols: '#/components/schemas/MarketSymbolsRequest'
           market_calendar_next: '#/components/schemas/MarketCalendarNextRequest'
           market_regime: '#/components/schemas/MarketRegimeRequest'
@@ -438,57 +442,62 @@ components:
           opportunity_priority_items: '#/components/schemas/OpportunityPriorityItemsRequest'
           journal_recent: '#/components/schemas/JournalRecentRequest'
           journal_append: '#/components/schemas/JournalAppendRequest'
+          behavior_events: '#/components/schemas/BehaviorEventsRequest'
           whisper_suggest: '#/components/schemas/WhisperSuggestRequest'
 
-    ActionQueryRequest:
-      type: object
-      required: [type]
-      properties:
-        type:
-          type: string
-          description: Action verb
-          enum: [
-            whisper_suggest,
-            session_boot,
-            state_snapshot,
-            trades_recent,
-            trades_history_mt5,
-            account_info,
-            account_positions,
-            account_risk,
-            equity_today,
-            market_mini,
-            market_symbols,
-            market_calendar_next,
-            market_regime,
-            liquidity_map,
-            opportunity_priority_items,
-            journal_recent,
-            journal_append,
-            position_open,
-            position_close,
-            position_modify,
-            position_hedge
-          ]
-        payload:
-          description: Action-specific parameters (varies by verb)
-          oneOf:
-            - $ref: '#/components/schemas/PositionClosePayload'
-            - $ref: '#/components/schemas/PositionOpenPayload'
-            - $ref: '#/components/schemas/PositionModifyPayload'
-            - $ref: '#/components/schemas/PositionHedgePayload'
-            - $ref: '#/components/schemas/SessionBootPayload'
-            - $ref: '#/components/schemas/TradesRecentPayload'
-            - $ref: '#/components/schemas/TradesHistoryMt5Payload'
-            - $ref: '#/components/schemas/MarketCalendarNextPayload'
-            - $ref: '#/components/schemas/LiquidityMapPayload'
-            - $ref: '#/components/schemas/OpportunityPriorityItemsPayload'
-            - $ref: '#/components/schemas/JournalRecentPayload'
-            - $ref: '#/components/schemas/JournalAppendPayload'
-            - $ref: '#/components/schemas/WhisperSuggestPayload'
-            - type: object
-              additionalProperties: true
-              description: Generic object for verbs that take no parameters
+      ActionQueryRequest:
+        type: object
+        required: [type]
+        properties:
+          type:
+            type: string
+            description: Action verb
+            enum: [
+              whisper_suggest,
+              session_boot,
+              state_snapshot,
+              trades_recent,
+              trades_history_mt5,
+              account_info,
+              account_positions,
+              account_risk,
+              equity_today,
+              pulse_status,
+              market_mini,
+              market_snapshot,
+              market_symbols,
+              market_calendar_next,
+              market_regime,
+              liquidity_map,
+              opportunity_priority_items,
+              journal_recent,
+              journal_append,
+              behavior_events,
+              position_open,
+              position_close,
+              position_modify,
+              position_hedge
+            ]
+          payload:
+            description: Action-specific parameters (varies by verb)
+            oneOf:
+              - $ref: '#/components/schemas/PositionClosePayload'
+              - $ref: '#/components/schemas/PositionOpenPayload'
+              - $ref: '#/components/schemas/PositionModifyPayload'
+              - $ref: '#/components/schemas/PositionHedgePayload'
+              - $ref: '#/components/schemas/SessionBootPayload'
+              - $ref: '#/components/schemas/TradesRecentPayload'
+              - $ref: '#/components/schemas/TradesHistoryMt5Payload'
+              - $ref: '#/components/schemas/MarketCalendarNextPayload'
+              - $ref: '#/components/schemas/LiquidityMapPayload'
+              - $ref: '#/components/schemas/OpportunityPriorityItemsPayload'
+              - $ref: '#/components/schemas/PulseStatusPayload'
+              - $ref: '#/components/schemas/JournalRecentPayload'
+              - $ref: '#/components/schemas/JournalAppendPayload'
+              - $ref: '#/components/schemas/WhisperSuggestPayload'
+              - type: object
+                additionalProperties: true
+                description: Generic object for verbs that take no parameters
 
     # ----- Request variants (typed by 'type') -----
     PositionOpenRequest:
@@ -568,17 +577,24 @@ components:
         type: { type: string, const: account_risk }
         payload: { type: object, additionalProperties: false }
 
-    EquityTodayRequest:
-      type: object
-      required: [type]
-      properties:
-        type: { type: string, const: equity_today }
-        payload: { type: object, additionalProperties: false }
+      EquityTodayRequest:
+        type: object
+        required: [type]
+        properties:
+          type: { type: string, const: equity_today }
+          payload: { type: object, additionalProperties: false }
 
-    MarketMiniRequest:
-      type: object
-      required: [type]
-      properties:
+      PulseStatusRequest:
+        type: object
+        required: [type, payload]
+        properties:
+          type: { type: string, const: pulse_status }
+          payload: { $ref: '#/components/schemas/PulseStatusPayload' }
+
+      MarketMiniRequest:
+        type: object
+        required: [type]
+        properties:
         type: { type: string, const: market_mini }
         payload: { type: object, additionalProperties: false }
 
@@ -624,17 +640,24 @@ components:
         type: { type: string, const: journal_recent }
         payload: { $ref: '#/components/schemas/JournalRecentPayload' }
 
-    JournalAppendRequest:
-      type: object
-      required: [type, payload]
-      properties:
-        type: { type: string, const: journal_append }
-        payload: { $ref: '#/components/schemas/JournalAppendPayload' }
+      JournalAppendRequest:
+        type: object
+        required: [type, payload]
+        properties:
+          type: { type: string, const: journal_append }
+          payload: { $ref: '#/components/schemas/JournalAppendPayload' }
 
-    WhisperSuggestRequest:
-      type: object
-      required: [type]
-      properties:
+      BehaviorEventsRequest:
+        type: object
+        required: [type]
+        properties:
+          type: { type: string, const: behavior_events }
+          payload: { type: object, additionalProperties: false }
+
+      WhisperSuggestRequest:
+        type: object
+        required: [type]
+        properties:
         type: { type: string, const: whisper_suggest }
         payload: { $ref: '#/components/schemas/WhisperSuggestPayload' }
 
@@ -713,17 +736,23 @@ components:
         symbol: { type: string, nullable: true }
         timeframe: { type: string, nullable: true, example: 'M5' }
 
-    OpportunityPriorityItemsPayload:
-      type: object
-      properties:
-        candidates: { type: array, items: { type: object } }
-        symbols: { type: array, items: { type: string } }
-        constraints: { type: object, additionalProperties: true }
+      OpportunityPriorityItemsPayload:
+        type: object
+        properties:
+          candidates: { type: array, items: { type: object } }
+          symbols: { type: array, items: { type: string } }
+          constraints: { type: object, additionalProperties: true }
 
-    JournalRecentPayload:
-      type: object
-      properties:
-        limit: { type: integer, minimum: 1, maximum: 200 }
+      PulseStatusPayload:
+        type: object
+        required: [symbol]
+        properties:
+          symbol: { type: string }
+
+      JournalRecentPayload:
+        type: object
+        properties:
+          limit: { type: integer, minimum: 1, maximum: 200 }
 
     JournalAppendPayload:
       type: object
