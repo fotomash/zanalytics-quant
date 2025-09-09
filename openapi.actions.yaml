@@ -389,6 +389,68 @@ paths:
         '404': { description: Not Found }
         '500': { description: Server Error }
 
+  /trade/open:
+    post:
+      summary: Open a new trading position
+      operationId: postTradeOpen
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PositionOpenPayload'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PositionActionResponse'
+        '400': { description: Bad Request }
+        '500': { description: Server Error }
+
+  /trade/close:
+    post:
+      summary: Close an existing trading position
+      operationId: postTradeClose
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PositionClosePayload'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PositionActionResponse'
+        '400': { description: Bad Request }
+        '404': { description: Not Found }
+        '500': { description: Server Error }
+
+  /trade/modify:
+    post:
+      summary: Modify stop-loss or take-profit for a position
+      operationId: postTradeModify
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PositionModifyPayload'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PositionActionResponse'
+        '400': { description: Bad Request }
+        '404': { description: Not Found }
+        '500': { description: Server Error }
+
 components:
   schemas:
     ActionQuery:

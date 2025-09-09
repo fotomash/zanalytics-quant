@@ -196,3 +196,45 @@ actions:
           type: number
           description: Optional hedge volume (defaults to full position volume)
       required: [ticket]
+
+  - name: trade_open
+    description: Open a new trading position
+    endpoint: /trade/open
+    method: POST
+    parameters:
+      type: object
+      properties:
+        symbol: { type: string }
+        side: { type: string, enum: [buy, sell] }
+        volume: { type: number }
+        type: { type: string, enum: [market, limit, stop], nullable: true }
+        price: { type: number, nullable: true }
+        sl: { type: number, nullable: true }
+        tp: { type: number, nullable: true }
+        deviation: { type: integer, nullable: true }
+        client_order_id: { type: string, nullable: true }
+      required: [symbol, side, volume]
+
+  - name: trade_close
+    description: Close an existing trading position
+    endpoint: /trade/close
+    method: POST
+    parameters:
+      type: object
+      properties:
+        ticket: { type: integer, description: Trade ticket ID to close }
+        volume: { type: number, nullable: true, description: Optional volume to close }
+        deviation: { type: integer, nullable: true }
+      required: [ticket]
+
+  - name: trade_modify
+    description: Modify stop-loss or take-profit for a position
+    endpoint: /trade/modify
+    method: POST
+    parameters:
+      type: object
+      properties:
+        ticket: { type: integer, description: Trade ticket ID }
+        sl: { type: number, nullable: true }
+        tp: { type: number, nullable: true }
+      required: [ticket]

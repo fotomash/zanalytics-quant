@@ -8,6 +8,7 @@ from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, Depends, HTTPException, Body, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, conlist, confloat
+from api.trade import router as trade_router
 
 try:
     from pulse_kernel import PulseKernel
@@ -75,7 +76,7 @@ class TopSignal(BaseModel):
 
 
 class TopSignalsResponse(BaseModel):
-    items: conlist(TopSignal, min_items=0, max_items=25)
+    items: conlist(TopSignal, min_length=0, max_length=25)
 
 
 class PulseRuntime:
@@ -111,6 +112,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(trade_router)
 
 
 @app.get("/pulse/health")

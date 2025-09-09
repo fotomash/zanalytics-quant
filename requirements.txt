@@ -64,3 +64,4 @@ asyncpg==0.29.0
 fakeredis==2.23.2
 confluent-kafka==2.3.0
 tenacity==8.2.3
+MetaTrader5==5.0.45
