@@ -101,9 +101,13 @@ This modular design facilitates secure separation of concerns, easy extensibilit
 - `TRAEFIK_DOMAIN`: Domain for Traefik dashboard.
 - `TRAEFIK_USERNAME`: Username for Traefik basic authentication.
 - `ACME_EMAIL`: Email address for Let's Encrypt notifications.
-- `MT5_API_URL`: Base URL where the MT5 service is available (e.g., `http://mt5:5001`).
-- `DJANGO_API_URL`: Base URL of the Django API service (e.g., `http://django:8000`).
+- `MT5_API_URL`: Base URL where the MT5 service is available (default `http://mt5:5001`).
+- `MT5_URL`: Direct MT5 bridge URL used by dashboards (default `http://mt5:5001`).
+- `DJANGO_API_URL`: Base URL of the Django API service (default `http://django:8000`).
 - `DJANGO_API_PREFIX`: Path prefix for all Django API endpoints (default `/api/v1`).
+- `DASH_METRICS_PATH`: Path to dashboard metrics configuration (default `dashboard/config/dashboard_metrics_summary.yaml`).
+- `DASH_PROMPT_PATH`: Path to dashboard prompt template (default `dashboard/config/dashboard_prompt.txt`).
+- `BRIDGE_TOKEN` *(optional)*: Token sent as `X-Bridge-Token` header to the MT5 bridge.
 - `DJANGO_SECRET_KEY`: your-secret
 
 
@@ -256,9 +260,15 @@ CUSTOM_USER=your_user
 PASSWORD=super_secret_password
 
 # MT5 and API endpoints
-MT5_API_URL=http://mt5-api:8050
-DJANGO_API_URL=http://django-api:8000
+MT5_URL=http://mt5:5001
+MT5_API_URL=http://mt5:5001
+DJANGO_API_URL=http://django:8000
 DJANGO_API_PREFIX=/api/v1
+BRIDGE_TOKEN=
+
+# Dashboard config
+DASH_METRICS_PATH=dashboard/config/dashboard_metrics_summary.yaml
+DASH_PROMPT_PATH=dashboard/config/dashboard_prompt.txt
 
 # Database config
 POSTGRES_HOST=postgres
