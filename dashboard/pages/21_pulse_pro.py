@@ -141,35 +141,50 @@ with hc3:
     )
 
 render_status_row()
+# --- Symbol selector (shared behavior with Whisperer) ---
+try:
+    _symbols = fetch_symbols() or []
+except Exception:
+    _symbols = []
+if 'pro_symbol' not in st.session_state:
+    st.session_state['pro_symbol'] = (_symbols[0] if _symbols else 'XAUUSD')
+sel_sym_pro = st.selectbox("Symbol", _symbols or ['XAUUSD'], index=(_symbols.index(st.session_state['pro_symbol']) if (_symbols and st.session_state['pro_symbol'] in _symbols) else 0), key="pro_symbol_select")
+st.session_state['pro_symbol'] = sel_sym_pro
 st.divider()
 
 
 # --- Grid: Left (trading status), Center (donuts), Right (Whisperer) ---------
+# Shared live numbers (avoid cross-panel scope issues)
+_bal = float((acct or {}).get("balance") or 0.0)
+_eq  = float((acct or {}).get("equity") or 0.0)
+_sod = float((risk or {}).get("sod_equity") or _bal or _eq)
+_pnl = _eq - _sod
+_targ = float((risk or {}).get("target_amount") or 0.0)
+_loss = float((risk or {}).get("loss_amount") or 0.0)
+_exp_pct = (risk or {}).get("exposure_pct")
+if isinstance(_exp_pct, (int, float)) and _exp_pct > 1:
+    _exp_frac = _exp_pct / 100.0
+else:
+    _exp_frac = float(_exp_pct or 0.0)
+
 col_left, col_center, col_right = st.columns([1.2, 2.0, 1.2])
 
 # LEFT PANEL — Trading Status
 with col_left:
     st.markdown("#### Trading Status")
-    bal = float((acct or {}).get("balance") or 0.0)
-    eq = float((acct or {}).get("equity") or 0.0)
-    sod = float((risk or {}).get("sod_equity") or bal or eq)
-    pnl = eq - sod
-    targ = float((risk or {}).get("target_amount") or 0.0)
-    loss = float((risk or {}).get("loss_amount") or 0.0)
-
     st.markdown("<div class='glass'>", unsafe_allow_html=True)
     st.markdown("<div class='metric-label'>Balance</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='metric-main'>${bal:,.0f}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='metric-main'>${_bal:,.0f}</div>", unsafe_allow_html=True)
     st.markdown("<div class='metric-label' style='margin-top:8px'>Equity</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='metric-main'>${eq:,.0f}</div>", unsafe_allow_html=True)
-    pnl_color = "#22C55E" if pnl >= 0 else "#EF4444"
+    st.markdown(f"<div class='metric-main'>${_eq:,.0f}</div>", unsafe_allow_html=True)
+    pnl_color = "#22C55E" if _pnl >= 0 else "#EF4444"
     st.markdown("<div class='metric-label' style='margin-top:8px'>P&L</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='metric-main' style='color:{pnl_color}'>${pnl:+,.2f}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='metric-main' style='color:{pnl_color}'>${_pnl:+,.2f}</div>", unsafe_allow_html=True)
     st.markdown("<hr style='border-color:rgba(255,255,255,0.08)'>", unsafe_allow_html=True)
     st.caption("Session Limits")
-    st.markdown(f"<div style='color:#9CA3AF;font-size:12px'>Start: ${sod:,.0f}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div style='color:#9CA3AF;font-size:12px'>Target: <span style='color:#22C55E'>+${targ:,.0f}</span></div>", unsafe_allow_html=True)
-    st.markdown(f"<div style='color:#9CA3AF;font-size:12px'>Daily Limit: <span style='color:#EF4444'>-${loss:,.0f}</span></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='color:#9CA3AF;font-size:12px'>Start: ${_sod:,.0f}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='color:#9CA3AF;font-size:12px'>Target: <span style='color:#22C55E'>+${_targ:,.0f}</span></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='color:#9CA3AF;font-size:12px'>Daily Limit: <span style='color:#EF4444'>-${_loss:,.0f}</span></div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
     # Pattern Watch (simple, uses placeholders until a feed exists)
@@ -193,18 +208,16 @@ with col_center:
     # Session Vitals donut (outer: hard deck, middle: daily DD, inner: P&L progress)
     with c1:
         try:
-            baseline = float((risk or {}).get("baseline_equity") or bal or eq)
-            target_amt = float((risk or {}).get("target_amount") or 0.0)
-            loss_amt = float((risk or {}).get("loss_amount") or 0.0)
+            baseline = float((risk or {}).get("baseline_equity") or _bal or _eq)
             st.markdown("##### Session Vitals")
             fig = donut_session_vitals(
-                equity_usd=eq,
-                sod_equity_usd=sod,
+                equity_usd=_eq,
+                sod_equity_usd=_sod,
                 baseline_equity_usd=baseline,
                 daily_profit_pct=float((risk or {}).get("target_pct") or 0.0),
                 daily_risk_pct=float((risk or {}).get("loss_pct") or 0.0),
-                target_amount_usd=target_amt,
-                loss_amount_usd=loss_amt,
+                target_amount_usd=_targ,
+                loss_amount_usd=_loss,
                 max_total_dd_pct=float((risk or {}).get("max_total_dd_pct") or 10.0),
                 since_inception_pct=None,
                 size=(260, 260),
@@ -219,7 +232,7 @@ with col_center:
                 prev_close_f = None
             cso1, cso2 = st.columns(2)
             with cso1:
-                st.caption(f"SoD (11pm): ${sod:,.0f}")
+                st.caption(f"SoD (11pm): ${_sod:,.0f}")
             with cso2:
                 st.caption(f"Prev Close: ${prev_close_f:,.0f}" if prev_close_f is not None else "Prev Close: —")
         except Exception:
@@ -228,29 +241,17 @@ with col_center:
     # Behavioral Compass donut (system overview)
     with c2:
         try:
-            # Exposure as 0..1
-            exp_pct = (risk or {}).get("exposure_pct")
-            if isinstance(exp_pct, (int, float)) and exp_pct > 1:
-                exp_pct = exp_pct / 100.0
-            exp_frac = float(exp_pct or 0.0)
-
             # Daily PnL normalized to ±1
             pnl_norm = 0.0
-            try:
-                if target_amt and pnl >= 0:
-                    pnl_norm = min(1.0, pnl / target_amt)
-                elif loss_amt and pnl < 0:
-                    pnl_norm = -min(1.0, abs(pnl) / loss_amt)
-            except Exception:
-                pnl_norm = 0.0
+            if _targ and _pnl >= 0:
+                pnl_norm = min(1.0, _pnl / _targ)
+            elif _loss and _pnl < 0:
+                pnl_norm = -min(1.0, abs(_pnl) / _loss)
 
             # Risk used fraction (0..1) of daily DD consumed
             risk_used = 0.0
-            try:
-                if eq < sod and loss_amt > 0:
-                    risk_used = max(0.0, min(1.0, (sod - eq) / loss_amt))
-            except Exception:
-                risk_used = 0.0
+            if _eq < _sod and _loss > 0:
+                risk_used = max(0.0, min(1.0, (_sod - _eq) / _loss))
 
             # Patience ratio tolerant conversion
             pr_raw = (mirror or {}).get("patience_ratio")
@@ -270,18 +271,18 @@ with col_center:
             st.markdown("##### Behavioral Compass")
             # Use system overview donut as a compact compass
             fig2 = donut_system_overview(
-                equity_usd=eq,
+                equity_usd=_eq,
                 pnl_day_norm=pnl_norm,
                 pnl_since_inception_pct=None,
                 risk_used_pct=risk_used,
-                exposure_pct=exp_frac,
+                exposure_pct=_exp_frac,
                 discipline_score=float((mirror or {}).get("discipline") or 0.0),
                 patience_ratio=pr,
                 # Anchor ticks: +1.0 at target, -1.0 at loss cap
-                daily_target_norm=(1.0 if target_amt else None),
-                daily_loss_norm=(-1.0 if loss_amt else None),
-                target_amount=target_amt,
-                loss_amount=loss_amt,
+                daily_target_norm=(1.0 if _targ else None),
+                daily_loss_norm=(-1.0 if _loss else None),
+                target_amount=_targ,
+                loss_amount=_loss,
                 size=(260, 260),
             )
             st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
