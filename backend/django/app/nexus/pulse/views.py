@@ -218,16 +218,24 @@ class BarsEnriched(views.APIView):
         except Exception:
             enrich = True
 
-        data = _load_minute_data(symbol)
+        try:
+            data = _load_minute_data(symbol)
+        except ImportError as e:
+            return Response({"error": str(e)}, status=503)
+        except Exception:
+            return Response({"error": "minute data unavailable"}, status=503)
         df = data.get(tf)
-        if df is None or df.empty:
-            return Response({"items": []})
+        if df is None or getattr(df, "empty", True):
+            return Response({"error": "no data available"}, status=503)
         # Tail to limit
         df = df.tail(max(1, min(limit, 800))).copy()
         # Basic enrichments
         if enrich:
             try:
                 import pandas as _p
+            except Exception:
+                return Response({"error": "pandas library is required for enrichment"}, status=503)
+            try:
                 # pct change
                 df["ret_close_pct"] = _p.to_numeric(df["close"], errors='coerce').pct_change().fillna(0.0)
                 # ATR14 approximation (HL range SMA)
@@ -257,7 +265,7 @@ class BarsEnriched(views.APIView):
                     except Exception:
                         continue
             except Exception:
-                pass
+                return Response({"error": "failed to enrich bars"}, status=503)
         # Serialize
         try:
             items = []
@@ -274,13 +282,13 @@ class BarsEnriched(views.APIView):
                     "low": float(row.get('low') or 0),
                     "close": float(row.get('close') or 0),
                     "volume": float(row.get('volume') or 0),
-                    "ret_close_pct": float(row.get('ret_close_pct')) if 'ret_close_pct' in df.columns else None,
-                    "atr14": float(row.get('atr14')) if 'atr14' in df.columns else None,
-                    "sma20": float(row.get('sma20')) if 'sma20' in df.columns else None,
-                    "sma50": float(row.get('sma50')) if 'sma50' in df.columns else None,
-                    "vwap": float(row.get('vwap')) if 'vwap' in df.columns else None,
-                    "fvg_bull": bool(row.get('fvg_bull')) if 'fvg_bull' in df.columns else False,
-                    "fvg_bear": bool(row.get('fvg_bear')) if 'fvg_bear' in df.columns else False,
+                    "ret_close_pct": float(row.get('ret_close_pct')) if 'ret_close_pct' in df.columns and _p.notna(row.get('ret_close_pct')) else None,
+                    "atr14": float(row.get('atr14')) if 'atr14' in df.columns and _p.notna(row.get('atr14')) else None,
+                    "sma20": float(row.get('sma20')) if 'sma20' in df.columns and _p.notna(row.get('sma20')) else None,
+                    "sma50": float(row.get('sma50')) if 'sma50' in df.columns and _p.notna(row.get('sma50')) else None,
+                    "vwap": float(row.get('vwap')) if 'vwap' in df.columns and _p.notna(row.get('vwap')) else None,
+                    "fvg_bull": bool(row.get('fvg_bull')) if 'fvg_bull' in df.columns and _p.notna(row.get('fvg_bull')) else False,
+                    "fvg_bear": bool(row.get('fvg_bear')) if 'fvg_bear' in df.columns and _p.notna(row.get('fvg_bear')) else False,
                 })
             payload = {"items": items, "symbol": symbol, "timeframe": tf}
             # Helpful links for LLMs/agents (relative paths; no mock data)
