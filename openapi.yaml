@@ -342,6 +342,27 @@ paths:
       responses:
         '200': { description: OK }
 
+  /api/v1/positions/{ticket}/modify:
+    post:
+      summary: Modify SL/TP for an existing position by ticket in path
+      operationId: postPositionsModifyByTicket
+      parameters:
+        - in: path
+          name: ticket
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sl: { type: number, nullable: true }
+                tp: { type: number, nullable: true }
+      responses:
+        '200': { description: OK }
+
   /api/v1/positions/hedge:
     post:
       summary: Open opposite-side hedge order for a position
