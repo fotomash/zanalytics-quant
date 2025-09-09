@@ -8,11 +8,14 @@ Overview
 
 Quick reference
 - Open: POST `/api/v1/positions/open` (alias → `/api/v1/orders/market`)
-  { symbol, volume, side, sl?, tp?, comment? }
+  { symbol, side, volume, sl?, tp?, comment? }
+  - Aliases accepted: `instrument`→symbol, `action`→side, `lots`/`qty`→volume
 - Close full/partial: POST `/api/v1/positions/close`
   { ticket, fraction? | volume? }
+  - Alias: `id`→ticket
 - Modify SL/TP: POST `/api/v1/positions/modify`
   { ticket, sl?, tp? }
+  - Alias: `id`→ticket
 - Hedge: POST `/api/v1/positions/hedge`
   { ticket, volume? }  (opposite side is inferred from the position)
 
