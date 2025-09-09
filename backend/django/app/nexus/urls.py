@@ -53,6 +53,8 @@ from .views import (
     PositionProtectOptionsView,
     UserPrefsView,
     StateSnapshotView,
+    HistoryDealsProxyView,
+    HistoryOrdersProxyView,
 )
 from .views_positions import (
     PositionsOpenView,
@@ -128,6 +130,8 @@ urlpatterns = [
     path('profit-horizon', ProfitHorizonView.as_view(), name='profit-horizon'),
     path('trades/history', TradeHistoryView.as_view(), name='trades-history'),
     path('trades/recent', TradesRecentView.as_view(), name='trades-recent'),
+    path('history_deals_get', HistoryDealsProxyView.as_view(), name='history-deals-get'),
+    path('history_orders_get', HistoryOrdersProxyView.as_view(), name='history-orders-get'),
     path('mirror/state', MirrorStateView.as_view(), name='mirror-state'),
     path('market/mini', MarketMiniView.as_view(), name='market-mini'),
     path('market/fetch', MarketFetchView.as_view(), name='market-fetch'),
