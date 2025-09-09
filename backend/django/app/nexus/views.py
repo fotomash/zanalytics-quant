@@ -2657,7 +2657,9 @@ class OrderCloseProxyView(views.APIView):
                     return None
                 return None
 
-            # Prefer explicit volume if provided; else fraction; if neither provided, attempt full close by resolving volume from bridge
+            # Prefer explicit volume if provided; else fraction; if neither provided, call v2 with minimal payload
+            # Rationale: mt5_gateway accepts bare {ticket} for full close. The legacy Flask compat endpoint requires
+            # fraction/volume, so a 400 here will trigger our fallbacks below.
             payload = {'ticket': ticket}
             if volume is not None:
                 try:
@@ -2669,18 +2671,7 @@ class OrderCloseProxyView(views.APIView):
                     payload['fraction'] = float(fraction)
                 except Exception:
                     return Response({'error': 'fraction must be numeric'}, status=400)
-            else:
-                # Full close intent: resolve current volume from bridge
-                pos = _fetch_position(ticket)
-                if pos and pos.get('volume') is not None:
-                    try:
-                        payload['volume'] = float(pos.get('volume'))
-                    except Exception:
-                        # Fall back to fraction when volume parse fails
-                        payload['fraction'] = 0.99  # close nearly full if exact volume unavailable
-                else:
-                    # If we cannot resolve position, proceed with v2 and let bridge respond; we'll retry/fallback below
-                    payload['fraction'] = 0.99
+            # else: keep minimal {'ticket'} for the primary v2 attempt
 
             # Attempt with retry/backoff on transient HTTP issues or 404s
             last_resp = None
@@ -2693,7 +2684,7 @@ class OrderCloseProxyView(views.APIView):
                         return Response(body if isinstance(body, dict) else {'ok': True})
                     except Exception:
                         return Response({'ok': True})
-                if r.status_code in (404, 502, 503, 504):
+                if r.status_code in (400, 404, 502, 503, 504):
                     # Small backoff then retry
                     import time as _t
                     _t.sleep(0.35 * (attempt + 1))
@@ -2719,7 +2710,8 @@ class OrderCloseProxyView(views.APIView):
                         except Exception:
                             frac = None
                     if frac is None:
-                        frac = 0.99
+                        # Intent is full close when neither provided; prefer full 1.0 for legacy partial_close
+                        frac = 1.0
                     rl = requests.post(f"{base}/partial_close", json={'ticket': int(ticket), 'symbol': symbol, 'fraction': float(frac)}, timeout=6.0)
                     if rl.ok:
                         body = rl.json() if rl.headers.get('content-type','').startswith('application/json') else {'ok': True}
@@ -2730,13 +2722,16 @@ class OrderCloseProxyView(views.APIView):
             # 2) If we can fetch the position, try legacy full-close endpoint which requires full position data
             if pos:
                 try:
-                    position_payload = {
-                        'type': int(pos.get('type') or pos.get('Type') or 0),
-                        'ticket': int(pos.get('ticket') or pos.get('Ticket') or ticket),
-                        'symbol': str(pos.get('symbol') or pos.get('Symbol')),
-                        'volume': float(pos.get('volume') or pos.get('Volume') or 0.0),
-                    }
-                    rc = requests.post(f"{base}/close_position", json={'position': position_payload}, timeout=6.0)
+                    # Try modern gateway shape first; fall back to legacy Flask shape
+                    rc = requests.post(f"{base}/close_position", json={'ticket': int(ticket)}, timeout=6.0)
+                    if not rc.ok:
+                        position_payload = {
+                            'type': int(pos.get('type') or pos.get('Type') or 0),
+                            'ticket': int(pos.get('ticket') or pos.get('Ticket') or ticket),
+                            'symbol': str(pos.get('symbol') or pos.get('Symbol')),
+                            'volume': float(pos.get('volume') or pos.get('Volume') or 0.0),
+                        }
+                        rc = requests.post(f"{base}/close_position", json={'position': position_payload}, timeout=6.0)
                     if rc.ok:
                         body = rc.json() if rc.headers.get('content-type','').startswith('application/json') else {'ok': True}
                         return Response({'ok': True, 'result': body})
