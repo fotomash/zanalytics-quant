@@ -193,26 +193,24 @@ class DjangoAPIClient:
             self.logger.error(f"Error sending market order: {e}")
             return {'error': str(e)}
 
-    def modify_sl_tp(self, id, ticket, stop_loss, take_profit) -> Dict:
+    def modify_sl_tp(self, ticket, sl=None, tp=None) -> Dict:
         """
         Modify stop loss and take profit for an existing order.
 
         Args:
-            id: The order ID
-            ticket: The order ticket
-            stop_loss: New stop loss price
-            take_profit: New take profit price
+            ticket: The position ticket
+            sl: New stop loss price (optional)
+            tp: New take profit price (optional)
 
         Returns:
             Dictionary with the modification result
         """
         try:
-            data = {
-                'id': id,
-                'ticket': ticket,
-                'stop_loss': stop_loss,
-                'take_profit': take_profit
-            }
+            data = {'ticket': ticket}
+            if sl is not None:
+                data['sl'] = sl
+            if tp is not None:
+                data['tp'] = tp
 
             response = self._request('post', self._build_url('modify_sl_tp/'), json=data)
             return response.json()
