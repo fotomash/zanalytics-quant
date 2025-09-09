@@ -21,7 +21,8 @@ from .serializers import (
 )
 from .filters import TradeFilter, TickFilter, BarFilter
 
-from app.utils.api.order import send_market_order, modify_sl_tp
+from app.utils.api.order import send_market_order, modify_sl_tp as modify_sl_tp_position
+from .orders_service import modify_sl_tp as modify_sl_tp_ticket
 from app.utils.arithmetics import convert_lots_to_usd, calculate_commission, get_price_at_pnl
 from app.utils.policies import load_policies
 import os
@@ -171,34 +172,32 @@ class ModifySLTPView(views.APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        data = request.data
-        required_fields = ['id', 'ticket', 'stop_loss', 'take_profit']
-        for field in required_fields:
-            if field not in data:
-                return Response({'error': f'Missing field: {field}'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        id = data.get('id')
+        data = request.data or {}
         ticket = data.get('ticket')
-        stop_loss = data.get('stop_loss')
-        take_profit = data.get('take_profit')
+        if ticket is None:
+            return Response({'error': 'Missing field: ticket'}, status=status.HTTP_400_BAD_REQUEST)
 
-        modify_response = modify_sl_tp(
-            id=id,
-            ticket=ticket,
-            stop_loss=stop_loss,
-            take_profit=take_profit
-        )
+        sl = data.get('sl') or data.get('stop_loss')
+        tp = data.get('tp') or data.get('take_profit')
+        if sl is None and tp is None:
+            return Response({'error': 'Provide sl and/or tp'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not modify_response:
-            return Response({'error': 'Failed to modify SL/TP.'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            mutation = TradeClosePricesMutation.objects.filter(trade__id=id).latest('mutation_time')
-            mutation_serializer = TradeClosePricesMutationSerializer(mutation)
+        ok, modify_response = modify_sl_tp_ticket(int(ticket), sl=sl, tp=tp)
+        if not ok:
+            return Response({'error': 'Failed to modify SL/TP.', 'detail': modify_response},
+                            status=status.HTTP_400_BAD_REQUEST)
 
-            return Response({'mutation': mutation_serializer.data}, status=status.HTTP_201_CREATED)
-        except TradeClosePricesMutation.DoesNotExist:
-            return Response({'error': 'Mutation created but not found in database.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        trade_id = data.get('id')
+        if trade_id is not None:
+            try:
+                mutation = TradeClosePricesMutation.objects.filter(trade__id=trade_id).latest('mutation_time')
+                mutation_serializer = TradeClosePricesMutationSerializer(mutation)
+                return Response({'mutation': mutation_serializer.data}, status=status.HTTP_201_CREATED)
+            except TradeClosePricesMutation.DoesNotExist:
+                return Response({'error': 'Mutation created but not found in database.'},
+                                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({'ok': True, 'result': modify_response}, status=status.HTTP_200_OK)
 
 
 class TickViewSet(viewsets.ReadOnlyModelViewSet):
@@ -651,7 +650,7 @@ class ProtectPositionView(views.APIView):
             pobj.symbol = sym
             pobj.type = int(typ)
 
-            result = modify_sl_tp(pobj, sl=new_sl, tp=None)
+            result = modify_sl_tp_position(pobj, sl=new_sl, tp=None)
             if result is None:
                 return Response({"error": "Failed to modify SL"}, status=status.HTTP_502_BAD_GATEWAY)
             return Response({"ok": True, "ticket": pobj.ticket, "new_sl": new_sl, "action": action})
@@ -2520,9 +2519,8 @@ class OrderModifyProxyView(views.APIView):
         tp = data.get('tp')
         # Best-effort: call bridge partial modify is not available; use helper if possible
         try:
-            # Use dummy id=0 where unknown
-            resp = modify_sl_tp(id=0, ticket=int(ticket), stop_loss=sl, take_profit=tp)
-            return Response({'ok': bool(resp), 'result': resp})
+            ok, data = modify_sl_tp_ticket(int(ticket), sl=sl, tp=tp)
+            return Response({'ok': ok, 'result': data}, status=200 if ok else 400)
         except Exception as e:
             return Response({'error': str(e)}, status=500)
 

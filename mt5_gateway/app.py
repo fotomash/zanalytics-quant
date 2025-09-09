@@ -127,7 +127,7 @@ def _opposite_side(position_type: int) -> int:
     return mt5.ORDER_TYPE_BUY if position_type == mt5.POSITION_TYPE_SELL else mt5.ORDER_TYPE_SELL
 
 
-def _deal(symbol: str, volume: float, side: int, deviation: int = 20, comment: str = "") -> Dict[str, Any]:
+def _deal(symbol: str, volume: float, side: int, deviation: int = 20, comment: str = "", position: Optional[int] = None) -> Dict[str, Any]:
     tick = mt5.symbol_info_tick(symbol)
     if not tick:
         raise HTTPException(502, detail="no_tick")
@@ -143,6 +143,8 @@ def _deal(symbol: str, volume: float, side: int, deviation: int = 20, comment: s
         "type_filling": mt5.ORDER_FILLING_IOC,
         "comment": comment or "",
     }
+    if position is not None:
+        req["position"] = int(position)
     res = mt5.order_send(req)
     try:
         return res._asdict()
@@ -176,7 +178,9 @@ def partial_close_v2(body: PartialCloseV2):
         raise HTTPException(400, detail="volume_non_positive")
 
     side = _opposite_side(int(pos.type))
-    result = _deal(symbol, vol, side, deviation=int(body.deviation or 20), comment=body.comment or f"partial_close_v2 ticket {body.ticket}")
+    result = _deal(symbol, vol, side, deviation=int(body.deviation or 20),
+                   comment=body.comment or f"partial_close_v2 ticket {body.ticket}",
+                   position=body.ticket)
     return {"ok": True, "result": result}
 
 
@@ -203,7 +207,9 @@ def partial_close(body: PartialCloseLegacy):
 
     vol = _clamp_volume(body.symbol, max(min(vol_req, full), 0.0))
     side = _opposite_side(int(pos.type))
-    result = _deal(body.symbol, vol, side, deviation=int(body.deviation or 20), comment=body.comment or f"partial_close ticket {body.ticket}")
+    result = _deal(body.symbol, vol, side, deviation=int(body.deviation or 20),
+                   comment=body.comment or f"partial_close ticket {body.ticket}",
+                   position=body.ticket)
     return {"ok": True, "result": result}
 
 
@@ -221,7 +227,9 @@ def close_position(body: ClosePayload):
     symbol = pos.symbol
     vol = float(pos.volume)
     side = _opposite_side(int(pos.type))
-    result = _deal(symbol, vol, side, deviation=int(body.deviation or 20), comment=body.comment or f"close_position ticket {body.ticket}")
+    result = _deal(symbol, vol, side, deviation=int(body.deviation or 20),
+                   comment=body.comment or f"close_position ticket {body.ticket}",
+                   position=body.ticket)
     return {"ok": True, "result": result}
 
 
