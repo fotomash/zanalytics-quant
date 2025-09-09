@@ -130,6 +130,14 @@ services:
       - .env
     environment:
       - MT5_API_URL=http://mt5:5001
+      - MT5_URL=http://mt5:5001
+      - DJANGO_API_URL=http://django:8000
+      - DJANGO_API_PREFIX=/api/v1
+      - BRIDGE_TOKEN=${BRIDGE_TOKEN:-}
+      - MT5_URL=http://mt5:5001
+      - DJANGO_API_URL=http://django:8000
+      - DJANGO_API_PREFIX=/api/v1
+      - BRIDGE_TOKEN=${BRIDGE_TOKEN:-}
       - MT5_API_STUB_FALLBACK=1
     networks:
       - traefik-public
@@ -588,6 +596,10 @@ services:
       - PYTHONPATH=/app:/app/components:/app/utils:/app/api_integration
       - PULSE_API_URL=http://django:8000
       - MT5_API_URL=http://mt5:5001
+      - MT5_URL=http://mt5:5001
+      - DJANGO_API_URL=http://django:8000
+      - DJANGO_API_PREFIX=/api/v1
+      - BRIDGE_TOKEN=${BRIDGE_TOKEN:-}
     depends_on:
       mt5:
         condition: service_started
