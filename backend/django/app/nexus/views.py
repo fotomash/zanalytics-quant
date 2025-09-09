@@ -2665,9 +2665,7 @@ class OrderCloseProxyView(views.APIView):
                 try:
                     payload['volume'] = float(volume)
                 except Exception:
-                    return Response({'error': 'volume must be numeric'}, status=400)
-            elif fraction is not None:
-                try:
+                    return Response({'error': 'volume must be numeric'}, status=40re
                     payload['fraction'] = float(fraction)
                 except Exception:
                     return Response({'error': 'fraction must be numeric'}, status=400)
