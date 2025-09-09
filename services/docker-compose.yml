@@ -76,9 +76,6 @@ services:
     container_name: mt5
     volumes:
       - ./config:/config
-    ports:
-      - "8000:8000"
-      - "5001:5001"
     networks:
       - traefik-public
       - default
@@ -202,6 +199,7 @@ services:
       - ALERTS_SCORE_HI=90
       - ALERTS_TOXICITY_LIMIT=0.30
       - ALERTS_DD_INTRADAY_WARN=0.025
+      - MT5_API_URL=http://mt5:5001
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
     depends_on:
       postgres:
