@@ -4,7 +4,11 @@ import json
 from typing import Dict, Any, Optional
 import os
 import json
-import pandas as pd
+
+try:  # pandas is optional at runtime
+    import pandas as pd  # type: ignore
+except Exception:  # pragma: no cover - handled gracefully when missing
+    pd = None  # type: ignore
 
 from django.conf import settings
 
@@ -26,7 +30,9 @@ from .gates import KafkaJournalEngine as _KafkaJournalEngine
 import time as _time
 
 
-def _normalize_bars(df: pd.DataFrame | None) -> pd.DataFrame | None:
+def _normalize_bars(df: "pd.DataFrame | None") -> "pd.DataFrame | None":
+    if pd is None:
+        raise ImportError("pandas library is required for bar normalization")
     if df is None or not isinstance(df, pd.DataFrame) or df.empty:
         return None
     # Ensure expected columns
@@ -63,7 +69,11 @@ def _load_minute_data(symbol: str) -> Dict[str, Any]:
     """Load H4/H1/M15/M1 bars for a symbol from DB; fallback to bridge.
 
     Returns dict of pandas DataFrames with columns: timestamp, open, high, low, close, volume.
+    Raises ImportError if pandas is not installed.
     """
+    if pd is None:
+        raise ImportError("pandas library is required to load minute bar data")
+
     out: Dict[str, Any] = {"H4": None, "H1": None, "M15": None, "M1": None}
     tf_map = {
         'H4': ('H4', MT5Timeframe.H4, 300),
