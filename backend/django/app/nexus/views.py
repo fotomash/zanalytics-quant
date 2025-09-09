@@ -3196,6 +3196,50 @@ class UserPrefsView(views.APIView):
             return Response({'error': str(e)}, status=500)
 
 
+class HistoryDealsProxyView(views.APIView):
+    """Proxy MT5 history_deals_get endpoint."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        base = (
+            os.getenv("MT5_URL")
+            or os.getenv("MT5_API_URL")
+            or "http://mt5:5000"
+        )
+        try:
+            r = requests.get(
+                f"{str(base).rstrip('/')}/history_deals_get",
+                params=request.GET,
+                timeout=5,
+            )
+            r.raise_for_status()
+            return Response(r.json())
+        except Exception as e:
+            return Response({"error": str(e)}, status=502)
+
+
+class HistoryOrdersProxyView(views.APIView):
+    """Proxy MT5 history_orders_get endpoint."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        base = (
+            os.getenv("MT5_URL")
+            or os.getenv("MT5_API_URL")
+            or "http://mt5:5000"
+        )
+        try:
+            r = requests.get(
+                f"{str(base).rstrip('/')}/history_orders_get",
+                params=request.GET,
+                timeout=5,
+            )
+            r.raise_for_status()
+            return Response(r.json())
+        except Exception as e:
+            return Response({"error": str(e)}, status=502)
+
+
 class PulseStatusView(views.APIView):
     """Return gate statuses for the PULSE Predictive Flow Framework.
 
