@@ -2192,6 +2192,52 @@ class AccountInfoView(views.APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+        """Proxy MT5 account_info and normalize keys/values.
+
+        Attempts primary `MT5_URL` then falls back to discovered bases.
+        Returns a single normalized dict.
+        """
+        bases = []
+        # Prefer explicit env base first
+        base_env = os.getenv("MT5_URL") or os.getenv("MT5_API_URL")
+        if base_env:
+            bases.append(str(base_env).rstrip('/'))
+        # Then any autodetected bases
+        for b in _mt5_bases():
+            if b not in bases:
+                bases.append(b)
+
+        errors = []
+        for base in bases or ["http://mt5:5001"]:
+            try:
+                r = requests.get(f"{base}/account_info", timeout=2.5)
+                if not r.ok:
+                    errors.append(f"{base}: {r.status_code}")
+                    continue
+                data = r.json() or {}
+                if isinstance(data, list) and data:
+                    data = data[0]
+                if not isinstance(data, dict):
+                    errors.append(f"{base}: invalid payload")
+                    continue
+                # Normalize keys to lowercase snake-ish
+                norm = {}
+                for k, v in data.items():
+                    kk = str(k).strip().lower().replace(" ", "_")
+                    norm[kk] = v
+                # Coerce certain numerics if present
+                for numk in ("balance", "equity", "margin", "margin_free", "margin_level", "profit"):
+                    if numk in norm:
+                        try:
+                            norm[numk] = float(norm[numk])
+                        except Exception:
+                            pass
+                return Response(norm)
+            except Exception as e:
+                errors.append(f"{base}: {e.__class__.__name__}")
+                continue
+        logger.warning("account_info fallback errors: %s", "; ".join(errors))
+        return Response({"error": "mt5 bridge unreachable"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 class JournalAppendView(views.APIView):
     """Append a journal entry; optionally linked to a trade by id.
