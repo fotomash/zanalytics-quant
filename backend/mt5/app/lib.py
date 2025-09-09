@@ -32,28 +32,12 @@ def close_position(position, deviation=20, magic=0, comment='', type_filling=mt5
         logger.error(f"Unknown position type: {position_type}")
         return None
 
-    tick = mt5.symbol_info_tick(position['symbol'])
-    if tick is None:
-        logger.error(f"Failed to get tick for symbol: {position['symbol']}")
-        return None
-
-    price_dict = {
-        0: tick.ask,  # Buy order uses Ask price
-        1: tick.bid   # Sell order uses Bid price
-    }
-
-    price = price_dict[position_type]
-    if price == 0.0:
-        logger.error(f"Invalid price retrieved for symbol: {position['symbol']}")
-        return None
-
     request = {
-        "action": mt5.TRADE_ACTION_DEAL,
+        "action": mt5.TRADE_ACTION_CLOSE,
         "position": position['ticket'],  # select the position you want to close
         "symbol": position['symbol'],
         "volume": position['volume'],  # FLOAT
         "type": order_type_dict[position_type],
-        "price": price,
         "deviation": deviation,  # INTEGER
         "magic": magic,          # INTEGER
         "comment": comment,

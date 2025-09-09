@@ -264,6 +264,7 @@ def modify_sl_tp_endpoint():
         }
     }]
 })
+
 def partial_close_endpoint():
     try:
         data = request.get_json() or {}
@@ -285,18 +286,17 @@ def partial_close_endpoint():
         vol_to_close = round(float(pos.volume) * fraction, 2)
         if vol_to_close <= 0:
             return jsonify({'error': 'computed close volume <= 0'}), 400
-        tick = mt5.symbol_info_tick(symbol)
-        if tick is None:
-            return jsonify({'error': 'no tick'}), 400
-        opposite = mt5.ORDER_TYPE_SELL if int(pos.type) == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
-        price = tick.bid if opposite == mt5.ORDER_TYPE_SELL else tick.ask
+        order_type = (
+            mt5.ORDER_TYPE_BUY
+            if int(pos.type) == mt5.POSITION_TYPE_BUY
+            else mt5.ORDER_TYPE_SELL
+        )
         req = {
-            'action': mt5.TRADE_ACTION_DEAL,
+            'action': mt5.TRADE_ACTION_CLOSE,
             'position': ticket,
             'symbol': symbol,
             'volume': vol_to_close,
-            'type': opposite,
-            'price': price,
+            'type': order_type,
             'deviation': 20,
             'type_time': mt5.ORDER_TIME_GTC,
             'type_filling': mt5.ORDER_FILLING_IOC,
@@ -309,8 +309,6 @@ def partial_close_endpoint():
     except Exception as e:
         logger.error(f"Error in partial_close: {e}", exc_info=True)
         return jsonify({'error': 'Internal server error'}), 500
-
-
 @order_bp.route('/partial_close_v2', methods=['POST'])
 def partial_close_v2_endpoint():
     """Enhanced partial close: accept either fraction (0..1) or explicit volume.
@@ -348,7 +346,6 @@ def partial_close_v2_endpoint():
         sinfo = mt5.symbol_info(symbol)
         vol_min = getattr(sinfo, 'volume_min', 0.01) if sinfo else 0.01
         vol_step = getattr(sinfo, 'volume_step', 0.01) if sinfo else 0.01
-        # Round down to nearest step
         steps = max(1, int(vol_to_close / vol_step + 1e-9))
         vol_to_close = round(steps * vol_step, 2)
         if vol_to_close < vol_min:
@@ -356,18 +353,17 @@ def partial_close_v2_endpoint():
         if vol_to_close > float(pos.volume):
             vol_to_close = float(pos.volume)
         # Build close request
-        tick = mt5.symbol_info_tick(symbol)
-        if tick is None:
-            return jsonify({'error': 'no tick'}), 400
-        opposite = mt5.ORDER_TYPE_SELL if int(pos.type) == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
-        price = tick.bid if opposite == mt5.ORDER_TYPE_SELL else tick.ask
+        order_type = (
+            mt5.ORDER_TYPE_BUY
+            if int(pos.type) == mt5.POSITION_TYPE_BUY
+            else mt5.ORDER_TYPE_SELL
+        )
         req = {
-            'action': mt5.TRADE_ACTION_DEAL,
+            'action': mt5.TRADE_ACTION_CLOSE,
             'position': int(ticket),
             'symbol': symbol,
             'volume': float(vol_to_close),
-            'type': int(opposite),
-            'price': float(price),
+            'type': int(order_type),
             'deviation': 20,
             'type_time': mt5.ORDER_TIME_GTC,
             'type_filling': mt5.ORDER_FILLING_IOC,

@@ -1,6 +1,7 @@
 import logging
 import os
 from flask import Flask
+from types import SimpleNamespace
 from dotenv import load_dotenv
 import MetaTrader5 as mt5
 from flasgger import Swagger
@@ -138,6 +139,28 @@ def _send_deal(symbol: str, volume: float, order_type: int):
         return jsonify({'ok': True, 'success': True, 'result': res._asdict()})
     return jsonify({'error': 'order_failed', 'retcode': getattr(res, 'retcode', None)}), 400
 
+def _send_close(pos, volume: float):
+    _ensure_mt5()
+    order_type = (
+        mt5.ORDER_TYPE_BUY
+        if int(pos.type) == mt5.POSITION_TYPE_BUY
+        else mt5.ORDER_TYPE_SELL
+    )
+    req = {
+        'action': mt5.TRADE_ACTION_CLOSE,
+        'position': int(pos.ticket),
+        'symbol': str(pos.symbol),
+        'volume': float(volume),
+        'type': int(order_type),
+        'deviation': 20,
+        'type_time': mt5.ORDER_TIME_GTC,
+        'type_filling': mt5.ORDER_FILLING_IOC,
+    }
+    res = mt5.order_send(req)
+    if res and getattr(res, 'retcode', None) == mt5.TRADE_RETCODE_DONE:
+        return jsonify({'ok': True, 'success': True, 'result': res._asdict()})
+    return jsonify({'error': 'close_failed', 'retcode': getattr(res, 'retcode', None)}), 400
+
 def _find_position(ticket: int):
     _ensure_mt5()
     for p in (mt5.positions_get() or []):
@@ -188,8 +211,7 @@ def compat_partial_close_v2():
         return jsonify({'error': 'computed close volume below minimum', 'min': vol_min}), 400
     if vol_to_close > float(pos.volume):
         vol_to_close = float(pos.volume)
-    opposite = mt5.ORDER_TYPE_SELL if int(pos.type) == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
-    return _send_deal(pos.symbol, float(vol_to_close), opposite)
+    return _send_close(pos, float(vol_to_close))
 
 def compat_partial_close():
     d = _json()
@@ -204,9 +226,8 @@ def compat_partial_close():
     pos = _find_position(ticket)
     if pos is None:
         return jsonify({'error': 'position not found'}), 404
-    opposite = mt5.ORDER_TYPE_SELL if int(pos.type) == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
     vol_to_close = float(pos.volume) * fraction
-    return _send_deal(symbol or pos.symbol, float(vol_to_close), opposite)
+    return _send_close(pos, float(vol_to_close))
 
 def compat_close_position():
     d = _json()
@@ -218,8 +239,8 @@ def compat_close_position():
         ptype = int(p.get('type'))
     except Exception:
         return jsonify({'error': 'position payload invalid'}), 400
-    opposite = mt5.ORDER_TYPE_SELL if ptype == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
-    return _send_deal(symbol, vol, opposite)
+    pos = SimpleNamespace(ticket=ticket, symbol=symbol, type=ptype)
+    return _send_close(pos, vol)
 
 # Conditionally register fallbacks if routes are missing
 if _route_missing('/send_market_order'):
