@@ -117,12 +117,6 @@ services:
     logging: *default-logging
     depends_on:
       - traefik
-    healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "5001"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 60s
 
   mt5-api:
     image: python:3.11-slim
@@ -146,7 +140,7 @@ services:
       - default
     depends_on:
       mt5:
-        condition: service_healthy
+        condition: service_started
     labels:
       <<: *default-labels
       traefik.enable: true
@@ -697,7 +691,7 @@ services:
       django:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - default
