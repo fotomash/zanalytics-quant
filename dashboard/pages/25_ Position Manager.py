@@ -89,13 +89,18 @@ def safe_api_call(method: str, path:str, payload: dict = None, timeout: float = 
         return {"error": str(e), "url": _pulse_url(path)}
 
 # --- POSITIONS FETCH HELPER (MT5 → API fallback) ---
+# --- POSITIONS FETCH HELPER (MT5 → API fallback, multi-endpoint, multi-shape) ---
 def _fetch_positions_df() -> pd.DataFrame:
-    """Fetch live positions from MT5 if available; otherwise via Pulse API."""
+    """Fetch live positions from MT5 if available; otherwise via Pulse API.
+    Tries several endpoints and payload shapes, returns a normalized DataFrame.
+    Also records the source endpoint for debugging in st.session_state['positions_source'].
+    """
     df = pd.DataFrame()
-    # Try MT5 first
+    st.session_state['positions_source'] = '—'
+
+    # 1) Try MT5 first (if available)
     if MT5_AVAILABLE:
         try:
-            # Ensure terminal connection
             if not mt5.terminal_state().connected:
                 login = os.getenv('MT5_LOGIN')
                 password = os.getenv('MT5_PASSWORD')
@@ -109,13 +114,109 @@ def _fetch_positions_df() -> pd.DataFrame:
                 positions = mt5.positions_get()
                 if positions:
                     df = pd.DataFrame(list(positions), columns=positions[0]._asdict().keys())
+                    st.session_state['positions_source'] = 'MT5'
         except Exception:
             df = pd.DataFrame()
-    # Fallback to API
+
+    # 2) Fallback to HTTP API (try multiple Pulse flavors)
     if df.empty:
-        api_positions = safe_api_call('GET', 'api/v1/positions/live')
-        if isinstance(api_positions, list) and api_positions:
-            df = pd.DataFrame(api_positions)
+        endpoints = [
+            # Auto-prefixed by _pulse_url to /api/pulse/
+            'positions/live',
+            'positions/open',
+            'positions',
+            # Explicit API v1 paths (bypass /api/pulse prefixing)
+            'api/v1/positions/live',
+            'api/v1/positions/open',
+            'api/v1/positions',
+        ]
+
+        api_payload = None
+        hit_ep = None
+        for ep in endpoints:
+            res = safe_api_call('GET', ep)
+            if isinstance(res, dict) and 'error' in res:
+                continue
+            api_payload = res
+            hit_ep = ep
+            break
+
+        # Parse payload into list-of-dicts
+        rows = []
+        if isinstance(api_payload, list):
+            rows = api_payload
+        elif isinstance(api_payload, dict):
+            for key in ('positions', 'open_positions', 'data', 'results', 'items'):
+                val = api_payload.get(key)
+                if isinstance(val, list) and val:
+                    rows = val
+                    break
+        # Build DataFrame
+        if rows:
+            try:
+                df = pd.DataFrame(rows)
+                st.session_state['positions_source'] = f"API:{hit_ep}"
+            except Exception:
+                df = pd.DataFrame()
+
+    # 3) Normalize columns when possible
+    if not df.empty:
+        rename_map = {
+            'price_open': 'entry_price',
+            'open_price': 'entry_price',
+            'OpenPrice': 'entry_price',
+            'entry': 'entry_price',
+            'price_current': 'current_price',
+            'current': 'current_price',
+            'CurrentPrice': 'current_price',
+            'bid': 'current_price',
+            'profit': 'pnl',
+            'unrealized_profit': 'pnl',
+            'UnrealizedPL': 'pnl',
+            'pl': 'pnl',
+            'cmd': 'type',
+            'position_type': 'type',
+            'side': 'type',
+            'instrument': 'symbol',
+            'ticket': 'ticket_id',
+            'order': 'ticket_id',
+            'lots': 'volume',
+            'volumeLots': 'volume',
+        }
+        existing_map = {k: v for k, v in rename_map.items() if k in df.columns}
+        if existing_map:
+            df.rename(columns=existing_map, inplace=True)
+
+        for col in ('entry_price', 'current_price', 'pnl', 'volume'):
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+
+        # Map numeric → string; normalize strings
+        if 'type' in df.columns:
+            if pd.api.types.is_numeric_dtype(df['type']):
+                df['type'] = df['type'].map({0: 'BUY', 1: 'SELL', 2: 'BUY', 3: 'SELL'}).fillna(df['type'])
+            else:
+                df['type'] = df['type'].astype(str).str.upper().replace({'LONG': 'BUY', 'SHORT': 'SELL'})
+
+        # Derive missing essentials
+        if 'current_price' not in df.columns:
+            for alt in ('ask', 'Bid', 'Ask', 'last', 'LastPrice'):
+                if alt in df.columns:
+                    df['current_price'] = pd.to_numeric(df[alt], errors='coerce')
+                    break
+        if 'entry_price' not in df.columns:
+            for alt in ('open', 'Open', 'avg_entry_price', 'AverageOpenPrice'):
+                if alt in df.columns:
+                    df['entry_price'] = pd.to_numeric(df[alt], errors='coerce')
+                    break
+        if 'symbol' not in df.columns:
+            for alt in ('Symbol', 'SYMBOL', 'ticker', 'Ticker', 'symbolName'):
+                if alt in df.columns:
+                    df['symbol'] = df[alt]
+                    break
+        if 'pnl' not in df.columns and 'profit' in df.columns:
+            df['pnl'] = pd.to_numeric(df['profit'], errors='coerce')
+
     return df
 
 # --- HEADER & VITALS ---
@@ -253,6 +354,13 @@ except Exception as e:
 # --- OPEN POSITIONS ---
 st.subheader("📂 Open Positions")
 
+# Debug: show which source responded (MT5 or which API endpoint)
+try:
+    _src = st.session_state.get('positions_source', '—')
+    st.caption(f"Source: {_src}")
+except Exception:
+    pass
+
 # Fetch positions (reuse shared helper; avoids duplicate bridge/API calls)
 if 'df_trades' not in locals() or df_trades is None or getattr(df_trades, 'empty', True):
     df_trades = _fetch_positions_df()
@@ -265,6 +373,32 @@ if not df_trades.empty:
         'price_current': 'current_price'
     }
     df_trades.rename(columns=rename_map, inplace=True)
+
+    # Rescue fill for required columns if missing
+    if 'entry_price' not in df_trades.columns:
+        for alt in ('open','Open','avg_entry_price','AverageOpenPrice'):
+            if alt in df_trades.columns:
+                df_trades['entry_price'] = pd.to_numeric(df_trades[alt], errors='coerce')
+                break
+    if 'current_price' not in df_trades.columns:
+        for alt in ('current','CurrentPrice','bid','ask','LastPrice'):
+            if alt in df_trades.columns:
+                df_trades['current_price'] = pd.to_numeric(df_trades[alt], errors='coerce')
+                break
+    if 'pnl' not in df_trades.columns:
+        for alt in ('profit','unrealized_profit','UnrealizedPL','pl'):
+            if alt in df_trades.columns:
+                df_trades['pnl'] = pd.to_numeric(df_trades[alt], errors='coerce')
+                break
+    if 'type' in df_trades.columns and pd.api.types.is_numeric_dtype(df_trades['type']):
+        df_trades['type'] = df_trades['type'].map({0:'BUY',1:'SELL',2:'BUY',3:'SELL'}).fillna(df_trades['type'])
+    elif 'type' in df_trades.columns:
+        df_trades['type'] = df_trades['type'].astype(str).str.upper().replace({'LONG':'BUY','SHORT':'SELL'})
+    if 'symbol' not in df_trades.columns:
+        for alt in ('Symbol','SYMBOL','instrument','ticker','Ticker','symbolName'):
+            if alt in df_trades.columns:
+                df_trades['symbol'] = df_trades[alt]
+                break
 
     # Map position type from integer to string (for MT5 source)
     if 'type' in df_trades.columns and pd.api.types.is_numeric_dtype(df_trades['type']):
