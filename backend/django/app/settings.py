@@ -9,6 +9,15 @@ https://docs.djangoproject.com/en/4.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
+import sys
+from pathlib import Path
+
+# Add the project root to the Python path, which is 3 levels above this file's directory.
+# This allows absolute imports from the project root, e.g., `from bridge.mt5 import ...`.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+print("\n\nSYS_PATH:", sys.path, "\n\n")
+
 
 from pathlib import Path
 import os  # Added for environment variables
