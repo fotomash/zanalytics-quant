@@ -8,6 +8,7 @@ from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, Depends, HTTPException, Body, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, conlist, confloat
+from api.trade import router as trade_router
 
 try:
     from pulse_kernel import PulseKernel
@@ -111,6 +112,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(trade_router)
 
 
 @app.get("/pulse/health")
