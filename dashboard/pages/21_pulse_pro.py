@@ -483,7 +483,7 @@ _qstr = ('?' + '&'.join(_q_params)) if _q_params else ''
 bc1, bc2, bc3 = st.columns(3)
 with bc1:
     st.markdown("#### Trade Quality Distribution")
-    q = safe_api_call('GET', f'api/pulse/analytics/trades/quality{_qstr}')
+    q = safe_api_call('GET', f'api/v1/analytics/trades/quality{_qstr}')
     labels = q.get('labels') if isinstance(q, dict) else None
     counts = q.get('counts') if isinstance(q, dict) else None
     if not (isinstance(labels, list) and isinstance(counts, list) and len(labels) == len(counts)):
@@ -503,7 +503,7 @@ with bc2:
     st.caption("Maintaining discipline")
     # Efficiency (captured vs potential)
     try:
-        eff = safe_api_call('GET', f'api/pulse/analytics/trades/efficiency{_qstr}')
+        eff = safe_api_call('GET', f'api/v1/analytics/trades/efficiency{_qstr}')
         pct = eff.get('captured_vs_potential_pct') if isinstance(eff, dict) else None
         if isinstance(pct, (int, float)):
             v = float(pct)
@@ -514,7 +514,7 @@ with bc2:
 with bc3:
     st.markdown("#### Risk Management")
     try:
-        summ = safe_api_call('GET', f'api/pulse/analytics/trades/summary{_qstr}')
+        summ = safe_api_call('GET', f'api/v1/analytics/trades/summary{_qstr}')
         ar = summ.get('avg_r') if isinstance(summ, dict) else None
         if isinstance(ar, (int, float)):
             st.metric("Avg Risk/Trade", f"{float(ar):.2f}R")
@@ -534,7 +534,7 @@ ac1, ac2 = st.columns(2)
 with ac1:
     st.markdown("#### R Distribution")
     try:
-        b = safe_api_call('GET', f'api/pulse/analytics/trades/buckets{_qstr}')
+        b = safe_api_call('GET', f'api/v1/analytics/trades/buckets{_qstr}')
         edges = b.get('edges') if isinstance(b, dict) else None
         counts = b.get('counts') if isinstance(b, dict) else None
         if isinstance(edges, list) and isinstance(counts, list) and len(edges) == len(counts):
@@ -550,7 +550,7 @@ with ac1:
 with ac2:
     st.markdown("#### Top Setups by Quality")
     try:
-        s = safe_api_call('GET', f'api/pulse/analytics/trades/setups{_qstr}')
+        s = safe_api_call('GET', f'api/v1/analytics/trades/setups{_qstr}')
         setups = s.get('setups') if isinstance(s, dict) else []
         if isinstance(setups, list) and setups:
             df_set = pd.DataFrame(setups)

@@ -101,7 +101,7 @@ _all_syms, _fav_symbol = render_favorite_selector(key='fav_sym_19')
 # Trade Analytics (quality, efficiency, summary, distribution, setups)
 with st.expander("📊 Trade Analytics", expanded=False):
     try:
-        q = safe_api_call("GET", f"api/pulse/analytics/trades/quality{_qs19}")
+        q = safe_api_call("GET", f"api/v1/analytics/trades/quality{_qs19}")
         labels = q.get('labels') if isinstance(q, dict) else None
         counts = q.get('counts') if isinstance(q, dict) else None
         if isinstance(labels, list) and isinstance(counts, list) and len(labels) == len(counts):
@@ -117,7 +117,7 @@ with st.expander("📊 Trade Analytics", expanded=False):
     cA, cB, cC = st.columns(3)
     with cA:
         try:
-            eff = safe_api_call("GET", f"api/pulse/analytics/trades/efficiency{_qs19}")
+            eff = safe_api_call("GET", f"api/v1/analytics/trades/efficiency{_qs19}")
             pct = eff.get('captured_vs_potential_pct') if isinstance(eff, dict) else None
             val = float(pct) if isinstance(pct, (int, float)) else 0.0
             st.metric("Captured vs Potential", f"{val*100:.0f}%")
@@ -127,14 +127,14 @@ with st.expander("📊 Trade Analytics", expanded=False):
             st.progress(0.0)
     with cB:
         try:
-            summ = safe_api_call("GET", f"api/pulse/analytics/trades/summary{_qs19}")
+            summ = safe_api_call("GET", f"api/v1/analytics/trades/summary{_qs19}")
             wr = float(summ.get('win_rate') or 0.0)
             st.metric("Win Rate", f"{wr*100:.0f}%")
         except Exception:
             st.metric("Win Rate", "—")
     with cC:
         try:
-            summ = summ if 'summ' in locals() and isinstance(summ, dict) else safe_api_call("GET", f"api/pulse/analytics/trades/summary{_qs19}")
+            summ = summ if 'summ' in locals() and isinstance(summ, dict) else safe_api_call("GET", f"api/v1/analytics/trades/summary{_qs19}")
             er = float(summ.get('expectancy_r') or 0.0) if isinstance(summ, dict) else 0.0
             st.metric("Expectancy (R)", f"{er:.2f}")
         except Exception:
@@ -143,7 +143,7 @@ with st.expander("📊 Trade Analytics", expanded=False):
     c1, c2 = st.columns(2)
     with c1:
         try:
-            b = safe_api_call("GET", f"api/pulse/analytics/trades/buckets{_qs19}")
+            b = safe_api_call("GET", f"api/v1/analytics/trades/buckets{_qs19}")
             edges = b.get('edges') if isinstance(b, dict) else []
             counts = b.get('counts') if isinstance(b, dict) else []
             if isinstance(edges, list) and isinstance(counts, list) and len(edges) == len(counts):
@@ -158,7 +158,7 @@ with st.expander("📊 Trade Analytics", expanded=False):
             st.info("Distribution unavailable")
     with c2:
         try:
-            s = safe_api_call("GET", f"api/pulse/analytics/trades/setups{_qs19}")
+            s = safe_api_call("GET", f"api/v1/analytics/trades/setups{_qs19}")
             setups = s.get('setups') if isinstance(s, dict) else []
             if isinstance(setups, list) and setups:
                 dff = pd.DataFrame(setups)
