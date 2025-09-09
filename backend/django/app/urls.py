@@ -15,6 +15,8 @@ urlpatterns = [
 
     # v1 api
     path('api/v1/', include('app.nexus.urls')),
+    # Legacy pulse analytics alias
+    path('api/pulse/analytics/', include('app.nexus.pulse.analytics_urls')),
 
     # Wyckoff endpoints
     path('api/pulse/wyckoff/score', wyckoff_score, name='wyckoff-score'),

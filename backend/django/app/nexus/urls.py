@@ -161,6 +161,7 @@ urlpatterns = [
     path('positions/<int:ticket>/protect', PositionProtectOptionsView.as_view(), name='position-protect-options'),
     # Include pulse module endpoints
     path('', include('app.nexus.pulse.urls')),
+    path('analytics/', include('app.nexus.pulse.analytics_urls')),
     # User prefs (unauthenticated, minimal)
     path('user/prefs', UserPrefsView.as_view(), name='user-prefs'),
     # Playbook stubs
