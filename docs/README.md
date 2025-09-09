@@ -35,3 +35,5 @@ Flags and Defaults
 - Data sources (dual): PULSE_BAR_SOURCE=redis|kafka, SCORES_SOURCE=redis|kafka, DECISIONS_SINK=redis|kafka
 - Favorites: PULSE_DEFAULT_SYMBOL, baseline: PULSE_BASELINE_EQUITY
 
+
+Return to [project README](../README.md)

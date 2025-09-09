@@ -413,3 +413,11 @@ streamlit run pulse_dashboard.py
 ```
 
 The app reads configuration from `pulse_dashboard_config.yaml` and mock trade data from `trade_history.json`.
+
+## Further Reading
+
+- [Pulse README](README_PULSE.md)
+- [Pulse Wyckoff Live README](PULSE_WYCKOFF_LIVE_README.md)
+- [Documentation Hub](docs/README.md)
+- [Pulse Integration Plan](PULSE_INTEGRATION_PLAN.md)
+- [Stakeholder Update](ZANALYTICS_PULSE_STAKEHOLDER_UPDATE.md)
