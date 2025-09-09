@@ -1234,6 +1234,22 @@ class ActionsQueryView(views.APIView):
                          market_regime, liquidity_map, state_snapshot, journal_recent, whisper_suggest
         """
         typ = str(request.GET.get('type') or '').strip()
+        # Compatibility: some clients mistakenly send GET with a JSON body.
+        # If no query param is provided, try to parse body and delegate to POST handler.
+        if not typ:
+            try:
+                raw = getattr(request, 'body', b'') or b''
+                if raw:
+                    import json as _json
+                    obj = _json.loads(raw.decode('utf-8'))
+                    btype = str(obj.get('type') or obj.get('operation') or '').strip()
+                    if btype:
+                        # Stash parsed body into request and reuse POST logic
+                        req = request._request
+                        req.data = obj
+                        return self.post(request)
+            except Exception:
+                pass
         try:
             if typ == 'session_boot':
                 # Map to POST handler logic with default payload extracted from query params
