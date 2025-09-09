@@ -1213,6 +1213,56 @@ class TradesRecentView(views.APIView):
         return Response(out)
 
 
+class ActionsReadView(views.APIView):
+    """Lightweight descriptor reader for Actions."""
+    permission_classes = [AllowAny]
+
+    ACTIONS = [
+        {
+            "name": "session_boot",
+            "version": "1",
+            "type": "read",
+            "schema": {"expects": ["account", "equity", "risk", "trades"]},
+            "meta": {"group": "whisperer"},
+        },
+        {
+            "name": "whisper_menu",
+            "version": "1",
+            "type": "read",
+            "schema": {"expects": ["whispers"]},
+            "meta": {"group": "whisperer"},
+        },
+        {
+            "name": "trades_recent",
+            "version": "1",
+            "type": "query",
+            "schema": {},
+            "meta": {"group": "session"},
+        },
+    ]
+
+    def get(self, request):
+        name = request.GET.get("name")
+        group = request.GET.get("group")
+        keys_param = request.GET.get("keys")
+        keys = []
+        if keys_param:
+            keys = [k.strip() for k in keys_param.split(",") if k.strip()]
+        for k in request.GET.getlist("key"):
+            if k:
+                keys.append(k)
+        items = self.ACTIONS
+        if name:
+            items = [a for a in items if a["name"] == name]
+        elif group:
+            items = [a for a in items if a.get("meta", {}).get("group") == group]
+        elif keys:
+            items = [a for a in items if a["name"] in keys]
+        else:
+            items = items[:100]
+        return Response({"items": items})
+
+
 class ActionsQueryView(views.APIView):
     """Consolidated query endpoint (prototype). Not documented in OpenAPI actions cap.
 
@@ -1221,104 +1271,13 @@ class ActionsQueryView(views.APIView):
     """
     permission_classes = [AllowAny]
 
-    def get(self, request):
-        """Read-only Actions via GET to avoid consent prompts in some runtimes.
-
-        Query params: ?type=<verb>&symbol=...&limit=...&timeframe=...&date_from=...&date_to=...&pnl_min=...&pnl_max=...
-        Supported verbs: session_boot, trades_recent, trades_history_mt5, account_info, account_positions,
-                         account_risk, equity_today, market_mini, market_symbols, market_calendar_next,
-                         market_regime, liquidity_map, state_snapshot, journal_recent, whisper_suggest
-        """
-        typ = str(request.GET.get('type') or '').strip()
-        try:
-            if typ == 'session_boot':
-                # Map to POST handler logic with default payload extracted from query params
-                req = request._request
-                req.data = {
-                    'type': 'session_boot',
-                    'payload': {
-                        'limit_trades': request.GET.get('limit') or request.GET.get('limit_trades'),
-                        'include_positions': request.GET.get('include_positions'),
-                        'include_equity': request.GET.get('include_equity'),
-                        'include_risk': request.GET.get('include_risk'),
-                    },
-                }
-                return self.post(request)
-            if typ == 'trades_recent':
-                req = request._request
-                req.GET = req.GET.copy()
-                if request.GET.get('limit'):
-                    req.GET['limit'] = str(request.GET.get('limit'))
-                return TradesRecentView().get(request)
-            if typ == 'trades_history_mt5':
-                req = request._request
-                req.GET = req.GET.copy()
-                req.GET['source'] = 'mt5'
-                for k in ('symbol','date_from','date_to','pnl_min','pnl_max'):
-                    v = request.GET.get(k)
-                    if v is not None:
-                        req.GET[k] = str(v)
-                return TradeHistoryView().get(request)
-            if typ == 'account_info':
-                return AccountInfoView().get(request)
-            if typ == 'account_positions':
-                return PositionsProxyView().get(request)
-            if typ == 'account_risk':
-                return AccountRiskView().get(request)
-            if typ == 'equity_today':
-                return EquityTodayView().get(request)
-            if typ == 'market_mini' or typ == 'market_snapshot':
-                return MarketMiniView().get(request)
-            if typ == 'market_symbols':
-                return MarketSymbolsView().get(request)
-            if typ == 'market_calendar_next':
-                req = request._request
-                req.GET = req.GET.copy()
-                if request.GET.get('limit'):
-                    req.GET['limit'] = str(request.GET.get('limit'))
-                return MarketCalendarNextView().get(request)
-            if typ == 'market_regime':
-                return MarketRegimeView().get(request)
-            if typ == 'liquidity_map':
-                req = request._request
-                req.GET = req.GET.copy()
-                if request.GET.get('symbol'):
-                    req.GET['symbol'] = str(request.GET.get('symbol'))
-                if request.GET.get('timeframe'):
-                    req.GET['timeframe'] = str(request.GET.get('timeframe'))
-                return LiquidityMapView().get(request)
-            if typ == 'state_snapshot':
-                return StateSnapshotView().get(request)
-            if typ == 'journal_recent':
-                req = request._request
-                req.GET = req.GET.copy()
-                if request.GET.get('limit'):
-                    req.GET['limit'] = str(request.GET.get('limit'))
-                return JournalRecentView().get(request)
-            if typ == 'whisper_suggest':
-                # Map to POST handler for consistent behavior (uses GET params)
-                req = request._request
-                req.data = {
-                    'type': 'whisper_suggest',
-                    'payload': {
-                        'symbol': request.GET.get('symbol'),
-                        'user_id': request.GET.get('user_id'),
-                    },
-                }
-                return self.post(request)
-            return Response({'error': 'unknown type'}, status=400)
-        except Exception as e:
-            return Response({'error': str(e)}, status=500)
-
     def post(self, request):
         data = request.data or {}
         typ = str(data.get('type') or '')
         payload = data.get('payload') or {}
-        # Back-compat: allow flat fields when payload is omitted by the client/tooling
         try:
             if not payload and typ in ('position_close', 'position_modify', 'position_open', 'position_hedge'):
                 flat = {}
-                # Collect common fields if present at top-level
                 for k in ('ticket', 'fraction', 'volume', 'sl', 'tp', 'symbol', 'side', 'comment'):
                     if k in data and data.get(k) is not None:
                         flat[k] = data.get(k)
@@ -1326,6 +1285,14 @@ class ActionsQueryView(views.APIView):
                     payload = flat
         except Exception:
             pass
+        resp = self._dispatch(request, typ, payload)
+        status_code = getattr(resp, 'status_code', 200)
+        body = resp.data if isinstance(resp, Response) else resp
+        if status_code >= 400:
+            return Response({'ok': False, 'action': typ, 'error': body}, status=status_code)
+        return Response({'ok': True, 'action': typ, 'data': body}, status=status_code)
+
+    def _dispatch(self, request, typ, payload):
         try:
             if typ == 'session_boot':
                 # Composite boot snapshot for LLM initialization

@@ -46,6 +46,7 @@ from .views import (
     EquityTodayView,
     TradesRecentView,
     ActionsQueryView,
+    ActionsReadView,
     ActionsMutateView,
     ActionsSpecView,
     JournalEntryPostView,
@@ -170,8 +171,8 @@ urlpatterns = [
     path('state/snapshot', StateSnapshotView.as_view(), name='state-snapshot'),
     # Actions bus (prototype; not exposed in openapi.yaml to keep op count)
     path('actions/query', ActionsQueryView.as_view(), name='actions-query'),
-    # Read-only alias to avoid runtime consent prompts for GET
-    path('actions/read', ActionsQueryView.as_view(), name='actions-read'),
+    # Read action descriptors
+    path('actions/read', ActionsReadView.as_view(), name='actions-read'),
     path('actions/mutate', ActionsMutateView.as_view(), name='actions-mutate'),
     # Serve slim OpenAPI for Actions
     path('openapi.actions.yaml', ActionsSpecView.as_view(), name='actions-openapi-spec'),
