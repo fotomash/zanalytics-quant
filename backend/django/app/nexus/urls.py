@@ -58,6 +58,7 @@ from .views_positions import (
     PositionsOpenView,
     PositionsCloseView,
     PositionsModifyView,
+    PositionsModifyByTicketView,
     PositionsHedgeView,
 )
 from .playbook_stub_views import (
@@ -137,6 +138,7 @@ urlpatterns = [
     # LLM-friendly aliases
     path('positions/close', PositionsCloseView.as_view(), name='positions-close'),
     path('positions/modify', PositionsModifyView.as_view(), name='positions-modify'),
+    path('positions/<int:ticket>/modify', PositionsModifyByTicketView.as_view(), name='positions-modify-ticket'),
     path('positions/hedge', PositionsHedgeView.as_view(), name='positions-hedge'),
     path('account/info', AccountInfoView.as_view(), name='account-info'),
     path('journal/append', JournalAppendView.as_view(), name='journal-append'),

@@ -6,12 +6,12 @@ from rest_framework import status
 
 from .orders_service import (
     place_market_order,
-    modify_sl_tp,
     close_position_partial_or_full,
     get_account_info,
     get_position,
 )
 from .journal_service import journal_append
+from bridge.mt5 import modify_position
 
 
 def _alias(d: dict, key: str, *aliases: str, default=None):
@@ -140,12 +140,7 @@ class PositionsModifyView(APIView):
         tp = payload.get("tp")
         if sl is None and tp is None:
             return Response({"error": "Provide sl and/or tp"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
-        ok, data = modify_sl_tp(
-            ticket=int(ticket),
-            sl=sl,
-            tp=tp,
-            idempotency_key=request.headers.get("X-Idempotency-Key"),
-        )
+        ok, data = modify_position(ticket=int(ticket), sl=sl, tp=tp)
         if ok:
             meta = {
                 "ticket": int(ticket),
@@ -153,7 +148,41 @@ class PositionsModifyView(APIView):
                 "tp": payload.get("tp"),
                 "reason": "manual_request",
             }
-            journal_append(kind="ORDER_MODIFY", text=f"Modify SL/TP ticket={ticket}", meta=meta, trade_id=int(ticket), tags=["order_modify"])
+            journal_append(
+                kind="ORDER_MODIFY",
+                text=f"Modify SL/TP ticket={ticket}",
+                meta=meta,
+                trade_id=int(ticket),
+                tags=["order_modify"],
+            )
+            return Response(data)
+        return Response(data, status=status.HTTP_502_BAD_GATEWAY)
+
+
+class PositionsModifyByTicketView(APIView):
+    """POST /api/v1/positions/<ticket>/modify"""
+
+    def post(self, request, ticket: int):
+        payload = request.data or {}
+        sl = payload.get("sl")
+        tp = payload.get("tp")
+        if sl is None and tp is None:
+            return Response({"error": "Provide sl and/or tp"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        ok, data = modify_position(ticket=int(ticket), sl=sl, tp=tp)
+        if ok:
+            meta = {
+                "ticket": int(ticket),
+                "sl": payload.get("sl"),
+                "tp": payload.get("tp"),
+                "reason": "manual_request",
+            }
+            journal_append(
+                kind="ORDER_MODIFY",
+                text=f"Modify SL/TP ticket={ticket}",
+                meta=meta,
+                trade_id=int(ticket),
+                tags=["order_modify"],
+            )
             return Response(data)
         return Response(data, status=status.HTTP_502_BAD_GATEWAY)
 

@@ -1552,14 +1552,17 @@ class ActionsQueryView(views.APIView):
             if typ == 'position_modify':
                 # { ticket, sl?, tp? }
                 try:
-                    from .orders_service import modify_sl_tp
+                    from bridge.mt5 import modify_position
                 except Exception:
                     return Response({'error': 'service_unavailable'}, status=503)
                 ticket = payload.get('ticket')
                 if ticket is None:
                     return Response({'error': 'ticket required'}, status=400)
-                ok, data = modify_sl_tp(int(ticket), sl=payload.get('sl'), tp=payload.get('tp'),
-                                        idempotency_key=request.headers.get('X-Idempotency-Key'))
+                sl = payload.get('sl')
+                tp = payload.get('tp')
+                if sl is None and tp is None:
+                    return Response({'error': 'sl or tp required'}, status=400)
+                ok, data = modify_position(int(ticket), sl=sl, tp=tp)
                 return Response(data, status=200 if ok else 400)
             if typ == 'position_hedge':
                 # { ticket, volume? }
