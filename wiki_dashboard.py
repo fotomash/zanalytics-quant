@@ -12,7 +12,7 @@ import streamlit as st
 
 from datetime import datetime
 
-from pages import Edges, Home, RiskOpsRunbook, Strategies
+from pages import Edges, Home, RiskOpsRunbook, Strategies, HowTo
 
 
 # ---------------------------------------------------------------------------
@@ -52,6 +52,7 @@ mock_data = {
         "strategies": ["Is this SMC setup valid?"],
         "edges": ["Am I overtrading?"],
         "risk": ["Check my risk budget"],
+        "howto": ["How do I use the Confluence Scorer?", "Best way to ask Whisperer questions?"],
     },
     "journal_entries": [
         {
@@ -97,6 +98,7 @@ page_modules = {
     "Strategies": Strategies,
     "Edges": Edges,
     "Risk, Ops & Runbook": RiskOpsRunbook,
+    "HowTo": HowTo,
 }
 page = st.sidebar.selectbox("Pages", list(page_modules.keys()))
 
