@@ -204,20 +204,27 @@ with col_left:
 
 # CENTER — Donuts and Discipline Posture
 with col_center:
+    # Hoisted session vitals used by both c1 and c2
+    eq_center = float((acct or {}).get("equity") or 0.0)
+    sod_center = float((risk or {}).get("sod_equity") or float((acct or {}).get("balance") or 0.0) or eq_center)
+    target_amt = float((risk or {}).get("target_amount") or 0.0)
+    loss_amt = float((risk or {}).get("loss_amount") or 0.0)
+    pnl = eq_center - sod_center
+
     c1, c2 = st.columns(2)
     # Session Vitals donut (outer: hard deck, middle: daily DD, inner: P&L progress)
     with c1:
         try:
-            baseline = float((risk or {}).get("baseline_equity") or _bal or _eq)
+            baseline_center = float((risk or {}).get("baseline_equity") or float((acct or {}).get("balance") or 0.0) or eq_center)
             st.markdown("##### Session Vitals")
             fig = donut_session_vitals(
-                equity_usd=_eq,
-                sod_equity_usd=_sod,
-                baseline_equity_usd=baseline,
+                equity_usd=eq_center,
+                sod_equity_usd=sod_center,
+                baseline_equity_usd=baseline_center,
                 daily_profit_pct=float((risk or {}).get("target_pct") or 0.0),
                 daily_risk_pct=float((risk or {}).get("loss_pct") or 0.0),
-                target_amount_usd=_targ,
-                loss_amount_usd=_loss,
+                target_amount_usd=target_amt,
+                loss_amount_usd=loss_amt,
                 max_total_dd_pct=float((risk or {}).get("max_total_dd_pct") or 10.0),
                 since_inception_pct=None,
                 size=(260, 260),
@@ -232,7 +239,7 @@ with col_center:
                 prev_close_f = None
             cso1, cso2 = st.columns(2)
             with cso1:
-                st.caption(f"SoD (11pm): ${_sod:,.0f}")
+                st.caption(f"SoD (11pm): ${sod_center:,.0f}")
             with cso2:
                 st.caption(f"Prev Close: ${prev_close_f:,.0f}" if prev_close_f is not None else "Prev Close: —")
         except Exception:
@@ -243,15 +250,18 @@ with col_center:
         try:
             # Daily PnL normalized to ±1
             pnl_norm = 0.0
-            if _targ and _pnl >= 0:
-                pnl_norm = min(1.0, _pnl / _targ)
-            elif _loss and _pnl < 0:
-                pnl_norm = -min(1.0, abs(_pnl) / _loss)
+            if target_amt and pnl >= 0:
+                pnl_norm = min(1.0, pnl / target_amt)
+            elif loss_amt and pnl < 0:
+                pnl_norm = -min(1.0, abs(pnl) / loss_amt)
 
             # Risk used fraction (0..1) of daily DD consumed
             risk_used = 0.0
-            if _eq < _sod and _loss > 0:
-                risk_used = max(0.0, min(1.0, (_sod - _eq) / _loss))
+            try:
+                if eq_center < sod_center and loss_amt > 0:
+                    risk_used = max(0.0, min(1.0, (sod_center - eq_center) / loss_amt))
+            except Exception:
+                risk_used = 0.0
 
             # Patience ratio tolerant conversion
             pr_raw = (mirror or {}).get("patience_ratio")
@@ -271,7 +281,7 @@ with col_center:
             st.markdown("##### Behavioral Compass")
             # Use system overview donut as a compact compass
             fig2 = donut_system_overview(
-                equity_usd=_eq,
+                equity_usd=eq_center,
                 pnl_day_norm=pnl_norm,
                 pnl_since_inception_pct=None,
                 risk_used_pct=risk_used,
@@ -279,10 +289,10 @@ with col_center:
                 discipline_score=float((mirror or {}).get("discipline") or 0.0),
                 patience_ratio=pr,
                 # Anchor ticks: +1.0 at target, -1.0 at loss cap
-                daily_target_norm=(1.0 if _targ else None),
-                daily_loss_norm=(-1.0 if _loss else None),
-                target_amount=_targ,
-                loss_amount=_loss,
+                daily_target_norm=(1.0 if target_amt else None),
+                daily_loss_norm=(-1.0 if loss_amt else None),
+                target_amount=target_amt,
+                loss_amount=loss_amt,
                 size=(260, 260),
             )
             st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
