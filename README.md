@@ -109,11 +109,14 @@ This modular design facilitates secure separation of concerns, easy extensibilit
 
 ## MT5 service vs. Django API
 
-History and order endpoints are served by the MT5 bridge rather than the Django API, so they must be accessed via `MT5_API_URL`.
+The history endpoints `/history_deals_get` and `/history_orders_get` are provided only by the MT5 bridge. They are **not** available under the Django domain, so requests must target `MT5_API_URL` directly.
 
 ```bash
 curl "$MT5_API_URL/history_deals_get"
+curl "$MT5_API_URL/history_orders_get"
 ```
+
+These paths do not exist at `$DJANGO_API_URL` or any Django prefix.
 
 See [backend/mt5/app/routes/history.py](backend/mt5/app/routes/history.py) for details.
 
