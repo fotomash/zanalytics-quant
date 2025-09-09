@@ -102,6 +102,11 @@ page_modules = {
 }
 page = st.sidebar.selectbox("Pages", list(page_modules.keys()))
 
+# Link to documentation
+st.sidebar.markdown(
+    "[How to use the Confluence Scorer](docs/HowTo_Confluence_Scorer.md)"
+)
+
 st.sidebar.markdown("<div class='ask-whisperer'>", unsafe_allow_html=True)
 st.sidebar.subheader("Ask Whisperer")
 for prompt in mock_data["whisperer_prompts"].get(page.lower(), []):
