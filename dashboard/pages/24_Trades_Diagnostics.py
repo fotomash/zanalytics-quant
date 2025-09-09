@@ -41,12 +41,21 @@ def _get_json(url: str, *, params: Dict[str, Any] | None = None, timeout: float 
 
 
 def _as_df(rows: List[Dict[str, Any]] | Any) -> pd.DataFrame:
-    if isinstance(rows, list):
-        try:
+    """
+    Accepts either a list of row dicts or a dict payload that nests a list
+    under common keys like results/items/trades/history/data/rows.
+    """
+    try:
+        if isinstance(rows, list):
             return pd.DataFrame(rows)
-        except Exception:
-            pass
-    return pd.DataFrame()
+        if isinstance(rows, dict):
+            for key in ("results", "items", "trades", "history", "data", "rows"):
+                val = rows.get(key)
+                if isinstance(val, list):
+                    return pd.DataFrame(val)
+        return pd.DataFrame()
+    except Exception:
+        return pd.DataFrame()
 
 
 cc1, cc2, cc3 = st.columns(3)
@@ -64,8 +73,15 @@ url_mt5 = api_url("api/v1/trades/history")
 url_pos = api_url("api/v1/account/positions")
 
 db_trades = _get_json(url_db, params={"limit": int(limit)})
-mt5_trades = _get_json(url_mt5, params={"source": "mt5", "date_from": date_from.isoformat()})
+mt5_trades = _get_json(
+    url_mt5,
+    params={"source": "mt5", "date_from": date_from.isoformat(), "date_to": dt.date.today().isoformat()}
+)
 positions = _get_json(url_pos)
+
+# Fallback: some backends expect 'provider=mt5' instead of 'source=mt5'
+if (isinstance(mt5_trades, dict) and not _as_df(mt5_trades).shape[0]):
+    mt5_trades = _get_json(url_mt5, params={"provider": "mt5", "date_from": date_from.isoformat()})
 
 df_db = _as_df(db_trades)
 df_mt5 = _as_df(mt5_trades)
