@@ -141,17 +141,19 @@ def _send_deal(symbol: str, volume: float, order_type: int):
 
 def _send_close(pos, volume: float):
     _ensure_mt5()
-    order_type = (
-        mt5.ORDER_TYPE_BUY
-        if int(pos.type) == mt5.POSITION_TYPE_BUY
-        else mt5.ORDER_TYPE_SELL
-    )
+    # Use opposite side and include price for DEAL
+    side = mt5.ORDER_TYPE_SELL if int(pos.type) == mt5.POSITION_TYPE_BUY else mt5.ORDER_TYPE_BUY
+    tick = mt5.symbol_info_tick(str(pos.symbol))
+    if tick is None:
+        return jsonify({'error': 'no tick'}), 400
+    price = float(tick.bid if side == mt5.ORDER_TYPE_SELL else tick.ask)
     req = {
-        'action': mt5.TRADE_ACTION_CLOSE,
+        'action': mt5.TRADE_ACTION_DEAL,
         'position': int(pos.ticket),
         'symbol': str(pos.symbol),
         'volume': float(volume),
-        'type': int(order_type),
+        'type': int(side),
+        'price': price,
         'deviation': 20,
         'type_time': mt5.ORDER_TIME_GTC,
         'type_filling': mt5.ORDER_FILLING_IOC,

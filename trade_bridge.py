@@ -83,21 +83,24 @@ def close_position(ticket, volume=None, deviation=10, magic=777):
         raise ValueError(f"Position {ticket} not found")
 
     vol_to_close = float(volume) if volume else float(pos.volume)
-    order_type = (
-        mt5.ORDER_TYPE_BUY
-        if pos.type == mt5.POSITION_TYPE_BUY
-        else mt5.ORDER_TYPE_SELL
-    )
+    # Use opposite side to close the position
+    side = mt5.ORDER_TYPE_SELL if pos.type == mt5.POSITION_TYPE_BUY else mt5.ORDER_TYPE_BUY
+    # Need current tick price for DEAL
+    _, tick = _symbol_info_tick(pos.symbol)
+    price = tick.bid if side == mt5.ORDER_TYPE_SELL else tick.ask
 
     request = {
-        "action": mt5.TRADE_ACTION_CLOSE,
+        "action": mt5.TRADE_ACTION_DEAL,
         "position": ticket,
         "symbol": pos.symbol,
         "volume": vol_to_close,
-        "type": order_type,
+        "type": side,
+        "price": float(price),
         "deviation": int(deviation),
         "magic": int(magic),
         "comment": "close_v1",
+        "type_time": mt5.ORDER_TIME_GTC,
+        "type_filling": mt5.ORDER_FILLING_IOC,
     }
 
     result = mt5.order_send(request)
