@@ -17,6 +17,7 @@ It works like a verb bus — you send a JSON object like this:
 
 …and the system knows exactly what to do with it.
 
+
 All valid actions are described in [`openapi.yaml`](../openapi.yaml), the
 canonical schema for the verb bus. If a verb isn’t in that spec, it doesn’t
 exist.
@@ -96,7 +97,7 @@ Instead of building a UI that says:
 You're building a UI (or AI) that says:
 
 > Tell the system what you want to do. Use a clear verb. Pass valid inputs. The system will do the rest.
- 
+
 
 Canonical integration plan
 --------------------------
@@ -137,4 +138,7 @@ to Kafka, and returns `{ "success": true }`.
 See also:
 - [Actions Bus](ACTIONS_BUS.md)
 - [Verbs Catalog](VERBS_CATALOG.md)
+
+
+
 
