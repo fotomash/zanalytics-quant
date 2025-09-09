@@ -638,25 +638,24 @@ components:
       properties:
         type: { type: string, const: account_risk }
         payload: { type: object, additionalProperties: false }
+    EquityTodayRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: equity_today }
+        payload: { type: object, additionalProperties: false }
 
-      EquityTodayRequest:
-        type: object
-        required: [type]
-        properties:
-          type: { type: string, const: equity_today }
-          payload: { type: object, additionalProperties: false }
+    PulseStatusRequest:
+      type: object
+      required: [type, payload]
+      properties:
+        type: { type: string, const: pulse_status }
+        payload: { $ref: '#/components/schemas/PulseStatusPayload' }
 
-      PulseStatusRequest:
-        type: object
-        required: [type, payload]
-        properties:
-          type: { type: string, const: pulse_status }
-          payload: { $ref: '#/components/schemas/PulseStatusPayload' }
-
-      MarketMiniRequest:
-        type: object
-        required: [type]
-        properties:
+    MarketMiniRequest:
+      type: object
+      required: [type]
+      properties:
         type: { type: string, const: market_mini }
         payload: { type: object, additionalProperties: false }
 
@@ -701,25 +700,24 @@ components:
       properties:
         type: { type: string, const: journal_recent }
         payload: { $ref: '#/components/schemas/JournalRecentPayload' }
+    JournalAppendRequest:
+      type: object
+      required: [type, payload]
+      properties:
+        type: { type: string, const: journal_append }
+        payload: { $ref: '#/components/schemas/JournalAppendPayload' }
 
-      JournalAppendRequest:
-        type: object
-        required: [type, payload]
-        properties:
-          type: { type: string, const: journal_append }
-          payload: { $ref: '#/components/schemas/JournalAppendPayload' }
+    BehaviorEventsRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: behavior_events }
+        payload: { type: object, additionalProperties: false }
 
-      BehaviorEventsRequest:
-        type: object
-        required: [type]
-        properties:
-          type: { type: string, const: behavior_events }
-          payload: { type: object, additionalProperties: false }
-
-      WhisperSuggestRequest:
-        type: object
-        required: [type]
-        properties:
+    WhisperSuggestRequest:
+      type: object
+      required: [type]
+      properties:
         type: { type: string, const: whisper_suggest }
         payload: { $ref: '#/components/schemas/WhisperSuggestPayload' }
 
@@ -797,24 +795,23 @@ components:
       properties:
         symbol: { type: string, nullable: true }
         timeframe: { type: string, nullable: true, example: 'M5' }
+    OpportunityPriorityItemsPayload:
+      type: object
+      properties:
+        candidates: { type: array, items: { type: object } }
+        symbols: { type: array, items: { type: string } }
+        constraints: { type: object, additionalProperties: true }
 
-      OpportunityPriorityItemsPayload:
-        type: object
-        properties:
-          candidates: { type: array, items: { type: object } }
-          symbols: { type: array, items: { type: string } }
-          constraints: { type: object, additionalProperties: true }
+    PulseStatusPayload:
+      type: object
+      required: [symbol]
+      properties:
+        symbol: { type: string }
 
-      PulseStatusPayload:
-        type: object
-        required: [symbol]
-        properties:
-          symbol: { type: string }
-
-      JournalRecentPayload:
-        type: object
-        properties:
-          limit: { type: integer, minimum: 1, maximum: 200 }
+    JournalRecentPayload:
+      type: object
+      properties:
+        limit: { type: integer, minimum: 1, maximum: 200 }
 
     JournalAppendPayload:
       type: object
