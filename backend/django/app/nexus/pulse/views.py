@@ -70,10 +70,12 @@ class PulseDetail(views.APIView):
                     return Response(_json.loads(raw))
         except Exception:
             pass
-        data = _load_minute_data(symbol)
         try:
-            m1 = data.get('M1')
-            m15 = data.get('M15')
+            data = _load_minute_data(symbol)
+            m1 = data.get('M1') if data else None
+            m15 = data.get('M15') if data else None
+            if m1 is None and m15 is None:
+                raise ValueError("no minute data")
             struct = structure_gate(m1) if m1 is not None else {"passed": False}
             liq = liquidity_gate(m15) if m15 is not None else {"passed": False}
             imb = imbalance_gate(m1) if m1 is not None else {"passed": False, "entry_zone": [None, None]}
@@ -111,8 +113,10 @@ class PulseDetail(views.APIView):
             except Exception:
                 pass
             return Response(payload)
+        except (ImportError, ValueError):
+            return Response({"error": "minute data unavailable"}, status=503)
         except Exception:
-            return Response({"structure": {"passed": False}, "liquidity": {"passed": False}})
+            return Response({"error": "minute data unavailable"}, status=503)
 
 
 class PulseWeights(views.APIView):
