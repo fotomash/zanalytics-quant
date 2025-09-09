@@ -69,8 +69,8 @@ def _pulse_url(path: str) -> str:
         base = "http://django:8000"
     p = path.lstrip('/')
     if p.startswith('api/'):
-        return f"{{base}}/{p}"
-    return f"{{base}}/api/pulse/{p}"
+        return f"{base}/{p}"
+    return f"{base}/api/pulse/{p}"
 
 def safe_api_call(method: str, path:str, payload: dict = None, timeout: float = 1.2) -> dict:
     """Safe API call with error handling."""
@@ -202,12 +202,11 @@ if not df_trades.empty:
             cols[4].markdown(f"<div style='color:{pnl_color}; font-weight:bold'>{{row['pnl']:+.2f}}</div>", unsafe_allow_html=True)
             
             with cols[5]:
-                b_cols = st.columns(5)
-                b_cols[0].button("SL→BE", key=f"slbe_{idx}", use_container_width=True)
-                b_cols[1].button("T25%", key=f"trail25_{idx}", use_container_width=True)
-                b_cols[2].button("T50%", key=f"trail50_{idx}", use_container_width=True)
-                b_cols[3].button("P25%", key=f"partial25_{idx}", use_container_width=True)
-                b_cols[4].button("P50%", key=f"partial50_{idx}", use_container_width=True)
+                st.button("SL → BE", key=f"slbe_{idx}")
+                st.button("Trail 25%", key=f"trail25_{idx}")
+                st.button("Trail 50%", key=f"trail50_{idx}")
+                st.button("Partial 25%", key=f"partial25_{idx}")
+                st.button("Partial 50%", key=f"partial50_{idx}")
     else:
         st.warning("Positions data is missing required columns for the detailed view.")
         st.dataframe(df_trades)
