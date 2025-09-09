@@ -16,7 +16,7 @@ from pathlib import Path
 # This allows absolute imports from the project root, e.g., `from bridge.mt5 import ...`.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
-print("\n\nSYS_PATH:", sys.path, "\n\n")
+import bridge
 
 
 from pathlib import Path
