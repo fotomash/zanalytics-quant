@@ -9,8 +9,17 @@ https://docs.djangoproject.com/en/4.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
-import sys
 from pathlib import Path
+import os
+import sys
+from dotenv import load_dotenv
+
+
+# Ensure project root is on PYTHONPATH so top-level packages (e.g. ``bridge``)
+# can be imported without installing the project as a package.
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 # Add the project root to the Python path, which is 3 levels above this file's directory.
 # This allows absolute imports from the project root, e.g., `from bridge.mt5 import ...`.
@@ -19,25 +28,11 @@ sys.path.insert(0, str(PROJECT_ROOT))
 import bridge
 
 
-from pathlib import Path
-import os  # Added for environment variables
-from dotenv import load_dotenv  # Optional: If using a .env file
-
 # Load environment variables from .env file if present
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-# Ensure project root is on PYTHONPATH so top-level packages (e.g. ``bridge``)
-# can be imported without installing the project as a package. This mirrors the
-# behaviour of running Django from the repository root and fixes
-# ``ModuleNotFoundError: No module named 'bridge'`` raised when importing
-# ``bridge.mt5`` in the positions views.
-import sys
-PROJECT_ROOT = BASE_DIR.parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.append(str(PROJECT_ROOT))
 
 # Ensure log directory exists
 os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
