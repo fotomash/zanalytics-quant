@@ -12,8 +12,8 @@ Conventions
 Index
 - Positions: position_open, position_close, position_modify, position_hedge
 - Account/State: session_boot, state_snapshot, account_info, account_positions, account_risk, equity_today
-- Market/Scan: market_mini, market_symbols, market_calendar_next, market_regime, liquidity_map, opportunity_priority_items
-- Journal/Behavior: journal_recent, journal_append, whisper_suggest
+- Market/Scan: market_mini, market_snapshot, market_symbols, market_calendar_next, market_regime, liquidity_map, pulse_status, opportunity_priority_items
+- Journal/Behavior: journal_recent, journal_append, behavior_events, whisper_suggest
 
 Positions
 
@@ -108,6 +108,7 @@ Market / Scan
 market_mini
 - Payload: none
 - Response: { vix: {series,value}, dxy: {series,value}, news: {...}, regime: string }
+- Synonym: `market_snapshot`
 
 market_symbols
 - Payload: none
@@ -127,6 +128,11 @@ liquidity_map
   - symbol: string, optional
   - timeframe: string, optional (e.g., "M5")
 - Response: { asof, levels: [{ price, kind, strength }] }
+
+pulse_status
+- Payload
+  - symbol: string (default "XAUUSD")
+- Response: { context, liquidity, structure, imbalance, risk, wyckoff, confluence }
 
 opportunity_priority_items
 - Payload
@@ -150,6 +156,10 @@ journal_append
   - tags: array[string], optional
   - meta: object, optional
 - Response: { ok: true, id, ts }
+
+behavior_events
+- Payload: none
+- Response: array of today's events { ts, type, weight, explain }
 
 whisper_suggest
 - Payload
