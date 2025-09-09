@@ -351,54 +351,40 @@ with col_center:
     except Exception:
         st.info("Trajectory feed unavailable.")
     
-    # Discipline Posture
-    st.markdown("### 📊 Discipline Posture")
-    
-    # Discipline data (use 7-day summary if available)
-    dsum = safe_api_call('GET', 'api/v1/discipline/summary')
-    discipline_history = []
-    if isinstance(dsum, dict) and isinstance(dsum.get('seven_day'), list) and dsum['seven_day']:
-        try:
-            discipline_history = [int(x.get('score') or 0) for x in dsum['seven_day']][-10:]
-        except Exception:
-            discipline_history = []
-    if not discipline_history:
-        discipline_history = [78, 82, 75, 88, 92, 85, 79, 83, 87, st.session_state.discipline_score]
-    
-    fig_discipline = go.Figure()
-    
-    colors = ['#22C55E' if d > 80 else '#FBBF24' if d > 60 else '#EF4444' for d in discipline_history]
-    
-    fig_discipline.add_trace(go.Bar(
-        x=list(range(1, 11)),
-        y=discipline_history,
-        marker_color=colors,
-        text=[f'{d}%' for d in discipline_history],
-        textposition='outside',
-        textfont=dict(color='#9CA3AF', size=10),
-        hovertemplate='Trade %{x}<br>Discipline: %{y}%<extra></extra>'
-    ))
-    
-    fig_discipline.update_layout(
-        height=200,
-        margin=dict(t=20, b=20, l=0, r=0),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        xaxis=dict(
-            title='Last 10 Trades',
-            color='#9CA3AF',
-            showgrid=False
-        ),
-        yaxis=dict(
-            range=[0, 100],
-            showgrid=True,
-            gridcolor='rgba(75, 85, 99, 0.2)',
-            color='#9CA3AF'
-        ),
-        showlegend=False
-    )
-    
-    st.plotly_chart(fig_discipline, use_container_width=True)
+    # Discipline Posture (moved to bottom)
+    def render_discipline_posture():
+        st.markdown("### 📊 Discipline Posture")
+        dsum = safe_api_call('GET', 'api/v1/discipline/summary')
+        discipline_history = []
+        if isinstance(dsum, dict) and isinstance(dsum.get('seven_day'), list) and dsum['seven_day']:
+            try:
+                discipline_history = [int(x.get('score') or 0) for x in dsum['seven_day']][-10:]
+            except Exception:
+                discipline_history = []
+        if not discipline_history:
+            discipline_history = [78, 82, 75, 88, 92, 85, 79, 83, 87, st.session_state.discipline_score]
+
+        fig_discipline = go.Figure()
+        colors = ['#22C55E' if d > 80 else '#FBBF24' if d > 60 else '#EF4444' for d in discipline_history]
+        fig_discipline.add_trace(go.Bar(
+            x=list(range(1, 11)),
+            y=discipline_history,
+            marker_color=colors,
+            text=[f'{d}%' for d in discipline_history],
+            textposition='outside',
+            textfont=dict(color='#9CA3AF', size=10),
+            hovertemplate='Trade %{x}<br>Discipline: %{y}%<extra></extra>'
+        ))
+        fig_discipline.update_layout(
+            height=200,
+            margin=dict(t=20, b=20, l=0, r=0),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            xaxis=dict(title='Last 10 Trades', color='#9CA3AF', showgrid=False),
+            yaxis=dict(range=[0, 100], showgrid=True, gridcolor='rgba(75, 85, 99, 0.2)', color='#9CA3AF'),
+            showlegend=False
+        )
+        st.plotly_chart(fig_discipline, use_container_width=True)
 
 # RIGHT COLUMN - The Whisperer (live)
 with col_right:
@@ -695,3 +681,9 @@ try:
         st.info("No trade history available yet.")
 except Exception:
     st.info("History unavailable.")
+
+# Final section — Discipline Posture at bottom (per review)
+try:
+    render_discipline_posture()
+except Exception:
+    pass

@@ -3,7 +3,7 @@ import plotly.graph_objects as go
 import pandas as pd
 from datetime import datetime
 
-from dashboard.components.ui_concentric import donut_session_vitals
+from dashboard.components.ui_concentric import donut_session_vitals, donut_equity
 from dashboard.utils.confluence_visuals import render_confluence_donut
 from dashboard.utils.plotly_donuts import bipolar_donut, oneway_donut, behavioral_score_from_mirror
 from dashboard.utils.streamlit_api import (
@@ -26,6 +26,16 @@ inject_glass_css()
 st.markdown("# 🧭 Whisperer Cockpit — Unified")
 st.caption("Behavioral compass • Session vitals • Trajectory • Pattern watch • Discipline posture • Whisper actions")
 render_status_row()
+
+# --- Symbol selector (multi-symbol ready) ---
+try:
+    _symbols = fetch_symbols() or []
+except Exception:
+    _symbols = []
+if 'whisper_symbol' not in st.session_state:
+    st.session_state['whisper_symbol'] = (_symbols[0] if _symbols else 'XAUUSD')
+sel_sym = st.selectbox("Symbol", _symbols or ['XAUUSD'], index=(_symbols.index(st.session_state['whisper_symbol']) if (_symbols and st.session_state['whisper_symbol'] in _symbols) else 0))
+st.session_state['whisper_symbol'] = sel_sym
 
 # Agent Ops — Quick Checklist (price integrity)
 with st.expander("Price Confirmation Checklist", expanded=False):
@@ -53,7 +63,7 @@ with st.expander("Agent Ops — GPT Instructions", expanded=False):
 # Pulse Confidence (default symbol) + donut snapshot
 try:
     syms = fetch_symbols() or []
-    sym0 = syms[0] if syms else 'XAUUSD'
+    sym0 = st.session_state.get('whisper_symbol') or (syms[0] if syms else 'XAUUSD')
     # Build query inline because safe_api_call doesn't take params
     st_status = safe_api_call('GET', f'api/v1/feed/pulse-status?symbol={sym0}') or {}
     conf = st_status.get('confidence') if isinstance(st_status, dict) else None
@@ -161,34 +171,88 @@ with colB:
             f"</div>",
             unsafe_allow_html=True)
 
-# Session Vitals (three donuts)
+# Session Vitals — unified equity donut with professional markers
 st.subheader("💰 Session Vitals")
+
 try:
-    eq = float(acct.get('equity') or 0)
-    bal = float(acct.get('balance') or 0)
+    # Helper to pull inception/starting balances when available
+    def _as_float(v, default=0.0):
+        try:
+            return float(v)
+        except Exception:
+            return float(default)
+    inception = None
+    # Prefer explicit inception keys if backend provides them
+    # Fallbacks: account 'balance_initial' or risk 'prev_close_equity'
+    try:
+        inception = risk.get('inception_equity')
+    except Exception:
+        inception = None
+    if inception is None:
+        inception = acct.get('balance_initial') if isinstance(acct, dict) else None
+    if inception is None:
+        inception = risk.get('prev_close_equity') if isinstance(risk, dict) else None
+    inception = _as_float(inception, None)
+
+    # Pull account & risk
+    eq = float(acct.get('equity') or 0.0)
+    bal = float(acct.get('balance') or 0.0)
     sod = float(risk.get('sod_equity') or bal or eq)
     target_amt = float(risk.get('target_amount') or 0.0)
     loss_amt = float(risk.get('loss_amount') or 0.0)
-    pnl_today = eq - sod
     exp_pct = risk.get('exposure_pct') or 0.0
-    exp_ratio = float(exp_pct/100.0 if exp_pct > 1 else exp_pct)
+    exp_ratio = float(exp_pct/100.0 if exp_pct and exp_pct > 1 else (exp_pct or 0.0))
+
+    # Compute normalized PnL for the donut (+ towards target, - towards loss)
+    pnl_today = eq - sod
+    if pnl_today >= 0 and target_amt > 0:
+        pnl_norm = min(1.0, pnl_today / target_amt)
+    elif pnl_today < 0 and loss_amt > 0:
+        pnl_norm = -min(1.0, abs(pnl_today) / loss_amt)
+    else:
+        pnl_norm = 0.0
+
+    # Daily drawdown used (0..1) for mid ring
+    dd_used = 0.0
+    if eq < sod and loss_amt > 0:
+        dd_used = max(0.0, min(1.0, (sod - eq) / loss_amt))
+
+    # Compute behavioral composite for posture donut
     bhv_score = behavioral_score_from_mirror(mirror)
-    bhv_ratio = bhv_score/100.0
+    bhv_ratio = (bhv_score / 100.0) if isinstance(bhv_score, (int, float)) else 0.0
 
     cV1, cV2, cV3 = st.columns(3)
     with cV1:
-        st.plotly_chart(
-            bipolar_donut(
-                title="Equity vs SoD (11pm UK)",
-                value=pnl_today,
-                pos_max=max(1.0, target_amt),
-                neg_max=max(1.0, loss_amt),
-                start_anchor="top",
-                center_title=f"{eq:,.0f}",
-                center_sub=f"{pnl_today:+,.0f} today",
-            ),
-            use_container_width=True,
+        # Equity donut with explicit SoD anchor and target/loss ticks
+        fig_eq = bipolar_donut(
+            title="Equity vs SoD (11pm UK)",
+            value=pnl_today,
+            pos_max=max(1.0, target_amt),
+            neg_max=max(1.0, loss_amt),
+            start_anchor="top",
+            center_title=f"{eq:,.0f}",
+            center_sub=f"{pnl_today:+,.0f} today",
         )
+        # Add subtle tick markers for target/loss and zero-line (SoD)
+        try:
+            fig_eq.add_annotation(text="+Target", x=0.82, y=0.80, showarrow=False, font=dict(size=10, color="#9CA3AF"))
+            fig_eq.add_annotation(text="-Loss",   x=0.18, y=0.20, showarrow=False, font=dict(size=10, color="#9CA3AF"))
+            fig_eq.add_annotation(text="SoD",     x=0.50, y=0.96, showarrow=False, font=dict(size=10, color="#9CA3AF"))
+        except Exception:
+            pass
+        st.plotly_chart(fig_eq, use_container_width=True)
+
+        # Professional readouts under the donut
+        r1, r2 = st.columns(2)
+        with r1:
+            st.metric("SoD Equity", f"${sod:,.0f}")
+            if inception is not None:
+                st.metric("Inception Equity", f"${inception:,.0f}")
+        with r2:
+            st.metric("Target (today)", f"+${target_amt:,.0f}" if target_amt > 0 else "—")
+            st.metric("Loss Cap (today)", f"-${loss_amt:,.0f}" if loss_amt > 0 else "—")
+        st.caption("Donut: outer=P&L vs target/loss • SoD=zero line • ticks at ±daily bounds")
+
     with cV2:
         st.plotly_chart(
             oneway_donut(
@@ -206,7 +270,7 @@ try:
                 title="Behavioral Posture",
                 frac=bhv_ratio,
                 start_anchor="top",
-                center_title=f"{bhv_score:.0f}",
+                center_title=f"{bhv_score:.0f}" if isinstance(bhv_score, (int, float)) else "—",
                 center_sub="composite",
             ),
             use_container_width=True,

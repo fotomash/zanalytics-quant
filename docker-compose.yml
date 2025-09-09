@@ -76,6 +76,7 @@ services:
     container_name: mt5
     volumes:
       - ./config:/config
+      - ./mt5_gateway:/opt/mt5_gateway:ro
     ports:
       - "8000:8000"
       - "5001:5001"

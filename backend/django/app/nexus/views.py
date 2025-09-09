@@ -6,6 +6,7 @@ from rest_framework.decorators import api_view, permission_classes
 from django.http import JsonResponse
 from django.views import View
 from django.db import connection
+from django.utils import timezone
 import time
 from .models import Trade, TradeClosePricesMutation, Tick, Bar, PsychologicalState, JournalEntry
 from .serializers import (
@@ -1540,8 +1541,8 @@ class ActionsQueryView(views.APIView):
                     return Response({'error': 'ticket required'}, status=400)
                 try:
                     pos = get_position(ticket)
-                    if not pos:
-                        return Response({'error': f'position {ticket} not found'}, status=404)
+                    # Do not hard-fail if position lookup endpoint is degraded; let the bridge decide.
+                    # If pos is empty, proceed with best-effort close via proxy which can resolve volume itself.
                 except Exception:
                     pass
                 ok, data = close_position_partial_or_full(
@@ -2540,20 +2541,126 @@ class OrderCloseProxyView(views.APIView):
         volume = data.get('volume')
         try:
             base = os.getenv("MT5_URL") or os.getenv("MT5_API_URL") or "http://mt5:5001"
-            # Prefer absolute volume if provided; else use fraction (default full)
+            base = str(base).rstrip('/')
+
+            # Helper to fetch position details (for full close or fallbacks)
+            def _fetch_position(tkt: int):
+                try:
+                    rp = requests.get(f"{base}/positions_get", timeout=2.5)
+                    if not rp.ok:
+                        return None
+                    arr = rp.json() or []
+                    for p in arr:
+                        try:
+                            if int(p.get('ticket') or p.get('Ticket') or -1) == int(tkt):
+                                return p
+                        except Exception:
+                            continue
+                except Exception:
+                    return None
+                return None
+
+            # Prefer explicit volume if provided; else fraction; if neither provided, attempt full close by resolving volume from bridge
             payload = {'ticket': ticket}
             if volume is not None:
                 try:
                     payload['volume'] = float(volume)
                 except Exception:
                     return Response({'error': 'volume must be numeric'}, status=400)
+            elif fraction is not None:
+                try:
+                    payload['fraction'] = float(fraction)
+                except Exception:
+                    return Response({'error': 'fraction must be numeric'}, status=400)
             else:
-                payload['fraction'] = float(fraction) if fraction is not None else 1.0
-            # Use enhanced endpoint that infers symbol from ticket and allows fraction or volume
-            r = requests.post(f"{str(base).rstrip('/')}/partial_close_v2", json=payload, timeout=6.0)
-            if r.ok:
-                return Response(r.json() if isinstance(r.json(), dict) else {'ok': True})
-            return Response({'error': 'bridge_http', 'status': r.status_code}, status=502)
+                # Full close intent: resolve current volume from bridge
+                pos = _fetch_position(ticket)
+                if pos and pos.get('volume') is not None:
+                    try:
+                        payload['volume'] = float(pos.get('volume'))
+                    except Exception:
+                        # Fall back to fraction when volume parse fails
+                        payload['fraction'] = 0.99  # close nearly full if exact volume unavailable
+                else:
+                    # If we cannot resolve position, proceed with v2 and let bridge respond; we'll retry/fallback below
+                    payload['fraction'] = 0.99
+
+            # Attempt with retry/backoff on transient HTTP issues or 404s
+            last_resp = None
+            for attempt in range(3):
+                r = requests.post(f"{base}/partial_close_v2", json=payload, timeout=6.0)
+                last_resp = r
+                if r.ok:
+                    try:
+                        body = r.json()
+                        return Response(body if isinstance(body, dict) else {'ok': True})
+                    except Exception:
+                        return Response({'ok': True})
+                if r.status_code in (404, 502, 503, 504):
+                    # Small backoff then retry
+                    import time as _t
+                    _t.sleep(0.35 * (attempt + 1))
+                    continue
+                # Other statuses: break and handle below
+                break
+
+            # If v2 failed, try fallback endpoints
+            # 1) Legacy partial_close if available (requires symbol + fraction)
+            pos = _fetch_position(ticket)
+            if pos:
+                try:
+                    symbol = str(pos.get('symbol') or pos.get('Symbol'))
+                    frac = None
+                    if 'fraction' in payload:
+                        frac = float(payload['fraction'])
+                    elif 'volume' in payload:
+                        try:
+                            v_req = float(payload['volume'])
+                            v_pos = float(pos.get('volume') or pos.get('Volume') or 0.0)
+                            if v_pos > 0:
+                                frac = max(0.01, min(0.99, v_req / v_pos))
+                        except Exception:
+                            frac = None
+                    if frac is None:
+                        frac = 0.99
+                    rl = requests.post(f"{base}/partial_close", json={'ticket': int(ticket), 'symbol': symbol, 'fraction': float(frac)}, timeout=6.0)
+                    if rl.ok:
+                        body = rl.json() if rl.headers.get('content-type','').startswith('application/json') else {'ok': True}
+                        return Response({'ok': True, 'result': body})
+                except Exception:
+                    pass
+
+            # 2) If we can fetch the position, try legacy full-close endpoint which requires full position data
+            if pos:
+                try:
+                    position_payload = {
+                        'type': int(pos.get('type') or pos.get('Type') or 0),
+                        'ticket': int(pos.get('ticket') or pos.get('Ticket') or ticket),
+                        'symbol': str(pos.get('symbol') or pos.get('Symbol')),
+                        'volume': float(pos.get('volume') or pos.get('Volume') or 0.0),
+                    }
+                    rc = requests.post(f"{base}/close_position", json={'position': position_payload}, timeout=6.0)
+                    if rc.ok:
+                        body = rc.json() if rc.headers.get('content-type','').startswith('application/json') else {'ok': True}
+                        return Response({'ok': True, 'result': body})
+                except Exception:
+                    pass
+
+            # 3) As a last check, if position is no longer present, treat as already closed
+            if not pos:
+                pos2 = _fetch_position(ticket)
+                if not pos2:
+                    return Response({'ok': True, 'note': 'position_not_found_after_retry_maybe_closed'})
+
+            # All attempts failed; return bridge error details when available
+            if last_resp is not None:
+                detail = None
+                try:
+                    detail = last_resp.json()
+                except Exception:
+                    detail = {'text': getattr(last_resp, 'text', '')}
+                return Response({'error': 'bridge_http', 'status': last_resp.status_code, 'detail': detail}, status=502)
+            return Response({'error': 'bridge_http', 'status': None}, status=502)
         except Exception as e:
             return Response({'error': str(e)}, status=502)
 
