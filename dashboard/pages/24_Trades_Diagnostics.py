@@ -1,10 +1,8 @@
 """
-Trades Diagnostics — quick sanity panel to verify trades/positions wiring.
+Trade History — streamlined view focused solely on MT5 trade history.
 
-Pulls from Django API endpoints and shows side‑by‑side views:
-- DB: /api/v1/trades/recent
-- MT5: /api/v1/trades/history?source=mt5
-- Open Positions: /api/v1/account/positions
+Queries:
+- MT5 History: /api/v1/trades/history?source=mt5
 """
 from __future__ import annotations
 
@@ -18,11 +16,11 @@ import streamlit as st
 from dashboard.utils.streamlit_api import api_url, get_api_base, inject_glass_css, fetch_symbols
 
 
-st.set_page_config(page_title="Trades Diagnostics", page_icon="🧪", layout="wide")
+st.set_page_config(page_title="Trade History", page_icon="🧪", layout="wide")
 inject_glass_css()
 
-st.markdown("### 🧪 Trades Diagnostics")
-st.caption("Verify that DB trades, MT5 history, and open positions are flowing.")
+st.markdown("### 🧪 Trade History")
+st.caption("Explore MT5 trade history with symbol and date filters.")
 
 # Symbol scope (consistent with other pages)
 _symbols = fetch_symbols() or []
@@ -69,30 +67,21 @@ def _as_df(rows: List[Dict[str, Any]] | Any) -> pd.DataFrame:
 
 cc1, cc2, cc3 = st.columns(3)
 with cc1:
-    limit = st.number_input("Recent trades (DB) limit", 1, 500, 50)
+    date_from = st.date_input("From", value=(dt.date.today() - dt.timedelta(days=14)))
 with cc2:
-    date_from = st.date_input("MT5 date_from", value=(dt.date.today() - dt.timedelta(days=14)))
+    date_to = st.date_input("To", value=dt.date.today())
 with cc3:
     show_raw = st.checkbox("Show raw JSON", value=False)
 
 
-# Fetch endpoints
-url_db = api_url("api/v1/trades/recent")
 url_mt5 = api_url("api/v1/trades/history")
-url_pos = api_url("api/v1/account/positions")
-base_params = {"symbol": symbol, "limit": int(limit)}
-db_trades = _get_json(url_db, params=base_params)
-
 mt5_params = {
     "source": "mt5",
     "date_from": date_from.isoformat(),
-    "date_to": dt.date.today().isoformat(),
+    "date_to": date_to.isoformat(),
     "symbol": symbol,
-    "limit": int(limit),
 }
 mt5_trades = _get_json(url_mt5, params=mt5_params)
-
-positions = _get_json(url_pos, params={"symbol": symbol})
 
 # Fallback: some backends expect 'provider=mt5' instead of 'source=mt5'
 if isinstance(mt5_trades, dict) and not _as_df(mt5_trades).shape[0]:
@@ -101,28 +90,19 @@ if isinstance(mt5_trades, dict) and not _as_df(mt5_trades).shape[0]:
         params={
             "provider": "mt5",
             "date_from": date_from.isoformat(),
-            "date_to": dt.date.today().isoformat(),
+            "date_to": date_to.isoformat(),
             "symbol": symbol,
-            "limit": int(limit),
         },
     )
 
-df_db = _as_df(db_trades)
 df_mt5 = _as_df(mt5_trades)
-df_pos = _as_df(positions)
 
-# Client-side filter (defensive)
-if not df_db.empty and 'symbol' in df_db.columns:
-    df_db = df_db[df_db['symbol'] == symbol]
 if not df_mt5.empty and 'symbol' in df_mt5.columns:
     df_mt5 = df_mt5[df_mt5['symbol'] == symbol]
-if not df_pos.empty and 'symbol' in df_pos.columns:
-    df_pos = df_pos[df_pos['symbol'] == symbol]
 
 # Surface any API errors
-for label, payload in (("DB Trades", db_trades), ("MT5 History", mt5_trades), ("Positions", positions)):
-    if isinstance(payload, dict) and "error" in payload:
-        st.warning(f"{label} error: {payload.get('error')} — {payload.get('url','')}")
+if isinstance(mt5_trades, dict) and "error" in mt5_trades:
+    st.warning(f"MT5 History error: {mt5_trades.get('error')} — {mt5_trades.get('url','')}")
 
 
 def _normalize_cols(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
@@ -135,55 +115,11 @@ def _normalize_cols(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
 
 
 st.markdown(
-    f"#### Overview · <span style='color:#9CA3AF'>Symbol:</span> <span style='font-weight:700'>{symbol}</span>",
-    unsafe_allow_html=True
+    f"#### MT5 Trades (history) · <span style='color:#9CA3AF'>Symbol:</span> <span style='font-weight:700'>{symbol}</span>",
+    unsafe_allow_html=True,
 )
-ov1, ov2, ov3 = st.columns(3)
-with ov1:
-    st.metric("DB Trades (recent)", len(df_db))
-with ov2:
-    st.metric("MT5 Trades (history)", len(df_mt5))
-with ov3:
-    st.metric("Open Positions", len(df_pos))
-
-
-st.divider()
-st.markdown("#### DB Trades (recent)")
-if show_raw:
-    st.json(db_trades)
-cols_db = ["id", "symbol", "side", "entry", "exit", "pnl", "ts_open", "ts_close"]
-st.dataframe(_normalize_cols(df_db, cols_db), use_container_width=True, height=260)
-
-st.markdown("#### MT5 Trades (history)")
 if show_raw:
     st.json(mt5_trades)
 cols_mt5 = ["id", "symbol", "direction", "entry", "exit", "pnl", "ts", "status"]
 st.dataframe(_normalize_cols(df_mt5, cols_mt5), use_container_width=True, height=260)
-
-st.markdown("#### Open Positions")
-if show_raw:
-    st.json(positions)
-cols_pos = ["ticket", "symbol", "type", "volume", "price_open", "sl", "tp", "price_current", "profit"]
-st.dataframe(_normalize_cols(df_pos, cols_pos), use_container_width=True, height=260)
-
-
-# Quick heuristics
-st.divider()
-st.markdown("#### Heuristics")
-notes: List[str] = []
-if df_db.empty and df_mt5.empty:
-    notes.append("No trades detected from DB or MT5 — check MT5 bridge and DB sync.")
-if not df_pos.empty and df_db.empty:
-    notes.append("Open positions exist but DB trades view is empty — expected if trades are still open.")
-if len(df_mt5) < len(df_db) and not df_db.empty:
-    notes.append("MT5 history shorter than DB recent — date_from filter may exclude older trades.")
-if df_pos.empty:
-    notes.append("No open positions — if this is unexpected, confirm broker connection.")
-if symbol:
-    notes.append(f"Scope: symbol = {symbol}")
-if notes:
-    for n in notes:
-        st.info(n)
-else:
-    st.success("Trades and positions endpoints are returning data as expected.")
 

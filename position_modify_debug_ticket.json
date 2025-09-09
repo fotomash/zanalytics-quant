@@ -36,7 +36,7 @@
       "result": "404 Not Found"
     },
     {
-      "endpoint": "/api/v1/position_modify",
+      "endpoint": "/api/v1/positions/modify",
       "method": "POST",
       "payload": {
         "ticket": 302542842,

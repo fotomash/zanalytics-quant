@@ -1306,7 +1306,7 @@ class ActionsQueryView(views.APIView):
                     },
                 }
                 return self.post(request)
-            return Response({'error': 'unknown type'}, status=400)
+            return Response({'error': f'unknown type: {typ}'}, status=400)
         except Exception as e:
             return Response({'error': str(e)}, status=500)
 
