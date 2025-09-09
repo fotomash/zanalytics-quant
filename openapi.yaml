@@ -9,6 +9,20 @@ info:
 servers:
   - url: https://django2.zanalytics.app
 paths:
+  /api/v1/ping/:
+    get:
+      summary: Health check
+      operationId: ping
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
   /api/v1/market/mini:
     get:
       summary: Market header mini payload
