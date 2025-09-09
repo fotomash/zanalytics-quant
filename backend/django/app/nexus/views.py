@@ -2192,7 +2192,22 @@ class AccountInfoView(views.APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-
+        for base in _mt5_bases():
+            try:
+                r = requests.get(f"{base}/account_info", timeout=2.5)
+                if not r.ok:
+                    continue
+                data = r.json() or {}
+                if isinstance(data, list) and data:
+                    data = data[0]
+                if not isinstance(data, dict):
+                    continue
+                out = {str(k).lower(): v for k, v in data.items()}
+                return Response(out)
+            except Exception:
+                logger.exception("account_info request failed")
+                continue
+        return Response({"error": "mt5 bridge unreachable"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 class JournalAppendView(views.APIView):
     """Append a journal entry; optionally linked to a trade by id.
 
