@@ -48,6 +48,7 @@ from .views import (
     ActionsQueryView,
     ActionsMutateView,
     ActionsSpecView,
+    PingView,
     JournalEntryPostView,
     SessionSetFocusView,
     PositionProtectOptionsView,
@@ -108,6 +109,8 @@ urlpatterns = [
 
     # Router-backed resources
     path('', include(router.urls)),
+
+    path('ping/', PingView.as_view(), name='ping'),
 
     # Minimal pulse endpoints under /api/v1/
     path('pulse/health', pulse_health, name='pulse-health-v1'),
