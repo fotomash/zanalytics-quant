@@ -138,9 +138,6 @@ services:
     networks:
       - traefik-public
       - default
-    depends_on:
-      mt5:
-        condition: service_started
     labels:
       <<: *default-labels
       traefik.enable: true
