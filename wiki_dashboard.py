@@ -12,7 +12,7 @@ import streamlit as st
 
 from datetime import datetime
 
-from pages import Edges, Home, RiskOpsRunbook, Strategies, HowTo
+from pages import Edges, Home, RiskOpsRunbook, Strategies, HowTo, InteractiveDemo
 
 
 # ---------------------------------------------------------------------------
@@ -53,6 +53,7 @@ mock_data = {
         "edges": ["Am I overtrading?"],
         "risk": ["Check my risk budget"],
         "howto": ["How do I use the Confluence Scorer?", "Best way to ask Whisperer questions?"],
+        "interactive": ["Can you walk me through a demo?"],
     },
     "journal_entries": [
         {
@@ -99,6 +100,7 @@ PAGE_KEYS = {
     "Edges": "edges",
     "Risk, Ops & Runbook": "risk",
     "HowTo": "howto",
+    "Interactive Demo": "interactive",
 }
 
 page_modules = {
@@ -107,6 +109,7 @@ page_modules = {
     "Edges": Edges,
     "Risk, Ops & Runbook": RiskOpsRunbook,
     "HowTo": HowTo,
+    "Interactive Demo": InteractiveDemo,
 }
 
 missing_keys = set(page_modules) - set(PAGE_KEYS)
