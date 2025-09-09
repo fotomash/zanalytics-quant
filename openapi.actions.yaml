@@ -252,6 +252,81 @@ paths:
         '400': { description: Bad Request }
         '500': { description: Server Error }
 
+  /api/v1/positions/modify:
+    post:
+      summary: Modify an existing open position (SL/TP)
+      operationId: postPositionModify
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PositionModifyPayload'
+            examples:
+              modify_sl_only:
+                summary: Set/modify stop loss only
+                value:
+                  ticket: 302402468
+                  sl: 147.445
+              modify_sl_tp:
+                summary: Set/modify stop loss and take profit
+                value:
+                  ticket: 302402468
+                  sl: 147.445
+                  tp: 148.250
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PositionActionResponse'
+        '400': { description: Bad Request }
+        '404': { description: Not Found }
+        '500': { description: Server Error }
+
+  /api/v1/positions/{ticket}/modify:
+    post:
+      summary: Modify an existing open position by ticket (SL/TP)
+      operationId: postPositionModifyByTicket
+      parameters:
+        - in: path
+          name: ticket
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sl: { type: number, nullable: true }
+                tp: { type: number, nullable: true }
+              anyOf:
+                - required: [sl]
+                - required: [tp]
+            examples:
+              modify_sl_only:
+                summary: Set/modify stop loss only
+                value:
+                  sl: 147.445
+              modify_sl_tp:
+                summary: Set/modify stop loss and take profit
+                value:
+                  sl: 147.445
+                  tp: 148.250
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PositionActionResponse'
+        '400': { description: Bad Request }
+        '404': { description: Not Found }
+        '500': { description: Server Error }
+
 components:
   schemas:
     ActionQuery:
