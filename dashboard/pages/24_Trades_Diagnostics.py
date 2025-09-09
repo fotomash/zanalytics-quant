@@ -120,6 +120,45 @@ st.markdown(
 )
 if show_raw:
     st.json(mt5_trades)
+
+# --- Custom interactive table rendering (replaces st.dataframe) ---
 cols_mt5 = ["id", "symbol", "direction", "entry", "exit", "pnl", "ts", "status"]
-st.dataframe(_normalize_cols(df_mt5, cols_mt5), use_container_width=True, height=260)
+df_mt5_norm = _normalize_cols(df_mt5, cols_mt5)
+
+# Render header
+if not df_mt5_norm.empty:
+    header_cols = st.columns([2, 2, 2, 2, 2, 2, 3])
+    headers = ["Symbol", "Direction", "Entry", "Exit", "P&L", "Timestamp", "Actions"]
+    for i, h in enumerate(headers):
+        header_cols[i].markdown(f"**{h}**")
+
+    for idx, row in df_mt5_norm.iterrows():
+        cols = st.columns([2, 2, 2, 2, 2, 2, 3])
+        # Defensive extraction
+        trade_id = row.get("id", idx)
+        cols[0].write(str(row.get("symbol", "")))
+        cols[1].write(str(row.get("direction", "")))
+        cols[2].write(str(row.get("entry", "")))
+        cols[3].write(str(row.get("exit", "")))
+        cols[4].write(str(row.get("pnl", "")))
+        # Timestamp formatting
+        ts_val = row.get("ts", "")
+        ts_disp = str(ts_val)
+        try:
+            # try to parse and pretty print if possible
+            if isinstance(ts_val, (int, float)):
+                ts_disp = dt.datetime.fromtimestamp(ts_val).strftime("%Y-%m-%d %H:%M:%S")
+            elif isinstance(ts_val, str):
+                # try ISO parse
+                ts_disp = str(pd.to_datetime(ts_val))
+        except Exception:
+            pass
+        cols[5].write(ts_disp)
+        # Actions column
+        with cols[6]:
+            st.button("SL → BE", key=f"slbe_{trade_id}")
+            st.button("Trail 25%", key=f"trail25_{trade_id}")
+            st.button("Trail 50%", key=f"trail50_{trade_id}")
+            st.button("Partial 25%", key=f"partial25_{trade_id}")
+            st.button("Partial 50%", key=f"partial50_{trade_id}")
 
