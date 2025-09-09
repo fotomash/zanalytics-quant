@@ -93,6 +93,14 @@ st.markdown(
 # Navigation
 # ---------------------------------------------------------------------------
 
+PAGE_KEYS = {
+    "Home": "home",
+    "Strategies": "strategies",
+    "Edges": "edges",
+    "Risk, Ops & Runbook": "risk",
+    "HowTo": "howto",
+}
+
 page_modules = {
     "Home": Home,
     "Strategies": Strategies,
@@ -100,6 +108,11 @@ page_modules = {
     "Risk, Ops & Runbook": RiskOpsRunbook,
     "HowTo": HowTo,
 }
+
+missing_keys = set(page_modules) - set(PAGE_KEYS)
+if missing_keys:
+    raise KeyError(f"Missing PAGE_KEYS for: {', '.join(missing_keys)}")
+
 page = st.sidebar.selectbox("Pages", list(page_modules.keys()))
 
 # Link to documentation
@@ -109,7 +122,7 @@ st.sidebar.markdown(
 
 st.sidebar.markdown("<div class='ask-whisperer'>", unsafe_allow_html=True)
 st.sidebar.subheader("Ask Whisperer")
-for prompt in mock_data["whisperer_prompts"].get(page.lower(), []):
+for prompt in mock_data["whisperer_prompts"].get(PAGE_KEYS.get(page, ""), []):
     st.sidebar.write(f"- {prompt}")
 whisper_input = st.sidebar.text_input("Your question:")
 if whisper_input:
