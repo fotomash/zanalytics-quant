@@ -36,5 +36,13 @@ Flags and Defaults
 - Favorites: PULSE_DEFAULT_SYMBOL, baseline: PULSE_BASELINE_EQUITY
 
 
+Static Info Site
+----------------
+
+- The public info site is a static hub synced directly from this repository's `docs/` directory.
+- No WordPress backend or other dynamic CMS is involved.
+- Deploy by serving the static content via tools like Streamlit or MkDocs behind Traefik.
+
+
 Return to [project README](../README.md)
 
