@@ -16,9 +16,10 @@ import streamlit as st
 import plotly.graph_objects as go
 import graphviz  # For diagrams (ensure installed in env)
 from datetime import datetime
-
+import pages
 
 from pages import Edges, Home, RiskOpsRunbook, Strategies, HowTo, InteractiveDemo
+
 
 
 # ---------------------------------------------------------------------------
@@ -230,6 +231,16 @@ PAGE_KEYS = {
 }
 
 page_modules = {
+
+    "Home": pages.Home,
+    "Strategies": pages.Strategies,
+    "Edges": pages.Edges,
+    "Risk, Ops & Runbook": pages.RiskOpsRunbook,
+    "HowTo": pages.HowTo,
+}
+selected_name = st.sidebar.selectbox("Pages", list(page_modules.keys()))
+selected_page = page_modules[selected_name]
+
     "Home": Home,
     "Strategies": Strategies,
     "Edges": Edges,
@@ -237,6 +248,7 @@ page_modules = {
     "HowTo": HowTo,
     "Interactive Demo": InteractiveDemo,
 }
+
 
 # Navigation (sidebar for dashboards)
 dashboards = ["Info (Landing)", "Interaction"]
@@ -247,6 +259,9 @@ dashboard = st.sidebar.selectbox("Dashboards", dashboards)
 # ensure openapi.actions.yaml defines a trusted connector with always_allow.
 st.sidebar.markdown("<div class='ask-whisperer'>", unsafe_allow_html=True)
 st.sidebar.subheader("Ask Whisperer")
+
+for prompt in mock_data["whisperer_prompts"].get(selected_name.lower(), []):
+=======
 
 module_path, prompt_key = PAGE_MODULES[page]
 for prompt in mock_data["whisperer_prompts"].get(prompt_key, []):
@@ -260,6 +275,8 @@ if whisper_input:
         "Whisperer: Processing... (structured response: Signal • Risk • Action • Journal note)"
     )
 st.sidebar.markdown("</div>", unsafe_allow_html=True)
+
+selected_page.render(mock_data)
 
 module = importlib.import_module(module_path)
 module.render(mock_data)
@@ -284,6 +301,7 @@ if dashboard == "Info (Landing)":
     st.subheader("Design Overview")
     st.graphviz_chart(render_diagram())
     st.write("Modular: Context → Structure → POI → Entry → Risk → Management. Scalable AI-native for trading and beyond.")
+
 
 elif dashboard == "Interaction":
     st.title("Interact with Dashboard")
