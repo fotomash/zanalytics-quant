@@ -645,21 +645,18 @@ services:
     networks:
       - default
 
-  wordpress:
-    image: wordpress:latest
-    container_name: wordpress
+  info:
+    build:
+      context: ./services/info
+      dockerfile: Dockerfile
+    container_name: info
     restart: unless-stopped
-    volumes:
-      - ./wordpress:/var/www/html/wp-content
     env_file:
       - .env
     environment:
-      WORDPRESS_DB_HOST: ${WORDPRESS_DB_HOST:-}
-      WORDPRESS_DB_USER: ${WORDPRESS_DB_USER:-}
-      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:-}
-      WORDPRESS_DB_NAME: ${WORDPRESS_DB_NAME:-}
+      - WIKI_DASHBOARD_PORT=${WIKI_DASHBOARD_PORT:-8503}
     ports:
-      - "8503:80"
+      - "8503:8503"
     networks:
       - default
       - traefik-public
@@ -667,10 +664,16 @@ services:
       <<: *default-labels
       traefik.enable: true
       traefik.docker.network: traefik-public
-      traefik.http.routers.wiki.rule: Host(`info.zanalytics.app`)
-      traefik.http.routers.wiki.entrypoints: https
-      traefik.http.routers.wiki.tls.certresolver: le
-      traefik.http.services.wiki.loadbalancer.server.port: 80
+      traefik.http.routers.info.rule: Host(`info.zanalytics.app`)
+      traefik.http.routers.info.entrypoints: https
+      traefik.http.routers.info.tls.certresolver: le
+      traefik.http.services.info.loadbalancer.server.port: 8503
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8503/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   # whisperer-mcp service removed; see docs/mcp-audit-trail.md for audit history
 
