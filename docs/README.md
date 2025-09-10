@@ -22,6 +22,7 @@ Current Direction (Active)
 - Pulse runtime (gates + detail API): backend/django/app/nexus/pulse/README.md
 - Services (mirror, tick→bar, reconciler): services/README.md
 - Dashboard pages index: dashboard/pages/README.md
+- Monitoring stack: docs/monitoring.md
 
 Legacy / Retired (kept for history)
 -----------------------------------
@@ -44,7 +45,9 @@ Static Info Site
 - The public info site is a static hub synced directly from this repository's `docs/` directory.
 - No WordPress backend or other dynamic CMS is involved.
 - Deploy by serving the static content via tools like Streamlit or MkDocs behind Traefik.
+- Streamlit setup details are in [streamlit.md](streamlit.md).
 
+> Editing any `docs/*.md` file and pushing changes updates the live site within seconds. See [info-site.md](info-site.md) for details on content sourcing, deployment, and auto-sync.
 
 Return to [project README](../README.md)
 

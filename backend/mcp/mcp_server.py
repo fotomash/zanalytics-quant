@@ -1,14 +1,39 @@
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response, JSONResponse
 import json
 import asyncio
 import httpx
 import os
 import time
+from prometheus_client import (
+    Counter,
+    Gauge,
+    generate_latest,
+    CONTENT_TYPE_LATEST,
+)
 
 app = FastAPI(title="Zanalytics MCP Server")
 
 INTERNAL_API_BASE = os.getenv("INTERNAL_API_BASE", "http://django:8000")
+
+HEADERS = {"X-API-Key": "dev-key-123"}
+
+REQUESTS = Counter("mcp_requests_total", "Total MCP requests", ["endpoint"])
+MCP_UP = Gauge("mcp_up", "MCP server heartbeat status")
+MCP_TIMESTAMP = Gauge(
+    "mcp_last_heartbeat_timestamp", "Unix timestamp of last heartbeat"
+)
+
+
+@app.middleware("http")
+async def check_key(request: Request, call_next):
+    if request.url.path == "/mcp":
+        return await call_next(request)
+    if request.headers.get("X-API-Key") != HEADERS["X-API-Key"]:
+        return JSONResponse(
+            status_code=401, content={"error": "Unauthorized - invalid API key"}
+        )
+    return await call_next(request)
 
 
 async def generate_mcp_stream():
@@ -24,6 +49,8 @@ async def generate_mcp_stream():
     # Keep alive with heartbeat every 30 seconds
     while True:
         await asyncio.sleep(30)
+        MCP_UP.set(1)
+        MCP_TIMESTAMP.set(time.time())
         yield json.dumps(
             {
                 "event": "heartbeat",
@@ -34,6 +61,7 @@ async def generate_mcp_stream():
 
 @app.get("/mcp")
 async def mcp_stream():
+    REQUESTS.labels(endpoint="mcp").inc()
     return StreamingResponse(
         generate_mcp_stream(),
         media_type="application/x-ndjson",
@@ -45,6 +73,7 @@ async def mcp_stream():
     "/exec/{full_path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"]
 )
 async def exec_proxy(request: Request, full_path: str):
+    REQUESTS.labels(endpoint="exec").inc()
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.request(
@@ -67,6 +96,11 @@ async def exec_proxy(request: Request, full_path: str):
     return (
         resp.json() if content_type.startswith("application/json") else {"status": "ok"}
     )
+
+
+@app.get("/metrics")
+def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 if __name__ == "__main__":
