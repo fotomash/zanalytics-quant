@@ -219,6 +219,27 @@ Places an opposite-side market order to hedge an existing position.
 }
 ```
 
+## Additional Pulse Endpoints
+
+### `POST /api/pulse/score`
+Scores bar data for confluence.
+
+**Payload schema**
+```json
+{
+  "bars": [
+    {"ts": "string", "open": number, "high": number, "low": number, "close": number, "volume": number}
+  ]
+}
+```
+
+**Sample payload**
+```json
+{
+  "bars": [
+    {"ts": "2024-01-01T00:00:00Z", "open": 1.0, "high": 1.1, "low": 0.9, "close": 1.05, "volume": 1000}
+  ]
+
 ## Pulse API
 
 ### `POST /api/pulse/score`
@@ -239,10 +260,79 @@ Returns an immediate confluence score for the provided bar data.
   "score": 42.5,
   "reasons": ["phase=Markup"],
   "timestamp": "2024-01-01T00:00:00Z"
-}
+
 ```
 
 ### `POST /api/pulse/score/peek`
+
+Returns the current confluence score with explanations.
+
+**Payload schema**
+```json
+{
+  "bars": [
+    {"ts": "string", "open": number, "high": number, "low": number, "close": number, "volume": number}
+  ]
+}
+```
+
+**Sample payload**
+```json
+{
+  "bars": [
+    {"ts": "2024-01-01T00:00:00Z", "open": 1.0, "high": 1.1, "low": 0.9, "close": 1.05, "volume": 1000}
+  ]
+}
+```
+
+### `POST /api/pulse/risk/check`
+Pre-trade risk evaluation.
+
+**Payload schema**
+```json
+{
+  "symbol": "string",
+  "side": "buy|sell",
+  "volume": number
+}
+```
+
+**Sample payload**
+```json
+{
+  "symbol": "EURUSD",
+  "side": "buy",
+  "volume": 0.1
+}
+```
+
+### `GET /api/pulse/risk/summary`
+Returns current risk metrics.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `POST /api/pulse/risk/update`
+Updates daily risk statistics.
+
+**Payload schema**
+```json
+{
+  "total_pnl": number,
+  "trades_count": number,
+  "consecutive_losses": number,
+  "cooling_until": "string"
+}
+```
+
+**Sample payload**
+```json
+{
+  "total_pnl": 150.5,
+  "trades_count": 3,
+  "consecutive_losses": 0
+
 Alias of `/api/pulse/score` that also returns explanation fields.
 
 **Sample payload**
@@ -317,10 +407,40 @@ Evaluates a proposed trade against risk rules.
 {
   "decision": "allow",
   "reasons": []
+
 }
 ```
 
 ### `GET /api/pulse/signals/top`
+
+Lists top trading signals.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/pulse/journal/recent`
+Returns recent risk journal entries.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `POST /api/pulse/strategy/match`
+Matches the current market situation to strategies.
+
+**Payload schema**
+```json
+{
+  "symbol": "string"
+}
+```
+
+**Sample payload**
+```json
+{
+  "symbol": "XAUUSD"
+
 Lists the top trading signals.
 
 **Sample payload**: _None_
@@ -363,10 +483,64 @@ Matches the current market situation to configured strategies.
 {
   "strategy": "mean_reversion",
   "confidence": 0.72
+
 }
 ```
 
 ### `GET /api/pulse/ticks`
+
+Fetches recent ticks for a symbol.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/pulse/adapter/status`
+MIDAS adapter health check.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+## Additional v1 API Endpoints
+
+### `POST /api/v1/protect/position`
+Protect an open position via predefined actions.
+
+**Payload schema**
+```json
+{
+  "action": "protect_breakeven|protect_trail_50",
+  "ticket": number,
+  "symbol": "string",
+  "lock_ratio": number
+}
+```
+
+**Sample payload**
+```json
+{
+  "action": "protect_breakeven",
+  "ticket": 123456
+}
+```
+
+### `POST /api/v1/trades/protect`
+Alias of `/api/v1/protect/position`.
+
+**Payload schema**
+```json
+{
+  "action": "protect_breakeven|protect_trail_50",
+  "ticket": number
+}
+```
+
+**Sample payload**
+```json
+{
+  "action": "protect_trail_50",
+
 Fetches the latest buffered ticks for a symbol.
 
 **Sample payload**: _None_ (use query param `symbol`)
@@ -412,9 +586,39 @@ Protect an open position by moving stop-loss or trailing profits. Alias: `POST /
 ```json
 {
   "action": "protect_breakeven",
+
   "ticket": 123456
 }
 ```
+
+### `GET /api/v1/ping`
+Simple health check.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/pulse/risk/summary`
+Proxy for Pulse risk summary.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `POST /api/v1/send_market_order`
+Places a market order through the trading bridge.
+
+**Payload schema**
+```json
+{
+  "symbol": "string",
+  "volume": number,
+  "order_type": "BUY|SELL",
+  "sl": number,
+  "tp": number
+}
+```
+
 
 **Expected response**
 ```json
@@ -424,11 +628,29 @@ Protect an open position by moving stop-loss or trailing profits. Alias: `POST /
 ### `POST /api/v1/send_market_order`
 Send a market order through the MT5 bridge.
 
+
 **Sample payload**
 ```json
 {
   "symbol": "EURUSD",
   "volume": 0.1,
+  "order_type": "BUY"
+}
+```
+
+### `POST /api/v1/modify_sl_tp`
+Modify stop-loss and take-profit for a ticket.
+
+**Payload schema**
+```json
+{
+  "ticket": number,
+  "sl": number,
+  "tp": number
+}
+```
+
+
   "order_type": "buy"
 }
 ```
@@ -441,10 +663,55 @@ Send a market order through the MT5 bridge.
 ### `POST /api/v1/modify_sl_tp`
 Modify stop-loss and/or take-profit for a trade ticket.
 
+
 **Sample payload**
 ```json
 {
   "ticket": 123456,
+  "sl": 1.15,
+  "tp": 1.35
+}
+```
+
+### `GET /api/v1/symbols`
+List available trading symbols.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/timeframes`
+List available timeframes.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/dashboard-data`
+Returns dashboard metrics.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/discipline/summary`
+Summary of discipline metrics.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `POST /api/v1/positions/partial_close`
+Close part of an open position.
+
+**Payload schema**
+```json
+{
+  "ticket": number,
+  "fraction": number
+}
+```
+
   "sl": 1.10,
   "tp": 1.20
 }
@@ -508,6 +775,187 @@ Close a fraction of an existing position via the MT5 bridge.
   "ticket": 123456,
   "symbol": "EURUSD",
   "fraction": 0.5
+}
+```
+
+### `POST /api/v1/journal`
+Create or update a journal entry for a trade.
+
+**Payload schema**
+```json
+{
+  "trade_id": number,
+  "notes": "string"
+}
+```
+
+**Sample payload**
+```json
+{
+  "trade_id": 42,
+  "notes": "Felt confident"
+}
+```
+
+### `GET /api/v1/feed/balance`
+Returns balance feed.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/feed/equity`
+Returns equity feed.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/feed/equity/series`
+Equity history series.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/equity/today`
+Today's equity snapshot.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/feed/trade`
+Trade feed.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/feed/behavior`
+Behavior feed.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/profit-horizon`
+Profit horizon analytics.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/trades/history`
+Historical trades.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/trades/recent`
+Recently closed trades.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/history_deals_get`
+Proxy to MT5 history deals.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/history_orders_get`
+Proxy to MT5 history orders.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/mirror/state`
+Mirror trading state.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/market/mini`
+Mini market snapshot.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/market/fetch`
+Fetch public market data (e.g., VIX/DXY).
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/market/news/next`
+Next scheduled news item.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/account/info`
+Account information.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `POST /api/v1/journal/append`
+Append a journal note.
+
+**Payload schema**
+```json
+{
+  "text": "string"
+}
+```
+
+**Sample payload**
+```json
+{
+  "text": "Observation"
+}
+```
+
+### `GET /api/v1/journal/recent`
+Recent journal entries.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/account/risk`
+Account risk summary.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/account/sod`
+Start-of-day account snapshot.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `POST /api/v1/orders/market`
+Proxy to create market order.
+
+**Payload schema**
+```json
+{
+  "symbol": "string",
+  "volume": number,
+  "side": "buy|sell"
 }
 ```
 
@@ -749,7 +1197,174 @@ Proxy to MT5 market order endpoint.
   "side": "buy"
 }
 ```
+### `POST /api/v1/orders/modify`
+Modify an existing order.
 
+**Payload schema**
+```json
+{
+  "order": number,
+  "sl": number,
+  "tp": number
+}
+```
+
+**Sample payload**
+```json
+{
+  "order": 555,
+  "sl": 1.1
+}
+```
+
+### `POST /api/v1/orders/close`
+Close an order.
+
+**Payload schema**
+```json
+{
+  "order": number
+}
+```
+
+**Sample payload**
+```json
+{
+  "order": 555
+}
+```
+
+### `GET /api/v1/discipline/events`
+List discipline events.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/behavior/events/today`
+Behavior events for today.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `POST /api/v1/discipline/event`
+Append a discipline event.
+
+**Payload schema**
+```json
+{
+  "event": "string"
+}
+```
+
+**Sample payload**
+```json
+{
+  "event": "missed_plan"
+}
+```
+
+### `GET /api/v1/market/symbols`
+Market symbol metadata.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/market/calendar/next`
+Next calendar event.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/market/regime`
+Current market regime.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/feeds/stream`
+Stream of feed updates.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/behavioral/patterns`
+Detected behavioral patterns.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `POST /api/v1/journal/entry`
+Create a raw journal entry.
+
+**Payload schema**
+```json
+{
+  "symbol": "string",
+  "text": "string"
+}
+```
+
+**Sample payload**
+```json
+{
+  "symbol": "EURUSD",
+  "text": "note"
+}
+```
+
+### `POST /api/v1/session/set_focus`
+Set current session focus.
+
+**Payload schema**
+```json
+{
+  "symbol": "string"
+}
+```
+
+**Sample payload**
+```json
+{
+  "symbol": "XAUUSD"
+}
+```
+
+### `GET /api/v1/positions/{ticket}/protect`
+Suggest protection options for a ticket.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/user/prefs`
+Retrieve user preferences.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `POST /api/v1/user/prefs`
+Update user preferences.
+
+**Payload schema**
+```json
+{
+  "favorite_symbol": "string"
+}
+```
+
+**Sample payload**
+```json
+{
+  "favorite_symbol": "EURUSD"
+}
 **Expected response**
 ```json
 { "ticket": 123456 }
@@ -936,6 +1551,118 @@ Update user preferences.
 ### `POST /api/v1/playbook/session-init`
 Initialize a playbook session.
 
+**Payload schema**
+```json
+{
+  "n_strategies": number
+}
+```
+
+**Sample payload**
+```json
+{
+  "n_strategies": 3
+}
+```
+
+### `GET /api/v1/liquidity/map`
+Liquidity map for a symbol.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `POST /api/v1/opportunity/priority-items`
+Rank candidate symbols.
+
+**Payload schema**
+```json
+{
+  "candidates": [
+    {"symbol": "string"}
+  ]
+}
+```
+
+**Sample payload**
+```json
+{
+  "candidates": [{"symbol": "EURUSD"}, {"symbol": "XAUUSD"}]
+}
+```
+
+### `POST /api/v1/ai/explain-signal`
+Explain a trading signal.
+
+**Payload schema**
+```json
+{
+  "signal": "string"
+}
+```
+
+**Sample payload**
+```json
+{
+  "signal": "Bullish breakout"
+}
+```
+
+### `GET /api/v1/report/daily-summary`
+Daily performance summary.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/state/snapshot`
+Combined state snapshot for dashboards.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/actions/query`
+Query consolidated actions.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `GET /api/v1/actions/read`
+Read-only alias of `/api/v1/actions/query`.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+### `POST /api/v1/actions/mutate`
+Mutate via actions bus.
+
+**Payload schema**
+```json
+{
+  "type": "string",
+  "payload": {}
+}
+```
+
+**Sample payload**
+```json
+{
+  "type": "note_create",
+  "payload": {"text": "hi"}
+}
+```
+
+### `GET /api/v1/openapi.actions.yaml`
+Serve OpenAPI specification for Actions.
+
+**Payload schema**: _None_
+
+**Sample payload**: _None_
+
+
 **Sample payload**
 ```json
 { "symbol": "EURUSD" }
@@ -1041,5 +1768,4 @@ Serve a slim OpenAPI specification for the Actions endpoints.
 ```yaml
 openapi: 3.0.0
 ```
-
 
