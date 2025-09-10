@@ -253,22 +253,7 @@ Deep dive: `docs/ACTIONS_BUS.md`
 
 ## Data Enrichment & Customization
 
-- **Modify or extend enrichment scripts** in `utils/` to calculate your own custom features.
-- Run enrichment as a scheduled job, via cron, or as a service container.
-- You can create new dashboards by adding new `.py` files in the `dashboard/` folder and referencing new data sources (DB, Redis, Parquet).
-
-### Example Enrichment Workflow
-
-A typical enrichment workflow begins with raw tick data streamed from MT5 or loaded from CSV/Parquet snapshots. Each tick is processed by enrichment scripts in `utils/` which perform the following steps:
-
-1. **Transformation:** The raw tick is parsed and normalized (e.g., timestamp conversion, price adjustments).
-2. **Hashing:** The tick is hashed with MD5 to detect duplicates.
-3. **Storage:** Unique ticks are inserted into Postgres for long-term storage and cached in Redis for fast access.
-4. **Feature Generation:** Ticks are resampled into OHLC bars using `pandas.resample` and rolling statistics or indicators (SMA, RSI, etc.) are computed over the resulting bar data.
-5. **Caching:** Computed features are cached in Redis to support low-latency dashboard queries.
-6. **Visualization:** The Streamlit dashboard fetches enriched data from the Django API, which queries both Postgres and Redis, to render charts and analytics in near real-time.
-
-This pipeline ensures that enriched data remains consistent, performant, and extensible for custom quant research.
+Extend enrichment scripts in `utils/` and schedule them to build custom features and dashboards. [Full workflow](docs/data_enrichment_customization.md).
 
 ---
 
@@ -371,14 +356,7 @@ pytest tests/test_analyzers.py
 
 ## Future Directions & Next Steps
 
-We plan to enhance the platform with the following improvements:
-
-- **Live Data Ingestion:** Streamline MT5 data ingestion to support higher throughput and lower latency.
-- **Redis-first Caching:** Shift more data queries to Redis for real-time responsiveness, reducing Postgres load.
-- **Decoupling Enrichment:** Separate enrichment pipelines from the dashboard layer to allow independent scaling and scheduling.
-- **Enhanced API Security:** Implement OAuth2 and token-based authentication for finer-grained access control and auditability.
-
-These steps aim to improve scalability, security, and flexibility for professional quant workflows.
+Planned improvements include live data ingestion, Redis-first caching, decoupled enrichment, and OAuth2 security. [Full roadmap](docs/future_directions.md).
 
 ---
 
