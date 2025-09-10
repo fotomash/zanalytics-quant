@@ -156,3 +156,17 @@ if ( ! function_exists( 'twentytwentyfive_format_binding' ) ) :
 		}
 	}
 endif;
+
+// Registers the Zanalytics dashboard menu page.
+function zan_register_dashboard_menu() {
+    add_menu_page(
+        'Dashboard',
+        'Dashboard',
+        'read',
+        'zanalytics-dashboard',
+        function() {
+            echo do_shortcode('[zan_dashboard name="Home" height="800px"]');
+        }
+    );
+}
+add_action( 'admin_menu', 'zan_register_dashboard_menu' );
