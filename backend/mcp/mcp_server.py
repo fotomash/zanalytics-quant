@@ -12,12 +12,15 @@ try:  # pragma: no cover - optional dependency
     import MetaTrader5 as mt5  # type: ignore
 except Exception:  # pragma: no cover - allow module to import without MT5
     mt5 = None
+import mt5_adapter
 from prometheus_client import (
     Counter,
     Gauge,
     generate_latest,
     CONTENT_TYPE_LATEST,
 )
+
+mt5_adapter.init_mt5()
 
 app = FastAPI(title="Zanalytics MCP Server")
 
@@ -31,6 +34,14 @@ MCP_UP = Gauge("mcp_up", "MCP server heartbeat status")
 MCP_TIMESTAMP = Gauge(
     "mcp_last_heartbeat_timestamp", "Unix timestamp of last heartbeat"
 )
+
+
+@app.get("/health")
+async def health():
+    try:
+        return {"status": "MT5 ready", "equity": mt5.account_info().equity}
+    except Exception:
+        return {"status": "MT5 not ready"}
 
 
 @app.get("/.well-known/openai.yaml", include_in_schema=False)
