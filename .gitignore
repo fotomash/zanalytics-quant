@@ -52,3 +52,6 @@ backend/mt5/.env
 *.zip*
 /dashboard/.cache
 /config/.dbus/session-bus
+
+# Node modules
+web/node_modules/
