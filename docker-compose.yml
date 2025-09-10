@@ -227,12 +227,12 @@ services:
       traefik.enable: true
       traefik.docker.network: traefik-public
 
-      traefik.http.routers.django-http.rule: Host(`${DJANGO_DOMAIN}`)
+      traefik.http.routers.django-http.rule: Host(`${DJANGO_DOMAIN}`) && !Host(`mcp1.${DJANGO_DOMAIN}`)
       traefik.http.routers.django-http.entrypoints: http
       traefik.http.routers.django-http.middlewares: https-redirect
       traefik.http.routers.django-http.service: django-service
 
-      traefik.http.routers.django-https.rule: Host(`${DJANGO_DOMAIN}`)
+      traefik.http.routers.django-https.rule: Host(`${DJANGO_DOMAIN}`) && !Host(`mcp1.${DJANGO_DOMAIN}`)
       traefik.http.routers.django-https.entrypoints: https
       traefik.http.routers.django-https.tls: true
       traefik.http.routers.django-https.tls.certresolver: le
