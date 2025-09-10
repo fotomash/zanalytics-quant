@@ -432,6 +432,10 @@ A: Extend or edit the scripts in `utils/` and trigger the enrichment process.
 **Q: What if the dashboard is blank?**
 A: Double-check your API/DB containers, verify enrichment, and confirm `.env` credentials.
 
+
+**Q: The app can't connect to Postgres or Redis.**
+A: Confirm your `.env` credentials, ensure the services are running (`docker ps`), and check container logs for authentication or network errors.
+
 **Q: Docker containers fail to build/start.**
 A:
 1. Verify your Docker installation and version.
@@ -441,6 +445,7 @@ A:
 
 **Q: Install or build fails due to missing packages or version conflicts?**
 A: Ensure you're using the supported Python version, then install dependencies with `poetry install` or `pip install -r requirements.txt`. If issues persist, clear cached wheels (e.g., `pip cache purge`) and try again.
+
 
 ---
 
