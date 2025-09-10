@@ -16,7 +16,6 @@ Current Direction (Active)
 - Architecture (streaming): docs/architecture_pulse_streaming.md
 - Journal envelopes and contracts: docs/journal_envelopes.md
 - Actions API overview: docs/ACTIONS_API_OVERVIEW.md
-- Replay drill quickstart: docs/replay_quickstart.md
 - Kafka sidecar quickstart: ops/kafka/quickstart.md
 - Pulse runtime (gates + detail API): backend/django/app/nexus/pulse/README.md
 - Services (mirror, tick→bar, reconciler): services/README.md
