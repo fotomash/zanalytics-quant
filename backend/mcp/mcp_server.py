@@ -10,8 +10,10 @@ app = FastAPI(title="Zanalytics MCP Server")
 
 INTERNAL_API_BASE = os.getenv("INTERNAL_API_BASE", "http://django:8000")
 
+MCP_ROUTE = "/mcp"
 
-async def generate_mcp_stream():
+
+async def generate_stream():
     """Generator for NDJSON streaming events."""
     yield json.dumps({
         "event": "open",
@@ -26,10 +28,10 @@ async def generate_mcp_stream():
         await asyncio.sleep(30)
 
 
-@app.get("/mcp")
+@app.get(MCP_ROUTE)
 async def mcp_stream():
     return StreamingResponse(
-        generate_mcp_stream(),
+        generate_stream(),
         media_type="application/x-ndjson",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
     )
