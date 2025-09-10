@@ -3,18 +3,54 @@ from __future__ import annotations
 from decimal import Decimal, ROUND_DOWN
 from typing import Tuple, Optional, Dict, Any
 import os
+import time
 import requests
 
 
 DJANGO_INTERNAL_BASE = os.environ.get("DJANGO_INTERNAL_BASE", "http://django:8000").rstrip("/")
 
+# Cache for symbol metadata: {symbol: (timestamp, meta_dict)}
+_SYMBOL_META_CACHE: Dict[str, Tuple[float, Dict[str, float]]] = {}
+_CACHE_TTL = float(os.getenv("SYMBOL_META_CACHE_TTL", "300"))
+
+_DEFAULT_META = {"lot_step": 0.01, "min_lot": 0.01, "max_lot": 100.0}
+
+
+def _fetch_symbol_meta(symbol: str) -> Dict[str, float]:
+    """Retrieve symbol metadata from bridge/metadata API or return defaults."""
+    base = os.getenv("MT5_URL") or os.getenv("MT5_API_URL")
+    url = f"{base}/symbol_info/{symbol}" if base else None
+    try:
+        if url:
+            r = requests.get(url, timeout=2)
+            r.raise_for_status()
+            data = r.json() or {}
+            return {
+                "lot_step": float(data.get("volume_step", _DEFAULT_META["lot_step"])),
+                "min_lot": float(data.get("volume_min", _DEFAULT_META["min_lot"])),
+                "max_lot": float(data.get("volume_max", _DEFAULT_META["max_lot"])),
+            }
+    except Exception:
+        pass
+    return _DEFAULT_META.copy()
+
+
+def _symbol_meta(symbol: str) -> Dict[str, float]:
+    now = time.time()
+    cached = _SYMBOL_META_CACHE.get(symbol)
+    if cached and (now - cached[0]) < _CACHE_TTL:
+        return cached[1]
+    meta = _fetch_symbol_meta(symbol)
+    _SYMBOL_META_CACHE[symbol] = (now, meta)
+    return meta
+
 
 def _normalize_volume(symbol: str, volume: float) -> float:
-    """Round down volume to typical broker step/min; conservative defaults if metadata unavailable."""
-    # TODO: fetch real symbol meta from bridge if available
-    lot_step = 0.01
-    min_lot = 0.01
-    max_lot = 100.0
+    """Round down volume to broker step/min based on symbol metadata."""
+    meta = _symbol_meta(symbol)
+    lot_step = meta.get("lot_step", _DEFAULT_META["lot_step"])
+    min_lot = meta.get("min_lot", _DEFAULT_META["min_lot"])
+    max_lot = meta.get("max_lot", _DEFAULT_META["max_lot"])
     vol = max(min_lot, min(max_lot, float(volume or 0)))
     q = Decimal(str(lot_step))
     vol_norm = float((Decimal(str(vol)) / q).quantize(0, rounding=ROUND_DOWN) * q)
