@@ -433,6 +433,10 @@ A: Extend or edit the scripts in `utils/` and trigger the enrichment process.
 A: Double-check your API/DB containers, verify enrichment, and confirm `.env` credentials.
 
 
+**Q: I receive errors about missing environment variables.**
+A: Copy `.env.example` to `.env`, double-check the keys, and restart the containers after any updates.
+
+
 **Q: The app can't connect to Postgres or Redis.**
 A: Confirm your `.env` credentials, ensure the services are running (`docker ps`), and check container logs for authentication or network errors.
 
