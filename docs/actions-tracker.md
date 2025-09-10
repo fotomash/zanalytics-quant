@@ -1,5 +1,7 @@
 # Actions Tracker
 
+This file is the single source of truth for action status and links.
+
 Last synced: 2025-09-10T13:20:19+00:00
 
 | Source | Name | Endpoint | Method | Description |

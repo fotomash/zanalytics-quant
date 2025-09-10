@@ -5,6 +5,8 @@ This repository is migrating from a Redis‑only realtime stack to a dual‑stre
 architecture (Redis + Kafka) with durable, replayable journal events. This hub
 points to the current sources of truth and clearly marks legacy docs.
 
+> **Note:** The [Actions Tracker](actions-tracker.md) is the canonical source for action status and links. When updating actions, keep schemas, implementation code, and documentation in sync with the tracker.
+
 - Status taxonomy
   - Active: production direction; maintained
   - Experimental: shadow mode or behind a flag
