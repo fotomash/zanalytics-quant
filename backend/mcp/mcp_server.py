@@ -6,6 +6,12 @@ import asyncio
 import httpx
 import os
 import time
+import pandas as pd
+from utils.time import localize_tz
+try:  # pragma: no cover - optional dependency
+    import MetaTrader5 as mt5  # type: ignore
+except Exception:  # pragma: no cover - allow module to import without MT5
+    mt5 = None
 from prometheus_client import (
     Counter,
     Gauge,
@@ -211,10 +217,26 @@ async def get_actions_query(
 
 
 @app.post("/api/v1/actions/query")
-async def post_actions_query(payload: ActionPayload | dict):
-    if isinstance(payload, dict):
-        payload = ActionPayload.model_validate(payload)
-    return await _handle_read_action(payload.type)
+
+
+async def post_actions_query(payload: ActionPayload):
+    def normalize_mt5_orders(orders):
+        df = pd.DataFrame([vars(o) for o in orders])
+        if "time_setup" in df.columns:
+            df["time_setup"] = pd.to_datetime(df["time_setup"], unit="s", utc=True)
+            df["time_setup"] = df["time_setup"].apply(localize_tz)
+        df = df[["ticket", "symbol", "type", "volume", "price_open", "time_setup"]]
+        return df.rename(columns={"price_open": "entry", "type": "side"})
+
+    if mt5 is None:  # pragma: no cover - dependency guard
+        return []
+
+    orders = mt5.orders_get(limit=10)
+    if orders is None:
+        return []
+    df = normalize_mt5_orders(orders)
+    return df.to_dict("records")
+
 
 
 
