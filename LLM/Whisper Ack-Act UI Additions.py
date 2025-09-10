@@ -32,7 +32,7 @@ def display_live_status():
         else:
             st.warning("⚠️ Awaiting feed (fallback to local breadcrumb)")
     except requests.RequestException as exc:
-        logging.exception("Error checking live data status")
+        logging.exception("Error checking live data status: %s", exc)
         st.error("❌ API unreachable - check base override")
 
 # Shared Helper: Render Whisper with Ack/Act Buttons
