@@ -473,13 +473,13 @@ class ZanalyticsDashboard:
 
             # Agent Ops — Quick Checklist (price integrity)
             with st.expander("Price Confirmation Checklist", expanded=False):
-            st.markdown(
-                "- Confirm latest price via `/api/v1/feed/bars-enriched` (preferred)\n"
-                "- If primary feed is down, use Yahoo chart API (e.g., `XAUUSD=X`, `GC=F`)\n"
-                "- Never state a price if no feed is reachable\n"
-                "- When quoting, include instrument + timeframe + time (e.g., M15 close at 13:45Z)"
-            )
-            st.caption("See full guidance in Agent Ops → GPT Instructions below.")
+                st.markdown(
+                    "- Confirm latest price via `/api/v1/feed/bars-enriched` (preferred)\n"
+                    "- If primary feed is down, use Yahoo chart API (e.g., `XAUUSD=X`, `GC=F`)\n"
+                    "- Never state a price if no feed is reachable\n"
+                    "- When quoting, include instrument + timeframe + time (e.g., M15 close at 13:45Z)"
+                )
+                st.caption("See full guidance in Agent Ops → GPT Instructions below.")
 
             # Agent Ops — GPT Instructions (inline reference)
             with st.expander("Agent Ops — GPT Instructions", expanded=False):
