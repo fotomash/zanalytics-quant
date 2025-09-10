@@ -29,6 +29,7 @@ This document lists the environment variables defined in [`.env.template`](../.e
 | `DJANGO_DOMAIN` | `django.localhost` | Update to the domain serving the Django app. | Hostname used by Django for site URLs. |
 | `DJANGO_API_URL` | `http://django:8000` | Modify if the Django API is accessible elsewhere. | Base URL for the Django REST API. |
 | `DJANGO_API_PREFIX` | `/api/v1` | Adjust if the API prefix changes. | Root path prefix for Django API endpoints. |
+| `INTERNAL_API_BASE` | `http://django:8000` | Change to target a different internal Django API. | Base URL used by the MCP server to proxy `/exec` requests to Django. |
 
 ## Frontend / Dashboard Defaults
 | Variable | Default | Override Behavior | Purpose |
