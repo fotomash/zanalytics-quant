@@ -422,7 +422,10 @@ A: Confirm your `.env` credentials, ensure the services are running (`docker ps`
 
 **Q: How do I clear cached data in Redis?**
 A:
-1. Run `docker-compose exec redis redis-cli FLUSHALL` to remove all cached keys.
+1. Run the following to flush all cached keys:
+   ```bash
+   docker-compose exec redis redis-cli FLUSHALL
+   ```
 2. Restart the services so caches repopulate with fresh data.
 
 **Q: Docker containers fail to build/start.**
@@ -436,16 +439,27 @@ A:
 A: Verify host permissions on the affected paths. Run `sudo chown -R $USER:$USER <path>` or adjust with `chmod`, then rebuild the containers to apply the changes.
 
 **Q: Startup fails with "address already in use."**
-A: Another service is already bound to a required port. Use `lsof -i :<port>` or `netstat -tulpn` to identify the conflicting process, stop it, or adjust the port mapping in `docker-compose.yml`.
+A: Another service is already bound to a required port.
+
+1. Run `lsof -i :<port>` or `netstat -tulpn` to find the PID and service using the port.
+2. Stop the offending process (`kill <PID>` or `systemctl stop <service>`).
+3. Or edit the `ports:` mapping in `docker-compose.yml` to use a free port and restart the stack.
 
 **Q: Install or build fails due to missing packages or version conflicts?**
 A: Ensure you're using the supported Python version, then install dependencies with `poetry install` or `pip install -r requirements.txt`. If issues persist, clear cached wheels (e.g., `pip cache purge`) and try again.
+
+**Q: The web UI won't compile or `npm start` fails.**
+A: Delete `web/node_modules`, run `npm install` or `npm ci`, and confirm you're using the Node.js version required by the project.
+
+
+**Q: The web UI won't compile or `npm start` fails.**
+A: Remove the `web/node_modules` directory and reinstall dependencies with `npm install` (or `npm ci`). Confirm you're using the project's required Node version.
 
 
 **Q: How do I reset the containers when data gets corrupted or outdated?**
 A:
 1. Stop and remove containers and volumes: `docker-compose down -v`.
-2. Remove any orphan containers: `docker-compose down --remove-orphans`.
+2. Remove any orphan containers: `docker container prune -f`.
 3. Rebuild and start fresh containers: `docker-compose up --build`.
 4. Rerun database migrations if applicable.
 
