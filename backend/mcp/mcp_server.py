@@ -103,13 +103,6 @@ async def exec_proxy(request: Request, full_path: str):
 def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
-@app.post("/api/v1/actions/query")
-async def actions_query(request: Request):
-    body = await request.json()
-    action = body.get("type")
-    if action == "session_boot":
-        return {"equity": 12300, "positions": [], "risk": {"max_drawdown": 0.02}}
-    raise HTTPException(status_code=400, detail="Invalid action type")
 
 @app.post("/exec")
 async def exec_action(payload: dict):
@@ -120,6 +113,11 @@ async def exec_action(payload: dict):
 async def search_tool(query: str):
     # TODO: add market search logic
     return {"results": []}
+
+@app.post("/api/v1/actions/query")
+async def query_actions(payload: dict):
+    # Mirror the body to /api/v1/actions/read
+    return await read_actions(type=payload.get("type", "session_boot"))
 
 @app.post("/api/v1/actions/read")
 async def read_actions(type: str = "session_boot"):
