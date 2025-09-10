@@ -36,8 +36,11 @@ def risk_summary() -> Dict[str, Any]:
     return safe_api_call("GET", "risk/summary") or {}
 
 
-def signals_top() -> Dict[str, Any]:
-    return safe_api_call("GET", "signals/top?n=3") or {}
+def signals_top() -> List[Dict[str, Any]]:
+    data = safe_api_call("GET", "signals/top?n=3") or {}
+    if isinstance(data, list):
+        return data
+    return data.get("signals") or []
 
 
 def adapter_status() -> Dict[str, Any]:
@@ -113,7 +116,7 @@ if health:
 # ------------------------------------------------------------------
 
 st.subheader("Top Opportunities")
-ops = signals_top().get("signals") or []
+ops = signals_top()
 for sig in ops:
     with st.expander(f"{sig.get('symbol','?')} • {sig.get('bias','?')} • SL {sig.get('sl','?')} TP {sig.get('tp','?')}"):
         st.write(sig.get("reason", "No reason provided"))
