@@ -12,7 +12,7 @@ The public info site mirrors content from this repository's `docs/` folder.
 
 - A lightweight Streamlit app renders the Markdown files.
 - You can also generate a static site with tools like MkDocs.
-- Example `docker-compose` snippet:
+- Example `docker compose` snippet:
   ```yaml
   volumes:
     - ./docs:/app/docs:ro
