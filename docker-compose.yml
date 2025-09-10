@@ -738,10 +738,6 @@ services:
       traefik.docker.network: traefik-public
       traefik.http.routers.mcp.rule: Host(`mcp1.zanalytics.app`)
       traefik.http.routers.mcp.entrypoints: https
-<<<<<<< HEAD
-      traefik.http.routers.mcp.tls.certresolver: le
-=======
->>>>>>> 535928aa444b4ed0d1c2f4441ff6bf950cfe2216
       traefik.http.routers.mcp.tls: true
       traefik.http.routers.mcp.tls.certresolver: le
       traefik.http.routers.mcp.service: mcp-service
