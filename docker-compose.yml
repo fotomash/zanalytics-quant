@@ -694,7 +694,7 @@ services:
       WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:-}
       WORDPRESS_DB_NAME: ${WORDPRESS_DB_NAME:-}
     ports:
-      - "803:80"
+      - "8503:80"
     networks:
       - default
       - traefik-public
