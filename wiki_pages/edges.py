@@ -1,6 +1,6 @@
 import streamlit as st
 import plotly.graph_objects as go
-from wiki_dashboard import donut_chart
+from dashboard.wiki_dashboard import donut_chart
 
 
 def render(mock_data):

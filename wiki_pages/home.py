@@ -1,5 +1,5 @@
 import streamlit as st
-from wiki_dashboard import render_diagram
+from dashboard.wiki_dashboard import render_diagram
 
 
 def render(mock_data):

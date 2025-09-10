@@ -564,7 +564,7 @@ services:
       django:
         condition: service_healthy
     command: >
-      streamlit run pages/pulse_dashboard.py --server.port=${STREAMLIT_SERVER_PORT:-8501} --server.enableCORS true --server.enableXsrfProtection false
+      streamlit run dashboard/pulse_dashboard.py --server.port=${STREAMLIT_SERVER_PORT:-8501} --server.enableCORS true --server.enableXsrfProtection false
     restart: unless-stopped
     networks:
       - default
