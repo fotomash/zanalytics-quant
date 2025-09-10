@@ -629,15 +629,6 @@ services:
       start_period: 20s
     logging: *default-logging
 
-# Streamlit UAC test container
-  streamlit-uac:
-    build: .
-    command: streamlit run dashboard/pulse_dashboard.py --server.port=${STREAMLIT_SERVER_PORT:-8501}
-    ports: ["8502:8501"]
-    env_file: [.env]
-    depends_on: [pulse-kernel]
-    volumes:
-      - ./:/app
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
