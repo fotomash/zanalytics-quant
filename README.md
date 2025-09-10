@@ -424,8 +424,11 @@ A: Real-time data is cached in Redis and long-term data is stored in Postgres. S
 **Q: How can I add a new feature or signal?**  
 A: Extend or edit the scripts in `utils/` and trigger the enrichment process.
 
-**Q: What if the dashboard is blank?**  
+**Q: What if the dashboard is blank?**
 A: Double-check your API/DB containers, verify enrichment, and confirm `.env` credentials.
+
+**Q: Install or build fails due to missing packages or version conflicts?**
+A: Ensure you're using the supported Python version, then install dependencies with `poetry install` or `pip install -r requirements.txt`. If issues persist, clear cached wheels (e.g., `pip cache purge`) and try again.
 
 ---
 
