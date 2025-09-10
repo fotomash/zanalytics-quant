@@ -62,16 +62,19 @@ results = backtester.backtest_strategy(historical_data, engine)
 # Live Trading
 realtime = RealTimeTradingEngine(config)
 await realtime.start()
-Performance Expectations
+```
+
+## Performance Expectations
 Based on the integration:
 
-Win Rate: 65-75%
-Risk/Reward: Minimum 1:2
-Profit Factor: > 2.0
-Max Drawdown: < 15%
-Next Steps
-Connect to live data feeds
-Integrate broker API
-Deploy monitoring dashboard
-Start with paper trading
-Gradually scale to live
+- Win Rate: 65-75%
+- Risk/Reward: Minimum 1:2
+- Profit Factor: > 2.0
+- Max Drawdown: < 15%
+
+## Next Steps
+- Connect to live data feeds
+- Integrate broker API
+- Deploy monitoring dashboard
+- Start with paper trading
+- Gradually scale to live
