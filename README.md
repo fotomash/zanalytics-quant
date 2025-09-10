@@ -471,6 +471,16 @@ A: Ensure you're using the supported Python version, then install dependencies w
 A: Remove the `web/node_modules` directory and reinstall dependencies with `npm install` (or `npm ci`). Ensure you're using the project's required Node.js version.
 
 
+**Q: Celery tasks are stuck or failing—what should I do?**
+A:
+1. Check the Celery worker logs for errors.
+2. Purge the queue:
+   ```bash
+   celery -A app purge -f
+   ```
+3. Restart the Celery service.
+4. For a quick diagnostic, run [check_celery.sh](check_celery.sh).
+
 **Q: How do I reset the containers when data gets corrupted or outdated?**
 A:
 1. Stop and remove containers and volumes: `docker-compose down -v`.
