@@ -196,12 +196,10 @@ async def get_actions_read(
 
 
 @app.post("/api/v1/actions/read")
-
-async def post_actions_read(payload: ActionPayload):
+async def post_actions_read(payload: ActionPayload | dict):
+    if isinstance(payload, dict):
+        payload = ActionPayload.model_validate(payload)
     return await _handle_read_action(payload.type)
-
-async def post_actions_read(payload: dict):
-    return await _handle_read_action(payload.get("type", "session_boot"))
 
 @app.get("/api/v1/actions/query")
 async def get_actions_query(
@@ -220,6 +218,7 @@ async def get_actions_query(
 
 @app.post("/api/v1/actions/query")
 
+
 async def post_actions_query(payload: ActionPayload):
     def normalize_mt5_orders(orders):
         df = pd.DataFrame([vars(o) for o in orders])
@@ -237,6 +236,7 @@ async def post_actions_query(payload: ActionPayload):
         return []
     df = normalize_mt5_orders(orders)
     return df.to_dict("records")
+
 
 
 
