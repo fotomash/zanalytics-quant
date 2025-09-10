@@ -2,6 +2,7 @@
 import streamlit as st
 import requests
 import time  # For any polling if needed
+import logging
 
 # Shared Helper: Runtime API Base Resolution (as per your update)
 def get_api_base():
@@ -31,7 +32,8 @@ def display_live_status():
             st.success("✓ Live data flowing (equity series available)")
         else:
             st.warning("⚠️ Awaiting feed (fallback to local breadcrumb)")
-    except:
+    except requests.RequestException as exc:
+        logging.exception("Error checking live data status")
         st.error("❌ API unreachable - check base override")
 
 # Shared Helper: Render Whisper with Ack/Act Buttons
