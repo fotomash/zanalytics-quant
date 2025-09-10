@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import StreamingResponse, Response, FileResponse
 from pydantic import BaseModel, ValidationError
+from typing import Any, Callable
 import json
 import asyncio
 import httpx
@@ -8,17 +9,28 @@ import os
 import time
 import logging
 from .auth import verify_api_key
+
 try:  # pragma: no cover - optional dependency
     import pandas as pd
 except Exception:  # pragma: no cover - allow module to import without pandas
     pd = None
 from dotenv import load_dotenv, find_dotenv
 from utils.time import localize_tz
+
 try:  # pragma: no cover - optional dependency
     import MetaTrader5 as mt5  # type: ignore
 except Exception:  # pragma: no cover - allow module to import without MT5
     mt5 = None
 from .mt5_adapter import init_mt5
+from .models import (
+    ACCOUNT_POSITIONS,
+    SESSION_BOOT,
+    TRADES_HISTORY_MT5,
+    TRADES_RECENT,
+    WHISPER_SUGGEST,
+    ActionType,
+    ActionsQuery,
+)
 from prometheus_client import (
     Counter,
     Gauge,
@@ -36,7 +48,9 @@ dotenv_path = find_dotenv()
 if dotenv_path:
     load_dotenv(dotenv_path)
 else:
-    logger.warning("No .env file found; proceeding without loading environment variables")
+    logger.warning(
+        "No .env file found; proceeding without loading environment variables"
+    )
 
 INTERNAL_API_BASE = os.getenv("INTERNAL_API_BASE", "http://django:8000")
 
@@ -192,7 +206,9 @@ async def exec_action(payload: ExecPayload):
         try:
             resp = await client.post(f"{INTERNAL_API_BASE}{path}", json=body)
         except httpx.HTTPError as exc:
-            raise HTTPException(status_code=502, detail="Internal API unreachable") from exc
+            raise HTTPException(
+                status_code=502, detail="Internal API unreachable"
+            ) from exc
 
     if resp.status_code >= 400:
         raise HTTPException(status_code=resp.status_code, detail=resp.text)
@@ -210,7 +226,9 @@ async def search_tool(query: str):
         try:
             resp = await client.get(f"{INTERNAL_API_BASE}/market/symbols")
         except httpx.HTTPError as exc:
-            raise HTTPException(status_code=502, detail="Internal API unreachable") from exc
+            raise HTTPException(
+                status_code=502, detail="Internal API unreachable"
+            ) from exc
 
     if resp.status_code != 200:
         raise HTTPException(status_code=resp.status_code, detail=resp.text)
@@ -218,13 +236,6 @@ async def search_tool(query: str):
     symbols = resp.json().get("symbols", [])
     q = query.lower()
     return {"results": [s for s in symbols if q in s.lower()]}
-
-
-
-class ActionPayload(BaseModel):
-    type: str
-    payload: dict | None = None
-    approve: bool = False
 
 
 async def _handle_read_action(action_type: str):
@@ -296,23 +307,25 @@ async def _handle_account_positions():
 
 
 @app.post("/api/v1/actions/query", dependencies=[Depends(verify_api_key)])
-async def post_actions_query(payload: ActionPayload):
+async def post_actions_query(payload: ActionsQuery):
     REQUESTS.labels(endpoint="actions_query").inc()
-    handlers = {
-        "whisper_suggest": lambda: _handle_read_action("whisper_suggest"),
-        "session_boot": lambda: _handle_read_action("session_boot"),
-        "trades_recent": lambda: _handle_read_action("trades_recent"),
-        "trades_history_mt5": lambda: _handle_read_action("trades_history_mt5"),
-        "account_positions": _handle_account_positions,
+    handlers: dict[ActionType, Callable[[], Any]] = {
+        WHISPER_SUGGEST: lambda: _handle_read_action(WHISPER_SUGGEST),
+        SESSION_BOOT: lambda: _handle_read_action(SESSION_BOOT),
+        TRADES_RECENT: lambda: _handle_read_action(TRADES_RECENT),
+        TRADES_HISTORY_MT5: lambda: _handle_read_action(TRADES_HISTORY_MT5),
+        ACCOUNT_POSITIONS: _handle_account_positions,
     }
 
-    handler = handlers.get(payload.type)
-    if handler is None:
-        raise HTTPException(status_code=400, detail=f"Unsupported action type: {payload.type}")
+    try:
+        handler = handlers[payload.type]
+    except KeyError as exc:  # pragma: no cover - should be prevented by validation
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported action type: {payload.type}",
+        ) from exc
 
     return await handler()
-
-
 
 
 if __name__ == "__main__":
