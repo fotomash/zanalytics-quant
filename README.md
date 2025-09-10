@@ -432,6 +432,13 @@ A: Extend or edit the scripts in `utils/` and trigger the enrichment process.
 **Q: What if the dashboard is blank?**
 A: Double-check your API/DB containers, verify enrichment, and confirm `.env` credentials.
 
+**Q: Docker containers fail to build/start.**
+A:
+1. Verify your Docker installation and version.
+2. Rebuild images without cache using `docker-compose build --no-cache`.
+3. Check container output with `docker-compose logs`.
+4. Ensure required ports are free to avoid conflicts.
+
 **Q: Install or build fails due to missing packages or version conflicts?**
 A: Ensure you're using the supported Python version, then install dependencies with `poetry install` or `pip install -r requirements.txt`. If issues persist, clear cached wheels (e.g., `pip cache purge`) and try again.
 
