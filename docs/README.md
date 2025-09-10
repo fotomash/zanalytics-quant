@@ -29,6 +29,8 @@ Current Direction (Active)
 - [Pulse runtime (gates + detail API)](../backend/django/app/nexus/pulse/README.md)
 - [Services (mirror, tick→bar, reconciler)](../services/README.md)
 - [Dashboard pages index](../dashboard/pages/README.md)
+- [Dashboard app](../dashboard/README.md)
+- [Prototype dashboards](../dashboards/README.md)
 - [Monitoring stack](monitoring.md)
 
 Legacy / Retired (kept for history)
