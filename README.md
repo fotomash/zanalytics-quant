@@ -39,7 +39,8 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 ## What's Inside
 - `backend/mt5`: Flask bridge to MetaTrader5 (send orders, partial close, hedge, scale)
 - `backend/django`: REST API, Actions Bus router, positions aliases, journal
-- `dashboard/`: Streamlit UI (Pulse, Whisperer, diagnostics)
+- [`dashboard/`](dashboard/README.md): Streamlit UI (Pulse, Whisperer, diagnostics)
+- [`dashboards/`](dashboards/README.md): standalone examples and templates
 - `openapi.actions.yaml`: the single schema to upload to Custom GPT
 - `docs/`: deep dives (Actions Bus, Positions & Orders, Journaling schema)
 
@@ -172,7 +173,7 @@ Single endpoint for GPT-driven verbs defined in `openapi.actions.yaml`. Deep div
 
 ## Dashboards & Diagnostics
 
-Streamlit pages under `dashboard/pages/` power Pulse, Whisperer, and diagnostics. `24_Trades_Diagnostics.py` compares closed trades, MT5 history, and open positions.
+Streamlit pages under `dashboard/pages/` power Pulse, Whisperer, and diagnostics. `24_Trades_Diagnostics.py` compares closed trades, MT5 history, and open positions. See [`dashboard/`](dashboard/README.md) for setup and [`dashboards/`](dashboards/README.md) for standalone examples.
 
 ---
 
