@@ -33,7 +33,6 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [FAQ](#faq)
 - [Troubleshooting Gold Mine](#troubleshooting-gold-mine)
 - [Pulse Dashboard Prototype](#pulse-dashboard-prototype)
-- [Exporting Streamlit Dashboards to WordPress](#exporting-streamlit-dashboards-to-wordpress)
 - [Further Reading](#further-reading)
 
 ## What's Inside
@@ -400,12 +399,6 @@ See [docs/mcp_troubleshooting.md](docs/mcp_troubleshooting.md) for Traefik label
 ## Pulse Dashboard Prototype
 
 Behavioral and risk analytics demo. [docs/pulse_dashboard_prototype.md](docs/pulse_dashboard_prototype.md).
-
----
-
-## Exporting Streamlit Dashboards to WordPress
-
-Static export workflow for publishing dashboards on WordPress. [docs/export_dashboards_wordpress.md](docs/export_dashboards_wordpress.md).
 
 ---
 
