@@ -12,6 +12,13 @@ points to the current sources of truth and clearly marks legacy docs.
   - Experimental: shadow mode or behind a flag
   - Legacy: kept for history; superseded
 
+<!-- TOC -->
+- [Current Direction (Active)](#current-direction-active)
+- [Legacy / Retired (kept for history)](#legacy-retired-kept-for-history)
+- [Flags and Defaults](#flags-and-defaults)
+- [Static Info Site](#static-info-site)
+<!-- /TOC -->
+
 Current Direction (Active)
 --------------------------
 
