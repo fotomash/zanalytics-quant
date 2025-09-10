@@ -422,7 +422,10 @@ A: Confirm your `.env` credentials, ensure the services are running (`docker ps`
 
 **Q: How do I clear cached data in Redis?**
 A:
-1. Run `docker-compose exec redis redis-cli FLUSHALL` to remove all cached keys.
+1. Run the following to flush all cached keys:
+   ```bash
+   docker-compose exec redis redis-cli FLUSHALL
+   ```
 2. Restart the services so caches repopulate with fresh data.
 
 **Q: Docker containers fail to build/start.**
