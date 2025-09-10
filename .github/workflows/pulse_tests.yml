@@ -29,6 +29,10 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt -c constraints.txt
         pip install pytest pytest-cov
+        pip install .[lint]
+
+    - name: Lint docstrings
+      run: make lint-docs
 
     - name: Run Pulse tests
       run: |

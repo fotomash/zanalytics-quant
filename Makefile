@@ -25,3 +25,7 @@ bot:
 # Run Streamlit dashboard locally (multi-page)
 dashboard:
 	streamlit run app.py
+
+# Lint Python docstrings
+lint-docs:
+	pydocstyle src tests
