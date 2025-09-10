@@ -8,7 +8,16 @@ Use a development key such as `dev-key-123` during local testing:
 
 ```bash
 curl -s -H "X-API-Key: dev-key-123" \
-  http://localhost:8080/api/v1/actions/read
+  -H "Content-Type: application/json" \
+  -X POST \
+  -d '{ "type": "session_boot", "payload": {} }' \
+  http://localhost:8080/api/v1/actions/query
+```
+
+Minimal JSON body:
+
+```json
+{ "type": "session_boot", "payload": {} }
 ```
 
 ## Rotating the key
