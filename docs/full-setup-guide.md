@@ -38,9 +38,10 @@ docker network create traefik-public
 
 ## 5. Start the stack
 
-From the repository root, launch all services:
+From the repository root, build and launch all services:
 
 ```bash
+docker compose build --no-cache
 docker compose up -d
 ```
 
@@ -49,8 +50,13 @@ docker compose up -d
 Use `curl` to ensure the main endpoints respond:
 
 ```bash
-curl -i http://localhost/mcp
-curl -i http://localhost/api/v1/positions
+curl -i https://mcp1.<domain>/mcp
+curl -i https://api.<domain>/api/v1/positions
+curl -N https://mcp1.<domain>/mcp
 ```
 
-Both commands should return HTTP 200 responses once the containers are healthy.
+The `-i` commands should return HTTP 200 responses once the containers are healthy. The `curl -N` command streams NDJSON events. A typical heartbeat line looks like:
+
+```json
+{"event":"heartbeat","data":{"time":1693499999.0,"server":"mcp1.<domain>"}}
+```
