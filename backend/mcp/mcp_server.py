@@ -191,10 +191,6 @@ async def _handle_read_action(action_type: str):
     return {"error": "unsupported type"}
 
 
-@app.post("/api/v1/actions/read")
-async def post_actions_read(payload: ActionPayload | dict):
-    return await post_actions_query(payload)
-
 @app.post("/api/v1/actions/query")
 async def post_actions_query(payload: ActionPayload):
     def normalize_mt5_orders(orders):
