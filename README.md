@@ -427,6 +427,9 @@ A:
 3. Check container output with `docker-compose logs`.
 4. Ensure required ports are free to avoid conflicts.
 
+**Q: Docker containers complain about file or directory permissions.**
+A: Verify host permissions on the affected paths. Run `sudo chown -R $USER:$USER <path>` or adjust with `chmod`, then rebuild the containers to apply the changes.
+
 **Q: Startup fails with "address already in use."**
 A: Another service is already bound to a required port. Use `lsof -i :<port>` or `netstat -tulpn` to identify the conflicting process, stop it, or adjust the port mapping in `docker-compose.yml`.
 
