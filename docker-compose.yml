@@ -138,9 +138,6 @@ services:
     networks:
       - traefik-public
       - default
-    depends_on:
-      mt5:
-        condition: service_started
     labels:
       <<: *default-labels
       traefik.enable: true
@@ -603,8 +600,6 @@ services:
       - DJANGO_API_PREFIX=/api/v1
       - BRIDGE_TOKEN=${BRIDGE_TOKEN:-}
     depends_on:
-      mt5-api:
-        condition: service_healthy
       django:
         condition: service_healthy
     command: >
@@ -693,6 +688,36 @@ services:
     restart: unless-stopped
     networks:
       - default
+
+  wordpress:
+    image: wordpress:latest
+    container_name: wordpress
+    restart: unless-stopped
+    volumes:
+      - ./wordpress:/var/www/html/wp-content
+    env_file:
+      - .env
+    environment:
+      WORDPRESS_DB_HOST: ${WORDPRESS_DB_HOST:-}
+      WORDPRESS_DB_USER: ${WORDPRESS_DB_USER:-}
+      WORDPRESS_DB_PASSWORD: ${WORDPRESS_DB_PASSWORD:-}
+      WORDPRESS_DB_NAME: ${WORDPRESS_DB_NAME:-}
+    networks:
+      - default
+      - traefik-public
+    labels:
+      <<: *default-labels
+      traefik.enable: true
+      traefik.docker.network: traefik-public
+      traefik.http.routers.wordpress-http.rule: Host(`${INFO_DOMAIN}`)
+      traefik.http.routers.wordpress-http.entrypoints: http
+      traefik.http.routers.wordpress-http.middlewares: https-redirect
+      traefik.http.routers.wordpress-https.rule: Host(`${INFO_DOMAIN}`)
+      traefik.http.routers.wordpress-https.entrypoints: https
+      traefik.http.routers.wordpress-https.tls: true
+      traefik.http.routers.wordpress-https.tls.certresolver: le
+      traefik.http.routers.wordpress-https.service: wordpress-service
+      traefik.http.services.wordpress-service.loadbalancer.server.port: 80
 
   market-fetcher:
     image: curlimages/curl:8.8.0
