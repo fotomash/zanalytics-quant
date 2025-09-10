@@ -8,7 +8,7 @@
   },
   "api": {
     "type": "openapi",
-    "url": "https://django2.zanalytics.app/openapi.actions.yaml"
+    "url": "https://mcp1.zanalytics.app/openapi.actions.yaml"
   },
   "logo_url": "https://example.com/logo.png",
   "contact_email": "support@example.com",
