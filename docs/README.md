@@ -65,3 +65,14 @@ Run this:
 ```bash
 docker compose up
 ```
+
+## Action manifest checks
+
+Keep the OpenAI Actions manifest in sync with the MCP server and smoke‑test the endpoints:
+
+```bash
+python scripts/verify_actions.py
+python scripts/test_actions.py
+```
+
+More details are in [openai-actions.md](openai-actions.md).
