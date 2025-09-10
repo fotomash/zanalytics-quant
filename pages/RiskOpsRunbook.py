@@ -19,8 +19,7 @@ def render(mock_data):
     st.write("Weekly reviews: Detect drift via behavior_events.")
     st.subheader("Operations")
     st.write(
-        "Run: streamlit run dashboard/wiki_dashboard.py --server.port="
-        "{st.secrets.get('WIKI_DASHBOARD_PORT', 8503)}"
+        f"Run: streamlit run dashboards/info/main.py --server.port={st.secrets.get('WIKI_DASHBOARD_PORT', 8503)}"
     )
     st.write("Route: Traefik host WIKI_DASHBOARD; verify Django health /api/pulse/health.")
     with st.expander("Incident Checklist"):
