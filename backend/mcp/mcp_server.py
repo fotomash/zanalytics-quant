@@ -192,14 +192,23 @@ async def get_actions_read(
     pnl_max: float | None = None,
     user_id: str | None = None,
 ):
-    return await _handle_read_action(type)
+    payload = {
+        "type": type,
+        "limit": limit,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "date_from": date_from,
+        "date_to": date_to,
+        "pnl_min": pnl_min,
+        "pnl_max": pnl_max,
+        "user_id": user_id,
+    }
+    return await post_actions_query(payload)
 
 
 @app.post("/api/v1/actions/read")
 async def post_actions_read(payload: ActionPayload | dict):
-    if isinstance(payload, dict):
-        payload = ActionPayload.model_validate(payload)
-    return await _handle_read_action(payload.type)
+    return await post_actions_query(payload)
 
 @app.get("/api/v1/actions/query")
 async def get_actions_query(
@@ -213,7 +222,18 @@ async def get_actions_query(
     pnl_max: float | None = None,
     user_id: str | None = None,
 ):
-    return await _handle_read_action(type)
+    payload = {
+        "type": type,
+        "limit": limit,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "date_from": date_from,
+        "date_to": date_to,
+        "pnl_min": pnl_min,
+        "pnl_max": pnl_max,
+        "user_id": user_id,
+    }
+    return await post_actions_query(payload)
 
 
 @app.post("/api/v1/actions/query")
