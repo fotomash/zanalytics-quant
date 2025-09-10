@@ -1,7 +1,5 @@
-import os
 import json
 import httpx
-import pytest
 from fastapi.testclient import TestClient
 import sys
 from pathlib import Path
@@ -24,7 +22,10 @@ def test_mcp_public(monkeypatch):
     assert response.status_code == 200
 
 
-def test_exec_requires_api_key():
+def test_exec_requires_api_key(monkeypatch):
+    monkeypatch.setenv("MCP_API_KEY", TEST_KEY)
+    monkeypatch.setattr(mcp_server, "API_KEY", TEST_KEY)
+
     assert client.get("/exec/foo").status_code == 401
     assert client.get("/exec/foo", headers={"X-API-Key": "wrong"}).status_code == 401
 
@@ -48,6 +49,6 @@ def test_exec_with_valid_api_key(monkeypatch):
 
     monkeypatch.setattr(httpx.AsyncClient, "request", mock_request)
 
-    response = client.get("/exec/foo", headers={"X-API-Key": TEST_KEY})
+    response = client.get("/exec/foo", headers={"X-API-Key": mcp_server.API_KEY})
     assert response.status_code == 200
     assert response.json() == {"ok": True}
