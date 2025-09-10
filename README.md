@@ -120,6 +120,12 @@ Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/
 
 ## Environment Variables
 
+Copy `.env.template` to `.env`, fill in the sensitive values, and keep the real
+file out of version control. Docker Compose reads `.env` through its `env_file`
+directive and injects those variables into services like `mcp`. In CI pipelines,
+provide the same variables via your environment or secret manager—containers no
+longer mount `.env` directly.
+
 Key variables to configure before launching:
 
 - `CUSTOM_USER` and `PASSWORD` – MT5 account credentials.
@@ -129,7 +135,8 @@ Key variables to configure before launching:
 - `BRIDGE_TOKEN` – optional token sent as `X-Bridge-Token` header.
 - `VNC_DOMAIN`, `TRAEFIK_DOMAIN`, `TRAEFIK_USERNAME`, `ACME_EMAIL` – domains and Traefik settings.
 - `DJANGO_SECRET_KEY` – secret key for Django.
-- `MCP_API_KEY` – MCP uses the root `.env`; set this 32‑hex‑character key there. This key is shared across services so Whisperer connects once without drift.
+- `MCP_API_KEY` – secret used by the `mcp` service. Add it to `.env` and Compose
+  or CI will inject it; use a 32‑hex‑character value.
 
 For the complete list of variables, see [docs/env-reference.md](docs/env-reference.md).
 
