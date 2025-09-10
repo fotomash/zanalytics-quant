@@ -2,7 +2,9 @@
 
 ## Network Routing
 
-The diagram below shows external traffic flowing from the host through Traefik to internal services.
+The diagram below shows external traffic flowing from the host through Traefik to internal services
+and data stores. It highlights the MCP `/exec` flow to Django as well as connections to PostgreSQL,
+Redis, and the MT5 bridge.
 
 ```mermaid
 graph LR
@@ -11,5 +13,10 @@ graph LR
     traefik --> mcp[MCP:8001]
     traefik --> dashboard[Dashboard:8501]
     traefik --> grafana[Grafana:3000]
+    traefik --> mt5[MT5 Bridge]
+    mcp -->|/exec| django
+    django --> postgres[(PostgreSQL)]
+    django --> redis[(Redis)]
+    mt5 --> redis
 ```
 
