@@ -742,6 +742,8 @@ services:
       traefik.http.routers.mcp.tls.certresolver: le
       traefik.http.routers.mcp.service: mcp-service
       traefik.http.services.mcp-service.loadbalancer.server.port: 8001
+      traefik.http.middlewares.mcp-strip: null
+      traefik.http.routers.mcp.middlewares: null
     restart: unless-stopped
   market-fetcher:
     image: curlimages/curl:8.8.0
