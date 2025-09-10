@@ -2,8 +2,8 @@
 
 ## Setting and rotating `X-API-Key`
 
-- Set the `X-API-Key` value as an environment variable in production deployments. Avoid hard-coding it in source code or configuration files.
-- Rotate the key on a regular schedule and update the environment variable accordingly.
+- Set the `X-API-Key` value in an environment variable named `MCP_API_KEY`. Avoid hard-coding it in source code or configuration files.
+- Rotate the key on a regular schedule and update `MCP_API_KEY` accordingly.
 - For local development you can use a test value such as `dev-key-123`.
 
 ## Public vs. protected endpoints
@@ -18,6 +18,8 @@ curl -s -H "X-API-Key: dev-key-123" http://localhost:8080/api/v1/actions/read
 # Omitting the header returns 401 Unauthorized
 curl -s http://localhost:8080/api/v1/actions/read
 ```
+
+See [auth](auth.md) for additional authentication examples and key rotation steps.
 
 ## OpenAI connector setup
 
