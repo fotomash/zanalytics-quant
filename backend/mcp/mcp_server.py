@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import StreamingResponse, Response
+from fastapi.responses import StreamingResponse, Response, JSONResponse
 import json
 import asyncio
 import httpx
@@ -16,11 +16,24 @@ app = FastAPI(title="Zanalytics MCP Server")
 
 INTERNAL_API_BASE = os.getenv("INTERNAL_API_BASE", "http://django:8000")
 
+HEADERS = {"X-API-Key": "dev-key-123"}
+
 REQUESTS = Counter("mcp_requests_total", "Total MCP requests", ["endpoint"])
 MCP_UP = Gauge("mcp_up", "MCP server heartbeat status")
 MCP_TIMESTAMP = Gauge(
     "mcp_last_heartbeat_timestamp", "Unix timestamp of last heartbeat"
 )
+
+
+@app.middleware("http")
+async def check_key(request: Request, call_next):
+    if request.url.path == "/mcp":
+        return await call_next(request)
+    if request.headers.get("X-API-Key") != HEADERS["X-API-Key"]:
+        return JSONResponse(
+            status_code=401, content={"error": "Unauthorized - invalid API key"}
+        )
+    return await call_next(request)
 
 
 async def generate_mcp_stream():
