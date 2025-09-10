@@ -431,6 +431,14 @@ A:
 A: Ensure you're using the supported Python version, then install dependencies with `poetry install` or `pip install -r requirements.txt`. If issues persist, clear cached wheels (e.g., `pip cache purge`) and try again.
 
 
+**Q: How do I reset the containers when data gets corrupted or outdated?**
+A:
+1. Stop and remove containers and volumes: `docker-compose down -v`.
+2. Remove any orphan containers: `docker-compose down --remove-orphans`.
+3. Rebuild and start fresh containers: `docker-compose up --build`.
+4. Rerun database migrations if applicable.
+
+
 ---
 
 Let me know if you want even deeper detail—*e.g.*, specific API endpoint schemas, more onboarding workflows, or internal architecture diagrams.
