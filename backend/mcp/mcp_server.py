@@ -113,6 +113,35 @@ async def search_tool(query: str):
     # TODO: add market search logic
     return {"results": []}
 
+@app.post("/api/v1/actions/query")
+async def actions_query(payload: dict):
+    action_type = payload.get("type")
+    approve = payload.get("approve", False)
+
+    if action_type in {"exec", "tool/search"}:
+        return {
+            "message": "Requires manual approval",
+            "action_id": f"g-{int(time.time())}",
+        }
+
+    if action_type in {"session_boot", "equity_today"}:
+        if not approve:
+            return {
+                "message": "Requires approval",
+                "action_id": f"g-{int(time.time())}",
+            }
+        if action_type == "session_boot":
+            return {
+                "equity": 12300.0,
+                "positions": [],
+                "risk": {"max_drawdown": 0.02},
+                "balance": 12500.00,
+            }
+        elif action_type == "equity_today":
+            return {"equity": 12400.0, "change": "+0.8%"}
+
+    raise HTTPException(status_code=400, detail="Invalid action type")
+
 @app.post("/api/v1/actions/read")
 async def read_actions(type: str = "session_boot"):
     # TODO: return session_boot, equity_today, etc.
