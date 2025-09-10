@@ -1622,22 +1622,8 @@ Combined state snapshot for dashboards.
 
 **Sample payload**: _None_
 
-### `GET /api/v1/actions/query`
-Query consolidated actions.
-
-**Payload schema**: _None_
-
-**Sample payload**: _None_
-
-### `GET /api/v1/actions/read`
-Read-only alias of `/api/v1/actions/query`.
-
-**Payload schema**: _None_
-
-**Sample payload**: _None_
-
-### `POST /api/v1/actions/mutate`
-Mutate via actions bus.
+### `POST /api/v1/actions/query`
+Unified actions bus for read and write operations.
 
 **Payload schema**
 ```json
@@ -1649,10 +1635,7 @@ Mutate via actions bus.
 
 **Sample payload**
 ```json
-{
-  "type": "note_create",
-  "payload": {"text": "hi"}
-}
+{ "type": "session_boot", "payload": { "user_id": "demo" } }
 ```
 
 ### `GET /api/v1/openapi.actions.yaml`
@@ -1726,38 +1709,6 @@ Return a snapshot of current system state.
 { "state": {} }
 ```
 
-### `GET /api/v1/actions/query`
-Read-only query of available actions.
-
-**Sample payload**: _None_
-
-**Expected response**
-```json
-{ "actions": [] }
-```
-
-### `GET /api/v1/actions/read`
-Alias of `/api/v1/actions/query` for GET-only environments.
-
-**Sample payload**: _None_
-
-**Expected response**
-```json
-{ "actions": [] }
-```
-
-### `POST /api/v1/actions/mutate`
-Execute a writable action.
-
-**Sample payload**
-```json
-{ "action": "close_all" }
-```
-
-**Expected response**
-```json
-{ "ok": true }
-```
 
 ### `GET /api/v1/openapi.actions.yaml`
 Serve a slim OpenAPI specification for the Actions endpoints.

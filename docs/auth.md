@@ -7,8 +7,9 @@ All HTTP requests to the MCP server must include the `X-API-Key` header, except 
 Use a development key such as `dev-key-123` during local testing:
 
 ```bash
-curl -s -H "X-API-Key: dev-key-123" \
-  http://localhost:8080/api/v1/actions/read
+curl -s -H "X-API-Key: dev-key-123" -X POST \
+  http://localhost:8080/api/v1/actions/query \
+  -d '{"type": "session_boot"}'
 ```
 
 ## Rotating the key
