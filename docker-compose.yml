@@ -683,7 +683,6 @@ services:
       traefik.http.routers.mcp.entrypoints: websecure  
       traefik.http.routers.mcp.tls.certresolver: letsencrypt
       traefik.http.routers.mcp.tls: true
-      traefik.http.routers.mcp.tls.certresolver: le
       traefik.http.routers.mcp.service: mcp-service
       traefik.http.services.mcp-service.loadbalancer.server.port: 8001
       traefik.http.middlewares.mcp-strip: null
