@@ -7,6 +7,7 @@ Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, 
 - [Architecture](#architecture)
 - [System Overview](#system-overview)
 - [Getting Started – Quick Launch](#getting-started-quick-launch)
+- [Environment Variables](#environment-variables)
 - [MT5 service vs. Django API](#mt5-service-vs-django-api)
 - [How It Works (Practical Flow)](#how-it-works-practical-flow)
 - [Data Integrity and Deduplication: MD5 Flow](#data-integrity-and-deduplication-md5-flow)
@@ -109,26 +110,26 @@ Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/
       Try `curl "$MT5_API_URL/ticks?symbol=EURUSD&limit=10"`
     - **Traefik Dashboard:**  
       Open `https://your-traefik-domain.com` (with HTTP auth)
-    - **Django API (Swagger/ReDoc):**  
+    - **Django API (Swagger/ReDoc):**
       Open `/swagger/` and `/redoc/` endpoints.
 
 ---
 
-- `CUSTOM_USER`: Username for accessing the MT5 service.
-- `PASSWORD`: Password for the custom user.
-- `VNC_DOMAIN`: Domain for accessing the VNC service.
-- `TRAEFIK_DOMAIN`: Domain for Traefik dashboard.
-- `TRAEFIK_USERNAME`: Username for Traefik basic authentication.
-- `ACME_EMAIL`: Email address for Let's Encrypt notifications.
-- `MT5_API_URL`: Base URL where the MT5 service is available (default `http://mt5:5001`).
-- `MT5_URL`: Direct MT5 bridge URL used by dashboards (default `http://mt5:5001`).
-- `DJANGO_API_URL`: Base URL of the Django API service (default `http://django:8000`).
-- `DJANGO_API_PREFIX`: Path prefix for all Django API endpoints (default `/api/v1`).
-- `DASH_METRICS_PATH`: Path to dashboard metrics configuration (default `dashboard/config/dashboard_metrics_summary.yaml`).
-- `DASH_PROMPT_PATH`: Path to dashboard prompt template (default `dashboard/config/dashboard_prompt.txt`).
-- `BRIDGE_TOKEN` *(optional)*: Token sent as `X-Bridge-Token` header to the MT5 bridge.
-- `DJANGO_SECRET_KEY`: your-secret
+## Environment Variables
 
+Key variables to configure before launching:
+
+- `CUSTOM_USER` and `PASSWORD` – MT5 account credentials.
+- `MT5_API_URL` / `MT5_URL` – URLs for the MT5 bridge.
+- `DJANGO_API_URL` and `DJANGO_API_PREFIX` – Django API endpoints.
+- `DASH_METRICS_PATH` and `DASH_PROMPT_PATH` – dashboard configuration paths.
+- `BRIDGE_TOKEN` – optional token sent as `X-Bridge-Token` header.
+- `VNC_DOMAIN`, `TRAEFIK_DOMAIN`, `TRAEFIK_USERNAME`, `ACME_EMAIL` – domains and Traefik settings.
+- `DJANGO_SECRET_KEY` – secret key for Django.
+
+For the complete list of variables, see [docs/env-reference.md](docs/env-reference.md).
+
+---
 
 ## MT5 service vs. Django API
 
@@ -272,6 +273,8 @@ This pipeline ensures that enriched data remains consistent, performant, and ext
 ---
 
 ## Example .env Configuration (Partial)
+
+See [Environment Variables](#environment-variables) for descriptions and the full reference table.
 
 ```env
 # Platform credentials
