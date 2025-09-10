@@ -51,7 +51,6 @@ Static Info Site
 ----------------
 
 - The public info site is a static hub synced directly from this repository's `docs/` directory.
-- No WordPress backend or other dynamic CMS is involved.
 - Deploy by serving the static content via tools like Streamlit or MkDocs behind Traefik.
 - Streamlit setup details are in [streamlit.md](streamlit.md).
 
