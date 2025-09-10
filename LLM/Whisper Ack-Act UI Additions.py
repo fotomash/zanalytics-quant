@@ -59,10 +59,8 @@ def render_whisper(whisper):
 st.header("The Whisperer - Live Feed")
 display_live_status()  # Add status at top
 
-# Fetch whispers with safe default
-whispers = safe_api_call('GET', '/api/v1/feed/whispers')
-if whispers is None:
-    whispers = []
+# Fetch whispers and ensure a fallback list on failure
+whispers = safe_api_call('GET', '/api/v1/feed/whispers') or []
 
 # Assuming 'whispers' is fetched; loop and render with buttons
 for whisper in whispers:
