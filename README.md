@@ -131,6 +131,7 @@ Key variables to configure before launching:
 - `BRIDGE_TOKEN` – optional token sent as `X-Bridge-Token` header.
 - `VNC_DOMAIN`, `TRAEFIK_DOMAIN`, `TRAEFIK_USERNAME`, `ACME_EMAIL` – domains and Traefik settings.
 - `DJANGO_SECRET_KEY` – secret key for Django.
+- `MCP_API_KEY` – MCP uses the root `.env`; set this 32‑hex‑character key there. This key is shared across services so Whisperer connects once without drift.
 
 For the complete list of variables, see [docs/env-reference.md](docs/env-reference.md).
 
