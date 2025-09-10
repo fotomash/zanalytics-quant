@@ -50,12 +50,12 @@ docker compose up -d
 Use `curl` to ensure the main endpoints respond:
 
 ```bash
-curl -i https://mcp1.<domain>/mcp
-curl -i https://api.<domain>/api/v1/positions
-curl -N https://mcp1.<domain>/mcp
+curl -i https://mcp1.<domain>/mcp              # expect HTTP/2 200
+curl -i https://api.<domain>/api/v1/positions  # expect HTTP/2 200
+curl -N https://mcp1.<domain>/mcp              # streams NDJSON heartbeat
 ```
 
-The `-i` commands should return HTTP 200 responses once the containers are healthy. The `curl -N` command streams NDJSON events. A typical heartbeat line looks like:
+The `-i` commands should return `HTTP/2 200` once the containers are healthy. The `curl -N` command streams NDJSON events. A typical heartbeat line looks like:
 
 ```json
 {"event":"heartbeat","data":{"time":1693499999.0,"server":"mcp1.<domain>"}}
