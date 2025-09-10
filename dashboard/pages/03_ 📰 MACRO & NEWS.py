@@ -2025,22 +2025,23 @@ Only include risk situations and actionable warnings relevant for today's sessio
                 except Exception as e:
                     ai_risk_summary = None
 
-                # Standard risk checks as fallback
-                if ai_risk_summary:
-                    st.markdown("#### 🤖 AI Risk Summary")
-                    st.markdown(f"<div style='font-size:1.11rem; background:rgba(255,255,50,0.10); border-radius:8px; padding:0.8em 1em; color:#fff; margin-bottom:0.8em;'>{ai_risk_summary}</div>", unsafe_allow_html=True)
-                vix_val = None
-                try:
-                    vix_val = prices.get("VIX", {}).get("current", "N/A")
-                except Exception:
-                    vix_val = "N/A"
-                # --- Legacy risk alert logic ---
-                if vix_val != "N/A" and vix_val > 25:
-                    risk_alerts.append({
-                        'Level': '🔴 HIGH',
-                        'Alert': f'VIX above 25 ({vix_val:.2f}) - Elevated market volatility',
-                        'Action': 'Consider reducing position sizes'
-                    })
+
+        # Standard risk checks as fallback
+        if ai_risk_summary:
+            st.markdown("#### 🤖 AI Risk Summary")
+            st.markdown(f"<div style='font-size:1.11rem; background:rgba(255,255,50,0.10); border-radius:8px; padding:0.8em 1em; color:#fff; margin-bottom:0.8em;'>{ai_risk_summary}</div>", unsafe_allow_html=True)
+        vix_val = None
+        try:
+            vix_val = snapshot.get("vix_quote", {}).get("current", "N/A")
+        except Exception:
+            vix_val = "N/A"
+        # --- Legacy risk alert logic ---
+        if vix_val != "N/A" and vix_val > 25:
+            risk_alerts.append({
+                'Level': '🔴 HIGH',
+                'Alert': f'VIX above 25 ({vix_val:.2f}) - Elevated market volatility',
+                'Action': 'Consider reducing position sizes'
+            })
 
                 # Check for large moves
                 for asset, data in snapshot.items():

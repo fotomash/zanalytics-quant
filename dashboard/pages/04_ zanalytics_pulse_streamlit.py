@@ -548,6 +548,27 @@ with bottom_cols[3]:
     st.progress(momentum/100)
     st.caption("Maintaining discipline")
 
+# Shared trade filters (used by analytics and history)
+sym_list = fetch_symbols() or []
+sym_opts = ['All'] + sym_list
+sel = st.selectbox("Filter by Symbol", sym_opts)
+sym = None if sel == 'All' else sel
+
+colf1, colf2, colf3, colf4 = st.columns(4)
+with colf1:
+    date_from = st.date_input("From", value=None)
+with colf2:
+    date_to = st.date_input("To", value=None)
+with colf3:
+    pnl_min = st.number_input("Min PnL", value=0.0, step=10.0, format="%f")
+with colf4:
+    pnl_max = st.number_input("Max PnL", value=0.0, step=10.0, format="%f")
+
+df_str_from = date_from.isoformat() if date_from else None
+df_str_to = date_to.isoformat() if date_to else None
+pmin = pnl_min if pnl_min != 0.0 else None
+pmax = pnl_max if pnl_max != 0.0 else None
+
 # Analytics: R distribution and Setups by Quality (uses filters above)
 st.divider()
 ana1, ana2 = st.columns(2)
@@ -646,26 +667,6 @@ with st.expander("🫀 Session Vitals (Prototype)", expanded=True):
 
 # Trade History (behavioral analysis)
 st.subheader("Trade History")
-sym_list = fetch_symbols() or []
-sym_opts = ['All'] + sym_list
-sel = st.selectbox("Filter by Symbol", sym_opts)
-sym = None if sel == 'All' else sel
-
-colf1, colf2, colf3, colf4 = st.columns(4)
-with colf1:
-    date_from = st.date_input("From", value=None)
-with colf2:
-    date_to = st.date_input("To", value=None)
-with colf3:
-    pnl_min = st.number_input("Min PnL", value=0.0, step=10.0, format="%f")
-with colf4:
-    pnl_max = st.number_input("Max PnL", value=0.0, step=10.0, format="%f")
-
-df_str_from = date_from.isoformat() if date_from else None
-df_str_to = date_to.isoformat() if date_to else None
-pmin = pnl_min if pnl_min != 0.0 else None
-pmax = pnl_max if pnl_max != 0.0 else None
-
 hist = fetch_trade_history_filtered(symbol=sym, date_from=df_str_from, date_to=df_str_to, pnl_min=pmin, pnl_max=pmax)
 try:
     import pandas as pd
