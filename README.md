@@ -246,10 +246,19 @@ Deep dive: `docs/ACTIONS_BUS.md`
     ```
 
 ### d) **Troubleshooting**
-- Dashboard blank?  
+- Dashboard blank?
   Check the API/DB container logs, ensure enrichment is running, and verify `.env` secrets.
-- MT5 error?  
+- MT5 error?
   Make sure Wine is running and your license/user is set in the `.env`.
+- Traefik returns 404?
+  Traefik 404s typically mean the service is missing router/service labels.
+  ```yaml
+  labels:
+    - "traefik.enable=true"
+    - "traefik.http.routers.<svc>.rule=Host(`<your-domain>`)
+    - "traefik.http.services.<svc>.loadbalancer.server.port=<port>"
+  ```
+  If Traefik returns 404, add the above labels to the service in your `docker-compose`.
 
 ---
 
