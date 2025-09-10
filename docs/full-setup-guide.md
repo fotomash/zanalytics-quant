@@ -58,8 +58,8 @@ docker network create traefik-public
 From the repository root, build and launch all services:
 
 ```bash
-docker-compose build --no-cache
-docker-compose up -d
+docker compose build --no-cache
+docker compose up -d
 ```
 
 ## 7. Verify the services

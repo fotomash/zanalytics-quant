@@ -46,4 +46,4 @@
     - "traefik.http.routers.<svc>.rule=Host(`<your-domain>`)
     - "traefik.http.services.<svc>.loadbalancer.server.port=<port>"
   ```
-  If Traefik returns 404, add the above labels to the service in your `docker-compose`.
+  If Traefik returns 404, add the above labels to the service in your `docker-compose.yml`.
