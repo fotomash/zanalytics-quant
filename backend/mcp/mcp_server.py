@@ -23,6 +23,7 @@ from prometheus_client import (
     Gauge,
     generate_latest,
     CONTENT_TYPE_LATEST,
+    REGISTRY,
 )
 
 mt5_adapter.init_mt5()
@@ -136,7 +137,7 @@ async def exec_proxy(request: Request, full_path: str):
 @app.get("/metrics")
 def metrics():
     REQUESTS.labels(endpoint="metrics").inc()
-    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    return Response(generate_latest(REGISTRY), media_type=CONTENT_TYPE_LATEST)
 
 
 class PositionOpen(BaseModel):
