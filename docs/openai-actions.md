@@ -9,9 +9,15 @@ and [scripts/test_actions.py](../scripts/test_actions.py) for simple tooling.
 ## Endpoints
 
 ### `POST /api/v1/actions/query`
-Execute an action via the Actions Bus.
+Execute any action via the Actions Bus. Include the `Content-Type: application/json` header.
 
-**Sample request**
+```bash
+curl -sX POST "http://localhost:8080/api/v1/actions/query" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"session_boot","payload":{"user_id":"demo"}}'
+```
+
+**Sample payload**
 
 ```json
 {
@@ -20,28 +26,7 @@ Execute an action via the Actions Bus.
 }
 ```
 
-### `GET /api/v1/actions/query`
-Fetch read-only data using query parameters.
-
-**Sample request**
-
-```json
-{
-  "type": "trades_recent",
-  "limit": 5
-}
-```
-
-### `GET /api/v1/actions/read`
-Alias of the query endpoint for read-only environments.
-
-**Sample request**
-
-```json
-{
-  "type": "account_info"
-}
-```
+`POST /api/v1/actions/query` handles both read‑only and mutating verbs; separate `GET` aliases are no longer required.
 
 ## Supported action types
 
