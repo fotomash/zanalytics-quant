@@ -436,7 +436,11 @@ A:
 A: Verify host permissions on the affected paths. Run `sudo chown -R $USER:$USER <path>` or adjust with `chmod`, then rebuild the containers to apply the changes.
 
 **Q: Startup fails with "address already in use."**
-A: Another service is already bound to a required port. Use `lsof -i :<port>` or `netstat -tulpn` to identify the conflicting process, stop it, or adjust the port mapping in `docker-compose.yml`.
+A: Another service is already bound to a required port.
+
+1. Run `lsof -i :<port>` or `netstat -tulpn` to find the PID and service using the port.
+2. Stop the offending process (`kill <PID>` or `systemctl stop <service>`).
+3. Or edit the `ports:` mapping in `docker-compose.yml` to use a free port and restart the stack.
 
 **Q: Install or build fails due to missing packages or version conflicts?**
 A: Ensure you're using the supported Python version, then install dependencies with `poetry install` or `pip install -r requirements.txt`. If issues persist, clear cached wheels (e.g., `pip cache purge`) and try again.
