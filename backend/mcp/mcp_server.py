@@ -39,10 +39,17 @@ INTERNAL_API_BASE = os.getenv("INTERNAL_API_BASE", "http://django:8000")
 # API key expected in incoming requests; empty string by default
 API_KEY = os.environ.get("MCP_API_KEY", "")
 
-REQUESTS = Counter("mcp_requests_total", "Total MCP requests", ["endpoint"])
-MCP_UP = Gauge("mcp_up", "MCP server heartbeat status")
+REQUESTS = Counter(
+    "mcp_requests_total",
+    "Total MCP requests",
+    ["endpoint"],
+    registry=REGISTRY,
+)
+MCP_UP = Gauge("mcp_up", "MCP server heartbeat status", registry=REGISTRY)
 MCP_TIMESTAMP = Gauge(
-    "mcp_last_heartbeat_timestamp", "Unix timestamp of last heartbeat"
+    "mcp_last_heartbeat_timestamp",
+    "Unix timestamp of last heartbeat",
+    registry=REGISTRY,
 )
 
 
