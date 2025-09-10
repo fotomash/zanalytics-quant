@@ -12,7 +12,15 @@ and [scripts/test_actions.py](../scripts/test_actions.py) for simple tooling.
 Routes all actions through a single endpoint. Send a JSON body with a `type`
 identifying the verb and an optional `payload` object with parameters.
 
-**Sample request**
+Execute any action via the Actions Bus. Include the `Content-Type: application/json` header.
+
+```bash
+curl -sX POST "http://localhost:8080/api/v1/actions/query" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"session_boot","payload":{"user_id":"demo"}}'
+```
+
+**Sample payload**
 
 ```json
 {
@@ -20,6 +28,8 @@ identifying the verb and an optional `payload` object with parameters.
   "payload": { "user_id": "demo" }
 }
 ```
+
+`POST /api/v1/actions/query` handles both read‑only and mutating verbs; separate `GET` aliases are no longer required.
 
 ## Supported action types
 

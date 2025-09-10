@@ -14,11 +14,24 @@
 ## Curl example
 
 ```bash
+
 curl -s -H "X-API-Key: dev-key-123" -X POST \
   http://localhost:8080/api/v1/actions/query -d '{"type":"session_boot"}'
 # Omitting the header returns 401 Unauthorized
 curl -s -X POST http://localhost:8080/api/v1/actions/query -d '{"type":"session_boot"}'
+
+curl -sX POST http://localhost:8080/api/v1/actions/query \
+  -H "X-API-Key: dev-key-123" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"session_boot","payload":{"user_id":"demo"}}'
+# Omitting the header returns 401 Unauthorized
+curl -sX POST http://localhost:8080/api/v1/actions/query \
+  -H "Content-Type: application/json" \
+  -d '{"type":"session_boot","payload":{"user_id":"demo"}}'
+
 ```
+
+The `Content-Type: application/json` header is required when sending JSON bodies.
 
 See [auth](auth.md) for additional authentication examples and key rotation steps.
 

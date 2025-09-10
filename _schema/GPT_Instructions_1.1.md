@@ -191,6 +191,10 @@ Notes:
 ### Actions Bus (Prototype)
 - Consolidates many logical ops under a single endpoint (keeps path count low):
   - `POST /api/v1/actions/query` with `{ type, payload }` → e.g., `trades_recent`, `behavior_events`, `equity_today`, `pulse_status`, `note_create`.
+
+- Consolidates many logical ops under a single endpoint:
+  - `POST /api/v1/actions/query` with `{ type, payload }` → e.g., `trades_recent`, `behavior_events`, `equity_today`, `pulse_status`.
+
 - Prefer documented endpoints when building UIs; use the bus when action count is constrained.
 
 ## Remember
