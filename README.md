@@ -473,6 +473,22 @@ A: Another service is already bound to a required port.
 2. Stop the offending process (`kill <PID>` or `systemctl stop <service>`).
 3. Or edit the `ports:` mapping in `docker-compose.yml` to use a free port and restart the stack.
 
+**Q: MCP silent or `curl` 404s, but logs are empty?**
+A: The `pulse-kernel` service is likely hijacking port `8001`. Stop it and recreate the MCP container:
+
+```bash
+docker stop pulse-kernel tick-to-bar 2>/dev/null || true
+docker compose up --force-recreate mcp
+```
+
+Then test the endpoint:
+
+```bash
+curl -k https://mcp1.zanalytics.app/mcp | head -3
+```
+
+You should see `{event: open...}`.
+
 **Q: Install or build fails due to missing packages or version conflicts?**
 A: Ensure you're using the supported Python version, then install dependencies with `poetry install` or `pip install -r requirements.txt`. If issues persist, clear cached wheels (e.g., `pip cache purge`) and try again.
 
