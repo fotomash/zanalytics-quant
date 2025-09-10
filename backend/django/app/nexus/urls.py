@@ -46,7 +46,6 @@ from .views import (
     EquityTodayView,
     TradesRecentView,
     ActionsQueryView,
-    ActionsMutateView,
     ActionsSpecView,
     PingView,
     JournalEntryPostView,
@@ -182,7 +181,6 @@ urlpatterns = [
     path('actions/query', ActionsQueryView.as_view(), name='actions-query'),
     # Read-only alias to avoid runtime consent prompts for GET
     path('actions/read', ActionsQueryView.as_view(), name='actions-read'),
-    path('actions/mutate', ActionsMutateView.as_view(), name='actions-mutate'),
     # Serve slim OpenAPI for Actions
     path('openapi.actions.yaml', ActionsSpecView.as_view(), name='actions-openapi-spec'),
 ]
