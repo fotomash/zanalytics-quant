@@ -1622,19 +1622,18 @@ Combined state snapshot for dashboards.
 
 **Sample payload**: _None_
 
-### `GET /api/v1/actions/query`
-Query consolidated actions.
+### `POST /api/v1/actions/query`
+Query consolidated actions via the Actions Bus.
 
-**Payload schema**: _None_
+**Required headers**: `Content-Type: application/json`
 
-**Sample payload**: _None_
-
-### `GET /api/v1/actions/read`
-Read-only alias of `/api/v1/actions/query`.
-
-**Payload schema**: _None_
-
-**Sample payload**: _None_
+**Sample payload**
+```json
+{
+  "type": "session_boot",
+  "payload": {"user_id": "demo"}
+}
+```
 
 ### `POST /api/v1/actions/mutate`
 Mutate via actions bus.
@@ -1726,20 +1725,15 @@ Return a snapshot of current system state.
 { "state": {} }
 ```
 
-### `GET /api/v1/actions/query`
-Read-only query of available actions.
+### `POST /api/v1/actions/query`
+Query available actions via the Actions Bus.
 
-**Sample payload**: _None_
+**Required headers**: `Content-Type: application/json`
 
-**Expected response**
+**Sample payload**
 ```json
-{ "actions": [] }
+{ "type": "session_boot", "payload": {"user_id": "demo"} }
 ```
-
-### `GET /api/v1/actions/read`
-Alias of `/api/v1/actions/query` for GET-only environments.
-
-**Sample payload**: _None_
 
 **Expected response**
 ```json

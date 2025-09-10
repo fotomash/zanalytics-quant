@@ -18,7 +18,15 @@ Minimal JSON body:
 
 ```json
 { "type": "session_boot", "payload": {} }
+
+curl -sX POST "http://localhost:8080/api/v1/actions/query" \
+  -H "X-API-Key: dev-key-123" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"session_boot","payload":{"user_id":"demo"}}'
+
 ```
+
+The `Content-Type: application/json` header is required when sending JSON to the Actions Bus.
 
 ## Rotating the key
 
