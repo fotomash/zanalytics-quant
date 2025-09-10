@@ -26,40 +26,47 @@ def load_actions() -> Iterable[Dict[str, Any]]:
 
     The loader first attempts to parse ``actions/OPENAI_ACTIONS.yaml``. If the
     YAML file is missing or malformed, it falls back to parsing the first table
-    in ``docs/actions-tracker.md``.
+    in ``docs/actions-tracker.md``. The parser is forgiving and ignores
+    malformed rows.
     """
 
-    yaml_path = _REPO_ROOT / "actions" / "OPENAI_ACTIONS.yaml"
-    if yaml_path.exists():
-        try:
-            data = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
-            return data.get("actions", [])
-        except yaml.YAMLError:
-            pass
+    yaml_paths = [
+        _REPO_ROOT / "actions" / "OPENAI_ACTIONS.yaml",
+        _REPO_ROOT / "openai-actions.yaml",
+    ]
+    for yaml_path in yaml_paths:
+        if yaml_path.exists():
+            try:
+                data = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
+                return data.get("actions", [])
+            except yaml.YAMLError:
+                continue
 
     md_path = _REPO_ROOT / "docs" / "actions-tracker.md"
     actions = []
     if md_path.exists():
         lines = md_path.read_text(encoding="utf-8").splitlines()
-        table = False
-        for line in lines:
-            if line.startswith("| Source"):
-                table = True
+        header = None
+        for raw in lines:
+            line = raw.strip()
+            if not line.startswith("|") or set(line) <= {"|", "-", " "}:
+                # Skip non-table lines or separator rows
                 continue
-            if table:
-                if not line.strip().startswith("|"):
-                    break
-                cells = [c.strip() for c in line.split("|")[1:-1]]
-                if len(cells) >= 5:
-                    actions.append(
-                        {
-                            "source": cells[0],
-                            "name": cells[1],
-                            "endpoint": cells[2],
-                            "method": cells[3],
-                            "description": cells[4],
-                        }
-                    )
+            cells = [c.strip() for c in line.split("|")[1:-1]]
+            if header is None:
+                header = cells
+                continue
+            if len(cells) != len(header):
+                continue
+            row = dict(zip(header, cells))
+            actions.append(
+                {
+                    "name": row.get("Action", ""),
+                    "endpoint": row.get("Action", ""),
+                    "method": row.get("Method", "GET"),
+                    "description": row.get("Core Function", row.get("Why", "")),
+                }
+            )
     return actions
 
 
