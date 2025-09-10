@@ -189,9 +189,8 @@ Notes:
 - Some endpoints exist but are intentionally omitted from OpenAPI to keep the 30‑action cap; use them only when instructed.
 
 ### Actions Bus (Prototype)
-- Consolidates many logical ops under two endpoints (keeps path count low):
+- Consolidates many logical ops under a single endpoint:
   - `POST /api/v1/actions/query` with `{ type, payload }` → e.g., `trades_recent`, `behavior_events`, `equity_today`, `pulse_status`.
-  - `POST /api/v1/actions/mutate` with `{ type, payload }` → e.g., `note_create`.
 - Prefer documented endpoints when building UIs; use the bus when action count is constrained.
 
 ## Remember

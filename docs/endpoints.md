@@ -1635,43 +1635,6 @@ Query consolidated actions via the Actions Bus.
 }
 ```
 
-### `POST /api/v1/actions/mutate`
-Mutate via actions bus.
-
-**Payload schema**
-```json
-{
-  "type": "string",
-  "payload": {}
-}
-```
-
-**Sample payload**
-```json
-{
-  "type": "note_create",
-  "payload": {"text": "hi"}
-}
-```
-
-### `GET /api/v1/openapi.actions.yaml`
-Serve OpenAPI specification for Actions.
-
-**Payload schema**: _None_
-
-**Sample payload**: _None_
-
-
-**Sample payload**
-```json
-{ "symbol": "EURUSD" }
-```
-
-**Expected response**
-```json
-{ "ok": true }
-```
-
 ### `GET /api/v1/liquidity/map`
 Return a liquidity map snapshot.
 
@@ -1738,19 +1701,6 @@ Query available actions via the Actions Bus.
 **Expected response**
 ```json
 { "actions": [] }
-```
-
-### `POST /api/v1/actions/mutate`
-Execute a writable action.
-
-**Sample payload**
-```json
-{ "action": "close_all" }
-```
-
-**Expected response**
-```json
-{ "ok": true }
 ```
 
 ### `GET /api/v1/openapi.actions.yaml`
