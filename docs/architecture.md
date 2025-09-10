@@ -26,3 +26,8 @@ graph LR
     mt5 --> redis
 ```
 
+
+## Monitoring
+
+For metrics collection, dashboards, and alerts, see [monitoring.md](monitoring.md).
+
