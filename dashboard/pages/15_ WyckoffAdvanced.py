@@ -145,7 +145,13 @@ if st.sidebar.button("Fetch Data") or auto_refresh:
                                          low=analyzed['low'], close=analyzed['close']), row=1, col=1)
             
             # Phases (simplified coloring)
-            phase_colors = {'Accumulation':'blue', 'Distribution':'red', 'Markup':'green', 'Markdown':'orange', 'Neutral':'gray'}
+            phase_colors = {
+                "Accumulation": "blue",
+                "Distribution": "red",
+                "Markup": "green",
+                "Markdown": "orange",
+                "Neutral": "gray",
+            }
             for phase, color in phase_colors.items():
                 phase_df = analyzed[analyzed['phase'] == phase]
                 if not phase_df.empty:
