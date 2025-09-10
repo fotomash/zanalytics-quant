@@ -11,6 +11,8 @@ import backend.mcp.mcp_server as mcp_server
 
 client = TestClient(mcp_server.app)
 
+TEST_KEY = "test-key"
+
 
 def test_mcp_public(monkeypatch):
     async def finite_stream():
@@ -28,7 +30,8 @@ def test_exec_requires_api_key():
 
 
 def test_exec_with_valid_api_key(monkeypatch):
-    monkeypatch.setenv("MCP_API_KEY", mcp_server.HEADERS["X-API-Key"])
+    monkeypatch.setenv("MCP_API_KEY", TEST_KEY)
+    monkeypatch.setattr(mcp_server, "API_KEY", TEST_KEY)
 
     class MockResponse:
         def __init__(self):
@@ -45,8 +48,6 @@ def test_exec_with_valid_api_key(monkeypatch):
 
     monkeypatch.setattr(httpx.AsyncClient, "request", mock_request)
 
-    response = client.get(
-        "/exec/foo", headers={"X-API-Key": os.environ["MCP_API_KEY"]}
-    )
+    response = client.get("/exec/foo", headers={"X-API-Key": TEST_KEY})
     assert response.status_code == 200
     assert response.json() == {"ok": True}
