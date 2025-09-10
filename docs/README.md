@@ -45,7 +45,7 @@ Static Info Site
 - No WordPress backend or other dynamic CMS is involved.
 - Deploy by serving the static content via tools like Streamlit or MkDocs behind Traefik.
 
-> Editing any `docs/*.md` file and pushing changes updates the live site within seconds. See full setup: [docs/info-site.md](info-site.md).
+> Editing any `docs/*.md` file and pushing changes updates the live site within seconds. See [info-site.md](info-site.md) for details on content sourcing, deployment, and auto-sync.
 
 Return to [project README](../README.md)
 

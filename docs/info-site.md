@@ -1,65 +1,31 @@
-# Static Info Site Deployment
+# Info Site
 
-## Mounting
+The public info site mirrors content from this repository's `docs/` folder.
 
-- Mount the repository's `docs` directory into the container:
+## Content Source
+
+- The container mounts the `docs/` directory as read-only.
+- `info-site.md` serves as the landing page.
+- Any additional Markdown under `docs/` becomes a navigable page.
+
+## Deployment
+
+- A lightweight Streamlit app renders the Markdown files.
+- You can also generate a static site with tools like MkDocs.
+- Example `docker-compose` snippet:
   ```yaml
   volumes:
     - ./docs:/app/docs:ro
-  ```
-- The container serves `docs/info-site.md` as the root page.
-
-## Streamlit App Behavior
-
-- A lightweight Streamlit app renders markdown from the mounted docs folder.
-- Visiting `/` loads `info-site.md` by default.
-- Additional markdown files under `docs/` become navigable pages.
-
-## Traefik Routing
-
-- Enable routing with labels:
-  ```yaml
   labels:
     - "traefik.enable=true"
     - "traefik.http.routers.info.rule=Host(`info.example.com`)"
     - "traefik.http.services.info.loadbalancer.server.port=8501"
   ```
-- Traefik forwards HTTPS traffic to the Streamlit container on port `8501`.
+  Traefik routes HTTPS traffic to the Streamlit container on port `8501`.
 
-## Deployment YAML
+## Auto-sync
 
-Example Kubernetes deployment:
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: info-site
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: info-site
-  template:
-    metadata:
-      labels:
-        app: info-site
-    spec:
-      containers:
-        - name: info-site
-          image: ghcr.io/zananalytics/info-site:latest
-          ports:
-            - containerPort: 8501
-          volumeMounts:
-            - name: docs
-              mountPath: /app/docs
-      volumes:
-        - name: docs
-          hostPath:
-            path: /opt/zanalytics/docs
-            type: Directory
-```
-
-## Optional GitHub Action for `rsync`
+A GitHub Action keeps the deployed docs in sync with the repository:
 
 ```yaml
 name: sync-info-site
@@ -76,3 +42,5 @@ jobs:
         run: |
           rsync -avz docs/ ${{ secrets.INFO_HOST }}:/opt/zanalytics/docs
 ```
+
+Pushing changes to `docs/` updates the live site within seconds.
