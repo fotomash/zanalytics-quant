@@ -3,7 +3,53 @@
 This project exposes a set of OpenAI Actions defined in `openai-actions.yaml`.
 The manifest lists each action name, URL and parameter schema. Two helper
 scripts ensure the manifest stays in sync with the MCP server and that endpoints
-respond as expected.
+respond as expected. See [scripts/verify_actions.py](../scripts/verify_actions.py)
+and [scripts/test_actions.py](../scripts/test_actions.py) for simple tooling.
+
+## Endpoints
+
+### `POST /api/v1/actions/query`
+Execute an action via the Actions Bus.
+
+**Sample request**
+
+```json
+{
+  "type": "session_boot",
+  "payload": { "user_id": "demo" }
+}
+```
+
+### `GET /api/v1/actions/query`
+Fetch read-only data using query parameters.
+
+**Sample request**
+
+```json
+{
+  "type": "trades_recent",
+  "limit": 5
+}
+```
+
+### `GET /api/v1/actions/read`
+Alias of the query endpoint for read-only environments.
+
+**Sample request**
+
+```json
+{
+  "type": "account_info"
+}
+```
+
+## Supported action types
+
+Common verbs include:
+
+- `session_boot`
+- `trades_recent`
+- `account_info`
 
 ## Verify action coverage
 
