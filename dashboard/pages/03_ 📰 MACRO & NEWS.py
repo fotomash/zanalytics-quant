@@ -2004,7 +2004,7 @@ for sig in ops:
     with st.expander(f"{sig.get('symbol','?')} • {sig.get('bias','?')} • SL {sig.get('sl','?')} TP {sig.get('tp','?')}"):
         st.write(sig.get("reason", "No reason provided"))
         if sig.get("explain"):
-            st        # Risk warnings
+            st.write(sig.get("explain"))  # Risk warnings
         st.subheader("⚠️ Risk Alerts")
 
         risk_alerts = []
@@ -2023,7 +2023,7 @@ for sig in ops:
             with st.expander(f"{sig.get('symbol','?')} • {sig.get('bias','?')} • SL {sig.get('sl','?')} TP {sig.get('tp','?')}"):
                 st.write(sig.get("reason", "No reason provided"))
                 if sig.get("explain"):
-                    st        # Risk warnings
+                    st.write(sig.get("explain"))  # Risk warnings
                 st.subheader("⚠️ Risk Alerts")
 
                 risk_alerts = []
