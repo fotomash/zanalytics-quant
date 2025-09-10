@@ -6,7 +6,12 @@ import asyncio
 import httpx
 import os
 import time
-import pandas as pd
+try:  # pragma: no cover - optional dependency
+    import pandas as pd
+except Exception:  # pragma: no cover - allow module to import without pandas
+    pd = None
+from pathlib import Path
+from dotenv import load_dotenv
 from utils.time import localize_tz
 try:  # pragma: no cover - optional dependency
     import MetaTrader5 as mt5  # type: ignore
@@ -23,6 +28,8 @@ from prometheus_client import (
 mt5_adapter.init_mt5()
 
 app = FastAPI(title="Zanalytics MCP Server")
+
+load_dotenv(dotenv_path=Path(__file__).parents[2] / ".env")
 
 INTERNAL_API_BASE = os.getenv("INTERNAL_API_BASE", "http://django:8000")
 
@@ -258,6 +265,8 @@ async def _handle_read_action(action_type: str):
 
 async def _handle_account_positions():
     """Return a normalized view of open MT5 orders/positions."""
+    if pd is None:  # pragma: no cover - dependency guard
+        raise HTTPException(status_code=500, detail="Pandas not available")
 
     def normalize_mt5_orders(orders):
         df = pd.DataFrame([vars(o) for o in orders])
