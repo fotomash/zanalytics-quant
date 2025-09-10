@@ -11,7 +11,8 @@ secrets/
 
 # Logs
 *.log
-logs/
+logs/*
+!logs/manifest.log
 
 # Cache
 __pycache__/
