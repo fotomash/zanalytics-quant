@@ -11,13 +11,15 @@ try:  # pragma: no cover - optional dependency
 except Exception:  # pragma: no cover - allow module to import without pandas
     pd = None
 from pathlib import Path
+import sys
 from dotenv import load_dotenv
 from utils.time import localize_tz
 try:  # pragma: no cover - optional dependency
     import MetaTrader5 as mt5  # type: ignore
 except Exception:  # pragma: no cover - allow module to import without MT5
     mt5 = None
-from . import mt5_adapter
+sys.path.append(str(Path(__file__).resolve().parent))
+from mt5_adapter import init_mt5
 from prometheus_client import (
     Counter,
     Gauge,
@@ -26,7 +28,7 @@ from prometheus_client import (
     REGISTRY,
 )
 
-mt5_adapter.init_mt5()
+init_mt5()
 
 app = FastAPI(title="Zanalytics MCP Server")
 
