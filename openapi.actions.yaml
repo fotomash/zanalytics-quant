@@ -20,7 +20,10 @@ paths:
   /api/v1/actions/query:
     post:
       summary: Execute an action
-      description: Execute any action: POST JSON with 'type' (e.g. session_boot) and optional 'payload'.
+      description: |
+        Supported verbs: whisper_suggest, session_boot, state_snapshot, trades_recent,
+        trades_history_mt5, account_info, account_positions, account_risk, equity_today,
+        pulse_status, market_snapshot, market_symbols, liquidity_map, opportunity_priority_items, position_open, position_close, position_modify.
       operationId: postActionsQuery
       requestBody:
         required: true
