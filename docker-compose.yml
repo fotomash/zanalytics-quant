@@ -314,6 +314,7 @@ services:
       - ./monitoring/dashboards/log-search.json:/var/lib/grafana/dashboards/log-search.json:ro
       - ./monitoring/dashboards/traefik_official.json:/var/lib/grafana/dashboards/traefik_official.json:ro
       - ./monitoring/dashboards/altertmanager-dashboard.json:/var/lib/grafana/dashboards/altertmanager-dashboard.json:ro
+      - ./monitoring/dashboards/mcp-pulse.json:/var/lib/grafana/dashboards/mcp-pulse.json:ro
       - grafana-data:/var/lib/grafana
     depends_on:
       - prometheus
