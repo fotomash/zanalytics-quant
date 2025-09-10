@@ -670,6 +670,7 @@ services:
     container_name: mcp
     environment:
       - INTERNAL_API_BASE=http://django:8000
+      - MCP_API_KEY=${MCP_API_KEY:-}
     depends_on:
       - django
     networks:
