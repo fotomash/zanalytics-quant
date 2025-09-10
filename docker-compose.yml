@@ -745,7 +745,7 @@ services:
       traefik.http.routers.mcp.priority: 200
       traefik.http.middlewares.mcp-strip.stripprefix.prefixes: /mcp
       traefik.http.routers.mcp.middlewares: mcp-strip
-      traefik.http.services.mcp.loadbalancer.server.port: 8000
+      traefik.http.services.mcp.loadbalancer.server.port: 8001
     restart: unless-stopped
 
   market-fetcher:
