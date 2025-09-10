@@ -709,10 +709,10 @@ services:
       <<: *default-labels
       traefik.enable: true
       traefik.docker.network: traefik-public
-      traefik.http.routers.wordpress-http.rule: Host(`${INFO_DOMAIN}`)
+      traefik.http.routers.wordpress-http.rule: Host(`${MCP_HOST}`)
       traefik.http.routers.wordpress-http.entrypoints: http
       traefik.http.routers.wordpress-http.middlewares: https-redirect
-      traefik.http.routers.wordpress-https.rule: Host(`${INFO_DOMAIN}`)
+      traefik.http.routers.wordpress-https.rule: Host(`${MCP_HOST}`)
       traefik.http.routers.wordpress-https.entrypoints: https
       traefik.http.routers.wordpress-https.tls: true
       traefik.http.routers.wordpress-https.tls.certresolver: le
@@ -724,6 +724,8 @@ services:
     container_name: whisperer-mcp
     working_dir: /app
     command: sh -lc "pip install --no-cache-dir fastapi uvicorn[standard] httpx && uvicorn whisperer_agent:app --host 0.0.0.0 --port 9000"
+    environment:
+      MCP_HOST: ${MCP_HOST:-https://mcp1.analytics.org/api/v1/whisperer/exec}
     volumes:
       - .:/app
     ports:
