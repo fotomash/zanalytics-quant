@@ -112,6 +112,13 @@ This document lists the environment variables defined in [`.env.template`](../.e
 | `ALERTS_TOXICITY_LIMIT` | `0.30` | Tune to cap toxicity levels allowed. | Maximum acceptable toxicity before alerting. |
 | `ALERTS_DD_INTRADAY_WARN` | `0.025` | Change to control drawdown warning level. | Intraday drawdown fraction that triggers a warning. |
 
+## Monitoring Ports
+| Variable | Default | Override Behavior | Purpose |
+| --- | --- | --- | --- |
+| `PROMETHEUS_PORT` | `9090` | Adjust if Prometheus should listen on a different port. | Port where Prometheus serves metrics. |
+| `ALERTMANAGER_PORT` | `9093` | Change if Alertmanager should listen on another port. | Port for the Alertmanager web UI and API. |
+| `GRAFANA_PORT` | `3000` | Set to expose Grafana on an alternate port. | Port for accessing the Grafana dashboard. |
+
 ## Monitoring Versions
 | Variable | Default | Override Behavior | Purpose |
 | --- | --- | --- | --- |
