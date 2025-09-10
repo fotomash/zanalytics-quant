@@ -12,21 +12,26 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [Environment Variables](#environment-variables)
 - [MT5 service vs. Django API](#mt5-service-vs-django-api)
 - [How It Works (Practical Flow)](#how-it-works-practical-flow)
-- [Data Integrity and Deduplication: MD5 Flow](#data-integrity-and-deduplication-md5-flow)
+- [Data Integrity and Deduplication](#data-integrity-and-deduplication)
 - [MT5 Bridge & Orders (Execution)](#mt5-bridge-orders-execution)
 - [Actions Bus for GPT (≤30 operations)](#actions-bus-for-gpt-30-operations)
 - [Dashboards & Diagnostics](#dashboards-diagnostics)
 - [Journaling (ZBAR)](#journaling-zbar)
 - [Typical User Scenarios](#typical-user-scenarios)
 - [Data Enrichment & Customization](#data-enrichment-customization)
-- [Example .env Configuration (Partial)](#example-env-configuration-partial)
+- [Example .env Configuration](#example-env-configuration)
 - [Security & Access Control](#security-access-control)
 - [Contributing](#contributing)
 - [Running Tests](#running-tests)
 - [Known Issues & Best Practices](#known-issues-best-practices)
 - [Future Directions & Next Steps](#future-directions-next-steps)
+
+- [License (Strict, Non-Transferable)](#license-strict-non-transferable)
+- [Advanced Usage](#advanced-usage)
+
 - [License](#license)
 - [Advanced Usage: Adding a New Dashboard](#advanced-usage-adding-a-new-dashboard)
+
 - [Full API Documentation](#full-api-documentation)
 - [FAQ](#faq)
 - [Pulse Dashboard Prototype](#pulse-dashboard-prototype)
@@ -142,167 +147,57 @@ curl "$MT5_API_URL/history_orders_get"
 Directly hitting `$DJANGO_API_URL/history_deals_get` or `$DJANGO_API_URL/history_orders_get` will proxy the call, but the upstream service is still the MT5 bridge.
 
 See [backend/mt5/app/routes/history.py](backend/mt5/app/routes/history.py) for details.
-
-
 ## How It Works (Practical Flow)
 
-### 1. **Data Pipeline**
-- **MT5** runs inside Docker (with Wine if on Linux/Mac) and streams live tick/bar/position/order data via REST API.
-- **Django/Flask** container handles user authentication, business logic, and all database ops.
-- **Enrichment Scripts** (in `utils/`) transform raw market data into alpha features, rolling stats, signals, and are responsible for ETL (Extract, Transform, Load).
-- **Postgres** stores all historical and enriched market data.
-- **Redis** is used for real-time, super-fast caching (e.g. tickers, rolling windows).
-- **Streamlit Dashboard** presents analytics and charts, pulling live from APIs or historical DB/Parquet as configured.
+Step-by-step data flow from MT5 to the dashboard. [Read more](docs/how_it_works.md).
 
 ---
 
-## Data Integrity and Deduplication: MD5 Flow
+## Data Integrity and Deduplication
 
-To ensure data integrity and prevent duplication of tick data, the platform employs an MD5 hashing mechanism as part of its enrichment and caching workflow. Each incoming tick is serialized and hashed using MD5, producing a unique fingerprint that represents the tick's content.
-
-This MD5 hash is then used within the enrichment scripts (notably within components like `TickVectorizer`) to detect duplicate ticks before insertion into the database or cache. By comparing incoming tick hashes against existing entries in Redis or Postgres, the system avoids redundant processing and storage, which is critical for maintaining accurate real-time analytics.
-
-This approach improves both data quality and system efficiency, ensuring that dashboards and APIs reflect consistent, deduplicated market data streams.
+Tick data is hashed with MD5 to prevent duplicates and ensure consistency. [Details](docs/md5_flow.md).
 
 ---
 
 ## MT5 Bridge & Orders (Execution)
 
-- Bridge (Flask) provides:
-  - `POST /send_market_order` (type: BUY/SELL)
-  - `POST /partial_close_v2` (fraction or absolute volume)
-  - `POST /scale_position` (increase size)
-  - `POST /hedge` (opposite side; nets on netting accounts)
-- Django proxies:
-  - `POST /api/v1/orders/market | modify | close`
-  - Friendly aliases: `POST /api/v1/positions/close | modify | hedge`
-
-Deep dive: `docs/POSITIONS_AND_ORDERS.md`
+Core endpoints handle market orders, partial closes, scaling, and hedging. See [docs/POSITIONS_AND_ORDERS.md](docs/POSITIONS_AND_ORDERS.md).
 
 ---
 
 ## Actions Bus for GPT (≤30 operations)
 
-- Upload schema: `openapi.actions.yaml`
-- Single endpoint: `POST /api/v1/actions/query`
-- Put verbs in body: `{ "type": "position_close", "payload": { ... } }`
-- Router: `ActionsQueryView.post()` maps verbs to existing views.
-
-Deep dive: `docs/ACTIONS_BUS.md`
+Single endpoint for GPT-driven verbs defined in `openapi.actions.yaml`. Deep dive in [docs/ACTIONS_BUS.md](docs/ACTIONS_BUS.md).
 
 ---
 
 ## Dashboards & Diagnostics
 
-- Streamlit pages under `dashboard/pages/` (Pulse, Whisperer, Pro).
-- Diagnostics: `24_Trades_Diagnostics.py` shows closed trades (DB), MT5 history, and open positions.
+Streamlit pages under `dashboard/pages/` power Pulse, Whisperer, and diagnostics. `24_Trades_Diagnostics.py` compares closed trades, MT5 history, and open positions.
 
 ---
 
 ## Journaling (ZBAR)
 
-- Structured entries are appended via `/api/v1/journal/append` from positions views.
-- JSON Schema: `docs/schemas/journal_entry.schema.json`
-- Guide: `docs/JOURNALING.md`
+Structured entries append via `/api/v1/journal/append`. Schema and guide in [docs/JOURNALING.md](docs/JOURNALING.md).
 
 ---
 
 ## Typical User Scenarios
 
-### a) **Viewing Real-time Market Data**
-- Login to your Streamlit dashboard.
-- Choose the market or instrument (e.g. EURUSD, GBPUSD, DXY).
-- See live tick charts, rolling bars, and indicator overlays.
-- Historical data is automatically loaded from Postgres or Parquet (as configured).
-
-### b) **Running Enrichment/Bulk Sync**
-- To refresh features or add new data:
-    ```bash
-    docker exec -it dashboard bash
-    python utils/enrich_features.py  # Or your enrichment script
-    ```
-- These scripts typically fetch new ticks/bars, calculate rolling stats (SMA, RSI, etc), and push back to Postgres or Redis.
-
-### c) **API Data Access**
-- Pull ticks:
-    ```bash
-    curl "$MT5_API_URL/ticks?symbol=GBPUSD&limit=50"
-    ```
-- Pull bars:
-    ```bash
-    curl "$MT5_API_URL/bars/EURUSD/M5?limit=200"
-    ```
-- Pull enriched features via Django API:
-    ```bash
-    curl "$DJANGO_API_URL/api/v1/enriched/?symbol=USDJPY"
-    ```
-- Filter ticks or bars by time range using the Django API:
-    ```bash
-    curl "$DJANGO_API_URL/api/v1/ticks/?symbol=EURUSD&time_after=2024-01-01T00:00:00Z&time_before=2024-01-01T12:00:00Z"
-    curl "$DJANGO_API_URL/api/v1/bars/?symbol=EURUSD&timeframe=M5&time_after=2024-01-01T00:00:00Z"
-    ```
-
-### d) **Troubleshooting**
-- Dashboard blank?
-  Check the API/DB container logs, ensure enrichment is running, and verify `.env` secrets.
-- MT5 error?
-  Make sure Wine is running and your license/user is set in the `.env`.
-- Traefik returns 404?
-  Traefik 404s typically mean the service is missing router/service labels.
-  ```yaml
-  labels:
-    - "traefik.enable=true"
-    - "traefik.http.routers.<svc>.rule=Host(`<your-domain>`)
-    - "traefik.http.services.<svc>.loadbalancer.server.port=<port>"
-  ```
-  If Traefik returns 404, add the above labels to the service in your `docker-compose`.
+Examples of real-time viewing, enrichment jobs, and troubleshooting. [docs/user_scenarios.md](docs/user_scenarios.md).
 
 ---
 
 ## Data Enrichment & Customization
 
-Extend enrichment scripts in `utils/` and schedule them to build custom features and dashboards. [Full workflow](docs/data_enrichment_customization.md).
+Extend scripts in `utils/` to build custom features and dashboards. [Workflow](docs/data_enrichment_customization.md).
 
 ---
 
-## Example .env Configuration (Partial)
+## Example .env Configuration
 
-See [Environment Variables](#environment-variables) for descriptions and the full reference table.
-
-```env
-# Platform credentials
-CUSTOM_USER=your_user
-PASSWORD=super_secret_password
-
-# MT5 and API endpoints
-MT5_URL=http://mt5:5001
-MT5_API_URL=http://mt5:5001
-DJANGO_API_URL=http://django:8000
-DJANGO_API_PREFIX=/api/v1
-BRIDGE_TOKEN=
-
-# Dashboard config
-DASH_METRICS_PATH=dashboard/config/dashboard_metrics_summary.yaml
-DASH_PROMPT_PATH=dashboard/config/dashboard_prompt.txt
-
-# Database config
-POSTGRES_HOST=postgres
-POSTGRES_PORT=5432
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_DB=zanalytics
-
-# Redis config
-REDIS_HOST=redis
-REDIS_PORT=6379
-
-# Traefik/SSL/Domains
-VNC_DOMAIN=your-vnc-domain.com
-TRAEFIK_DOMAIN=your-traefik-domain.com
-TRAEFIK_USERNAME=admin
-ACME_EMAIL=your@email.com
-```
-> *Never check in your production .env or real keys!*
+Sample settings are available in [docs/example-env.md](docs/example-env.md).
 
 ---
 
@@ -316,49 +211,19 @@ ACME_EMAIL=your@email.com
 
 ## Contributing
 
-This codebase is not open for external contributions.
-All changes are managed internally, with strict audit and review.
+This codebase is not open for external contributions. All changes are managed internally with strict audit and review.
 
 ---
 
 ## Running Tests
 
-To execute the automated Django test suite:
-
-```bash
-pip install -r backend/django/requirements.txt
-export DJANGO_SECRET_KEY=test-secret
-pytest
-```
-
-Tests run against the lightweight SQLite database defined in
-`backend/django/app/test_settings.py`.
-
-### Analyzer Tests
-
-The confluence analyzers combine Wyckoff pattern detection and Smart Money Concepts
-features. After installing dependencies with `pip install -r requirements.txt`,
-run the dedicated tests:
-
-```bash
-pytest tests/test_analyzers.py
-```
+Commands for Django and analyzer suites are in [docs/running_tests.md](docs/running_tests.md).
 
 ---
 
 ## Known Issues & Best Practices
 
-### Known Issues
-- **Environment Handling:** Care must be taken to secure `.env` files and avoid committing secrets to version control.
-- **Error Handling:** Some enrichment scripts may require improved exception management for robustness, especially with live data streams.
-- **Modularity:** While modular, some components have implicit dependencies that should be documented and refactored over time.
-
-### Best Practices for Extension
-- Always include comprehensive docstrings for new scripts and functions.
-- Document any new API endpoints with clear schema definitions.
-- Avoid hardcoding secrets or credentials; use environment variables exclusively.
-- Follow existing code style and architectural patterns to maintain consistency.
-- Test new features thoroughly in isolated environments before deployment.
+Current limitations and extension tips: [docs/known_issues_best_practices.md](docs/known_issues_best_practices.md).
 
 ---
 
@@ -370,16 +235,17 @@ Planned improvements include live data ingestion, Redis-first caching, decoupled
 
 ## License
 
+**All logic, infrastructure, dashboards, enrichment scripts, data models, and code are strictly proprietary and protected IP.**
+
+Unauthorized use, distribution, or copying is prohibited and will be prosecuted.
+
 This project is proprietary and provided under a strict, non-transferable license. See [LICENSE](LICENSE) for details.
 
 ---
 
-## Advanced Usage: Adding a New Dashboard
+## Advanced Usage
 
-1. **Create a new Python file** in `dashboard/` (e.g. `CustomDashboard.py`).
-2. **Import data** from the Django API, Redis, or load a Parquet snapshot.
-3. **Add custom Streamlit widgets, charts, or analytics.**
-4. **Mount in Docker, rebuild, and access from the dashboard UI**.
+Add new Streamlit dashboards following [docs/advanced_dashboard.md](docs/advanced_dashboard.md).
 
 ---
 
@@ -387,23 +253,16 @@ This project is proprietary and provided under a strict, non-transferable licens
 
 - **Swagger:** `/swagger/`
 - **ReDoc:** `/redoc/`
-
-> Note: The Swagger and ReDoc endpoints may not be present in all deployments depending on configuration. If these are not exposed, you can generate API documentation locally using Django REST Framework's built-in schema generation tools or third-party packages such as `drf-yasg` or `pdoc`.  
->  
-> API endpoints require authentication and are accessible only to authorized users. Ensure your credentials and tokens are properly configured before making requests.
-
-- **Python module docs:**  
-  Generate with pdoc:
-    ```bash
-    pdoc --html utils --output-dir docs/api
-    ```
-
-- **Enrichment API and scripts:**  
-  Document your scripts with docstrings for easier internal use.
+- Generate Python module docs with:
+  ```bash
+  pdoc --html utils --output-dir docs/api
+  ```
 
 ---
 
 ## FAQ
+
+Common setup and operational questions live in [docs/faq.md](docs/faq.md).
 
 **Q: Something isn’t working—how do I see detailed error logs?**
 A: Use `docker-compose logs <service>` (add `-f` to follow in real time) or `docker logs <container>` for single containers. For service-specific errors, check Django's debug logs and MT5 bridge logs.
@@ -515,30 +374,17 @@ A:
 
 ---
 
-Let me know if you want even deeper detail—*e.g.*, specific API endpoint schemas, more onboarding workflows, or internal architecture diagrams.
-
-
 ## Pulse Dashboard Prototype
 
-A lightweight Streamlit interface for behavioral and risk analytics.
+Behavioral and risk analytics demo. [docs/pulse_dashboard_prototype.md](docs/pulse_dashboard_prototype.md).
 
-### Quick start
-```bash
-pip install -r requirements.txt
-streamlit run dashboard/pulse_dashboard.py
-```
-
-The app reads configuration from `pulse_dashboard_config.yaml` and mock trade data from `trade_history.json`.
+---
 
 ## Exporting Streamlit Dashboards to WordPress
 
-1. Run `scripts/export_dashboards.sh` to export dashboards as static HTML.
-2. The script copies the generated files into `wordpress/wp-content/uploads/dashboards/`.
-3. Activate the **Zanalytics Dashboards** plugin in WordPress (`wordpress/wp-content/plugins/zanalytics-dashboards`).
-4. Embed a dashboard on any page using `[zan_dashboard name="Home"]` where `Home` matches the exported filename.
+Static export workflow for publishing dashboards on WordPress. [docs/export_dashboards_wordpress.md](docs/export_dashboards_wordpress.md).
 
-Once uploaded, dashboards render at `info.zanalytics.app` via the shortcode.
-
+---
 
 ## Further Reading
 
