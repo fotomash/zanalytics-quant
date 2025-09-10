@@ -66,14 +66,6 @@ Values defined in `.env` or in the shell environment override the defaults shown
 | `GRAFANA_DOMAIN` | `grafana.localhost` | Change if Grafana is hosted elsewhere. | Domain mapping for the Grafana interface. |
 | `INFO_DOMAIN` | `info.localhost` | Adjust to map the informational site. | Domain mapping for the info site. |
 
-## WordPress Settings
-| Variable | Default | Override Behavior | Purpose |
-| --- | --- | --- | --- |
-| `WORDPRESS_DB_HOST` | `mysql` | Set to the host running the WordPress MySQL DB. | Hostname for the WordPress database. |
-| `WORDPRESS_DB_USER` | `wp_user` | Change to the configured WordPress DB user. | Username for the WordPress database. |
-| `WORDPRESS_DB_PASSWORD` | `your_secure_wordpress_db_password_here` | Replace with the actual password. | Password for the WordPress DB user. |
-| `WORDPRESS_DB_NAME` | `wordpress` | Modify to use a different WordPress DB name. | Name of the WordPress database. |
-
 ## MT5 Settings
 | Variable | Default | Override Behavior | Purpose |
 | --- | --- | --- | --- |
@@ -93,6 +85,10 @@ Values defined in `.env` or in the shell environment override the defaults shown
 | Variable | Default | Override Behavior | Purpose |
 | --- | --- | --- | --- |
 | `STREAMLIT_SERVER_PORT` | `8501` | Adjust if you want the main dashboard on another port. | Port for the primary Streamlit dashboard server. |
+
+## Info site
+| Variable | Default | Override Behavior | Purpose |
+| --- | --- | --- | --- |
 | `WIKI_DASHBOARD_PORT` | `8503` | Change to host the secondary dashboard on another port. | Port for additional UAT/info dashboards. |
 
 ## Orchestrator / Actions Client
