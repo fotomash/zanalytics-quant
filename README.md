@@ -25,7 +25,7 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [Running Tests](#running-tests)
 - [Known Issues & Best Practices](#known-issues-best-practices)
 - [Future Directions & Next Steps](#future-directions-next-steps)
-- [License (Strict, Non-Transferable)](#license-strict-non-transferable)
+- [License](#license)
 - [Advanced Usage: Adding a New Dashboard](#advanced-usage-adding-a-new-dashboard)
 - [Full API Documentation](#full-api-documentation)
 - [FAQ](#faq)
@@ -371,10 +371,9 @@ Planned improvements include live data ingestion, Redis-first caching, decoupled
 
 ---
 
-## License (Strict, Non-Transferable)
+## License
 
-**All logic, infrastructure, dashboards, enrichment scripts, data models, and code are strictly proprietary and protected IP.**  
-Unauthorized use, distribution, or copying is prohibited and will be prosecuted.
+This project is proprietary and provided under a strict, non-transferable license. See [LICENSE](LICENSE) for details.
 
 ---
 
