@@ -420,6 +420,11 @@ A: Copy `.env.example` to `.env`, double-check the keys, and restart the contain
 **Q: The app can't connect to Postgres or Redis.**
 A: Confirm your `.env` credentials, ensure the services are running (`docker ps`), and check container logs for authentication or network errors.
 
+**Q: How do I clear cached data in Redis?**
+A:
+1. Run `docker-compose exec redis redis-cli FLUSHALL` to remove all cached keys.
+2. Restart the services so caches repopulate with fresh data.
+
 **Q: Docker containers fail to build/start.**
 A:
 1. Verify your Docker installation and version.
