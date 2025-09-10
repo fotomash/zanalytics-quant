@@ -400,7 +400,10 @@ Unauthorized use, distribution, or copying is prohibited and will be prosecuted.
 
 ## FAQ
 
-**Q: Can I run this without Docker?**  
+**Q: Something isn’t working—how do I see detailed error logs?**
+A: Use `docker-compose logs <service>` (add `-f` to follow in real time) or `docker logs <container>` for single containers. For service-specific errors, check Django's debug logs and MT5 bridge logs.
+
+**Q: Can I run this without Docker?**
 A: Not recommended. The MT5 and dashboard stack is designed for containerization for full reproducibility and security.
 
 **Q: Where is my live data stored?**  
