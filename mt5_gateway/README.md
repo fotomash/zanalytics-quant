@@ -14,7 +14,7 @@ Repository Layout
 - supervisord.conf: example program section if using supervisord.
 
 How It’s Wired Here
-- docker-compose mounts this directory into the MT5 container at /opt/mt5_gateway (read-only).
+- Docker Compose mounts this directory into the MT5 container at /opt/mt5_gateway (read-only).
 - The MT5 container already runs a Flask MT5 API on port 5001 via Wine Python.
 - To avoid conflicts, the FastAPI gateway is disabled by default and, when enabled, uses port 5002 by default.
 

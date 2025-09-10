@@ -33,14 +33,14 @@ python-dotenv==1.0.0
 
 Install in your Docker container:
 ```bash
-docker-compose exec django pip install MetaTrader5 plotly redis python-dotenv
+docker compose exec django pip install MetaTrader5 plotly redis python-dotenv
 ```
 
 ## 4. Access the Dashboard
 
 1. Start your services:
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 2. Access Streamlit:
@@ -112,11 +112,11 @@ python 16_risk_manager_mock.py
 - Ensure MetaTrader5 package is installed
 
 ### Redis Connection Issues
-- Verify Redis is running: `docker-compose ps redis`
-- Check Redis connectivity: `docker-compose exec redis redis-cli ping`
+- Verify Redis is running: `docker compose ps redis`
+- Check Redis connectivity: `docker compose exec redis redis-cli ping`
 
 ### Dashboard Not Loading
-- Check Streamlit logs: `docker-compose logs streamlit`
+- Check Streamlit logs: `docker compose logs streamlit`
 - Verify file permissions
 - Ensure all dependencies are installed
 
