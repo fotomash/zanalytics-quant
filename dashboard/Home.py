@@ -59,6 +59,7 @@ from typing import Dict, Optional
 import base64
 import yfinance as yf
 from fredapi import Fred
+from utils.streamlit_api import safe_api_call
 import os
 import requests
 import redis
@@ -99,6 +100,25 @@ def get_cache_timestamp(key: str):
 # Suppress warnings for a cleaner output
 # Suppress warnings for a cleaner output
 warnings.filterwarnings('ignore')
+
+# ------------------------------------------------------------------
+# Pulse snapshot strip linking to Macro & News
+# ------------------------------------------------------------------
+
+def render_pulse_snapshot() -> None:
+    score = safe_api_call("POST", "score/peek") or {}
+    risk = safe_api_call("GET", "risk/summary") or {}
+    adapter = safe_api_call("GET", "adapter/status") or {}
+
+    cols = st.columns(3)
+    cols[0].metric("Confluence", score.get("score", "—"))
+    cols[1].metric("Risk Left", risk.get("risk_left", "—"))
+    cols[2].metric("Latency", adapter.get("lag", "—"))
+    st.page_link("pages/03_ 📰 MACRO & NEWS.py", label="Open Macro & News", icon="📰")
+
+render_pulse_snapshot()
+
+
 
 
 # --- Real-time data connections ---
