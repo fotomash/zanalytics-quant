@@ -3,8 +3,17 @@ import plotly.graph_objects as go
 import graphviz  # For diagrams (ensure installed in env)
 from datetime import datetime
 
+
+from pages import Edges, Home, RiskOpsRunbook, Strategies, HowTo, InteractiveDemo
+
+
+# ---------------------------------------------------------------------------
+# Mock data synthesised from repo docs
+# ---------------------------------------------------------------------------
+
 # Mock data synthesised from repo docs, attachments, and previous dashboards
 # Updated for current date: September 10, 2025
+
 mock_data = {
     "system_status": {"heartbeat": "Active", "lag_ms": 150},
     "behavioral_metrics": {"discipline": 87, "patience": 142, "conviction": 73, "efficiency": 68},
@@ -28,6 +37,18 @@ mock_data = {
             "risk_gates": "Conviction >75, No recent losses",
             "journal_hook": "Note phase transition and volume clues",
         },
+
+    ],
+    "whisperer_prompts": {
+        "home": ["What's the system status?", "Explain Pulse architecture"],
+        "strategies": ["Is this SMC setup valid?"],
+        "edges": ["Am I overtrading?"],
+        "risk": ["Check my risk budget"],
+        "howto": ["How do I use the Confluence Scorer?", "Best way to ask Whisperer questions?"],
+        "interactive": ["Can you walk me through a demo?"],
+    },
+    "journal_entries": [
+
         {
             "name": "Wyckoff Distribution",
             "setup": "Upthrusts in topping patterns",
@@ -177,6 +198,24 @@ st.markdown(
 )
 
 
+PAGE_KEYS = {
+    "Home": "home",
+    "Strategies": "strategies",
+    "Edges": "edges",
+    "Risk, Ops & Runbook": "risk",
+    "HowTo": "howto",
+    "Interactive Demo": "interactive",
+}
+
+page_modules = {
+    "Home": Home,
+    "Strategies": Strategies,
+    "Edges": Edges,
+    "Risk, Ops & Runbook": RiskOpsRunbook,
+    "HowTo": HowTo,
+    "Interactive Demo": InteractiveDemo,
+}
+=======
 # Navigation (sidebar for dashboards)
 dashboards = ["Info (Landing)", "Interaction"]
 dashboard = st.sidebar.selectbox("Dashboards", dashboards)
