@@ -1623,6 +1623,20 @@ Combined state snapshot for dashboards.
 **Sample payload**: _None_
 
 ### `POST /api/v1/actions/query`
+Unified actions bus for read and write operations.
+
+**Payload schema**
+```json
+{
+  "type": "string",
+  "payload": {}
+}
+```
+
+**Sample payload**
+```json
+{ "type": "session_boot", "payload": { "user_id": "demo" } }
+
 Query consolidated actions via the Actions Bus.
 
 **Required headers**: `Content-Type: application/json`
@@ -1688,6 +1702,7 @@ Return a snapshot of current system state.
 { "state": {} }
 ```
 
+
 ### `POST /api/v1/actions/query`
 Query available actions via the Actions Bus.
 
@@ -1702,6 +1717,7 @@ Query available actions via the Actions Bus.
 ```json
 { "actions": [] }
 ```
+ 
 
 ### `GET /api/v1/openapi.actions.yaml`
 Serve a slim OpenAPI specification for the Actions endpoints.

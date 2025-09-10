@@ -9,6 +9,9 @@ and [scripts/test_actions.py](../scripts/test_actions.py) for simple tooling.
 ## Endpoints
 
 ### `POST /api/v1/actions/query`
+Routes all actions through a single endpoint. Send a JSON body with a `type`
+identifying the verb and an optional `payload` object with parameters.
+
 Execute any action via the Actions Bus. Include the `Content-Type: application/json` header.
 
 ```bash

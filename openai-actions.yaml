@@ -1,6 +1,8 @@
 schema_version: 1
 actions:
   - name_for_model: actions_query
+    name_for_human: "Execute Action"
+    description_for_model: "Execute an action via the Actions Bus"
     name_for_human: "Query Action"
     description_for_model: "Query or execute an action via the Actions Bus"
     action_url: https://mcp1.zanalytics.app/api/v1/actions/query
