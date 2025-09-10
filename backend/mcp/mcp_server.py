@@ -8,13 +8,14 @@ import httpx
 import os
 import time
 import logging
+from pathlib import Path
 from .auth import verify_api_key
 
 try:  # pragma: no cover - optional dependency
     import pandas as pd
 except Exception:  # pragma: no cover - allow module to import without pandas
     pd = None
-from dotenv import load_dotenv, find_dotenv
+from dotenv import load_dotenv
 from utils.time import localize_tz
 
 try:  # pragma: no cover - optional dependency
@@ -44,10 +45,14 @@ init_mt5()
 app = FastAPI(title="Zanalytics MCP Server")
 
 logger = logging.getLogger(__name__)
-dotenv_path = find_dotenv()
-if dotenv_path:
-    load_dotenv(dotenv_path)
+_dotenv_candidates = [Path(__file__).parent, Path("/app"), Path.cwd()]
+for base in _dotenv_candidates:
+    candidate = base / ".env"
+    if candidate.exists():
+        load_dotenv(candidate)
+        break
 else:
+    load_dotenv()
     logger.warning(
         "No .env file found; proceeding without loading environment variables"
     )
