@@ -459,7 +459,7 @@ A: Remove the `web/node_modules` directory and reinstall dependencies with `npm 
 **Q: How do I reset the containers when data gets corrupted or outdated?**
 A:
 1. Stop and remove containers and volumes: `docker-compose down -v`.
-2. Remove any orphan containers: `docker-compose down --remove-orphans`.
+2. Remove any orphan containers: `docker container prune -f`.
 3. Rebuild and start fresh containers: `docker-compose up --build`.
 4. Rerun database migrations if applicable.
 
