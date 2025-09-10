@@ -51,3 +51,11 @@ Static Info Site
 
 Return to [project README](../README.md)
 
+
+## Quickstart
+
+Run this:
+
+```bash
+docker compose up
+```

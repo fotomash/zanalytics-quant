@@ -19,3 +19,5 @@ The server reads the key from the `MCP_API_KEY` environment variable. To rotate 
 2. Restart the service so it picks up the new key, e.g. `docker compose up --build mcp`.
 3. Update clients to send the new `X-API-Key` header.
 
+
+Last validated: 2025-09-10 15:07:51Z
