@@ -56,6 +56,7 @@ Key paths:
 - `POST /api/pulse/whisper/ack` – Acknowledge a whisper
 - `POST /api/pulse/whisper/act` – Journal act intent
 - `GET /api/pulse/whispers/log` – Human-readable whisper timeline
+- `POST /score/peek` – Preview a confluence score; requires JSON `{"bars": [...]}`
 
 Optional market utilities:
 
