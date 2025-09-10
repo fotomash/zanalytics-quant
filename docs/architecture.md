@@ -26,6 +26,7 @@ graph LR
     mt5 --> redis
 ```
 
+Traefik also routes requests to the Streamlit info site on port `8501`; see [streamlit.md](streamlit.md) for details.
 
 ## Monitoring
 
