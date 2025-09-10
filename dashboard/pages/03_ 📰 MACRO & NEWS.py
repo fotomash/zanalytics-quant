@@ -1894,6 +1894,10 @@ Sample headlines: {', '.join([n[0].get('headline','') for n in all_news.values()
 
         st.header("⚡ Risk Management Dashboard")
 
+        # Ensure snapshot is defined even if earlier code didn't run
+        if 'snapshot' not in locals():
+            snapshot = CacheManager.load_cache("market_snapshot") if CacheManager.is_cache_valid("market_snapshot") else {}
+
         # Risk metrics
         col1, col2, col3 = st.columns(3)
 
@@ -1994,71 +1998,93 @@ Sample headlines: {', '.join([n[0].get('headline','') for n in all_news.values()
             st.markdown('</div>', unsafe_allow_html=True)
 
 
+
 st.subheader("Top Opportunities")
 ops = signals_top()
 for sig in ops:
     with st.expander(f"{sig.get('symbol','?')} • {sig.get('bias','?')} • SL {sig.get('sl','?')} TP {sig.get('tp','?')}"):
         st.write(sig.get("reason", "No reason provided"))
         if sig.get("explain"):
-            st        # Risk warnings
+            st.write(sig.get("explain"))  # Risk warnings
         st.subheader("⚠️ Risk Alerts")
 
         risk_alerts = []
 
-        # --- PATCH: AI-driven risk warning via custom GPT ---
-        ai_risk_summary = None
-        try:
-            if client:
-                # Compose prompt to the Market Summary GPT
-                prompt = f'''You are a professional trading risk analyst. Given this market snapshot, highlight any risk alerts, tail risks, and actionable warnings across FX, indices, crypto, and commodities.
+        if snapshot:
+            # --- PATCH: AI-driven risk warning via custom GPT ---
+            ai_risk_summary = None
+            try:
+                if client:
+                    # Compose prompt to the Market Summary GPT
+                    prompt = f'''You are a professional trading risk analyst. Given this market snapshot, highlight any risk alerts, tail risks, and actionable warnings across FX, indices, crypto, and commodities.
+
+
+        st.subheader("Top Opportunities")
+        ops = signals_top()
+        for sig in ops:
+            with st.expander(f"{sig.get('symbol','?')} • {sig.get('bias','?')} • SL {sig.get('sl','?')} TP {sig.get('tp','?')}"):
+                st.write(sig.get("reason", "No reason provided"))
+                if sig.get("explain"):
+                    st.write(sig.get("explain"))  # Risk warnings
+                st.subheader("⚠️ Risk Alerts")
+
+                risk_alerts = []
+
+                # --- PATCH: AI-driven risk warning via custom GPT ---
+                ai_risk_summary = None
+                try:
+                    if client:
+                        # Compose prompt to the Market Summary GPT
+                        prompt = f'''You are a professional trading risk analyst. Given this market snapshot, highlight any risk alerts, tail risks, and actionable warnings across FX, indices, crypto, and commodities.
+
 Market snapshot (core assets):
 {json.dumps({k: snapshot.get(k, {}) for k in ["dxy_quote", "vix_quote", "eurusd_quote", "gbpusd_quote", "usdjpy_quote", "gbpjpy_quote", "gold_quote", "oil_quote", "spx_quote", "nasdaq_quote", "btcusd_quote"]}, indent=2)}
 
 Only include risk situations and actionable warnings relevant for today's session. Respond in concise bullet points, and only if there is real risk.'''
-                # Use the Market Summary GPT or fallback to default if unavailable
-                response = client.chat.completions.create(
-                    model="zanalytics_midas",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.3,
-                    max_tokens=800
-                )
-                ai_risk_summary = response.choices[0].message.content.strip()
-        except Exception as e:
-            ai_risk_summary = None
 
-        # Standard risk checks as fallback
-        if ai_risk_summary:
-            st.markdown("#### 🤖 AI Risk Summary")
-            st.markdown(f"<div style='font-size:1.11rem; background:rgba(255,255,50,0.10); border-radius:8px; padding:0.8em 1em; color:#fff; margin-bottom:0.8em;'>{ai_risk_summary}</div>", unsafe_allow_html=True)
-        vix_val = None
-        try:
-            vix_val = prices.get("VIX", {}).get("current", "N/A")
-        except Exception:
-            vix_val = "N/A"
-        # --- Legacy risk alert logic ---
-        if vix_val != "N/A" and vix_val > 25:
-            risk_alerts.append({
-                'Level': '🔴 HIGH',
-                'Alert': f'VIX above 25 ({vix_val:.2f}) - Elevated market volatility',
-                'Action': 'Consider reducing position sizes'
-            })
+                    # Use the Market Summary GPT or fallback to default if unavailable
+                    response = client.chat.completions.create(
+                        model="zanalytics_midas",
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0.3,
+                        max_tokens=800
+                    )
+                    ai_risk_summary = response.choices[0].message.content.strip()
+                except Exception as e:
+                    ai_risk_summary = None
 
-        # Check for large moves
-        for asset, data in snapshot.items():
-            if isinstance(data, dict) and data.get('percentChange'):
-                if abs(data['percentChange']) > 2:
-                    risk_alerts.append({
-                        'Level': '🟡 MEDIUM',
-                        'Alert': f"{asset.replace('_quote', '').upper()} moved {data['percentChange']:+.2f}%",
-                        'Action': 'Monitor for continuation or reversal'
-                    })
+            # Standard risk checks as fallback
+            if ai_risk_summary:
+                st.markdown("#### 🤖 AI Risk Summary")
+                st.markdown(f"<div style='font-size:1.11rem; background:rgba(255,255,50,0.10); border-radius:8px; padding:0.8em 1em; color:#fff; margin-bottom:0.8em;'>{ai_risk_summary}</div>", unsafe_allow_html=True)
+            vix_val = None
+            try:
+                vix_val = prices.get("VIX", {}).get("current", "N/A")
+            except Exception:
+                vix_val = "N/A"
+            # --- Legacy risk alert logic ---
+            if vix_val != "N/A" and vix_val > 25:
+                risk_alerts.append({
+                    'Level': '🔴 HIGH',
+                    'Alert': f'VIX above 25 ({vix_val:.2f}) - Elevated market volatility',
+                    'Action': 'Consider reducing position sizes'
+                })
 
-        if risk_alerts:
-            alerts_df = pd.DataFrame(risk_alerts)
-            st.dataframe(alerts_df, hide_index=True, use_container_width=True)
-        else:
-            st.success("✅ No significant r  isk alerts at this time")
+            # Check for large moves
+            for asset, data in snapshot.items():
+                if isinstance(data, dict) and data.get('percentChange'):
+                    if abs(data['percentChange']) > 2:
+                        risk_alerts.append({
+                            'Level': '🟡 MEDIUM',
+                            'Alert': f"{asset.replace('_quote', '').upper()} moved {data['percentChange']:+.2f}%",
+                            'Action': 'Monitor for continuation or reversal'
+                        })
 
+            if risk_alerts:
+                alerts_df = pd.DataFrame(risk_alerts)
+                st.dataframe(alerts_df, hide_index=True, use_container_width=True)
+            else:
+                st.success("✅ No significant risk alerts at this time")
         st.markdown('</div>', unsafe_allow_html=True)
 
 # Run the app

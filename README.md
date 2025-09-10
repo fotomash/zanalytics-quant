@@ -26,11 +26,8 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [Known Issues & Best Practices](#known-issues-best-practices)
 - [Future Directions & Next Steps](#future-directions-next-steps)
 
-- [License (Strict, Non-Transferable)](#license-strict-non-transferable)
-- [Advanced Usage](#advanced-usage)
-
 - [License](#license)
-- [Advanced Usage: Adding a New Dashboard](#advanced-usage-adding-a-new-dashboard)
+- [Advanced Usage](#advanced-usage)
 
 - [Full API Documentation](#full-api-documentation)
 - [FAQ](#faq)
@@ -42,7 +39,8 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 ## What's Inside
 - `backend/mt5`: Flask bridge to MetaTrader5 (send orders, partial close, hedge, scale)
 - `backend/django`: REST API, Actions Bus router, positions aliases, journal
-- `dashboard/`: Streamlit UI (Pulse, Whisperer, diagnostics)
+- [`dashboard/`](dashboard/README.md): Streamlit UI (Pulse, Whisperer, diagnostics)
+- [`dashboards/`](dashboards/README.md): standalone examples and templates
 - `openapi.actions.yaml`: the single schema to upload to Custom GPT
 - `docs/`: deep dives (Actions Bus, Positions & Orders, Journaling schema)
 
@@ -97,15 +95,15 @@ Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/
 3. **Build and start the platform:**
     ```bash
     docker network create traefik-public
-    docker-compose build --no-cache
-    docker-compose up -d
+    docker compose build --no-cache
+    docker compose up -d
     ```
 
 4. **Check all services:**
     ```bash
-    docker-compose ps
-    docker-compose logs dashboard
-    docker-compose logs mt5
+    docker compose ps
+    docker compose logs dashboard
+    docker compose logs mt5
     ```
 
 5. **Access the dashboards and APIs:**
@@ -131,6 +129,7 @@ Key variables to configure before launching:
 - `BRIDGE_TOKEN` – optional token sent as `X-Bridge-Token` header.
 - `VNC_DOMAIN`, `TRAEFIK_DOMAIN`, `TRAEFIK_USERNAME`, `ACME_EMAIL` – domains and Traefik settings.
 - `DJANGO_SECRET_KEY` – secret key for Django.
+- `MCP_API_KEY` – MCP uses the root `.env`; set this 32‑hex‑character key there. This key is shared across services so Whisperer connects once without drift.
 
 For the complete list of variables, see [docs/env-reference.md](docs/env-reference.md).
 
@@ -174,7 +173,7 @@ Single endpoint for GPT-driven verbs defined in `openapi.actions.yaml`. Deep div
 
 ## Dashboards & Diagnostics
 
-Streamlit pages under `dashboard/pages/` power Pulse, Whisperer, and diagnostics. `24_Trades_Diagnostics.py` compares closed trades, MT5 history, and open positions.
+Streamlit pages under `dashboard/pages/` power Pulse, Whisperer, and diagnostics. `24_Trades_Diagnostics.py` compares closed trades, MT5 history, and open positions. See [`dashboard/`](dashboard/README.md) for setup and [`dashboards/`](dashboards/README.md) for standalone examples.
 
 ---
 
@@ -266,7 +265,7 @@ Add new Streamlit dashboards following [docs/advanced_dashboard.md](docs/advance
 Common setup and operational questions live in [docs/faq.md](docs/faq.md).
 
 **Q: Something isn’t working—how do I see detailed error logs?**
-A: Use `docker-compose logs <service>` (add `-f` to follow in real time) or `docker logs <container>` for single containers. For service-specific errors, check Django's debug logs and MT5 bridge logs.
+A: Use `docker compose logs <service>` (add `-f` to follow in real time) or `docker logs <container>` for single containers. For service-specific errors, check Django's debug logs and MT5 bridge logs.
 
 **Q: Can I run this without Docker?**
 A: Not recommended. The MT5 and dashboard stack is designed for containerization for full reproducibility and security.
@@ -295,7 +294,7 @@ A: MetaTrader likely didn’t boot—ensure Wine and required DLLs are available
 A:
 1. Run the following to flush all cached keys:
    ```bash
-   docker-compose exec redis redis-cli FLUSHALL
+   docker compose exec redis redis-cli FLUSHALL
    ```
 2. Restart the services so caches repopulate with fresh data.
 
@@ -303,26 +302,26 @@ A:
 A:
 1. Stop the services:
    ```bash
-   docker-compose down
+   docker compose down
    ```
 2. Remove the Postgres volume (be sure you're ok losing all data):
    ```bash
-   docker volume rm <name>  # or docker-compose down -v
+   docker volume rm <name>  # or docker compose down -v
    ```
 3. Rerun migrations to recreate schema:
    ```bash
-   docker-compose run django migrate
+   docker compose run django migrate
    ```
 4. Restart the stack:
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
 
 **Q: Docker containers fail to build/start.**
 A:
 1. Verify your Docker installation and version.
-2. Rebuild images without cache using `docker-compose build --no-cache`.
-3. Check container output with `docker-compose logs`.
+2. Rebuild images without cache using `docker compose build --no-cache`.
+3. Check container output with `docker compose logs`.
 4. Ensure required ports are free to avoid conflicts.
 
 **Q: Docker containers complain about file or directory permissions.**
@@ -370,13 +369,16 @@ A:
 
 **Q: How do I reset the containers when data gets corrupted or outdated?**
 A:
-1. Stop and remove containers and volumes: `docker-compose down -v`.
+1. Stop and remove containers and volumes: `docker compose down -v`.
 2. Remove any orphan containers: `docker container prune -f`.
-3. Rebuild and start fresh containers: `docker-compose up --build`.
+3. Rebuild and start fresh containers: `docker compose up --build`.
 4. Rerun database migrations if applicable.
 
 
 ## Troubleshooting Gold Mine
+
+See [docs/mcp_troubleshooting.md](docs/mcp_troubleshooting.md) for Traefik label requirements, keychain unlock steps, and ghost container cleanup specific to the MCP server.
+
 
 1. First sign of death: Whisperer says stopped talking to connector. Curl to /mcp gives heartbeat → MCP alive. Curl to /exec gives 404. → Traefik not routing. Added traefik.http.routers.mcp.rule=Host(mcp1.zanalytics.app) and port 8001:8001 → still 404.
 2. Localhost test: curl http://localhost:8001/exec → connection refused. → Port not exposed. Added ports: - 8001:8001 in compose → now connects, but still 404.

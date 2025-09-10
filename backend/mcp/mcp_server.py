@@ -6,38 +6,62 @@ import asyncio
 import httpx
 import os
 import time
-import pandas as pd
+import logging
+try:  # pragma: no cover - optional dependency
+    import pandas as pd
+except Exception:  # pragma: no cover - allow module to import without pandas
+    pd = None
+from pathlib import Path
+import sys
+from dotenv import load_dotenv, find_dotenv
 from utils.time import localize_tz
 try:  # pragma: no cover - optional dependency
     import MetaTrader5 as mt5  # type: ignore
 except Exception:  # pragma: no cover - allow module to import without MT5
     mt5 = None
-from . import mt5_adapter
+sys.path.append(str(Path(__file__).resolve().parent))
+from mt5_adapter import init_mt5
 from prometheus_client import (
     Counter,
     Gauge,
     generate_latest,
     CONTENT_TYPE_LATEST,
+    REGISTRY,
 )
 
-mt5_adapter.init_mt5()
+init_mt5()
 
 app = FastAPI(title="Zanalytics MCP Server")
+
+logger = logging.getLogger(__name__)
+dotenv_path = find_dotenv()
+if dotenv_path:
+    load_dotenv(dotenv_path)
+else:
+    logger.warning("No .env file found; proceeding without loading environment variables")
 
 INTERNAL_API_BASE = os.getenv("INTERNAL_API_BASE", "http://django:8000")
 
 # API key expected in incoming requests; empty string by default
 API_KEY = os.environ.get("MCP_API_KEY", "")
 
-REQUESTS = Counter("mcp_requests_total", "Total MCP requests", ["endpoint"])
-MCP_UP = Gauge("mcp_up", "MCP server heartbeat status")
+REQUESTS = Counter(
+    "mcp_requests_total",
+    "Total MCP requests",
+    ["endpoint"],
+    registry=REGISTRY,
+)
+MCP_UP = Gauge("mcp_up", "MCP server heartbeat status", registry=REGISTRY)
 MCP_TIMESTAMP = Gauge(
-    "mcp_last_heartbeat_timestamp", "Unix timestamp of last heartbeat"
+    "mcp_last_heartbeat_timestamp",
+    "Unix timestamp of last heartbeat",
+    registry=REGISTRY,
 )
 
 
 @app.get("/health")
 async def health():
+    REQUESTS.labels(endpoint="health").inc()
     try:
         return {"status": "MT5 ready", "equity": mt5.account_info().equity}
     except Exception:
@@ -46,6 +70,7 @@ async def health():
 
 @app.get("/.well-known/openai.yaml", include_in_schema=False)
 def well_known_manifest():
+    REQUESTS.labels(endpoint="well_known").inc()
     return FileResponse("openai-actions.yaml", media_type="application/yaml")
 
 
@@ -62,6 +87,8 @@ async def check_key(request: Request, call_next):
 
 async def generate_mcp_stream():
     """Generator for NDJSON streaming events."""
+    MCP_UP.set(1)
+    MCP_TIMESTAMP.set(time.time())
     # Send open event immediately
     yield json.dumps(
         {
@@ -124,7 +151,8 @@ async def exec_proxy(request: Request, full_path: str):
 
 @app.get("/metrics")
 def metrics():
-    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    REQUESTS.labels(endpoint="metrics").inc()
+    return Response(generate_latest(REGISTRY), media_type=CONTENT_TYPE_LATEST)
 
 
 class PositionOpen(BaseModel):
@@ -158,6 +186,7 @@ class ExecPayload(BaseModel):
 @app.post("/exec")
 async def exec_action(payload: ExecPayload):
     """Execute trading actions via the internal API."""
+    REQUESTS.labels(endpoint="exec_action").inc()
     mapping = {
         "position_open": ("/trade/open", PositionOpen),
         "position_close": ("/trade/close", PositionClose),
@@ -187,6 +216,7 @@ async def exec_action(payload: ExecPayload):
 @app.post("/tool/search")
 async def search_tool(query: str):
     """Search available market symbols via the internal API."""
+    REQUESTS.labels(endpoint="tool_search").inc()
     if not query:
         raise HTTPException(status_code=400, detail="query required")
 
@@ -258,6 +288,8 @@ async def _handle_read_action(action_type: str):
 
 async def _handle_account_positions():
     """Return a normalized view of open MT5 orders/positions."""
+    if pd is None:  # pragma: no cover - dependency guard
+        raise HTTPException(status_code=500, detail="Pandas not available")
 
     def normalize_mt5_orders(orders):
         df = pd.DataFrame([vars(o) for o in orders])
@@ -279,6 +311,7 @@ async def _handle_account_positions():
 
 @app.post("/api/v1/actions/query")
 async def post_actions_query(payload: ActionPayload):
+    REQUESTS.labels(endpoint="actions_query").inc()
     handlers = {
         "whisper_suggest": lambda: _handle_read_action("whisper_suggest"),
         "session_boot": lambda: _handle_read_action("session_boot"),

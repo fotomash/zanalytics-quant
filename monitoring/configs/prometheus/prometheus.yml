@@ -42,6 +42,7 @@ scrape_configs:
         labels:
           container: "cadvisor"
   - job_name: mcp
+    metrics_path: /metrics
     static_configs:
       - targets: ["mcp:8001"]
         labels:
