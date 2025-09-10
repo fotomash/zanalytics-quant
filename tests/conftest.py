@@ -1,3 +1,5 @@
+"""Test configuration and MT5 stubs used across the suite."""
+
 import sys
 from types import SimpleNamespace
 
