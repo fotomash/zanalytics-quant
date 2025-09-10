@@ -206,3 +206,17 @@ actions:
       required:
         - ticket
     action_status: enabled
+  - name_for_model: mcp1_authenticate
+    name_for_human: "Authenticate Session"
+    description_for_model: "Validate MCP1 auth token"
+    action_url: https://mcp1.zanalytics.app/api/v1/mcp1/authenticate
+    method: POST
+    parameters:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Session token to validate
+      required:
+        - token
+    action_status: enabled
