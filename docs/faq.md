@@ -90,5 +90,38 @@ A:
 3. Rebuild and start fresh containers: `docker-compose up --build`.
 4. Rerun database migrations if applicable.
 
+**Q: Traefik route isn't matching my service?**
+A: Router labels may be off. Check `traefik.http.routers` rules in [`docker-compose.yml`](../docker-compose.yml) and match `Host`/`PathPrefix` to the request. See [troubleshooting](troubleshooting.md#traefik-routing-labels).
+
+**Q: On macOS, commands fail with a locked keychain?**
+A: Unlock it before running Docker or git:
+```bash
+security unlock-keychain login.keychain-db
+```
+Then retry the command. More tips in [troubleshooting](troubleshooting.md#macos-keychain-unlock).
+
+**Q: How do I clean up ghost containers?**
+A: Remove stragglers and rebuild:
+```bash
+docker compose down -v
+docker container prune -f
+docker compose up --build
+```
+See [troubleshooting](troubleshooting.md#ghost-container-cleanup) for details.
+
+**Q: MT5 quotes look stale—how do I refresh the feed?**
+A: Restart the [mt5_gateway](../mt5_gateway/README.md) container:
+```bash
+docker compose restart mt5
+```
+Verify ticks with `curl "$MT5_API_URL/ticks?symbol=EURUSD&limit=1"`.
+
+**Q: Which header carries the API key?**
+A: Use `X-API-Key` with the value from `$MCP_API_KEY`:
+```bash
+curl -H "X-API-Key: $MCP_API_KEY" http://localhost:8001/api/...
+```
+See [api-security.md](api-security.md) for rotation guidance.
+
 **Q: Why does Whisperer still ask for approval after sending `approve: true`?**
-A: Cached action state. In the OpenAI builder, delete and re-add the MCP connector, or include `force: true` in the payload to bypass cache.
+A: Cached action state. Delete and re-add the MCP connector in the OpenAI builder, or include `force: true` with `approve: true` to bypass cache. See [WHISPERER.md](WHISPERER.md) for payload examples.
