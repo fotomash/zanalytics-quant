@@ -725,6 +725,28 @@ services:
     networks:
       - default
 
+  mcp:
+    build:
+      context: ./backend/mcp
+    container_name: mcp
+    ports:
+      - "8001:8001"
+    environment:
+      - INTERNAL_API_BASE=http://django:8000
+    depends_on:
+      - django
+    networks:
+      - traefik-public
+      - default
+    labels:
+      <<: *default-labels
+      traefik.enable: true
+      traefik.docker.network: traefik-public
+      traefik.http.routers.mcp.rule: Host(`mcp1.zanalytics.app`)
+      traefik.http.routers.mcp.entrypoints: websecure
+      traefik.http.services.mcp.loadbalancer.server.port: 8001
+    restart: unless-stopped
+
   market-fetcher:
     image: curlimages/curl:8.8.0
     container_name: market-fetcher
