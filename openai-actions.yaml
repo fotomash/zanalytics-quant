@@ -136,7 +136,7 @@ actions:
           enum:
             - buy
             - sell
-        volume:
+        volume:Error establishing a database connection
           type: number
         type:
           type: string
