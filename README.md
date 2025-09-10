@@ -26,11 +26,8 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [Known Issues & Best Practices](#known-issues-best-practices)
 - [Future Directions & Next Steps](#future-directions-next-steps)
 
-- [License (Strict, Non-Transferable)](#license-strict-non-transferable)
-- [Advanced Usage](#advanced-usage)
-
 - [License](#license)
-- [Advanced Usage: Adding a New Dashboard](#advanced-usage-adding-a-new-dashboard)
+- [Advanced Usage](#advanced-usage)
 
 - [Full API Documentation](#full-api-documentation)
 - [FAQ](#faq)
