@@ -38,16 +38,24 @@ def display_live_status():
 # Shared Helper: Render Whisper with Ack/Act Buttons
 def render_whisper(whisper):
     st.markdown(f"**{whisper['ts']} - {whisper['severity']}:** {whisper['message']}")
+    # Stable component keys so Streamlit preserves widget state on reruns
+    ack_key = f"ack_{whisper['id']}"
+    act_key = f"act_{whisper['id']}"
+
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Ack", key=f"ack_{whisper['id']}"):  # Stable key for rerun state
+        if st.button("Ack", key=ack_key):
             payload = {"id": whisper['id'], "reason": "Acknowledged"}
             result = safe_api_call('POST', '/api/pulse/whisper/ack', payload)
             if result:
                 st.toast("Whisper acknowledged! 🎉")
     with col2:
-        action = st.selectbox("Action", ["Reduce Size", "Close Position", "Review Rules"], key=f"act_select_{whisper['id']}")
-        if st.button("Act", key=f"act_{whisper['id']}"):
+        action = st.selectbox(
+            "Action",
+            ["Reduce Size", "Close Position", "Review Rules"],
+            key=f"act_select_{whisper['id']}",
+        )
+        if st.button("Act", key=act_key):
             payload = {"id": whisper['id'], "action": action}
             result = safe_api_call('POST', '/api/pulse/whisper/act', payload)
             if result:
