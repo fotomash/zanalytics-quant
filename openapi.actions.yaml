@@ -458,6 +458,7 @@ paths:
   /api/v1/mcp1/authenticate:
     post:
       summary: Authenticate session via MCP1
+      operationId: postMcp1Authenticate
       requestBody:
         required: true
         content:
@@ -535,59 +536,59 @@ components:
           behavior_events: '#/components/schemas/BehaviorEventsRequest'
           whisper_suggest: '#/components/schemas/WhisperSuggestRequest'
 
-      ActionQueryRequest:
-        type: object
-        required: [type]
-        properties:
-          type:
-            type: string
-            description: Action verb
-            enum: [
-              whisper_suggest,
-              session_boot,
-              state_snapshot,
-              trades_recent,
-              trades_history_mt5,
-              account_info,
-              account_positions,
-              account_risk,
-              equity_today,
-              pulse_status,
-              market_mini,
-              market_snapshot,
-              market_symbols,
-              market_calendar_next,
-              market_regime,
-              liquidity_map,
-              opportunity_priority_items,
-              journal_recent,
-              journal_append,
-              behavior_events,
-              position_open,
-              position_close,
-              position_modify,
-              position_hedge
-            ]
-          payload:
-            description: Action-specific parameters (varies by verb)
-            oneOf:
-              - $ref: '#/components/schemas/PositionClosePayload'
-              - $ref: '#/components/schemas/PositionOpenPayload'
-              - $ref: '#/components/schemas/PositionModifyPayload'
-              - $ref: '#/components/schemas/PositionHedgePayload'
-              - $ref: '#/components/schemas/SessionBootPayload'
-              - $ref: '#/components/schemas/TradesRecentPayload'
-              - $ref: '#/components/schemas/TradesHistoryMt5Payload'
-              - $ref: '#/components/schemas/MarketCalendarNextPayload'
-              - $ref: '#/components/schemas/LiquidityMapPayload'
-              - $ref: '#/components/schemas/OpportunityPriorityItemsPayload'
-              - $ref: '#/components/schemas/PulseStatusPayload'
-              - $ref: '#/components/schemas/JournalRecentPayload'
-              - $ref: '#/components/schemas/JournalAppendPayload'
-              - $ref: '#/components/schemas/WhisperSuggestPayload'
-              - type: object
-                additionalProperties: true
-                description: Generic object for verbs that take no parameters
+    ActionQueryRequest:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          description: Action verb
+          enum: [
+            whisper_suggest,
+            session_boot,
+            state_snapshot,
+            trades_recent,
+            trades_history_mt5,
+            account_info,
+            account_positions,
+            account_risk,
+            equity_today,
+            pulse_status,
+            market_mini,
+            market_snapshot,
+            market_symbols,
+            market_calendar_next,
+            market_regime,
+            liquidity_map,
+            opportunity_priority_items,
+            journal_recent,
+            journal_append,
+            behavior_events,
+            position_open,
+            position_close,
+            position_modify,
+            position_hedge
+          ]
+        payload:
+          description: Action-specific parameters (varies by verb)
+          oneOf:
+            - $ref: '#/components/schemas/PositionClosePayload'
+            - $ref: '#/components/schemas/PositionOpenPayload'
+            - $ref: '#/components/schemas/PositionModifyPayload'
+            - $ref: '#/components/schemas/PositionHedgePayload'
+            - $ref: '#/components/schemas/SessionBootPayload'
+            - $ref: '#/components/schemas/TradesRecentPayload'
+            - $ref: '#/components/schemas/TradesHistoryMt5Payload'
+            - $ref: '#/components/schemas/MarketCalendarNextPayload'
+            - $ref: '#/components/schemas/LiquidityMapPayload'
+            - $ref: '#/components/schemas/OpportunityPriorityItemsPayload'
+            - $ref: '#/components/schemas/PulseStatusPayload'
+            - $ref: '#/components/schemas/JournalRecentPayload'
+            - $ref: '#/components/schemas/JournalAppendPayload'
+            - $ref: '#/components/schemas/WhisperSuggestPayload'
+            - type: object
+              additionalProperties: true
+              description: Generic object for verbs that take no parameters
 
     # ----- Request variants (typed by 'type') -----
     PositionOpenRequest:
