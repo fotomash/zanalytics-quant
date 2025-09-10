@@ -44,3 +44,44 @@ jobs:
 ```
 
 Pushing changes to `docs/` updates the live site within seconds.
+
+## Post-deploy Copy
+
+Some environments rebuild the Streamlit image without the latest docs. A CI job or
+post-deploy script can refresh the running container by copying the repository's
+`docs/` directory into it whenever documentation changes.
+
+```yaml
+name: copy-docs-to-container
+on:
+  push:
+    paths:
+      - "docs/**"
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Rebuild container and copy docs
+        run: |
+          docker compose up -d --build info
+          docker cp docs/. $(docker compose ps -q info):/app/docs
+```
+
+For Compose-based deployments, the `develop.watch` feature can automatically
+rebuild the container when files in `docs/` change:
+
+```yaml
+services:
+  info:
+    build: .
+    volumes:
+      - ./docs:/app/docs
+    develop:
+      watch:
+        - path: ./docs
+          action: rebuild
+```
+
+Either approach ensures the running Streamlit container serves the most recent
+documentation.
