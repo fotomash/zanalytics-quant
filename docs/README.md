@@ -34,8 +34,7 @@ Current Direction (Active)
 Legacy / Retired (kept for history)
 -----------------------------------
 
-See docs/LEGACY_INDEX.md for a curated list of older guides and one‑liners on
-why they’re retired.
+Older guides remain in this directory for historical reference and are no longer maintained.
 
 Flags and Defaults
 ------------------
