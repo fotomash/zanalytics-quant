@@ -13,6 +13,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
+import types
 
 import yaml
 from fastapi.routing import APIRoute
@@ -46,9 +47,10 @@ def get_manifest_routes() -> dict[str, tuple[str, str]]:
 
 def get_server_routes() -> set[tuple[str, str]]:
     """Return set of (method, path) pairs served by the MCP FastAPI app."""
-    sys.path.insert(0, str(ROOT / "backend" / "mcp"))
+    sys.path.insert(0, str(ROOT))
+    sys.modules.setdefault("mt5_adapter", types.SimpleNamespace(init_mt5=lambda: None))
     try:
-        from mcp_server import app  # type: ignore
+        from backend.mcp.mcp_server import app  # type: ignore
     except Exception as exc:  # pragma: no cover - import failure reported
         print(f"Failed to import mcp_server: {exc}")
         return set()
