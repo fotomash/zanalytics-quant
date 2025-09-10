@@ -50,6 +50,7 @@ def build_payload(schema: dict) -> dict:
 
 def main() -> int:
     actions = load_actions()
+    # Use a context manager so the client is closed even if a request fails
     with httpx.Client(timeout=5) as client:
         for action in actions:
             name = action.get("name_for_model")
