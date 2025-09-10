@@ -149,6 +149,13 @@ if 'auto_refresh_enabled' not in st.session_state:
 # Cache configuration (choose a writable directory robustly)
 CACHE_EXPIRY_MINUTES = 15
 
+
+def signals_top() -> List[Dict[str, Any]]:
+    data = safe_api_call("GET", "signals/top?n=3") or {}
+    if isinstance(data, list):
+        return data
+    return data.get("signals") or []
+
 def _choose_cache_dir() -> str:
     candidates = []
     # Environment overrides first
@@ -169,6 +176,7 @@ def _choose_cache_dir() -> str:
         pass
     # Always include /tmp as last resort
     candidates.append(Path("/tmp") / "zanalytics-cache")
+
 
     for p in candidates:
         try:
@@ -1985,7 +1993,14 @@ Sample headlines: {', '.join([n[0].get('headline','') for n in all_news.values()
 
             st.markdown('</div>', unsafe_allow_html=True)
 
-        # Risk warnings
+
+st.subheader("Top Opportunities")
+ops = signals_top()
+for sig in ops:
+    with st.expander(f"{sig.get('symbol','?')} • {sig.get('bias','?')} • SL {sig.get('sl','?')} TP {sig.get('tp','?')}"):
+        st.write(sig.get("reason", "No reason provided"))
+        if sig.get("explain"):
+            st        # Risk warnings
         st.subheader("⚠️ Risk Alerts")
 
         risk_alerts = []
