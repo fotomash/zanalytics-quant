@@ -1,7 +1,6 @@
 
 import streamlit as st
 import requests
-import time  # For any polling if needed
 import logging
 
 # Shared Helper: Runtime API Base Resolution (as per your update)
@@ -41,14 +40,14 @@ def render_whisper(whisper):
     st.markdown(f"**{whisper['ts']} - {whisper['severity']}:** {whisper['message']}")
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Ack", key=f"ack_{whisper['id']}_{time.time()}"):  # Unique key to avoid re-run issues
+        if st.button("Ack", key=f"ack_{whisper['id']}"):  # Stable key for rerun state
             payload = {"id": whisper['id'], "reason": "Acknowledged"}
             result = safe_api_call('POST', '/api/pulse/whisper/ack', payload)
             if result:
                 st.toast("Whisper acknowledged! 🎉")
     with col2:
         action = st.selectbox("Action", ["Reduce Size", "Close Position", "Review Rules"], key=f"act_select_{whisper['id']}")
-        if st.button("Act", key=f"act_{whisper['id']}_{time.time()}"):
+        if st.button("Act", key=f"act_{whisper['id']}"):
             payload = {"id": whisper['id'], "action": action}
             result = safe_api_call('POST', '/api/pulse/whisper/act', payload)
             if result:
