@@ -424,8 +424,11 @@ A: Real-time data is cached in Redis and long-term data is stored in Postgres. S
 **Q: How can I add a new feature or signal?**  
 A: Extend or edit the scripts in `utils/` and trigger the enrichment process.
 
-**Q: What if the dashboard is blank?**  
+**Q: What if the dashboard is blank?**
 A: Double-check your API/DB containers, verify enrichment, and confirm `.env` credentials.
+
+**Q: The app can't connect to Postgres or Redis.**
+A: Confirm your `.env` credentials, ensure the services are running (`docker ps`), and check container logs for authentication or network errors.
 
 ---
 
