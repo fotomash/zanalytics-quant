@@ -737,11 +737,11 @@ services:
       traefik.enable: true
       traefik.docker.network: traefik-public
       traefik.http.routers.mcp.rule: Host(`mcp1.zanalytics.app`)
-      traefik.http.routers.mcp.entrypoints: websecure  # HTTPS only, no http fallback
-      traefik.http.routers.mcp.tls.certresolver: letsencrypt
+      traefik.http.routers.mcp.entrypoints: https
       traefik.http.routers.mcp.tls: true
-      traefik.http.routers.mcp.priority: 200
-      traefik.http.services.mcp.loadbalancer.server.port: 8001
+      traefik.http.routers.mcp.tls.certresolver: le
+      traefik.http.routers.mcp.service: mcp-service
+      traefik.http.services.mcp-service.loadbalancer.server.port: 8001
     restart: unless-stopped
 
   market-fetcher:
