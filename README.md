@@ -449,11 +449,7 @@ A: Another service is already bound to a required port.
 A: Ensure you're using the supported Python version, then install dependencies with `poetry install` or `pip install -r requirements.txt`. If issues persist, clear cached wheels (e.g., `pip cache purge`) and try again.
 
 **Q: The web UI won't compile or `npm start` fails.**
-A: Delete `web/node_modules`, run `npm install` or `npm ci`, and confirm you're using the Node.js version required by the project.
-
-
-**Q: The web UI won't compile or `npm start` fails.**
-A: Remove the `web/node_modules` directory and reinstall dependencies with `npm install` (or `npm ci`). Confirm you're using the project's required Node version.
+A: Remove the `web/node_modules` directory and reinstall dependencies with `npm install` (or `npm ci`). Ensure you're using the project's required Node.js version.
 
 
 **Q: How do I reset the containers when data gets corrupted or outdated?**
