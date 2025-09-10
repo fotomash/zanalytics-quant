@@ -30,6 +30,10 @@ scrape_configs:
         regex: '/mcp'
         target_label: 'job'
         replacement: 'mcp'
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/mcp'
+        target_label: 'service'
+        replacement: 'mcp'
     pipeline_stages:
       - cri: {}
       - multiline:

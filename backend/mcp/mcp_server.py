@@ -45,6 +45,7 @@ MCP_TIMESTAMP = Gauge(
 
 @app.get("/health")
 async def health():
+    REQUESTS.labels(endpoint="health").inc()
     try:
         return {"status": "MT5 ready", "equity": mt5.account_info().equity}
     except Exception:
@@ -53,6 +54,7 @@ async def health():
 
 @app.get("/.well-known/openai.yaml", include_in_schema=False)
 def well_known_manifest():
+    REQUESTS.labels(endpoint="well_known").inc()
     return FileResponse("openai-actions.yaml", media_type="application/yaml")
 
 
@@ -69,6 +71,8 @@ async def check_key(request: Request, call_next):
 
 async def generate_mcp_stream():
     """Generator for NDJSON streaming events."""
+    MCP_UP.set(1)
+    MCP_TIMESTAMP.set(time.time())
     # Send open event immediately
     yield json.dumps(
         {
@@ -131,6 +135,7 @@ async def exec_proxy(request: Request, full_path: str):
 
 @app.get("/metrics")
 def metrics():
+    REQUESTS.labels(endpoint="metrics").inc()
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
@@ -165,6 +170,7 @@ class ExecPayload(BaseModel):
 @app.post("/exec")
 async def exec_action(payload: ExecPayload):
     """Execute trading actions via the internal API."""
+    REQUESTS.labels(endpoint="exec_action").inc()
     mapping = {
         "position_open": ("/trade/open", PositionOpen),
         "position_close": ("/trade/close", PositionClose),
@@ -194,6 +200,7 @@ async def exec_action(payload: ExecPayload):
 @app.post("/tool/search")
 async def search_tool(query: str):
     """Search available market symbols via the internal API."""
+    REQUESTS.labels(endpoint="tool_search").inc()
     if not query:
         raise HTTPException(status_code=400, detail="query required")
 
@@ -288,6 +295,7 @@ async def _handle_account_positions():
 
 @app.post("/api/v1/actions/query")
 async def post_actions_query(payload: ActionPayload):
+    REQUESTS.labels(endpoint="actions_query").inc()
     handlers = {
         "whisper_suggest": lambda: _handle_read_action("whisper_suggest"),
         "session_boot": lambda: _handle_read_action("session_boot"),
