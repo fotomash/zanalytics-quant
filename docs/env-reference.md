@@ -1,6 +1,15 @@
 # Environment Variable Reference
 
-This document lists the environment variables defined in [`.env.template`](../.env.template). Copy the template to `.env` and adjust values for your setup. Values defined in `.env` or in the shell environment override the defaults shown here.
+This document lists the environment variables defined in [`.env.template`](../.env.template).
+Start by copying that template to a new `.env` file and filling in your own secrets.
+**Never commit the populated `.env` file to version control.**
+
+For local development, Docker Compose reads `.env` via its `env_file` directive and
+injects the values into services like `mcp`. In CI environments, provide the same
+variables through your pipeline's environment or secret store. The container no
+longer mounts `.env` directly.
+
+Values defined in `.env` or in the shell environment override the defaults shown here.
 
 ## Core Database Settings
 | Variable | Default | Override Behavior | Purpose |
