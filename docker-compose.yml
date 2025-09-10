@@ -227,12 +227,12 @@ services:
       traefik.enable: true
       traefik.docker.network: traefik-public
 
-      traefik.http.routers.django-http.rule: Host(`${DJANGO_DOMAIN}`)
+      traefik.http.routers.django-http.rule: Host(`${DJANGO_DOMAIN}`) && !Host(`mcp1.${DJANGO_DOMAIN}`)
       traefik.http.routers.django-http.entrypoints: http
       traefik.http.routers.django-http.middlewares: https-redirect
       traefik.http.routers.django-http.service: django-service
 
-      traefik.http.routers.django-https.rule: Host(`${DJANGO_DOMAIN}`)
+      traefik.http.routers.django-https.rule: Host(`${DJANGO_DOMAIN}`) && !Host(`mcp1.${DJANGO_DOMAIN}`)
       traefik.http.routers.django-https.entrypoints: https
       traefik.http.routers.django-https.tls: true
       traefik.http.routers.django-https.tls.certresolver: le
@@ -743,7 +743,11 @@ services:
       traefik.enable: true
       traefik.docker.network: traefik-public
       traefik.http.routers.mcp.rule: Host(`mcp1.zanalytics.app`)
-      traefik.http.routers.mcp.entrypoints: websecure
+      traefik.http.routers.mcp.entrypoints: http,https
+      traefik.http.routers.mcp.tls.certresolver: letsencrypt
+      traefik.http.routers.mcp.priority: 200
+      traefik.http.middlewares.mcp-strip.stripprefix.prefixes: /mcp
+      traefik.http.routers.mcp.middlewares: mcp-strip
       traefik.http.services.mcp.loadbalancer.server.port: 8001
     restart: unless-stopped
 
