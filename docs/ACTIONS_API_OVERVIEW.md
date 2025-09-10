@@ -135,6 +135,11 @@ Example flow:
 The backend validates this against `JournalAppendPayload`, logs it, streams it
 to Kafka, and returns `{ "success": true }`.
 
+MCP1 Integration
+-----------------
+The Actions schema also exposes `/api/v1/mcp1/authenticate` for realtime OpenAI services.
+Send `{ "token": "<jwt>" }` and receive `{ "status": "authenticated" }` when valid.
+
 See also:
 - [Actions Bus](ACTIONS_BUS.md)
 - [Verbs Catalog](VERBS_CATALOG.md)
