@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import StreamingResponse, Response, JSONResponse, FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 import json
 import asyncio
 import httpx
@@ -12,7 +12,7 @@ try:  # pragma: no cover - optional dependency
     import MetaTrader5 as mt5  # type: ignore
 except Exception:  # pragma: no cover - allow module to import without MT5
     mt5 = None
-import mt5_adapter
+from . import mt5_adapter
 from prometheus_client import (
     Counter,
     Gauge,
@@ -127,16 +127,81 @@ def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
+class PositionOpen(BaseModel):
+    symbol: str
+    side: str
+    volume: float
+    type: str | None = "market"
+    price: float | None = None
+    sl: float | None = None
+    tp: float | None = None
+    deviation: int | None = 10
+
+
+class PositionClose(BaseModel):
+    ticket: int
+    volume: float | None = None
+    deviation: int | None = 10
+
+
+class PositionModify(BaseModel):
+    ticket: int
+    sl: float | None = None
+    tp: float | None = None
+
+
+class ExecPayload(BaseModel):
+    type: str
+    payload: dict
+
+
 @app.post("/exec")
-async def exec_action(payload: dict):
-    # TODO: implement modify/open/close logic
-    return {"status": "executed", "result": "ok"}
+async def exec_action(payload: ExecPayload):
+    """Execute trading actions via the internal API."""
+    mapping = {
+        "position_open": ("/trade/open", PositionOpen),
+        "position_close": ("/trade/close", PositionClose),
+        "position_modify": ("/trade/modify", PositionModify),
+    }
+
+    if payload.type not in mapping:
+        raise HTTPException(status_code=400, detail="Unsupported action type")
+
+    path, model = mapping[payload.type]
+    try:
+        body = model(**payload.payload).dict()
+    except ValidationError as exc:  # pragma: no cover - pydantic always raises HTTP 422
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(f"{INTERNAL_API_BASE}{path}", json=body)
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail="Internal API unreachable") from exc
+
+    if resp.status_code >= 400:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    return resp.json()
 
 
 @app.post("/tool/search")
 async def search_tool(query: str):
-    # TODO: add market search logic
-    return {"results": []}
+    """Search available market symbols via the internal API."""
+    if not query:
+        raise HTTPException(status_code=400, detail="query required")
+
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(f"{INTERNAL_API_BASE}/market/symbols")
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail="Internal API unreachable") from exc
+
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+
+    symbols = resp.json().get("symbols", [])
+    q = query.lower()
+    return {"results": [s for s in symbols if q in s.lower()]}
 
 
 
