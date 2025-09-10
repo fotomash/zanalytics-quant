@@ -50,33 +50,33 @@ def build_payload(schema: dict) -> dict:
 
 def main() -> int:
     actions = load_actions()
-    client = httpx.Client(timeout=5)
-    for action in actions:
-        name = action.get("name_for_model")
-        url = action.get("action_url")
-        method = action.get("method", "GET").upper()
-        params_schema = action.get("parameters", {})
-        payload = build_payload(params_schema)
+    with httpx.Client(timeout=5) as client:
+        for action in actions:
+            name = action.get("name_for_model")
+            url = action.get("action_url")
+            method = action.get("method", "GET").upper()
+            params_schema = action.get("parameters", {})
+            payload = build_payload(params_schema)
 
-        # Replace path parameters in URL
-        if url:
-            for match in re.findall(r"{(.*?)}", url):
-                replacement = payload.get(match, 1)
-                url = url.replace(f"{{{match}}}", str(replacement))
-        else:
-            print(f"{name}: missing URL")
-            continue
-
-        try:
-            if method == "GET":
-                resp = client.get(url, params=payload)
+            # Replace path parameters in URL
+            if url:
+                for match in re.findall(r"{(.*?)}", url):
+                    replacement = payload.get(match, 1)
+                    url = url.replace(f"{{{match}}}", str(replacement))
             else:
-                resp = client.request(method, url, json=payload)
-            status = resp.status_code
-            ok = 200 <= status < 400
-            print(f"{name}: {'OK' if ok else f'HTTP {status}'}")
-        except Exception as exc:  # pragma: no cover - network errors
-            print(f"{name}: error {exc}")
+                print(f"{name}: missing URL")
+                continue
+
+            try:
+                if method == "GET":
+                    resp = client.get(url, params=payload)
+                else:
+                    resp = client.request(method, url, json=payload)
+                status = resp.status_code
+                ok = 200 <= status < 400
+                print(f"{name}: {'OK' if ok else f'HTTP {status}'}")
+            except Exception as exc:  # pragma: no cover - network errors
+                print(f"{name}: error {exc}")
     return 0
 
 
