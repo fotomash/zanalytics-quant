@@ -56,9 +56,10 @@ For MCP-specific routing and container issues, see [mcp_troubleshooting.md](mcp_
 - Validate ticks with `curl "$MT5_API_URL/ticks?symbol=EURUSD&limit=1"`.
 
 ## API Key Header Usage
-- Protected endpoints require `X-API-Key` headers.
+- Protected endpoints require both `Authorization: Bearer <key>` and `X-API-Key: <key>` headers.
 - Example:
   ```bash
-  curl -H "X-API-Key: $MCP_API_KEY" http://localhost:8001/api/...
+  curl -H "Authorization: Bearer $MCP_API_KEY" \
+       -H "X-API-Key: $MCP_API_KEY" http://localhost:8001/api/...
   ```
 - See [api-security.md](api-security.md) for rotation and storage details.

@@ -21,6 +21,7 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [Data Enrichment & Customization](#data-enrichment-customization)
 - [Example .env Configuration](#example-env-configuration)
 - [Security & Access Control](#security-access-control)
+- [API Health Check and Query Examples](#api-health-check-and-query-examples)
 - [Contributing](#contributing)
 - [Running Tests](#running-tests)
 - [Known Issues & Best Practices](#known-issues-best-practices)
@@ -213,6 +214,26 @@ Sample settings are available in [docs/example-env.md](docs/example-env.md).
 - All APIs require authentication and rate limits are applied.
 - Data flows are segmented per Docker network for defense in depth.
 
+## API Health Check and Query Examples
+
+Check basic server health (no authentication required):
+
+```bash
+curl -s http://localhost:8080/health
+```
+
+Query the Actions Bus with both required headers and a valid JSON body:
+
+```bash
+curl -sX POST http://localhost:8080/api/v1/actions/query \
+  -H "Authorization: Bearer dev-key-123" \
+  -H "X-API-Key: dev-key-123" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"session_boot","payload":{"user_id":"demo"}}'
+```
+
+The `Content-Type: application/json` header is mandatory when submitting JSON payloads.
+
 ---
 
 ## Contributing
@@ -354,7 +375,7 @@ Then test the endpoint:
 curl -k https://mcp1.zanalytics.app/mcp | head -3
 ```
 
-You should see `{event: open...}`.
+You should see `{"event": "open", ...}`.
 
 **Q: Install or build fails due to missing packages or version conflicts?**
 A: Ensure you're using the supported Python version, then install dependencies with `poetry install` or `pip install -r requirements.txt`. If issues persist, clear cached wheels (e.g., `pip cache purge`) and try again.
@@ -388,11 +409,11 @@ See [docs/mcp_troubleshooting.md](docs/mcp_troubleshooting.md) for Traefik label
 
 1. First sign of death: Whisperer says stopped talking to connector. Curl to /mcp gives heartbeat → MCP alive. Curl to /exec gives 404. → Traefik not routing. Added traefik.http.routers.mcp.rule=Host(mcp1.zanalytics.app) and port 8001:8001 → still 404.
 2. Localhost test: curl http://localhost:8001/exec → connection refused. → Port not exposed. Added ports: - 8001:8001 in compose → now connects, but still 404.
-3. Auth 401: curl -H X-API-Key: your-dev-secret-123 → Unauthorized. → Env var wrong name. Code uses MCP_API_KEY, not API_KEY. Fixed .env → restart mcp → still 401. → Restart doesn't reload env in FastAPI. Had to --build the container to pick up MCP_API_KEY=your-dev-secret-123.
+3. Auth 401: curl -H "Authorization: Bearer your-dev-secret-123" -H "X-API-Key: your-dev-secret-123" → Unauthorized. → Env var wrong name. Code uses MCP_API_KEY, not API_KEY. Fixed .env → restart mcp → still 401. → Restart doesn't reload env in FastAPI. Had to --build the container to pick up MCP_API_KEY=your-dev-secret-123.
 4. Still 404 after auth works: Endpoint name wrong. Code has @app.post(/exec) but Whisperer hits /api/v1/actions/query. → Not our fault-Whisperer's connector config was hardcoded to old path. Updated connector to match real route: /exec.
 5. Pop-up hell: Whisperer says requires approval. → MCP middleware blocks unless approve:true sent. Added flag, updated curl, merged PR 241. Now auto-approves boot & equity.
 6. Wine/MetaTrader feed dead: Whisperer shows yesterday's trades. → MT5 popped resolution dialog, never clicked. Had to manually OK after reboot → feed starts. Documented in FAQ as manual step.
-7. Ghost containers eating ports: docker ps shows pulse-kernel, tick-to-bar on 8001. → docker stop pulse-kernel tick-to-bar → mcp binds clean. End result: curl -k -H X-API-Key: your-dev-secret-123 -X POST https://mcp1.zanalytics.app/exec -d '{type:session_boot, approve:true}' → returns real equity, positions, risk. Whisperer loads without pop-up. Save this. Every time something breaks, start here-no bush, no circles.
+7. Ghost containers eating ports: docker ps shows pulse-kernel, tick-to-bar on 8001. → docker stop pulse-kernel tick-to-bar → mcp binds clean. End result: curl -k -H "Authorization: Bearer your-dev-secret-123" -H "X-API-Key: your-dev-secret-123" -X POST https://mcp1.zanalytics.app/exec -d '{"type":"session_boot","approve":true}' → returns real equity, positions, risk. Whisperer loads without pop-up. Save this. Every time something breaks, start here-no bush, no circles.
 
 ---
 
