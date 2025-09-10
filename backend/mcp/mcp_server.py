@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import StreamingResponse, Response, JSONResponse
+from fastapi.responses import StreamingResponse, Response, JSONResponse, FileResponse
 from pydantic import BaseModel
 import json
 import asyncio
@@ -25,6 +25,11 @@ MCP_UP = Gauge("mcp_up", "MCP server heartbeat status")
 MCP_TIMESTAMP = Gauge(
     "mcp_last_heartbeat_timestamp", "Unix timestamp of last heartbeat"
 )
+
+
+@app.get("/.well-known/openai.yaml", include_in_schema=False)
+def well_known_manifest():
+    return FileResponse("openai-actions.yaml", media_type="application/yaml")
 
 
 @app.middleware("http")
