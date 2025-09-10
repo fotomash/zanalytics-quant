@@ -14,8 +14,14 @@ import streamlit as st
 import plotly.graph_objects as go
 
 # ---------------- Config ----------------
-METRICS_PATH = os.getenv('DASH_METRICS_PATH', 'dashboard/config/dashboard_metrics_summary.yaml')
-PROMPT_PATH  = os.getenv('DASH_PROMPT_PATH',  'dashboard/config/dashboard_prompt.txt')
+# Resolve paths relative to this file so the dashboard can be launched from any
+# working directory. Environment variables still take precedence.
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_DEFAULT_METRICS_PATH = os.path.join(_SCRIPT_DIR, "..", "config", "dashboard_metrics_summary.yaml")
+_DEFAULT_PROMPT_PATH = os.path.join(_SCRIPT_DIR, "..", "config", "dashboard_prompt.txt")
+
+METRICS_PATH = os.getenv('DASH_METRICS_PATH', _DEFAULT_METRICS_PATH)
+PROMPT_PATH  = os.getenv('DASH_PROMPT_PATH',  _DEFAULT_PROMPT_PATH)
 
 MT5_URL     = os.getenv('MT5_URL', 'http://mt5:5001')
 DJANGO_URL  = os.getenv('DJANGO_API_URL', 'http://django:8000')
