@@ -927,7 +927,7 @@ components:
         exit: { type: number, nullable: true }
         pnl: { type: number, nullable: true }
         status: { type: string, nullable: true }
-    
+      
     PositionActionResponse:
       type: object
       description: Generic response envelope for position actions (open/close/modify/hedge)
