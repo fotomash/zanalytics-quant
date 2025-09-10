@@ -2,25 +2,42 @@
 
 Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, Postgres, and Streamlit. Now with LLM‑native Actions and safe position control (partials, scaling, hedging).
 
-Contents
-- What’s Inside
-- Quick Start
-- MT5 service vs. Django API
-- MT5 Bridge & Orders
-- Positions (Partials, Hedge)
-- Actions Bus for GPT (≤30 ops)
-- Dashboards & Diagnostics
-- Journaling (Schema)
-- Troubleshooting
+## Contents
+- [What's Inside](#whats-inside)
+- [Architecture](#architecture)
+- [System Overview](#system-overview)
+- [Getting Started – Quick Launch](#getting-started-quick-launch)
+- [MT5 service vs. Django API](#mt5-service-vs-django-api)
+- [How It Works (Practical Flow)](#how-it-works-practical-flow)
+- [Data Integrity and Deduplication: MD5 Flow](#data-integrity-and-deduplication-md5-flow)
+- [MT5 Bridge & Orders (Execution)](#mt5-bridge-orders-execution)
+- [Actions Bus for GPT (≤30 operations)](#actions-bus-for-gpt-30-operations)
+- [Dashboards & Diagnostics](#dashboards-diagnostics)
+- [Journaling (ZBAR)](#journaling-zbar)
+- [Typical User Scenarios](#typical-user-scenarios)
+- [Data Enrichment & Customization](#data-enrichment-customization)
+- [Example .env Configuration (Partial)](#example-env-configuration-partial)
+- [Security & Access Control](#security-access-control)
+- [Contributing](#contributing)
+- [Running Tests](#running-tests)
+- [Known Issues & Best Practices](#known-issues-best-practices)
+- [Future Directions & Next Steps](#future-directions-next-steps)
+- [License (Strict, Non-Transferable)](#license-strict-non-transferable)
+- [Advanced Usage: Adding a New Dashboard](#advanced-usage-adding-a-new-dashboard)
+- [Full API Documentation](#full-api-documentation)
+- [FAQ](#faq)
+- [Pulse Dashboard Prototype](#pulse-dashboard-prototype)
+- [Exporting Streamlit Dashboards to WordPress](#exporting-streamlit-dashboards-to-wordpress)
+- [Further Reading](#further-reading)
 
-What’s Inside
+## What's Inside
 - `backend/mt5`: Flask bridge to MetaTrader5 (send orders, partial close, hedge, scale)
 - `backend/django`: REST API, Actions Bus router, positions aliases, journal
 - `dashboard/`: Streamlit UI (Pulse, Whisperer, diagnostics)
 - `openapi.actions.yaml`: the single schema to upload to Custom GPT
 - `docs/`: deep dives (Actions Bus, Positions & Orders, Journaling schema)
 
-Architecture
+## Architecture
 ```mermaid
 graph LR
   Trader/LLM -->|Action| ActionsBus[/POST /api/v1/actions/query/]
