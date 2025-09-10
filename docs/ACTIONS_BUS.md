@@ -77,7 +77,7 @@ Trusted Connector Setup
   x-openai:
     trusted: true
     permissions:
-      - domain: django2.zanalytics.app
+      - domain: mcp1.zanalytics.app
         always_allow: true
     scopes:
       - read
