@@ -442,6 +442,10 @@ A: Another service is already bound to a required port. Use `lsof -i :<port>` or
 A: Ensure you're using the supported Python version, then install dependencies with `poetry install` or `pip install -r requirements.txt`. If issues persist, clear cached wheels (e.g., `pip cache purge`) and try again.
 
 
+**Q: The web UI won't compile or `npm start` fails.**
+A: Remove the `web/node_modules` directory and reinstall dependencies with `npm install` (or `npm ci`). Confirm you're using the project's required Node version.
+
+
 **Q: How do I reset the containers when data gets corrupted or outdated?**
 A:
 1. Stop and remove containers and volumes: `docker-compose down -v`.
