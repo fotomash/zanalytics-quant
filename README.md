@@ -84,12 +84,9 @@ Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/
     cp backend/mt5/.env.example backend/mt5/.env
     ```
 
-2. **Edit your `.env` and `backend/mt5/.env` files** with all required API keys, passwords, and connection strings.
-   You need:
-    - All database credentials
-    - Redis settings
-    - Domain names for Traefik routing
-    - MT5 and Django/Flask endpoints
+2. **Edit your `.env` and `backend/mt5/.env` files** with all required API keys, passwords, and connection strings. See
+   [Environment Variables](#environment-variables) for a summary of the most important settings and
+   [docs/env-reference.md](docs/env-reference.md) for the complete table.
 
 3. **Build and start the platform:**
     ```bash
