@@ -25,3 +25,5 @@ labels:
 - Each Markdown file becomes a page on the public info site.
 
 This setup keeps the site in sync with the repository; pushing changes to `docs/` updates the live content.
+
+For the dedicated info container and deployment details, see [info-site.md](info-site.md).
