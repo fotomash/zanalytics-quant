@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import StreamingResponse, Response, JSONResponse
+from pydantic import BaseModel
 import json
 import asyncio
 import httpx
@@ -109,25 +110,106 @@ async def exec_action(payload: dict):
     # TODO: implement modify/open/close logic
     return {"status": "executed", "result": "ok"}
 
+
 @app.post("/tool/search")
 async def search_tool(query: str):
     # TODO: add market search logic
     return {"results": []}
 
-@app.post("/api/v1/actions/query")
-async def query_actions(payload: dict):
-    # Mirror the body to /api/v1/actions/read
-    return await read_actions(type=payload.get("type", "session_boot"))
+
+class ActionPayload(BaseModel):
+    type: str
+    approve: bool = False
+
+
+async def _handle_read_action(action_type: str):
+    """Return stub responses matching OpenAPI schemas."""
+    if action_type == "whisper_suggest":
+        return {
+            "message": "stay curious",
+            "heuristics": [],
+            "meta": {"user_id": "demo", "symbol": "XAUUSD"},
+        }
+    if action_type == "session_boot":
+        return {
+            "trades": [],
+            "positions": [],
+            "equity": None,
+            "risk": None,
+        }
+    if action_type == "trades_recent":
+        return [
+            {
+                "id": 1,
+                "ts_open": None,
+                "ts_close": None,
+                "symbol": "XAUUSD",
+                "side": None,
+                "entry": None,
+                "exit": None,
+                "pnl": None,
+                "rr": None,
+                "strategy": None,
+                "session": None,
+            }
+        ]
+    if action_type == "trades_history_mt5":
+        return [
+            {
+                "id": "1",
+                "ts": None,
+                "symbol": "XAUUSD",
+                "direction": None,
+                "entry": None,
+                "exit": None,
+                "pnl": None,
+                "status": None,
+            }
+        ]
+    return {"error": "unsupported type"}
+
+
+@app.get("/api/v1/actions/read")
+async def get_actions_read(
+    type: str = "session_boot",
+    limit: int | None = None,
+    symbol: str | None = None,
+    timeframe: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    pnl_min: float | None = None,
+    pnl_max: float | None = None,
+    user_id: str | None = None,
+):
+    return await _handle_read_action(type)
+
 
 @app.post("/api/v1/actions/read")
-async def read_actions(type: str = "session_boot"):
-    # TODO: return session_boot, equity_today, etc.
-    if type == "session_boot":
-        return {"equity": 12300, "positions": []}
-    return {"error": "unsupported type"}
+async def post_actions_read(payload: ActionPayload):
+    return await _handle_read_action(payload.type)
+
+
+@app.get("/api/v1/actions/query")
+async def get_actions_query(
+    type: str = "session_boot",
+    limit: int | None = None,
+    symbol: str | None = None,
+    timeframe: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    pnl_min: float | None = None,
+    pnl_max: float | None = None,
+    user_id: str | None = None,
+):
+    return await _handle_read_action(type)
+
+
+@app.post("/api/v1/actions/query")
+async def post_actions_query(payload: ActionPayload):
+    return await _handle_read_action(payload.type)
+
 
 if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=8001)
-
