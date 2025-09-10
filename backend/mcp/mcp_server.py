@@ -13,17 +13,23 @@ INTERNAL_API_BASE = os.getenv("INTERNAL_API_BASE", "http://django:8000")
 
 async def generate_mcp_stream():
     """Generator for NDJSON streaming events."""
-    yield json.dumps({
-        "event": "open",
-        "data": {"status": "ready", "timestamp": time.time()},
-    }) + "\n"
+    # Send open event immediately
+    yield json.dumps(
+        {
+            "event": "open",
+            "data": {"status": "ready", "timestamp": time.time()},
+        }
+    ) + "\n"
 
+    # Keep alive with heartbeat every 30 seconds
     while True:
-        yield json.dumps({
-            "event": "heartbeat",
-            "data": {"time": time.time(), "server": "mcp1.zanalytics.app"},
-        }) + "\n"
         await asyncio.sleep(30)
+        yield json.dumps(
+            {
+                "event": "heartbeat",
+                "data": {"time": time.time(), "server": "mcp1.zanalytics.app"},
+            }
+        ) + "\n"
 
 
 @app.get("/mcp")
@@ -35,7 +41,9 @@ async def mcp_stream():
     )
 
 
-@app.api_route("/exec/{full_path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+@app.api_route(
+    "/exec/{full_path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"]
+)
 async def exec_proxy(request: Request, full_path: str):
     async with httpx.AsyncClient() as client:
         try:
@@ -43,7 +51,11 @@ async def exec_proxy(request: Request, full_path: str):
                 method=request.method,
                 url=f"{INTERNAL_API_BASE}/{full_path}",
                 json=await request.json() if request.method != "GET" else None,
-                headers={k: v for k, v in request.headers.items() if k.lower() not in ["host", "content-length"]},
+                headers={
+                    k: v
+                    for k, v in request.headers.items()
+                    if k.lower() not in ["host", "content-length"]
+                },
             )
         except httpx.ConnectError:
             raise HTTPException(status_code=502, detail="Internal API unreachable")
@@ -52,7 +64,9 @@ async def exec_proxy(request: Request, full_path: str):
         raise HTTPException(status_code=resp.status_code, detail=resp.text)
 
     content_type = resp.headers.get("content-type", "")
-    return resp.json() if content_type.startswith("application/json") else {"status": "ok"}
+    return (
+        resp.json() if content_type.startswith("application/json") else {"status": "ok"}
+    )
 
 
 if __name__ == "__main__":
