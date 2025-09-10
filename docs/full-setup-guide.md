@@ -2,6 +2,8 @@
 
 This guide describes how to deploy the ZanAnalytics stack from scratch on a fresh host.
 
+> **Documentation‑first rule:** Whenever services, ports, or dependencies change, update this guide in the same commit. Code changes are not complete until the docs reflect them.
+
 ## 1. Clone the repository
 
 ```bash
@@ -56,8 +58,8 @@ docker network create traefik-public
 From the repository root, build and launch all services:
 
 ```bash
-docker compose build --no-cache
-docker compose up -d
+docker-compose build --no-cache
+docker-compose up -d
 ```
 
 ## 7. Verify the services
@@ -75,3 +77,5 @@ The `-i` commands should return `HTTP/2 200` once the containers are healthy. Th
 ```json
 {"event":"heartbeat","data":{"time":1693499999.0,"server":"mcp1.<domain>"}}
 ```
+
+Always keep this document in sync with the live stack. If a service, port, or endpoint changes, update the instructions above before deploying.
