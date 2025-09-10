@@ -935,7 +935,7 @@ components:
         ok: { type: boolean, nullable: true }
         success: { type: boolean, nullable: true }
         order:
-          type: object
+          type: object  
           nullable: true
           additionalProperties: true
           description: MT5 order result when returned by position_open
