@@ -430,6 +430,9 @@ A:
 **Q: Install or build fails due to missing packages or version conflicts?**
 A: Ensure you're using the supported Python version, then install dependencies with `poetry install` or `pip install -r requirements.txt`. If issues persist, clear cached wheels (e.g., `pip cache purge`) and try again.
 
+**Q: The web UI won't compile or `npm start` fails.**
+A: Delete `web/node_modules`, run `npm install` or `npm ci`, and confirm you're using the Node.js version required by the project.
+
 
 **Q: How do I reset the containers when data gets corrupted or outdated?**
 A:
