@@ -13,7 +13,6 @@ TEST_KEY = "test-key"
 
 def setup_api_key(monkeypatch):
     monkeypatch.setenv("MCP_API_KEY", TEST_KEY)
-    monkeypatch.setattr(mcp_server, "API_KEY", TEST_KEY)
 
 
 def test_exec_action_open_success(monkeypatch):

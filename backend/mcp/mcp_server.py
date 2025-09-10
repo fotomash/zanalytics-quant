@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import StreamingResponse, Response, JSONResponse, FileResponse
+from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi.responses import StreamingResponse, Response, FileResponse
 from pydantic import BaseModel, ValidationError
 import json
 import asyncio
@@ -7,20 +7,18 @@ import httpx
 import os
 import time
 import logging
+from .auth import verify_api_key
 try:  # pragma: no cover - optional dependency
     import pandas as pd
 except Exception:  # pragma: no cover - allow module to import without pandas
     pd = None
-from pathlib import Path
-import sys
 from dotenv import load_dotenv, find_dotenv
 from utils.time import localize_tz
 try:  # pragma: no cover - optional dependency
     import MetaTrader5 as mt5  # type: ignore
 except Exception:  # pragma: no cover - allow module to import without MT5
     mt5 = None
-sys.path.append(str(Path(__file__).resolve().parent))
-from mt5_adapter import init_mt5
+from .mt5_adapter import init_mt5
 from prometheus_client import (
     Counter,
     Gauge,
@@ -41,9 +39,6 @@ else:
     logger.warning("No .env file found; proceeding without loading environment variables")
 
 INTERNAL_API_BASE = os.getenv("INTERNAL_API_BASE", "http://django:8000")
-
-# API key expected in incoming requests; empty string by default
-API_KEY = os.environ.get("MCP_API_KEY", "")
 
 REQUESTS = Counter(
     "mcp_requests_total",
@@ -72,17 +67,6 @@ async def health():
 def well_known_manifest():
     REQUESTS.labels(endpoint="well_known").inc()
     return FileResponse("openai-actions.yaml", media_type="application/yaml")
-
-
-@app.middleware("http")
-async def check_key(request: Request, call_next):
-    if request.url.path == "/mcp":
-        return await call_next(request)
-    if request.headers.get("X-API-Key") != API_KEY:
-        return JSONResponse(
-            status_code=401, content={"error": "Unauthorized - invalid API key"}
-        )
-    return await call_next(request)
 
 
 async def generate_mcp_stream():
@@ -121,7 +105,9 @@ async def mcp_stream():
 
 
 @app.api_route(
-    "/exec/{full_path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"]
+    "/exec/{full_path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    dependencies=[Depends(verify_api_key)],
 )
 async def exec_proxy(request: Request, full_path: str):
     REQUESTS.labels(endpoint="exec").inc()
@@ -183,7 +169,7 @@ class ExecPayload(BaseModel):
     payload: dict
 
 
-@app.post("/exec")
+@app.post("/exec", dependencies=[Depends(verify_api_key)])
 async def exec_action(payload: ExecPayload):
     """Execute trading actions via the internal API."""
     REQUESTS.labels(endpoint="exec_action").inc()
@@ -213,7 +199,7 @@ async def exec_action(payload: ExecPayload):
     return resp.json()
 
 
-@app.post("/tool/search")
+@app.post("/tool/search", dependencies=[Depends(verify_api_key)])
 async def search_tool(query: str):
     """Search available market symbols via the internal API."""
     REQUESTS.labels(endpoint="tool_search").inc()
@@ -309,7 +295,7 @@ async def _handle_account_positions():
     return df.to_dict("records")
 
 
-@app.post("/api/v1/actions/query")
+@app.post("/api/v1/actions/query", dependencies=[Depends(verify_api_key)])
 async def post_actions_query(payload: ActionPayload):
     REQUESTS.labels(endpoint="actions_query").inc()
     handlers = {
