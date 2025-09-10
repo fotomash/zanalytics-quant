@@ -59,7 +59,7 @@ from typing import Dict, Optional
 import base64
 import yfinance as yf
 from fredapi import Fred
-from utils.streamlit_api import safe_api_call
+from dashboard.utils.streamlit_api import safe_api_call
 import os
 import requests
 import redis
