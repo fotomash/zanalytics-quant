@@ -191,65 +191,7 @@ async def _handle_read_action(action_type: str):
     return {"error": "unsupported type"}
 
 
-@app.get("/api/v1/actions/read")
-async def get_actions_read(
-    type: str = "session_boot",
-    limit: int | None = None,
-    symbol: str | None = None,
-    timeframe: str | None = None,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    pnl_min: float | None = None,
-    pnl_max: float | None = None,
-    user_id: str | None = None,
-):
-    payload = {
-        "type": type,
-        "limit": limit,
-        "symbol": symbol,
-        "timeframe": timeframe,
-        "date_from": date_from,
-        "date_to": date_to,
-        "pnl_min": pnl_min,
-        "pnl_max": pnl_max,
-        "user_id": user_id,
-    }
-    return await post_actions_query(payload)
-
-
-@app.post("/api/v1/actions/read")
-async def post_actions_read(payload: ActionPayload | dict):
-    return await post_actions_query(payload)
-
-@app.get("/api/v1/actions/query")
-async def get_actions_query(
-    type: str = "session_boot",
-    limit: int | None = None,
-    symbol: str | None = None,
-    timeframe: str | None = None,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    pnl_min: float | None = None,
-    pnl_max: float | None = None,
-    user_id: str | None = None,
-):
-    payload = {
-        "type": type,
-        "limit": limit,
-        "symbol": symbol,
-        "timeframe": timeframe,
-        "date_from": date_from,
-        "date_to": date_to,
-        "pnl_min": pnl_min,
-        "pnl_max": pnl_max,
-        "user_id": user_id,
-    }
-    return await post_actions_query(payload)
-
-
 @app.post("/api/v1/actions/query")
-
-
 async def post_actions_query(payload: ActionPayload):
     def normalize_mt5_orders(orders):
         df = pd.DataFrame([vars(o) for o in orders])
