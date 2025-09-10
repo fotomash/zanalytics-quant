@@ -710,6 +710,24 @@ services:
     restart: unless-stopped
     networks:
       - default
+  redis-ml-bridge:
+    image: python:3.11-slim
+    container_name: redis-ml-bridge
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - ML_SIGNAL_STREAM=${ML_SIGNAL_STREAM:-ml:signals}
+      - ML_RISK_STREAM=${ML_RISK_STREAM:-ml:risk}
+    command: sh -lc "pip install --no-cache-dir redis && python services/redis_ml_bridge.py"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - default
 
 volumes:
   grafana-data: {}
