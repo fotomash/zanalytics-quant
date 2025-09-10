@@ -112,6 +112,45 @@ def close_position(ticket_id):
 # --- UI RENDERING ---
 st.title("🛡️ Position Manager")
 
+# Risk summary metrics identical to Advanced Risk Manager
+try:
+    account_info = safe_api_call("GET", "/api/v1/account/info") or {}
+    risk_info    = safe_api_call("GET", "/api/v1/account/risk") or {}
+except Exception:
+    account_info = {}
+    risk_info = {}
+
+eq = float(account_info.get("equity") or 0)
+bal = float(account_info.get("balance") or 0)
+# Persist the start-of-day equity in session state so it doesn’t reset on refresh
+sod_key = f"pos25_sod_{datetime.now().strftime('%Y%m%d')}"
+if sod_key not in st.session_state and eq > 0:
+    st.session_state[sod_key] = eq
+sod_equity = float(st.session_state.get(sod_key, eq))
+
+# Allow users to configure risk/profit percentages via session state or fall back to defaults
+daily_risk_pct = float(st.session_state.get("pos25_daily_risk_pct", 3.0))
+daily_profit_pct = float(st.session_state.get("pos25_daily_profit_pct", 1.0))
+
+# Compute the target amounts
+max_allowed_loss_amt = eq * (daily_risk_pct / 100.0)
+daily_profit_target_amt = eq * (daily_profit_pct / 100.0)
+
+info_cols = st.columns(4)
+with info_cols[0]:
+    st.metric("Max Allowed Loss (info)",
+              f"${max_allowed_loss_amt:,.0f}",
+              f"{daily_risk_pct:.1f}%")
+with info_cols[1]:
+    st.metric("Start‑of‑Day Equity", f"${sod_equity:,.0f}")
+with info_cols[2]:
+    st.metric("Daily Profit Target",
+              f"${daily_profit_target_amt:,.0f}",
+              f"{daily_profit_pct:.1f}%")
+with info_cols[3]:
+    hit = eq >= (sod_equity + daily_profit_target_amt) if (sod_equity and daily_profit_target_amt) else False
+    st.metric("Target Status", "Hit" if hit else "—")
+
 positions_df = fetch_positions()
 
 if positions_df.empty:
