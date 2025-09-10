@@ -65,6 +65,8 @@ A: Another service is already bound to a required port.
 2. Stop the offending process (`kill <PID>` or `systemctl stop <service>`).
 3. Or edit the `ports:` mapping in `docker-compose.yml` to use a free port and restart the stack.
 
+**Q: Container is up, but `curl` to port 8001 returns connection refused?**
+A: Another process is occupying 8001. Run `netstat -tln | grep 8001` to identify it, stop the offending container (e.g., `docker stop <id>`—often `tick-to-bar` or a stray zookeeper), then `docker compose restart mcp`.
 **Q: Install or build fails due to missing packages or version conflicts?**
 A: Ensure you're using the supported Python version, then install dependencies with `poetry install` or `pip install -r requirements.txt`. If issues persist, clear cached wheels (e.g., `pip cache purge`) and try again.
 
