@@ -4,7 +4,7 @@ Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, 
 
 For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation.
 
-## Contents
+## Table of Contents
 - [What's Inside](#whats-inside)
 - [Architecture](#architecture)
 - [System Overview](#system-overview)
