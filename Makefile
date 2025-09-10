@@ -25,3 +25,7 @@ bot:
 # Run Streamlit dashboard locally (multi-page)
 dashboard:
 	streamlit run app.py
+
+# Run ML Streamlit dashboard locally
+ml-dashboard:
+	streamlit run dashboard/ml_dashboard.py

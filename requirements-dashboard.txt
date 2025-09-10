@@ -1,3 +1,4 @@
+# Dependencies for running Streamlit dashboards
 streamlit>=1.32
 plotly>=5.22.0
 pandas
