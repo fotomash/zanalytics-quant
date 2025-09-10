@@ -1,5 +1,7 @@
 # Troubleshooting
 
+For MCP-specific routing and container issues, see [mcp_troubleshooting.md](mcp_troubleshooting.md).
+
 ## 404 Route Checks
 - Use `curl -I http://localhost:8000/<route>` to confirm the service responds and to inspect headers.
 - Verify the target container is running: `docker compose ps`.
