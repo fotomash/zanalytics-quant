@@ -71,6 +71,8 @@ This modular design facilitates secure separation of concerns, easy extensibilit
 
 ## Getting Started – Quick Launch
 
+Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git), [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/). Optional dependencies include [Wine](https://wiki.winehq.org/Download) for the MT5 bridge on non-Windows hosts and [Traefik](https://doc.traefik.io/traefik/getting-started/install-traefik/) if you plan to use its routing features.
+
 1. **Clone the repository and set up the environment:**
     ```bash
     git clone https://github.com/fotomash/zanalytics-quant.git
