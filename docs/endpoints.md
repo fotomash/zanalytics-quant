@@ -71,3 +71,150 @@ Proxies requests to the internal Django API located at `INTERNAL_API_BASE`.
 ```
 
 If the proxied endpoint returns JSON, that JSON payload is returned instead.
+
+## Django v1 API
+
+### `GET /api/v1/pulse/health`
+Lightweight health check for the Django service.
+
+**Sample payload**: _None_
+
+**Expected response**
+```json
+{
+  "status": "ok",
+  "service": "django",
+  "ts": "2024-01-01T00:00:00Z"
+}
+```
+
+### `GET /api/pulse/health`
+Readiness check that also verifies database connectivity.
+
+**Sample payload**: _None_
+
+**Expected response**
+```json
+{
+  "status": "ok",
+  "db": true,
+  "ts": "2024-01-01T00:00:00Z"
+}
+```
+
+### `GET /api/v1/account/positions`
+Returns the current open positions for the account.
+
+**Sample payload**: _None_
+
+**Expected response**
+```json
+[
+  {
+    "ticket": 123456,
+    "symbol": "EURUSD",
+    "volume": 0.1
+  }
+]
+```
+
+### `POST /api/v1/positions/open`
+Opens a new trading position.
+
+**Sample payload**
+```json
+{
+  "symbol": "EURUSD",
+  "side": "buy",
+  "volume": 0.1,
+  "sl": 1.2,
+  "tp": 1.3
+}
+```
+
+**Expected response**
+```json
+{
+  "ticket": 123456,
+  "symbol": "EURUSD"
+}
+```
+
+### `POST /api/v1/positions/close`
+Closes a position fully or partially.
+
+**Sample payload**
+```json
+{
+  "ticket": 123456,
+  "fraction": 0.5
+}
+```
+
+**Expected response**
+```json
+{
+  "ticket": 123456,
+  "closed": true
+}
+```
+
+### `POST /api/v1/positions/modify`
+Updates stop-loss and/or take-profit for a position.
+
+**Sample payload**
+```json
+{
+  "ticket": 123456,
+  "sl": 1.15,
+  "tp": 1.35
+}
+```
+
+**Expected response**
+```json
+{
+  "ticket": 123456,
+  "sl": 1.15,
+  "tp": 1.35
+}
+```
+
+### `POST /api/v1/positions/{ticket}/modify`
+Same as above, but the ticket is provided in the path.
+
+**Sample payload**
+```json
+{
+  "sl": 1.15,
+  "tp": 1.35
+}
+```
+
+**Expected response**
+```json
+{
+  "ticket": 123456,
+  "sl": 1.15,
+  "tp": 1.35
+}
+```
+
+### `POST /api/v1/positions/hedge`
+Places an opposite-side market order to hedge an existing position.
+
+**Sample payload**
+```json
+{
+  "ticket": 123456,
+  "volume": 0.1
+}
+```
+
+**Expected response**
+```json
+{
+  "ticket": 123456,
+  "note": "Hedge placed."
+}
+```
