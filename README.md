@@ -287,6 +287,9 @@ A: Copy `.env.example` to `.env`, double-check the keys, and restart the contain
 **Q: The app can't connect to Postgres or Redis.**
 A: Confirm your `.env` credentials, ensure the services are running (`docker ps`), and check container logs for authentication or network errors.
 
+**Q: Why is Whisperer showing trades from yesterday?**
+A: MetaTrader likely didn’t boot—ensure Wine and required DLLs are available, then run `wine mt5.exe &` from the mounted volume or alias it in `startup.sh`. Verify readiness with `docker logs mt5`.
+
 **Q: How do I clear cached data in Redis?**
 A:
 1. Run the following to flush all cached keys:
