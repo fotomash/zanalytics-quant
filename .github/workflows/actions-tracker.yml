@@ -1,0 +1,20 @@
+name: Actions Tracker
+
+on:
+  push:
+    paths:
+      - 'actions/**'
+      - 'backend/mcp/**'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Generate actions tracker
+        run: python scripts/gen_action_tracker.py
+      - name: Verify actions tracker up to date
+        run: git diff --exit-code docs/actions-tracker.md
