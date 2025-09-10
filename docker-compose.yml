@@ -726,25 +726,21 @@ services:
     build:
       context: ./backend/mcp
     container_name: mcp
-    ports:
-      - "8001:8001"
     environment:
       - INTERNAL_API_BASE=http://django:8000
     depends_on:
       - django
     networks:
       - traefik-public
-      - default
     labels:
       <<: *default-labels
       traefik.enable: true
+      traefik.http.routers.mcp.tls: true
       traefik.docker.network: traefik-public
       traefik.http.routers.mcp.rule: Host(`mcp1.zanalytics.app`)
       traefik.http.routers.mcp.entrypoints: http,https
       traefik.http.routers.mcp.tls.certresolver: letsencrypt
       traefik.http.routers.mcp.priority: 200
-      traefik.http.middlewares.mcp-strip.stripprefix.prefixes: /mcp
-      traefik.http.routers.mcp.middlewares: mcp-strip
       traefik.http.services.mcp.loadbalancer.server.port: 8001
     restart: unless-stopped
 
