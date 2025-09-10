@@ -427,6 +427,9 @@ A:
 3. Check container output with `docker-compose logs`.
 4. Ensure required ports are free to avoid conflicts.
 
+**Q: Startup fails with "address already in use."**
+A: Another service is already bound to a required port. Use `lsof -i :<port>` or `netstat -tulpn` to identify the conflicting process, stop it, or adjust the port mapping in `docker-compose.yml`.
+
 **Q: Install or build fails due to missing packages or version conflicts?**
 A: Ensure you're using the supported Python version, then install dependencies with `poetry install` or `pip install -r requirements.txt`. If issues persist, clear cached wheels (e.g., `pip cache purge`) and try again.
 
