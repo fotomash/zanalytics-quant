@@ -87,3 +87,6 @@ A:
 2. Remove any orphan containers: `docker container prune -f`.
 3. Rebuild and start fresh containers: `docker-compose up --build`.
 4. Rerun database migrations if applicable.
+
+**Q: Why does Whisperer still ask for approval after sending `approve: true`?**
+A: Cached action state. In the OpenAI builder, delete and re-add the MCP connector, or include `force: true` in the payload to bypass cache.
