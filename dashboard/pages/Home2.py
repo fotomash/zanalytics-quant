@@ -483,16 +483,16 @@ class ZanalyticsDashboard:
 
             # Agent Ops — GPT Instructions (inline reference)
             with st.expander("Agent Ops — GPT Instructions", expanded=False):
-            try:
-                from pathlib import Path
-                p = Path(__file__).resolve().parents[2] / "docs" / "custom_gpt_instructions.md"
-                text = p.read_text(encoding="utf-8") if p.exists() else ""
-                if text:
-                    st.markdown(text)
-                else:
-                    st.info("Instructions file not found: docs/custom_gpt_instructions.md")
-            except Exception:
-                st.info("Unable to load instructions.")
+                try:
+                    from pathlib import Path
+                    p = Path(__file__).resolve().parents[2] / "docs" / "custom_gpt_instructions.md"
+                    text = p.read_text(encoding="utf-8") if p.exists() else ""
+                    if text:
+                        st.markdown(text)
+                    else:
+                        st.info("Instructions file not found: docs/custom_gpt_instructions.md")
+                except Exception:
+                    st.info("Unable to load instructions.")
 
 
             # Directory scanning/parquet dependency removed — live and DB feeds only
