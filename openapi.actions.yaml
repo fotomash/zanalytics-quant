@@ -12,6 +12,10 @@ x-openai:
   permissions:
     - domain: django2.zanalytics.app
       always_allow: true
+  scopes:
+    - read
+    - write
+    - execute
 paths:
   /api/v1/actions/read:
     get:
@@ -450,6 +454,30 @@ paths:
         '400': { description: Bad Request }
         '404': { description: Not Found }
         '500': { description: Server Error }
+
+  /api/v1/mcp1/authenticate:
+    post:
+      summary: Authenticate session via MCP1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+      responses:
+        '200':
+          description: Session valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: authenticated
 
 components:
   schemas:

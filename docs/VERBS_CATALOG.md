@@ -14,6 +14,7 @@ Index
 - Account/State: session_boot, state_snapshot, account_info, account_positions, account_risk, equity_today
 - Market/Scan: market_mini, market_snapshot, market_symbols, market_calendar_next, market_regime, liquidity_map, pulse_status, opportunity_priority_items
 - Journal/Behavior: journal_recent, journal_append, behavior_events, whisper_suggest
+- Auth: mcp1_authenticate
 
 Positions
 
@@ -166,6 +167,14 @@ whisper_suggest
   - user_id: string, optional
   - symbol: string, optional (default XAUUSD)
 - Response: { message: string|null, heuristics: [...], meta: { user_id, symbol } }
+
+Auth / MCP1
+
+mcp1_authenticate
+- Payload
+  - token: string
+- Response
+  - { status: string }
 
 Notes on idempotency
 - Send `X-Idempotency-Key` header on mutating actions (open/close/modify/hedge, journal_append) to dedupe retries.
