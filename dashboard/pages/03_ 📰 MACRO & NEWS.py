@@ -1998,13 +1998,34 @@ Sample headlines: {', '.join([n[0].get('headline','') for n in all_news.values()
             st.markdown('</div>', unsafe_allow_html=True)
 
 
+
+st.subheader("Top Opportunities")
+ops = signals_top()
+for sig in ops:
+    with st.expander(f"{sig.get('symbol','?')} • {sig.get('bias','?')} • SL {sig.get('sl','?')} TP {sig.get('tp','?')}"):
+        st.write(sig.get("reason", "No reason provided"))
+        if sig.get("explain"):
+            st.write(sig.get("explain"))  # Risk warnings
+        st.subheader("⚠️ Risk Alerts")
+
+        risk_alerts = []
+
+        if snapshot:
+            # --- PATCH: AI-driven risk warning via custom GPT ---
+            ai_risk_summary = None
+            try:
+                if client:
+                    # Compose prompt to the Market Summary GPT
+                    prompt = f'''You are a professional trading risk analyst. Given this market snapshot, highlight any risk alerts, tail risks, and actionable warnings across FX, indices, crypto, and commodities.
+
+
         st.subheader("Top Opportunities")
         ops = signals_top()
         for sig in ops:
             with st.expander(f"{sig.get('symbol','?')} • {sig.get('bias','?')} • SL {sig.get('sl','?')} TP {sig.get('tp','?')}"):
                 st.write(sig.get("reason", "No reason provided"))
                 if sig.get("explain"):
-                    st        # Risk warnings
+                    st.write(sig.get("explain"))  # Risk warnings
                 st.subheader("⚠️ Risk Alerts")
 
                 risk_alerts = []
