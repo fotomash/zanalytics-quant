@@ -103,6 +103,22 @@ async def exec_proxy(request: Request, full_path: str):
 def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
+@app.post("/exec")
+async def exec_action(payload: dict):
+    # TODO: implement modify/open/close logic
+    return {"status": "executed", "result": "ok"}
+
+@app.post("/tool/search")
+async def search_tool(query: str):
+    # TODO: add market search logic
+    return {"results": []}
+
+@app.post("/api/v1/actions/read")
+async def read_actions(type: str = "session_boot"):
+    # TODO: return session_boot, equity_today, etc.
+    if type == "session_boot":
+        return {"equity": 12300, "positions": []}
+    return {"error": "unsupported type"}
 
 if __name__ == "__main__":
     import uvicorn
