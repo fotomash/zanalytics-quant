@@ -1,9 +1,9 @@
 """Streamlit page for the intraday Pulse dashboard.
 
-The page aggregates configuration from YAML and prompt files, queries MT5 and
-Django REST services for account and position data, and can post trade actions
-back to the Django gateway.  Data retrieved from these sources feeds the
-Streamlit UI to render real‑time trading metrics and controls.
+Configuration and prompt text are loaded from YAML and flat files. The page
+then queries MT5 and Django REST services for account and position data and,
+when enabled, posts trade actions back to the Django gateway. Retrieved data
+drives the Streamlit UI to render real‑time trading metrics and controls.
 """
 
 import os, json, time, uuid, math, datetime as dt
@@ -64,6 +64,11 @@ def load_prompt(path: str) -> str:
     -------
     str
         Stripped file contents, or ``""`` if the file is missing.
+
+    Raises
+    ------
+    OSError
+        If the file exists but cannot be read.
     """
 
     try:
@@ -89,6 +94,10 @@ def get_json(url: str, headers=None, timeout=3):
     Any | None
         Decoded JSON content, or ``None`` if the request fails or the response
         is not valid JSON.
+
+    Error Handling
+    --------------
+    Network or JSON parsing exceptions are suppressed and result in ``None``.
     """
 
     try:
@@ -115,6 +124,11 @@ def post_actions(body: Dict[str, Any], idempotency_key: str | None = None, timeo
     tuple[bool, dict]
         ``(ok, data)`` where ``ok`` indicates HTTP success and ``data`` is the
         parsed JSON response or an error description.
+
+    Error Handling
+    --------------
+    Network failures or invalid JSON responses return ``(False, {'error':
+    message})``.
     """
 
     headers = {'Content-Type': 'application/json'}
@@ -145,6 +159,11 @@ def donut(value: float, minv: float, maxv: float, label: str, unit: str = '', co
         Optional units appended to the value text.
     color: str
         Hex color for the filled portion of the chart.
+    
+    Returns
+    -------
+    None
+        The chart is rendered directly via Streamlit.
     """
 
     value = max(min(value, maxv), minv)
@@ -177,6 +196,11 @@ def chip(text: str, kind: str = 'neutral'):
         Content of the pill.
     kind: str
         One of ``good``, ``warn``, ``bad`` or ``neutral`` to select colours.
+    
+    Returns
+    -------
+    None
+        The pill is written to the page via ``st.markdown``.
     """
 
     bg = {'good': '#dcfce7', 'warn': '#fef9c3', 'bad': '#fee2e2', 'neutral': '#f3f4f6'}.get(kind, '#f3f4f6')
@@ -193,6 +217,11 @@ def dim_block(start: bool = True):
     ----------
     start: bool
         When ``True`` begin a dimmed block; otherwise close the block.
+
+    Returns
+    -------
+    None
+        Emits opening or closing markup to the page.
     """
 
     if start:
@@ -223,7 +252,13 @@ def get_positions() -> List[Dict[str, Any]]:
     return get_json(f"{MT5_URL}/positions_get", headers=GATEWAY_HEADERS, timeout=3) or []
 
 def get_session_time_remaining():
-    """Compute time remaining until the end of the trading session (21:00 UTC)."""
+    """Compute time remaining until the end of the trading session (21:00 UTC).
+
+    Returns
+    -------
+    datetime.timedelta
+        Time remaining until session close.
+    """
 
     now = dt.datetime.utcnow()
     end = now.replace(hour=21, minute=0, second=0, microsecond=0)
@@ -232,26 +267,70 @@ def get_session_time_remaining():
     return (end - now)
 
 def pnl_unrealized(positions: list) -> float:
-    """Aggregate unrealised profit across ``positions``."""
+    """Aggregate unrealised profit across ``positions``.
+
+    Parameters
+    ----------
+    positions: list
+        Sequence of MT5 position dictionaries.
+
+    Returns
+    -------
+    float
+        Sum of the ``profit`` field for each position; missing values count as
+        ``0``.
+    """
 
     return float(sum(float(p.get('profit', 0.0)) for p in positions))
 
 def exposure_percent_stub(positions: list, account: dict) -> float:
     """Placeholder exposure metric until risk engine integration.
 
-    Returns a simple percentage based on the number of ``positions``.
+    Parameters
+    ----------
+    positions: list
+        Current open positions.
+    account: dict
+        MT5 account info (currently unused).
+
+    Returns
+    -------
+    float
+        Simple percentage based on the number of positions.
     """
 
     # ↪ Replace with live risk_enforcer metric when available
     return min(100.0, max(0.0, 10.0 * len(positions)))
 
 def type_to_text(t: int) -> str:
-    """Convert MT5 position type ``t`` to a human readable string."""
+    """Convert MT5 position type ``t`` to a human readable string.
+
+    Parameters
+    ----------
+    t: int
+        ``0`` for buy, ``1`` for sell; other values are returned as-is.
+
+    Returns
+    -------
+    str
+        Human readable text representing the position type.
+    """
 
     return 'BUY' if int(t) == 0 else 'SELL' if int(t) == 1 else str(t)
 
 def secs_to_hms(seconds: int) -> str:
-    """Convert seconds to ``H:MM:SS``; ``'—'`` if ``seconds`` <= 0."""
+    """Convert seconds to ``H:MM:SS``; ``'—'`` if ``seconds`` <= 0.
+
+    Parameters
+    ----------
+    seconds: int
+        Number of seconds to convert.
+
+    Returns
+    -------
+    str
+        ``H:MM:SS`` formatted string or ``'—'`` if ``seconds`` <= 0.
+    """
 
     if seconds <= 0:
         return '—'
@@ -350,7 +429,18 @@ bm = metrics_cfg.get('behavioral_metrics', {})
 bcols = st.columns(5)
 
 def placeholder_chip(name: str):
-    """Render a placeholder chip stating that ``name`` is pending."""
+    """Render a placeholder chip noting that ``name`` is pending.
+
+    Parameters
+    ----------
+    name: str
+        Name of the metric being represented.
+
+    Returns
+    -------
+    None
+        The placeholder pill is added to the page.
+    """
 
     with st.container():
         dim_block(True); chip(f"{name}: pending", 'neutral'); dim_block(False)

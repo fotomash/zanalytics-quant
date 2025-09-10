@@ -1,3 +1,17 @@
+
+"""Simple Streamlit dashboard for UAT/info environment.
+
+This lightweight app mirrors the style of the existing
+"03_ 📰 MACRO & NEWS" dashboard but with only a handful of
+pages and mocked data.  It is intended for the Streamlit UAT
+container which is exposed on port 8503 (see `WIKI_DASHBOARD_PORT`).
+"""
+
+
+
+import graphviz
+import importlib
+import plotly.graph_objects as go
 import streamlit as st
 import plotly.graph_objects as go
 import graphviz  # For diagrams (ensure installed in env)
@@ -197,6 +211,14 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+PAGE_MODULES = {
+    "Home": ("wiki_pages.home", "home"),
+    "Strategies": ("wiki_pages.strategies", "strategies"),
+    "Edges": ("wiki_pages.edges", "edges"),
+    "Risk, Ops & Runbook": ("wiki_pages.risk_ops_runbook", "risk"),
+}
+
+page = st.sidebar.selectbox("Pages", list(PAGE_MODULES.keys()))
 
 PAGE_KEYS = {
     "Home": "home",
@@ -215,18 +237,22 @@ page_modules = {
     "HowTo": HowTo,
     "Interactive Demo": InteractiveDemo,
 }
-=======
+
 # Navigation (sidebar for dashboards)
 dashboards = ["Info (Landing)", "Interaction"]
 dashboard = st.sidebar.selectbox("Dashboards", dashboards)
-
 
 # Persistent Whisperer Panel (context-aware)
 # To eliminate repeated permission prompts for LLM API calls to django2.zanalytics.app,
 # ensure openapi.actions.yaml defines a trusted connector with always_allow.
 st.sidebar.markdown("<div class='ask-whisperer'>", unsafe_allow_html=True)
 st.sidebar.subheader("Ask Whisperer")
+
+module_path, prompt_key = PAGE_MODULES[page]
+for prompt in mock_data["whisperer_prompts"].get(prompt_key, []):
+
 for prompt in mock_data["whisperer_prompts"].get(dashboard.lower().split()[0], []):
+
     st.sidebar.write(f"- {prompt}")
 whisper_input = st.sidebar.text_input("Your question:")
 if whisper_input:
@@ -235,6 +261,8 @@ if whisper_input:
     )
 st.sidebar.markdown("</div>", unsafe_allow_html=True)
 
+module = importlib.import_module(module_path)
+module.render(mock_data)
 
 # Dashboard Content
 if dashboard == "Info (Landing)":
