@@ -13,11 +13,13 @@ import graphviz
 import importlib
 import plotly.graph_objects as go
 import streamlit as st
-import plotly.graph_objects as go
-import graphviz  # For diagrams (ensure installed in env)
 from datetime import datetime
-import pages
+import os
+import sys
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+import pages
 from pages import Edges, Home, RiskOpsRunbook, Strategies, HowTo, InteractiveDemo
 
 

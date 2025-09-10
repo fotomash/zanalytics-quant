@@ -130,7 +130,7 @@ urlpatterns += [
 
 Add Pulse UI components to the existing dashboard:
 
-### File: `dashboard/pages/pulse_dashboard.py` (NEW)
+### File: `dashboard/pulse_dashboard.py` (NEW)
 ```python
 import streamlit as st
 import requests

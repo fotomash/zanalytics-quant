@@ -1,5 +1,6 @@
 """Simplified PulseKernel implementation used by the demo dashboard."""
 import json
+import os
 import yaml
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
@@ -8,7 +9,12 @@ import random
 class PulseKernel:
     """Lightweight orchestration engine for demo purposes."""
 
-    def __init__(self, config_path: str = "pulse_dashboard_config.yaml"):
+    def __init__(self, config_path: str | None = None):
+        if config_path is None:
+            config_path = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                "pulse_dashboard_config.yaml",
+            )
         self.config = self._load_config(config_path)
         self.confluence_scorer = ConfluenceScorer(self.config)
         self.risk_enforcer = RiskEnforcer(self.config)
