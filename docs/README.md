@@ -12,6 +12,13 @@ points to the current sources of truth and clearly marks legacy docs.
   - Experimental: shadow mode or behind a flag
   - Legacy: kept for history; superseded
 
+<!-- TOC -->
+- [Current Direction (Active)](#current-direction-active)
+- [Legacy / Retired (kept for history)](#legacy-retired-kept-for-history)
+- [Flags and Defaults](#flags-and-defaults)
+- [Static Info Site](#static-info-site)
+<!-- /TOC -->
+
 Current Direction (Active)
 --------------------------
 
@@ -27,8 +34,7 @@ Current Direction (Active)
 Legacy / Retired (kept for history)
 -----------------------------------
 
-See docs/LEGACY_INDEX.md for a curated list of older guides and one‑liners on
-why they’re retired.
+Older guides remain in this directory for historical reference and are no longer maintained.
 
 Flags and Defaults
 ------------------
@@ -51,3 +57,11 @@ Static Info Site
 
 Return to [project README](../README.md)
 
+
+## Quickstart
+
+Run this:
+
+```bash
+docker compose up
+```
