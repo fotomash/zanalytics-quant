@@ -207,25 +207,25 @@ async def search_tool(query: str):
 
 class ActionPayload(BaseModel):
     type: str
+    payload: dict | None = None
     approve: bool = False
+
 
 async def _handle_read_action(action_type: str):
     """Return stub responses matching OpenAPI schemas."""
-    if action_type == "whisper_suggest":
-        return {
+    responses = {
+        "whisper_suggest": {
             "message": "stay curious",
             "heuristics": [],
             "meta": {"user_id": "demo", "symbol": "XAUUSD"},
-        }
-    if action_type == "session_boot":
-        return {
+        },
+        "session_boot": {
             "trades": [],
             "positions": [],
             "equity": None,
             "risk": None,
-        }
-    if action_type == "trades_recent":
-        return [
+        },
+        "trades_recent": [
             {
                 "id": 1,
                 "ts_open": None,
@@ -239,9 +239,8 @@ async def _handle_read_action(action_type: str):
                 "strategy": None,
                 "session": None,
             }
-        ]
-    if action_type == "trades_history_mt5":
-        return [
+        ],
+        "trades_history_mt5": [
             {
                 "id": "1",
                 "ts": None,
@@ -252,12 +251,14 @@ async def _handle_read_action(action_type: str):
                 "pnl": None,
                 "status": None,
             }
-        ]
-    return {"error": "unsupported type"}
+        ],
+    }
+    return responses.get(action_type, {"error": "unsupported type"})
 
 
-@app.post("/api/v1/actions/query")
-async def post_actions_query(payload: ActionPayload):
+async def _handle_account_positions():
+    """Return a normalized view of open MT5 orders/positions."""
+
     def normalize_mt5_orders(orders):
         df = pd.DataFrame([vars(o) for o in orders])
         if "time_setup" in df.columns:
@@ -274,6 +275,23 @@ async def post_actions_query(payload: ActionPayload):
         return []
     df = normalize_mt5_orders(orders)
     return df.to_dict("records")
+
+
+@app.post("/api/v1/actions/query")
+async def post_actions_query(payload: ActionPayload):
+    handlers = {
+        "whisper_suggest": lambda: _handle_read_action("whisper_suggest"),
+        "session_boot": lambda: _handle_read_action("session_boot"),
+        "trades_recent": lambda: _handle_read_action("trades_recent"),
+        "trades_history_mt5": lambda: _handle_read_action("trades_history_mt5"),
+        "account_positions": _handle_account_positions,
+    }
+
+    handler = handlers.get(payload.type)
+    if handler is None:
+        raise HTTPException(status_code=400, detail=f"Unsupported action type: {payload.type}")
+
+    return await handler()
 
 
 
