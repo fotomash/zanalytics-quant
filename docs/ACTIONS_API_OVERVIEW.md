@@ -18,7 +18,7 @@ It works like a verb bus — you send a JSON object like this:
 …and the system knows exactly what to do with it.
 
 
-All valid actions are described in [`openapi.yaml`](../openapi.yaml), the
+All valid actions are described in [`openapi.actions.yaml`](../openapi.actions.yaml), the
 canonical schema for the verb bus. If a verb isn’t in that spec, it doesn’t
 exist.
 
@@ -108,16 +108,16 @@ API follows a strict plan:
    `"position_close" → handle_position_close()`), never to hard‑coded logic.
 2. **Validate `payload` against the schema** – enforce required fields and block
    unknown keys with Pydantic or an equivalent validator bound to
-   `openapi.yaml`.
+    `openapi.actions.yaml`.
 3. **Add schema before code** – every new action first lands in
-   `openapi.yaml` with an example. Only after that do we implement the handler.
+    `openapi.actions.yaml` with an example. Only after that do we implement the handler.
 4. **Log everything** – persist `{type, payload, user, timestamp}` and return a
    result object noting success or failure.
 5. **No schema drift** – when UI or agent behaviour changes, update the schema
    first, then handlers, then prompts or front‑end code.
 
 Bonus: schema‑aware UIs (Streamlit, Whisperer, etc.) can render available verbs
-directly from `openapi.yaml`.
+directly from `openapi.actions.yaml`.
 
 Example flow:
 

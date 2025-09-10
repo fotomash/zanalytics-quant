@@ -58,7 +58,7 @@ This modular design facilitates secure separation of concerns, easy extensibilit
     ```bash
     git clone https://github.com/fotomash/zanalytics-quant.git
     cd zanalytics-quant
-    cp .env.example .env  # Never commit secrets!
+    cp .env.template .env  # Never commit secrets!
     cp backend/mt5/.env.example backend/mt5/.env
     ```
 
