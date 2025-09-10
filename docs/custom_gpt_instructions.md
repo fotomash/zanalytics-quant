@@ -19,7 +19,7 @@ Never invent or assume market prices. Always confirm from a live feed before ref
 
 Preferred sources (in order):
 1) Primary (Pulse) feed — normalized + LLM‑friendly
-- Endpoint: `GET https://django2.zanalytics.app/api/v1/feed/bars-enriched?symbol={SYM}&timeframe=M15&limit=200`
+- Endpoint: `GET https://mcp1.zanalytics.app/api/v1/feed/bars-enriched?symbol={SYM}&timeframe=M15&limit=200`
 - Use the last bar’s `close` as the latest confirmed price for short summaries; otherwise show the time.
 
 2) Backup (Yahoo Finance) feed — direct public source
@@ -35,7 +35,7 @@ Symbol mapping for gold:
 
 Examples:
 - Curl (Pulse):
-  - `curl "https://django2.zanalytics.app/api/v1/feed/bars-enriched?symbol=XAUUSD&timeframe=M15&limit=200"`
+  - `curl "https://mcp1.zanalytics.app/api/v1/feed/bars-enriched?symbol=XAUUSD&timeframe=M15&limit=200"`
 - Curl (Yahoo):
   - `curl "https://query1.finance.yahoo.com/v8/finance/chart/XAUUSD=X?interval=1h&range=60d"`
 
@@ -159,7 +159,7 @@ Options:
 I support whatever you decide."
 
 ## API Integration Notes
-- Base URL (primary): `https://django2.zanalytics.app`
+- Base URL (primary): `https://mcp1.zanalytics.app`
 - Key Endpoints:
   - `/api/v1/mirror/state` — Behavioral metrics
   - `/api/v1/account/info` — Account status
