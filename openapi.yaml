@@ -768,6 +768,59 @@ paths:
                 id: { type: string }
                 action: { type: string }
       responses: { '200': { description: OK } }
+
+  /score/peek:
+    post:
+      summary: Preview confluence score from recent bars
+      operationId: postScorePeek
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bars:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      ts: { type: string, format: date-time }
+                      open: { type: number }
+                      high: { type: number }
+                      low: { type: number }
+                      close: { type: number }
+            example:
+              bars:
+                - ts: "2024-05-24T12:00:00Z"
+                  open: 1.2345
+                  high: 1.2350
+                  low: 1.2330
+                  close: 1.2340
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  score: { type: number }
+                  reasons:
+                    type: array
+                    items: { type: string }
+                  components:
+                    type: object
+                    additionalProperties: { type: number }
+              example:
+                score: 72
+                reasons:
+                  - "Wyckoff upthrust"
+                  - "Liquidity drop"
+                components:
+                  smc: 70
+                  wyckoff: 65
+                  technical: 80
   
   
 components:
