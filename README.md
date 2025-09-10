@@ -428,6 +428,25 @@ A:
    ```
 2. Restart the services so caches repopulate with fresh data.
 
+**Q: I need a clean database—how do I reset Postgres?**
+A:
+1. Stop the services:
+   ```bash
+   docker-compose down
+   ```
+2. Remove the Postgres volume (be sure you're ok losing all data):
+   ```bash
+   docker volume rm <name>  # or docker-compose down -v
+   ```
+3. Rerun migrations to recreate schema:
+   ```bash
+   docker-compose run django migrate
+   ```
+4. Restart the stack:
+   ```bash
+   docker-compose up -d
+   ```
+
 **Q: Docker containers fail to build/start.**
 A:
 1. Verify your Docker installation and version.
