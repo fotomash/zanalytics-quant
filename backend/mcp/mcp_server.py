@@ -6,13 +6,14 @@ import asyncio
 import httpx
 import os
 import time
+import logging
 try:  # pragma: no cover - optional dependency
     import pandas as pd
 except Exception:  # pragma: no cover - allow module to import without pandas
     pd = None
 from pathlib import Path
 import sys
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from utils.time import localize_tz
 try:  # pragma: no cover - optional dependency
     import MetaTrader5 as mt5  # type: ignore
@@ -32,7 +33,12 @@ init_mt5()
 
 app = FastAPI(title="Zanalytics MCP Server")
 
-load_dotenv(dotenv_path=Path(__file__).parents[2] / ".env")
+logger = logging.getLogger(__name__)
+dotenv_path = find_dotenv()
+if dotenv_path:
+    load_dotenv(dotenv_path)
+else:
+    logger.warning("No .env file found; proceeding without loading environment variables")
 
 INTERNAL_API_BASE = os.getenv("INTERNAL_API_BASE", "http://django:8000")
 
