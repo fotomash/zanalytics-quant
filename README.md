@@ -378,6 +378,9 @@ A:
 
 ## Troubleshooting Gold Mine
 
+See [docs/mcp_troubleshooting.md](docs/mcp_troubleshooting.md) for Traefik label requirements, keychain unlock steps, and ghost container cleanup specific to the MCP server.
+
+
 1. First sign of death: Whisperer says stopped talking to connector. Curl to /mcp gives heartbeat → MCP alive. Curl to /exec gives 404. → Traefik not routing. Added traefik.http.routers.mcp.rule=Host(mcp1.zanalytics.app) and port 8001:8001 → still 404.
 2. Localhost test: curl http://localhost:8001/exec → connection refused. → Port not exposed. Added ports: - 8001:8001 in compose → now connects, but still 404.
 3. Auth 401: curl -H X-API-Key: your-dev-secret-123 → Unauthorized. → Env var wrong name. Code uses MCP_API_KEY, not API_KEY. Fixed .env → restart mcp → still 401. → Restart doesn't reload env in FastAPI. Had to --build the container to pick up MCP_API_KEY=your-dev-secret-123.
