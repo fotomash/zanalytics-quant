@@ -1,0 +1,5 @@
+services:
+  auth: "http://localhost:8000/health"
+  core: "http://localhost:8001/health"
+prometheus:
+  url: "http://localhost:9090"
