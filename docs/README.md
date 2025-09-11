@@ -33,6 +33,7 @@ Current Direction (Active)
 - [Prototype dashboards](../dashboards/README.md)
 - [Monitoring stack](monitoring.md)
 - [MCP2 connector config](connectors/mcp2_connector.yaml) – dev/prod SSE endpoints
+- [MCP2 runbook](runbooks/mcp2.md)
 
 Legacy / Retired (kept for history)
 -----------------------------------
