@@ -21,7 +21,8 @@ import json
 import uuid
 from typing import Any, Dict, List, TYPE_CHECKING
 
-from services.mcp2.llm_config import call_local_echo, LOCAL_THRESHOLD
+from services.mcp2.llm_config import call_local_echo
+from services.mcp2 import llm_config
 
 if TYPE_CHECKING:  # pragma: no cover - for type checkers only
     from sentence_transformers import SentenceTransformer
@@ -144,7 +145,7 @@ def enrich_ticks(
             }
         )
 
-        if data["confidence"] < LOCAL_THRESHOLD or data["phase"] in {
+        if data["confidence"] < llm_config.LOCAL_THRESHOLD or data["phase"] in {
             "spring",
             "distribution",
         }:

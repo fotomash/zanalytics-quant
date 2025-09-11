@@ -39,6 +39,6 @@ def test_echonudge_threshold(monkeypatch):
     ticks = [{"phase": "markup"}]
     enriched = enrich_ticks(ticks, manifest_path=MANIFEST_PATH, matrix_path=MATRIX_PATH)
     assert "echonudge" not in enriched[0]
-    monkeypatch.setattr("utils.enrich.LOCAL_THRESHOLD", 2.0)
+    monkeypatch.setattr("services.mcp2.llm_config.LOCAL_THRESHOLD", 2.0)
     enriched = enrich_ticks(ticks, manifest_path=MANIFEST_PATH, matrix_path=MATRIX_PATH)
     assert "echonudge" in enriched[0]
