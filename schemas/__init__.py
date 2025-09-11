@@ -7,6 +7,7 @@ from .payloads import (
     WyckoffAnalysis,
     MicrostructureAnalysis,
     PredictiveAnalysisResult,
+    ISPTSPipelineResult,
     UnifiedAnalysisPayloadV1,
 )
 from .predictive_schemas import (
@@ -25,5 +26,6 @@ __all__ = [
     "PredictiveGrade",
     "ConflictDetectionResult",
     "PredictiveAnalysisResult",
+    "ISPTSPipelineResult",
     "UnifiedAnalysisPayloadV1",
 ]
