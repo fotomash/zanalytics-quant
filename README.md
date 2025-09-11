@@ -19,6 +19,7 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [Journaling (ZBAR)](#journaling-zbar)
 - [Typical User Scenarios](#typical-user-scenarios)
 - [Data Enrichment & Customization](#data-enrichment-customization)
+- [Confidence Trace Matrix](#confidence-trace-matrix)
 - [Example .env Configuration](#example-env-configuration)
 - [Security & Access Control](#security-access-control)
 - [API Health Check and Query Examples](#api-health-check-and-query-examples)
@@ -236,6 +237,17 @@ Examples of real-time viewing, enrichment jobs, and troubleshooting. [docs/user_
 ## Data Enrichment & Customization
 
 Extend scripts in `utils/` to build custom features and dashboards. [Workflow](docs/data_enrichment_customization.md).
+
+## Confidence Trace Matrix
+
+`confidence_trace_matrix.json` at the repository root configures staged confidence scoring. Each stage includes a numeric `weight` and a `bounds` object with `min` and `max` values:
+
+- **raw_calculation** – base confidence derived from raw signals.
+- **simulation_adjustment** – modifies that score using simulated scenarios.
+- **normalize** – scales the adjusted value to a standard range.
+- **ensemble_contribution** – blends confidence across multiple models.
+
+Weights typically sum to 1.0 and bounds constrain each stage's output.
 
 ---
 
