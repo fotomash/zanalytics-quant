@@ -578,6 +578,25 @@ services:
     volumes:
       - ./:/app
 
+  caching:
+    build:
+      context: .
+      dockerfile: services/caching/Dockerfile
+    environment:
+      - KAFKA_BROKERS=${KAFKA_BROKERS:-kafka:9092}
+      - KAFKA_GROUP=${KAFKA_GROUP:-caching-service}
+      - KAFKA_TOPIC=${KAFKA_TOPIC:-enriched-analysis-payloads}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - LATEST_PAYLOAD_TTL=${LATEST_PAYLOAD_TTL:-3600}
+      - ACTIVE_FVG_TTL=${ACTIVE_FVG_TTL:-3600}
+      - BEHAVIORAL_SCORE_TTL=${BEHAVIORAL_SCORE_TTL:-3600}
+    depends_on:
+      - kafka
+      - redis
+    restart: unless-stopped
+    logging: *default-logging
+
 volumes:
   traefik-public-certificates: # Persistent volume for certificates
   grafana-data: {}
