@@ -10,6 +10,7 @@ An OpenAI tools manifest at [`docs/connectors/actions_openai_mcp2.yaml`](connect
 | `fetch_payload`    | `GET /fetch_payload` |
 | `log_enriched_trade` | `POST /log_enriched_trade` |
 | `get_recent_trades` | `GET /trades/recent` |
+| `get_stream_entries` | `GET /streams/{stream}` |
 
 ## Startup
 Build and run the service locally:
@@ -52,4 +53,14 @@ curl -s "$MCP_HOST/fetch_payload?id=<id>"
 
 # recent trades
 curl -s "$MCP_HOST/trades/recent?limit=5"
+```
+
+## Stream Access
+Retrieve recent entries from Redis Streams. Stream names should be supplied
+without the `mcp2:` prefix. Currently the `trades` stream is available for
+consuming enriched trade messages.
+
+```bash
+# most recent trade messages
+curl -s "$MCP_HOST/streams/trades?limit=5"
 ```
