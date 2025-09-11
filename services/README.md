@@ -27,7 +27,7 @@ Status
 MCP2
 ----
 
-Strategy tooling service for logging enriched trade payloads and searching documentation.
+FastAPI service that logs enriched trade payloads to Redis and supports document search in Postgres.
 
 Key endpoints:
 
@@ -37,5 +37,5 @@ Key endpoints:
 - `GET /fetch_payload?id=<id>` — retrieve a stored payload by ID
 - `GET /trades/recent?limit=<n>` — list recent trade payloads
 
-See the [MCP2 Service Runbook](../docs/runbooks/mcp2.md) for operational details.
+For operational details, see [docs/runbooks/mcp2.md](../docs/runbooks/mcp2.md).
 
