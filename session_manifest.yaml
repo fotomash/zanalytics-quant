@@ -7,10 +7,16 @@ whisperer_prompts:
   wyckoff_simulation: "Run Wyckoff simulation for {ticker}."
   risk_ensemble: "Generate risk ensemble for {portfolio}."
   behavioral_trace: "Analyze behavioral trace for {entity}."
-  liquidity_probe: "Perform liquidity probe near {price_level}."
-  volatility_snapshot: "Capture volatility snapshot for {asset}."
+  liquidity_probe: "Perform liquidity probe and spread analysis near {price_level}."
+  volatility_snapshot: "Capture volatility snapshot and momentum for {asset}."
   mean_reversion_insight: "Suggest mean reversion insight for {series}."
-  order_flow_map: "Render order flow map for {market}."
-  sentiment_pulse: "Assess sentiment pulse in {sector}."
+  order_flow_map: "Render order flow map and volume imbalance for {market}."
+  sentiment_pulse: "Assess sentiment pulse and volatility context in {sector}."
   macro_alignment: "Evaluate macro alignment with {indicator}."
   threshold_sweep: "Execute threshold sweep for {parameter}."
+
+metrics:
+  liquidity_probe: ["liquidity", "spread"]
+  volatility_snapshot: ["volatility", "momentum"]
+  order_flow_map: ["order_flow", "volume_imbalance"]
+  sentiment_pulse: ["sentiment", "volatility"]
