@@ -436,7 +436,7 @@ See [docs/mcp_troubleshooting.md](docs/mcp_troubleshooting.md) for Traefik label
 
 ## MCP2 Runbook
 
-For startup commands, endpoint tests, and database maintenance see [docs/runbooks/mcp2.md](docs/runbooks/mcp2.md).
+For startup commands, endpoint tests, and database maintenance, see the [MCP2 Runbook](docs/runbooks/mcp2.md).
 
 ---
 
