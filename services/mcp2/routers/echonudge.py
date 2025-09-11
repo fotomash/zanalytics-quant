@@ -16,6 +16,7 @@ from ..auth import verify_api_key
 from ..storage import redis_client
 
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/llm", dependencies=[Depends(verify_api_key)], tags=["llm"])
 
 logger = logging.getLogger(__name__)
@@ -90,6 +91,7 @@ async def _call_ollama(prompt: str) -> str:
     except HTTPException:
         raise
     except Exception as exc:  # pragma: no cover - offline fallback
+        logger.warning("Ollama call failed: %s", exc)
         # Fallback deterministic stub
         return json.dumps(
             {
