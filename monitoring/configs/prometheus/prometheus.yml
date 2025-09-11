@@ -47,3 +47,18 @@ scrape_configs:
       - targets: ["mcp:8001"]
         labels:
           container: "mcp"
+  - job_name: pulse-api
+    static_configs:
+      - targets: ["pulse-api:8080"]
+        labels:
+          container: "pulse-api"
+  - job_name: pyrest
+    static_configs:
+      - targets: ["pyrest:8000"]
+        labels:
+          container: "pyrest"
+  - job_name: mt5-gateway
+    static_configs:
+      - targets: ["mt5-api:5001"]
+        labels:
+          container: "mt5-api"
