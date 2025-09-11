@@ -34,7 +34,7 @@ Current Direction (Active)
 - [Monitoring stack](monitoring.md)
 - [MCP2 connector config](connectors/mcp2_connector.yaml) – dev/prod SSE endpoints
 - [MCP2 OpenAI tools manifest](connectors/actions_openai_mcp2.yaml)
-- [MCP2 runbook](runbooks/mcp2.md) – operational notes and troubleshooting
+- [MCP2 runbook](runbooks/mcp2.md)
 
 Legacy / Retired (kept for history)
 -----------------------------------
