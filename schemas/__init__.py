@@ -15,12 +15,18 @@ from .predictive_schemas import (
     PredictiveGrade,
     PredictiveScorerResult,
 )
+from .behavioral import (
+    AnalysisPayload,
+    TradeExecutionEvent,
+    BehavioralScoreOutput,
+)
 from .agent_profile_schemas import (
     PipelineConfig,
     SessionManifest,
     StageDefinition,
     TopicConfig,
 )
+from .health import HealthStatus
 
 __all__ = (
     "ConflictDetectionResult",
@@ -32,10 +38,14 @@ __all__ = (
     "PredictiveScorerResult",
     "PipelineConfig",
     "SessionManifest",
+    "HealthStatus",
     "SMCAnalysis",
     "TechnicalIndicators",
     "StageDefinition",
     "UnifiedAnalysisPayloadV1",
     "WyckoffAnalysis",
     "TopicConfig",
+    "AnalysisPayload",
+    "TradeExecutionEvent",
+    "BehavioralScoreOutput",
 )
