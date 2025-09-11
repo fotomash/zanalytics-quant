@@ -2,6 +2,8 @@
 
 from typing import Literal
 
+from .schemas import StrategyPayloadV1
+
 from pydantic import BaseModel
 
 
@@ -32,7 +34,7 @@ class ActionsQuery(BaseModel):
 
     type: ActionType
     approve: bool = False
-    payload: dict | None = None
+    payload: StrategyPayloadV1 | dict | None = None
 
 
 __all__ = [

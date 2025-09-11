@@ -45,10 +45,11 @@ def test_log_and_fetch(client):
     client, _ = client
     payload = {
         'strategy': 'demo',
-        'symbol': 'AAPL',
-        'timeframe': '1D',
-        'date': '2024-01-01T00:00:00Z',
-        'notes': 'hello',
+        'timestamp': '2024-01-01T00:00:00Z',
+        'market': {'symbol': 'AAPL', 'timeframe': '1D'},
+        'features': {},
+        'risk': {},
+        'positions': {},
     }
     resp = client.post('/log_enriched_trade', json=payload)
     assert resp.status_code == 200
@@ -56,7 +57,7 @@ def test_log_and_fetch(client):
 
     resp2 = client.get('/fetch_payload', params={'id': trade_id})
     assert resp2.status_code == 200
-    assert resp2.json()['symbol'] == 'AAPL'
+    assert resp2.json()['market']['symbol'] == 'AAPL'
 
 
 def test_search_docs(client):
@@ -70,9 +71,11 @@ def test_recent_trades(client):
     client, _ = client
     payload = {
         'strategy': 'demo',
-        'symbol': 'AAPL',
-        'timeframe': '1D',
-        'date': '2024-01-01T00:00:00Z',
+        'timestamp': '2024-01-01T00:00:00Z',
+        'market': {'symbol': 'AAPL', 'timeframe': '1D'},
+        'features': {},
+        'risk': {},
+        'positions': {},
     }
     client.post('/log_enriched_trade', json=payload)
     resp = client.get('/trades/recent', params={'limit': 1})

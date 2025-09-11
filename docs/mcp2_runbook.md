@@ -19,11 +19,11 @@ curl -s $MCP_HOST/health
 ```
 
 ## Trade Logging
-Submit a trade payload:
+Submit a trade payload using the `StrategyPayloadV1` schema:
 
 ```bash
 curl -s -X POST -H 'Content-Type: application/json' \
-  --data '{"strategy":"demo","symbol":"AAPL","timeframe":"1D","date":"2024-01-01T00:00:00Z"}' \
+  --data '{"strategy":"demo","timestamp":"2024-01-01T00:00:00Z","market":{"symbol":"AAPL","timeframe":"1D"},"features":{},"risk":{},"positions":{}}' \
   $MCP_HOST/log_enriched_trade
 ```
 
