@@ -1,3 +1,8 @@
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import StreamingResponse, Response, FileResponse
 from pydantic import BaseModel, ValidationError
@@ -5,7 +10,6 @@ from typing import Any, Callable
 import json
 import asyncio
 import httpx
-import os
 import time
 import logging
 from pathlib import Path
@@ -22,8 +26,8 @@ try:  # pragma: no cover - optional dependency
     import MetaTrader5 as mt5  # type: ignore
 except Exception:  # pragma: no cover - allow module to import without MT5
     mt5 = None
-from .mt5_adapter import init_mt5
-from .models import (
+from mt5_adapter import init_mt5
+from models import (
     ACCOUNT_POSITIONS,
     SESSION_BOOT,
     TRADES_HISTORY_MT5,
