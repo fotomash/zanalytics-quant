@@ -3,6 +3,8 @@ import json
 import time
 import threading
 import queue
+import base64
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import redis
@@ -268,10 +270,27 @@ def fetch_trade_history_filtered(
     return []
 
 
-def inject_glass_css() -> None:
-    """Inject subtle gradient + glass card utility for a React‑like feel.
+def apply_custom_styling() -> None:
+    """Apply global dark theme, metric cards, and expander tweaks.
+
+    If `dashboard/image_af247b.jpg` exists, it is used as a background image.
+    """
+    img_b64 = ""
+    img_path = Path(__file__).resolve().parents[1] / "image_af247b.jpg"
+    if img_path.exists():
+        try:
+            img_b64 = base64.b64encode(img_path.read_bytes()).decode()
+        except Exception:
+            img_b64 = ""
+    bg_rule = (
+        "linear-gradient(rgba(0,0,0,0.80), rgba(0,0,0,0.80)), url(data:image/jpeg;base64," + img_b64 + ")"
+        if img_b64
+        else "#0B1220"
 
     Usage: call once near the top of the page.
+
+    Theme developers can override the defaults by defining CSS variables:
+    ``--glass-color`` (RGB), ``--glass-bg-opacity`` and ``--glass-border-opacity``.
     """
     st.markdown(
         """
@@ -281,17 +300,55 @@ def inject_glass_css() -> None:
                         radial-gradient(800px 400px at 90% 0%, rgba(6,182,212,0.08) 0%, rgba(15,23,42,0.0) 60%),
                         linear-gradient(135deg, #0B1220 0%, #111827 100%);
         }
-        .glass { 
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 14px; 
-            padding: 10px 14px; 
+        .glass {
+            background: rgba(var(--glass-color, 255,255,255), var(--glass-bg-opacity, 0.04));
+            border: 1px solid rgba(var(--glass-color, 255,255,255), var(--glass-border-opacity, 0.08));
+            border-radius: 14px;
+            padding: 10px 14px;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
         }
         .section-title { color: #9CA3AF; font-size: 0.9rem; margin-bottom: 6px; }
         </style>
         """,
         unsafe_allow_html=True,
     )
+    css = f"""
+    <style>
+    .stApp {{
+        background: {bg_rule};
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        color: #eaeaea;
+    }}
+    .metric-card {{
+        background-color: #1F2937;
+        border: 1px solid #374151;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        transition: box-shadow 0.3s ease;
+    }}
+    .metric-card:hover {{
+        box-shadow: 0 0 15px rgba(255,255,255,0.2);
+    }}
+    div[data-testid="stExpander"] > details {{
+        background: rgba(26,29,58,0.35) !important;
+        border: 1px solid rgba(255,255,255,0.10);
+        border-radius: 12px;
+    }}
+    div[data-testid="stExpander"] summary {{
+        color: #eaeaea !important;
+    }}
+    </style>
+    """
+    st.markdown(css, unsafe_allow_html=True)
+
+
+def inject_glass_css() -> None:
+    """Deprecated: use apply_custom_styling instead."""
+    apply_custom_styling()
 
 
 @st.cache_data(show_spinner=False, ttl=30)
