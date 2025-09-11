@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .bootstrap_engine import BootstrapEngine, ExecutionValidationConfig
 from .health import HealthStatus
+from .memory import AgentMemoryInterface
 from .smc_analyzer import SMCAnalyzer
 from .wyckoff_analyzer import WyckoffAnalyzer
 
@@ -15,4 +16,5 @@ __all__ = [
     "SMCAnalyzer",
     "WyckoffAnalyzer",
     "HealthStatus",
+    "AgentMemoryInterface",
 ]

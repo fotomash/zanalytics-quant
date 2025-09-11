@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Semantic request routing utilities.
 
 This module exposes :class:`SemanticMappingService` which loads a YAML
@@ -20,15 +21,13 @@ map to a primary agent and optional fallback agents.
 
 Example YAML structure::
 
-    mappings:
-      - primary: agent_a
-        fallback: [agent_b, agent_c]
-        triggers:
-          keywords: [hello, hi]
-          regex: ["foo.*bar"]
+"""Simple semantic routing service used by tests.
 
-```SemanticMappingService.route``` returns the first matching mapping for the
-provided text.
+The real project ships with a much richer implementation.  For the purposes of
+the kata we only need a light‑weight utility that can resolve either plain text
+requests or task dictionaries to a primary agent and an ordered list of
+fallback agents.  The service can be initialised with an in-memory mapping or a
+YAML configuration file.
 """
 
 from __future__ import annotations
@@ -53,10 +52,12 @@ this static method as required.
 """
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
+
 
 
 class SemanticMappingService:
@@ -116,7 +117,7 @@ class SemanticMappingService:
 
 @dataclass
 class MappingEntry:
-    """Represents a single mapping rule."""
+    """Representation of a single text routing rule."""
 
     primary: str
     fallback: List[str]
@@ -125,26 +126,48 @@ class MappingEntry:
 
 
 class SemanticMappingService:
-    """Route text requests to agents using keyword or regex triggers."""
+    """Resolve tasks or text to a primary agent and fallbacks."""
 
-    def __init__(self, mapping_file: str | Path | None = None) -> None:
-        base_dir = Path(__file__).resolve().parent.parent
-        self.mapping_file = (
-            Path(mapping_file)
-            if mapping_file is not None
-            else base_dir / "mapping_interface_v2_final.yaml"
-        )
-        self.mappings: List[MappingEntry] = []
-        self._load_mappings()
+    def __init__(
+        self,
+        mapping: Optional[Dict[str, Tuple[str, List[str]]] | str | Path] = None,
+    ) -> None:
+        self._direct_map: Dict[str, Tuple[str, List[str]]] = {}
+        self._entries: List[MappingEntry] = []
 
-    def _load_mappings(self) -> None:
-        if not self.mapping_file.exists():
-            return
-        with self.mapping_file.open("r", encoding="utf-8") as fh:
+        if isinstance(mapping, dict):
+            # Mapping provided directly for task based routing
+            self._direct_map = {k: (v[0], list(v[1])) for k, v in mapping.items()}
+        else:
+            path = Path(mapping or "mapping_interface_v2_final.yaml")
+            if path.exists():
+                self._load_file(path)
+
+    # ------------------------------------------------------------------
+    # Configuration loading
+    # ------------------------------------------------------------------
+    def _load_file(self, path: Path) -> None:
+        with path.open("r", encoding="utf-8") as fh:
             data = yaml.safe_load(fh) or {}
+
         for entry in data.get("mappings", []):
             triggers = entry.get("triggers", {})
             keywords = {kw.lower() for kw in triggers.get("keywords", [])}
+            regex = [re.compile(pat, re.IGNORECASE) for pat in triggers.get("regex", [])]
+            primary = entry.get("primary")
+            fallback = list(entry.get("fallback", []))
+            if primary:
+                self._entries.append(MappingEntry(primary, fallback, keywords, regex))
+
+    # ------------------------------------------------------------------
+    # Routing
+    # ------------------------------------------------------------------
+    def route(self, request: Any) -> Tuple[Optional[str], List[str]]:
+        """Return ``(primary, fallbacks)`` for ``request``.
+
+        ``request`` may either be a plain text string or a task dictionary.
+        Unmatched requests return ``(None, [])``.
+
             regex = [re.compile(pattern) for pattern in triggers.get("regex", [])]
             self.mappings.append(
                 MappingEntry(
@@ -318,32 +341,24 @@ class SemanticMappingService:
             when no mapping matched ``request_text``.
         """
 
-        text = request_text.lower()
-        for mapping in self.mappings:
-            matched = False
-            for keyword in mapping["keywords"]:
-                if keyword in text:
-                    matched = True
-                    break
-            if not matched:
-                for pattern in mapping["regex"]:
-                    if pattern.search(request_text):
-                        matched = True
-                        break
-            if matched:
-                return mapping["primary"], mapping["fallback"]
-        return None, []
-            ``(primary, fallbacks)`` where ``primary`` may be ``None`` when
-            no mapping exists.
-        """
-
-        task_id = (
-            task.get("name")
-            or task.get("type")
-            or task.get("task")
-        )
-        if task_id is None:
+        # Text based routing
+        if isinstance(request, str):
+            tokens = set(re.findall(r"\w+", request.lower()))
+            for entry in self._entries:
+                if entry.keywords & tokens:
+                    return entry.primary, list(entry.fallback)
+                for pattern in entry.regex:
+                    if pattern.search(request):
+                        return entry.primary, list(entry.fallback)
             return None, []
+
+        # Task dictionary routing
+        if isinstance(request, dict):
+            task_id = request.get("name") or request.get("type") or request.get("task")
+            if task_id is None:
+                return None, []
+            primary, fallbacks = self._direct_map.get(task_id, (None, []))
+            return primary, list(fallbacks)
         primary, fallbacks = self.mapping.get(task_id, (None, []))
         return primary, list(fallbacks)
 
@@ -374,7 +389,7 @@ class SemanticMappingService:
         monkey‑patch this method to provide custom behaviour.
         """
 
-        return []
+        return None, []
 
 
 __all__ = ["SemanticMappingService"]
