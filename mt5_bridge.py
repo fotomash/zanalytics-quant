@@ -17,8 +17,6 @@ import requests
 LONDON = pytz.timezone("Europe/London")
 
 logger = logging.getLogger(__name__)
-if not logger.hasHandlers():
-    logging.basicConfig(level=logging.INFO)
 
 
 class MT5Bridge:
@@ -44,7 +42,6 @@ class MT5Bridge:
         if not mt5.initialize():
             logger.error("MT5 initialization failed")
             raise RuntimeError("MT5 initialization failed")
-n
 
         if self.account:
             authorized = mt5.login(self.account, password=self.password, server=self.server)
@@ -362,6 +359,7 @@ n
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     bridge = MT5Bridge()
     logger.warning("MT5 Bridge initialized")
     logger.warning("This bridge provides:")
