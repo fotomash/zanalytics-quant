@@ -661,7 +661,7 @@ services:
     volumes:
       - ./.env:/app/.env
     ports:
-    - 8001:8001
+      - "8001:8001"
     environment:
       - INTERNAL_API_BASE=http://django:8000
       - MCP2_API_KEY=${MCP2_API_KEY:-}
@@ -887,53 +887,6 @@ services:
       - data-pipeline
       - default
 
-  zookeeper:
-    image: confluentinc/cp-zookeeper:latest
-    container_name: zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
-    networks:
-      - data-pipeline
-    restart: unless-stopped
-
-  kafka:
-    image: confluentinc/cp-kafka:latest
-    container_name: kafka
-    depends_on:
-      - zookeeper
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    ports:
-      - "9092:9092"
-    networks:
-      - data-pipeline
-    restart: unless-stopped
-
-  timescaledb:
-    image: timescale/timescaledb:latest-pg15
-    container_name: timescaledb
-    environment:
-      POSTGRES_PASSWORD: postgres
-    command:
-      - postgres
-      - -c
-      - shared_preload_libraries=timescaledb
-      - -c
-      - timescaledb.telemetry_level=off
-    ports:
-      - "5432:5432"
-    networks:
-      - data-pipeline
-    restart: unless-stopped
-
 volumes:
   grafana-data: {}
   prometheus-data: {}
@@ -951,5 +904,3 @@ networks:
   traefik-public:
     external: true
     name: traefik-public
-  data-pipeline:
-    driver: bridge
