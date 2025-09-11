@@ -156,6 +156,41 @@ def post_actions(body: Dict[str, Any], idempotency_key: str | None = None, timeo
         return False, {'error': str(e)}
 
 
+def close_position(ticket: int):
+    """Request a full close for ``ticket`` via the Django gateway."""
+    if not st.session_state.get('enable_actions'):
+        return
+    with st.spinner('Closing...'):
+        ok, data = post_actions(
+            {'type': 'position_close', 'payload': {'ticket': ticket}},
+            idempotency_key=f"close-{ticket}-{uuid.uuid4().hex[:8]}",
+        )
+    st.session_state['last_action'] = (
+        ('success', 'Close requested')
+        if ok
+        else ('error', f"Close failed: {data}")
+    )
+
+
+def partial_close(ticket: int, fraction: float):
+    """Request a partial close of ``fraction`` for ``ticket``."""
+    if not st.session_state.get('enable_actions'):
+        return
+    with st.spinner(f"Partial closing {fraction * 100:.0f}%..."):
+        ok, data = post_actions(
+            {
+                'type': 'position_close',
+                'payload': {'ticket': ticket, 'fraction': fraction},
+            },
+            idempotency_key=f"p{int(fraction * 100)}-{ticket}-{uuid.uuid4().hex[:8]}",
+        )
+    st.session_state['last_action'] = (
+        ('success', 'Partial requested')
+        if ok
+        else ('error', f"Partial failed: {data}")
+    )
+
+
 
 @st.cache_data(ttl=3600)
 def get_image_as_base64(path: str) -> str | None:
@@ -544,6 +579,9 @@ if not positions:
     st.info('No open positions.')
 else:
     st.checkbox('Enable trade actions', key='enable_actions', value=False, help='Guardrail to prevent accidental clicks')
+    if 'last_action' in st.session_state:
+        status, msg = st.session_state.pop('last_action')
+        getattr(st, status)(msg)
     for i, p in enumerate(positions):
         with st.container():
             cols = st.columns([2, 1, 1, 1, 1, 2])
@@ -559,18 +597,20 @@ else:
             cols[4].markdown(f"P/L: {float(p.get('profit',0.0)):.2f}")
             with cols[5]:
                 ticket = int(p.get('ticket'))
-                c1, c2 = st.columns(2)
-                if c1.button('Close', key=f"close_{ticket}", use_container_width=True, disabled=not st.session_state.enable_actions):
-                    with st.spinner('Closing...'):
-                        ok, data = post_actions(
-                            {'type': 'position_close', 'payload': {'ticket': ticket}},
-                            idempotency_key=f"close-{ticket}-{uuid.uuid4().hex[:8]}",
-                        )
-                    st.success('Close requested') if ok else st.error(f"Close failed: {data}")
-                if c2.button('Partial 50%', key=f"p50_{ticket}", use_container_width=True, disabled=not st.session_state.enable_actions):
-                    with st.spinner('Partial closing 50%...'):
-                        ok, data = post_actions(
-                            {'type': 'position_close', 'payload': {'ticket': ticket, 'fraction': 0.5}},
-                            idempotency_key=f"p50-{ticket}-{uuid.uuid4().hex[:8]}",
-                        )
-                    st.success('Partial requested') if ok else st.error(f"Partial failed: {data}")
+                btn_c1, btn_c2 = st.columns(2)
+                btn_c1.button(
+                    'Partial 50%',
+                    key=f"p50_{ticket}",
+                    use_container_width=True,
+                    disabled=not st.session_state.enable_actions,
+                    on_click=partial_close,
+                    args=(ticket, 0.5),
+                )
+                btn_c2.button(
+                    'Close',
+                    key=f"close_{ticket}",
+                    use_container_width=True,
+                    disabled=not st.session_state.enable_actions,
+                    on_click=close_position,
+                    args=(ticket,),
+                )
