@@ -1,0 +1,59 @@
+# OpenAI functions for MCP2 actions
+require_approval: "never"
+functions:
+  - name: search_docs
+    description: Search documentation for relevant content.
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: Free-form search query text.
+      required:
+        - query
+  - name: fetch_payload
+    description: Retrieve a stored payload by identifier.
+    parameters:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier of the payload to fetch.
+      required:
+        - id
+  - name: log_enriched_trade
+    description: Persist a strategy payload for later retrieval.
+    parameters:
+      type: object
+      properties:
+        strategy:
+          type: string
+          description: Strategy name associated with the payload.
+        symbol:
+          type: string
+          description: Market symbol.
+        timeframe:
+          type: string
+          description: Chart timeframe (e.g. "1D").
+        date:
+          type: string
+          format: date-time
+          description: ISO8601 timestamp for the payload.
+        notes:
+          type: string
+          description: Optional free-form notes.
+      required:
+        - strategy
+        - symbol
+        - timeframe
+        - date
+  - name: get_recent_trades
+    description: Retrieve a list of recent trades.
+    parameters:
+      type: object
+      properties:
+        limit:
+          type: integer
+          description: Maximum number of trades to return.
+          default: 10
+      required: []

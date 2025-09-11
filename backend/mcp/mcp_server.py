@@ -1,18 +1,145 @@
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import StreamingResponse
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from fastapi import Body, Depends, FastAPI, HTTPException, Request
+from fastapi.responses import (
+    StreamingResponse,
+    Response,
+    FileResponse,
+    JSONResponse,
+)
+from pydantic import BaseModel, ValidationError
+from typing import Any, Callable
 import json
 import asyncio
 import httpx
-import os
 import time
+from auth import verify_api_key
+
+try:  # pragma: no cover - optional dependency
+    import pandas as pd
+except Exception:  # pragma: no cover - allow module to import without pandas
+    pd = None
+from dotenv import load_dotenv, find_dotenv
+from utils.time_utils import localize_tz
+
+try:  # pragma: no cover - optional dependency
+    import MetaTrader5 as mt5  # type: ignore
+except Exception:  # pragma: no cover - allow module to import without MT5
+    mt5 = None
+from mt5_adapter import init_mt5
+from models import (
+    ACCOUNT_POSITIONS,
+    SESSION_BOOT,
+    TRADES_HISTORY_MT5,
+    TRADES_RECENT,
+    WHISPER_SUGGEST,
+    ActionType,
+    ActionsQuery,
+)
+from prometheus_client import (
+    Counter,
+    Gauge,
+    generate_latest,
+    CONTENT_TYPE_LATEST,
+    REGISTRY,
+)
+
+try:  # pragma: no cover - optional dependency
+    import redis
+except Exception:  # pragma: no cover - allow module to import without redis
+    redis = None
+
+try:  # pragma: no cover - optional dependency
+    import asyncpg  # type: ignore
+except Exception:  # pragma: no cover - allow module to import without asyncpg
+    asyncpg = None
+
+init_mt5()
 
 app = FastAPI(title="Zanalytics MCP Server")
 
+
+# Load environment variables from the closest .env if present
+load_dotenv(find_dotenv(usecwd=True), override=True)
+
 INTERNAL_API_BASE = os.getenv("INTERNAL_API_BASE", "http://django:8000")
+
+REQUESTS = Counter(
+    "mcp_requests_total",
+    "Total MCP requests",
+    ["endpoint"],
+    registry=REGISTRY,
+)
+MCP_UP = Gauge("mcp_up", "MCP server heartbeat status", registry=REGISTRY)
+MCP_TIMESTAMP = Gauge(
+    "mcp_last_heartbeat_timestamp",
+    "Unix timestamp of last heartbeat",
+    registry=REGISTRY,
+)
+
+
+@app.get("/health")
+async def health():
+    REQUESTS.labels(endpoint="health").inc()
+
+    deps: dict[str, bool] = {}
+    equity: float | None = None
+
+    # MT5 dependency
+    try:  # pragma: no cover - MT5 may not be available in tests
+        equity = mt5.account_info().equity  # type: ignore[union-attr]
+        deps["mt5"] = True
+    except Exception:
+        deps["mt5"] = False
+
+    # Redis dependency
+    try:
+        if redis is None:
+            raise RuntimeError("redis client not available")
+        rurl = os.getenv("REDIS_URL", "redis://redis:6379/0")
+        r = redis.Redis.from_url(rurl)
+        r.ping()
+        deps["redis"] = True
+    except Exception:
+        deps["redis"] = False
+
+    # Postgres dependency
+    try:
+        if asyncpg is None:
+            raise RuntimeError("asyncpg not available")
+        dsn = os.getenv(
+            "DATABASE_URL",
+            "postgresql://postgres:postgres@postgres:5432/postgres",
+        )
+        conn = await asyncpg.connect(dsn)
+        await conn.execute("SELECT 1")
+        await conn.close()
+        deps["postgres"] = True
+    except Exception:
+        deps["postgres"] = False
+
+    healthy = all(deps.values())
+    payload: dict[str, Any] = {"status": "ok" if healthy else "error", "dependencies": deps}
+    if equity is not None:
+        payload["equity"] = equity
+
+    status_code = 200 if healthy else 503
+    return JSONResponse(status_code=status_code, content=payload)
+
+
+@app.get("/.well-known/openai.yaml", include_in_schema=False)
+def well_known_manifest():
+    REQUESTS.labels(endpoint="well_known").inc()
+    return FileResponse("openai-actions.yaml", media_type="application/yaml")
 
 
 async def generate_mcp_stream():
     """Generator for NDJSON streaming events."""
+    MCP_UP.set(1)
+    MCP_TIMESTAMP.set(time.time())
     # Send open event immediately
     yield json.dumps(
         {
@@ -24,6 +151,8 @@ async def generate_mcp_stream():
     # Keep alive with heartbeat every 30 seconds
     while True:
         await asyncio.sleep(30)
+        MCP_UP.set(1)
+        MCP_TIMESTAMP.set(time.time())
         yield json.dumps(
             {
                 "event": "heartbeat",
@@ -32,8 +161,10 @@ async def generate_mcp_stream():
         ) + "\n"
 
 
-@app.get("/mcp")
+# Requires Authorization or X-API-Key header
+@app.get("/mcp", dependencies=[Depends(verify_api_key)])
 async def mcp_stream():
+    REQUESTS.labels(endpoint="mcp").inc()
     return StreamingResponse(
         generate_mcp_stream(),
         media_type="application/x-ndjson",
@@ -41,16 +172,25 @@ async def mcp_stream():
     )
 
 
+# Requires Authorization or X-API-Key header
 @app.api_route(
-    "/exec/{full_path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"]
+    "/exec/{full_path:path}",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    dependencies=[Depends(verify_api_key)],
 )
-async def exec_proxy(request: Request, full_path: str):
+async def exec_proxy(
+    request: Request,
+    full_path: str,
+    body: dict = Body(...),
+):
+    """Proxy arbitrary requests to the internal API."""
+    REQUESTS.labels(endpoint="exec").inc()
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.request(
                 method=request.method,
                 url=f"{INTERNAL_API_BASE}/{full_path}",
-                json=await request.json() if request.method != "GET" else None,
+                json=body if request.method != "GET" else None,
                 headers={
                     k: v
                     for k, v in request.headers.items()
@@ -67,6 +207,188 @@ async def exec_proxy(request: Request, full_path: str):
     return (
         resp.json() if content_type.startswith("application/json") else {"status": "ok"}
     )
+
+
+@app.get("/metrics")
+def metrics():
+    REQUESTS.labels(endpoint="metrics").inc()
+    return Response(generate_latest(REGISTRY), media_type=CONTENT_TYPE_LATEST)
+
+
+class PositionOpen(BaseModel):
+    symbol: str
+    side: str
+    volume: float
+    type: str | None = "market"
+    price: float | None = None
+    sl: float | None = None
+    tp: float | None = None
+    deviation: int | None = 10
+
+
+class PositionClose(BaseModel):
+    ticket: int
+    volume: float | None = None
+    deviation: int | None = 10
+
+
+class PositionModify(BaseModel):
+    ticket: int
+    sl: float | None = None
+    tp: float | None = None
+
+
+class ExecPayload(BaseModel):
+    type: str
+    payload: dict
+
+
+# Requires Authorization or X-API-Key header
+@app.post("/exec", dependencies=[Depends(verify_api_key)])
+async def exec_action(payload: ExecPayload = Body(...)):
+    """Execute trading actions via the internal API."""
+    REQUESTS.labels(endpoint="exec_action").inc()
+    mapping = {
+        "position_open": ("/trade/open", PositionOpen),
+        "position_close": ("/trade/close", PositionClose),
+        "position_modify": ("/trade/modify", PositionModify),
+    }
+
+    if payload.type not in mapping:
+        raise HTTPException(status_code=400, detail="Unsupported action type")
+
+    path, model = mapping[payload.type]
+    try:
+        body = model(**payload.payload).dict()
+    except ValidationError as exc:  # pragma: no cover - pydantic always raises HTTP 422
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(f"{INTERNAL_API_BASE}{path}", json=body)
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail="Internal API unreachable"
+            ) from exc
+
+    if resp.status_code >= 400:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    return resp.json()
+
+
+# Requires Authorization or X-API-Key header
+@app.post("/tool/search", dependencies=[Depends(verify_api_key)])
+async def search_tool(query: str):
+    """Search available market symbols via the internal API."""
+    REQUESTS.labels(endpoint="tool_search").inc()
+    if not query:
+        raise HTTPException(status_code=400, detail="query required")
+
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(f"{INTERNAL_API_BASE}/market/symbols")
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=502, detail="Internal API unreachable"
+            ) from exc
+
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+
+    symbols = resp.json().get("symbols", [])
+    q = query.lower()
+    return {"results": [s for s in symbols if q in s.lower()]}
+
+
+async def _handle_read_action(action_type: str):
+    """Return stub responses matching OpenAPI schemas."""
+    responses = {
+        "whisper_suggest": {
+            "message": "stay curious",
+            "heuristics": [],
+            "meta": {"user_id": "demo", "symbol": "XAUUSD"},
+        },
+        "session_boot": {
+            "trades": [],
+            "positions": [],
+            "equity": None,
+            "risk": None,
+        },
+        "trades_recent": [
+            {
+                "id": 1,
+                "ts_open": None,
+                "ts_close": None,
+                "symbol": "XAUUSD",
+                "side": None,
+                "entry": None,
+                "exit": None,
+                "pnl": None,
+                "rr": None,
+                "strategy": None,
+                "session": None,
+            }
+        ],
+        "trades_history_mt5": [
+            {
+                "id": "1",
+                "ts": None,
+                "symbol": "XAUUSD",
+                "direction": None,
+                "entry": None,
+                "exit": None,
+                "pnl": None,
+                "status": None,
+            }
+        ],
+    }
+    return responses.get(action_type, {"error": "unsupported type"})
+
+
+async def _handle_account_positions():
+    """Return a normalized view of open MT5 orders/positions."""
+    if pd is None:  # pragma: no cover - dependency guard
+        raise HTTPException(status_code=500, detail="Pandas not available")
+
+    def normalize_mt5_orders(orders):
+        df = pd.DataFrame([vars(o) for o in orders])
+        if "time_setup" in df.columns:
+            df["time_setup"] = pd.to_datetime(df["time_setup"], unit="s", utc=True)
+            df["time_setup"] = df["time_setup"].apply(localize_tz)
+        df = df[["ticket", "symbol", "type", "volume", "price_open", "time_setup"]]
+        return df.rename(columns={"price_open": "entry", "type": "side"})
+
+    if mt5 is None:  # pragma: no cover - dependency guard
+        return []
+
+    orders = mt5.orders_get(limit=10)
+    if orders is None:
+        return []
+    df = normalize_mt5_orders(orders)
+    return df.to_dict("records")
+
+
+# Requires Authorization or X-API-Key header
+@app.post("/api/v1/actions/query", dependencies=[Depends(verify_api_key)])
+async def post_actions_query(payload: ActionsQuery):
+    REQUESTS.labels(endpoint="actions_query").inc()
+    handlers: dict[ActionType, Callable[[], Any]] = {
+        WHISPER_SUGGEST: lambda: _handle_read_action(WHISPER_SUGGEST),
+        SESSION_BOOT: lambda: _handle_read_action(SESSION_BOOT),
+        TRADES_RECENT: lambda: _handle_read_action(TRADES_RECENT),
+        TRADES_HISTORY_MT5: lambda: _handle_read_action(TRADES_HISTORY_MT5),
+        ACCOUNT_POSITIONS: _handle_account_positions,
+    }
+
+    try:
+        handler = handlers[payload.type]
+    except KeyError as exc:  # pragma: no cover - should be prevented by validation
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported action type: {payload.type}",
+        ) from exc
+
+    return await handler()
 
 
 if __name__ == "__main__":

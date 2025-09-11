@@ -1,0 +1,18 @@
+volume_fields:
+  - tick_volume
+  - true_volume
+sample_payloads:
+  - timestamp: '2024-01-01T00:00:00Z'
+    symbol: 'AAPL'
+    open: 100
+    high: 110
+    low: 90
+    close: 105
+    tick_volume: 1234
+  - timestamp: '2024-01-02T00:00:00Z'
+    symbol: 'MSFT'
+    open: 200
+    high: 210
+    low: 195
+    close: 205
+    true_volume: 2345

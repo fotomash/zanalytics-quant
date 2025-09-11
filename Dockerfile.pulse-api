@@ -11,9 +11,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
+COPY services/mcp2/requirements.txt services/mcp2/
 RUN pip install -r requirements.txt
 
-COPY pulse_kernel.py confluence_scorer.py risk_enforcer.py pulse_config.yaml ./
+COPY pulse_kernel.py risk_enforcer.py pulse_config.yaml ./
+COPY core/predictive_scorer.py core/__init__.py ./core/
 COPY app ./app
 
 EXPOSE 8000

@@ -1,0 +1,90 @@
+{
+  "strategy_name": "Session_Open_Sweep_Reversal_v12",
+  "aliases": [
+    "London Judas Reversal",
+    "NY Continuation after London Sweep",
+    "SessionKillzone_JudasSweep_Continuation_v12",
+    "Asia Range Sweep Play",
+    "Session_JudasSweep_NY_Continuation_v12"
+  ],
+  "entry_pattern": "Asian session range defined. London Open sweeps Asian H/L (Judas Swing), often into HTF POI, with rejection. LTF CHoCH/BoS during London against Judas direction. NY Session entry on retracement to FVG/OB from true London move.",
+  "entry_conditions": [
+    "Clear Asian session consolidation range.",
+    "Decisive London sweep of Asian H/L into valid HTF POI.",
+    "Strong rejection (price & volume/tick validated) from POI during London sweep.",
+    "Clear CHoCH/BoS on M5/M15 during London, opposing Judas Swing, showing displacement.",
+    "NY session entry at a fresh, refined POI (FVG/OB) from the true London impulse.",
+    "Volume confirming key stages (sweep rejection, London shift, NY entry attempt).",
+    "Macro context alignment (e.g., DXY)."
+  ],
+  "timeframe_mapping": {
+    "context_asia_range_htf_poi": [
+      "M15",
+      "H1",
+      "H4"
+    ],
+    "catalyst_london_sweep": [
+      "M5",
+      "M15",
+      "Tick"
+    ],
+    "confirmation_london_shift": [
+      "M5",
+      "M15"
+    ],
+    "entry_ny_execution": [
+      "M1",
+      "M5"
+    ]
+  },
+  "confluence_conditions_indicators": [
+    "Defined Asian Range H/L",
+    "London Sweep of Asia H/L into HTF POI",
+    "Rejection from POI (Tick Volume)",
+    "London CHoCH/BoS against sweep",
+    "NY Entry at FVG/OB from London true move",
+    "Killzone timing (London for setup, NY for entry)"
+  ],
+  "risk_model": {
+    "type": "Adaptive, Session-Structure-Based",
+    "sl_description": "Beyond London Judas Swing extreme or London Shift Origin, + adaptive buffer.",
+    "tp_description": "Targeting opposing session liquidity (e.g., NY H/L) or next HTF levels/ERL.",
+    "min_rr": 2.0,
+    "module": "RiskManager.py"
+  },
+  "execution_flow_ispts": [
+    "Context (ContextAnalyzer.py for session ranges, HTF POIs, Killzones)",
+    "Catalyst (LiquidityEngine.py for Judas Sweep)",
+    "Confirmation (StructureValidator.py for London CHoCH/BoS)",
+    "Entry (FvgLocator.py/PoiIdentifier.py for NY POI -> EntryExecutorSMC.py)",
+    "Risk (RiskManager.py)",
+    "Confluence (ConfluenceStacker.py -> PredictiveScorer.py - Observational)"
+  ],
+  "scoring": {
+    "enabled": true,
+    "type": "Observational Maturity Score",
+    "module": "PredictiveScorer.py",
+    "description": "Score based on clarity of Asian range, Judas sweep decisiveness, HTF POI reaction, London shift strength, NY POI quality."
+  },
+  "fallback_logic": {
+    "enabled": true,
+    "description": "If London shift is weak or NY fails to retrace to valid POI/confirm entry, setup for that AMD cycle is invalidated and logged."
+  },
+  "modules_involved": [
+    "ContextAnalyzer.py",
+    "LiquidityEngine.py",
+    "Tick_Processor.py",
+    "StructureValidator.py",
+    "FvgLocator.py",
+    "PoiIdentifier.py",
+    "EntryExecutorSMC.py",
+    "RiskManager.py",
+    "PredictiveScorer.py",
+    "JournalLogger.py",
+    "ConflictFilter.py"
+  ],
+  "agent_profiles_conceptual": [
+    "Session-based agent YAMLs (e.g., EURUSD_AMD_Strategy.yaml)"
+  ],
+  "memory_merge_flag": true
+}

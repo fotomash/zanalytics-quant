@@ -1,0 +1,10 @@
+behavioral_rules:
+  discipline_score:
+    threshold: 0.4
+    reduce_max_lot_size_by: 0.5
+  patience_index:
+    threshold: 0.2
+    enforce_cooldown_period: 15
+  daily_drawdown:
+    threshold: 0.03
+    block_new_trades: true

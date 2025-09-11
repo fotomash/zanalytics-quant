@@ -13,11 +13,11 @@ def detect_behavior_flags(deal: object) -> List[str]:
     """Placeholder for behavioral flag detection logic."""
     return []
 
-
+# STUB
 def write_journal_entry(entry: Dict) -> None:
     """Placeholder for writing a journal entry to storage."""
     # In production, this would persist to a database or message queue.
-    pass
+    raise NotImplementedError("Stub")
 
 
 def sync_to_pulse_journal() -> Dict[str, int | str]:

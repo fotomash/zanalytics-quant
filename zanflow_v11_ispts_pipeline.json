@@ -1,0 +1,11 @@
+{
+  "stages": [
+    "ContextAnalyzer",
+    "LiquidityEngine",
+    "StructureValidator",
+    "FVGLocator",
+    "RiskManager",
+    "ConfluenceStacker",
+    "Executor"
+  ]
+}

@@ -1,0 +1,15 @@
+goal: Generate a session manifest for the trading session.
+steps:
+  - Identify the target instrument pair and timeframe.
+  - Select input and output Kafka topics for the session.
+  - Produce a YAML file named `session_manifest.yaml` with the following structure:
+    prompt_version: v1
+    instrument_pair: <PAIR>
+    timeframe: <TIMEFRAME>
+    topics:
+      consume:
+        - <INPUT_TOPIC>
+      produce: <OUTPUT_TOPIC>
+notes:
+  - Only list topics required for this session.
+  - The manifest will be consumed by the bootstrap process.

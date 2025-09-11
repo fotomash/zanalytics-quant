@@ -17,164 +17,13 @@ x-openai:
     - write
     - execute
 paths:
-  /api/v1/actions/read:
-    get:
-      summary: Query a read-only action (alias; avoids consent prompts in most runtimes)
-      operationId: getActionsRead
-      parameters:
-        - in: query
-          name: type
-          required: true
-          schema:
-            type: string
-            enum: [
-              session_boot,
-              trades_recent,
-              trades_history_mt5,
-              account_info,
-              account_positions,
-              account_risk,
-              equity_today,
-              market_mini,
-              market_symbols,
-              market_calendar_next,
-              market_regime,
-              liquidity_map,
-              state_snapshot,
-              journal_recent,
-              whisper_suggest
-            ]
-        - in: query
-          name: limit
-          required: false
-          schema: { type: integer }
-        - in: query
-          name: symbol
-          required: false
-          schema: { type: string }
-        - in: query
-          name: timeframe
-          required: false
-          schema: { type: string }
-        - in: query
-          name: date_from
-          required: false
-          schema: { type: string }
-        - in: query
-          name: date_to
-          required: false
-          schema: { type: string }
-        - in: query
-          name: pnl_min
-          required: false
-          schema: { type: number }
-        - in: query
-          name: pnl_max
-          required: false
-          schema: { type: number }
-        - in: query
-          name: user_id
-          required: false
-          schema: { type: string }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - $ref: '#/components/schemas/WhisperSuggestResponse'
-                  - type: array
-                    description: trades_recent result
-                    items:
-                      $ref: '#/components/schemas/TradeItem'
-                  - $ref: '#/components/schemas/SessionBootResponse'
-                  - type: array
-                    description: trades_history_mt5 result
-                    items:
-                      $ref: '#/components/schemas/TradeHistoryItem'
-        '400': { description: Bad Request }
-        '500': { description: Server Error }
   /api/v1/actions/query:
-    get:
-      summary: Query a read-only action (no consent prompts in most runtimes)
-      operationId: getActionsQuery
-      parameters:
-        - in: query
-          name: type
-          required: true
-          schema:
-            type: string
-            enum: [
-              session_boot,
-              trades_recent,
-              trades_history_mt5,
-              account_info,
-              account_positions,
-              account_risk,
-              equity_today,
-              market_mini,
-              market_symbols,
-              market_calendar_next,
-              market_regime,
-              liquidity_map,
-              state_snapshot,
-              journal_recent,
-              whisper_suggest
-            ]
-        - in: query
-          name: limit
-          required: false
-          schema: { type: integer }
-        - in: query
-          name: symbol
-          required: false
-          schema: { type: string }
-        - in: query
-          name: timeframe
-          required: false
-          schema: { type: string }
-        - in: query
-          name: date_from
-          required: false
-          schema: { type: string }
-        - in: query
-          name: date_to
-          required: false
-          schema: { type: string }
-        - in: query
-          name: pnl_min
-          required: false
-          schema: { type: number }
-        - in: query
-          name: pnl_max
-          required: false
-          schema: { type: number }
-        - in: query
-          name: user_id
-          required: false
-          schema: { type: string }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - $ref: '#/components/schemas/WhisperSuggestResponse'
-                  - type: array
-                    description: trades_recent result
-                    items:
-                      $ref: '#/components/schemas/TradeItem'
-                  - $ref: '#/components/schemas/SessionBootResponse'
-                  - type: array
-                    description: trades_history_mt5 result
-                    items:
-                      $ref: '#/components/schemas/TradeHistoryItem'
-        '400': { description: Bad Request }
-        '500': { description: Server Error }
     post:
-      summary: Execute an action (query verbs)
+      summary: Execute an action
+      description: |
+        Supported verbs: whisper_suggest, session_boot, state_snapshot, trades_recent,
+        trades_history_mt5, account_info, account_positions, account_risk, equity_today,
+        pulse_status, market_snapshot, market_symbols, liquidity_map, opportunity_priority_items, position_open, position_close, position_modify.
       operationId: postActionsQuery
       requestBody:
         required: true
@@ -927,7 +776,7 @@ components:
         exit: { type: number, nullable: true }
         pnl: { type: number, nullable: true }
         status: { type: string, nullable: true }
-    
+      
     PositionActionResponse:
       type: object
       description: Generic response envelope for position actions (open/close/modify/hedge)

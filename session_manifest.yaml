@@ -1,0 +1,7 @@
+prompt_version: v1
+instrument_pair: EURUSD
+timeframe: M15
+topics:
+  consume:
+    - raw-market-data
+  produce: enriched-analysis-payloads  # emits UnifiedAnalysisPayloadV1
