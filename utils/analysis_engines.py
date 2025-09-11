@@ -21,8 +21,43 @@ from schemas.payloads import (
 def build_unified_analysis(tick: dict) -> "UnifiedAnalysisPayloadV1":
     """Run core analyzers and validate against the v1 unified analysis payload."""
 
+    from datetime import datetime
+    from components import advanced_stoploss_lots_engine, confluence_engine
+    from core.predictive_scorer import PredictiveScorer
+    from schemas.payloads import (
+        ISPTSPipelineResult,
+        MarketContext,
+        MicrostructureAnalysis,
+        PredictiveAnalysisResult,
+        SMCAnalysis,
+        TechnicalIndicators,
+        UnifiedAnalysisPayloadV1,
+        WyckoffAnalysis,
+    )
+    from schemas.predictive_schemas import (
+        ConflictDetectionResult,
+        PredictiveScorerResult,
+    )
+
     confluence = confluence_engine.compute_confluence_indicators_df(tick)
     risk = advanced_stoploss_lots_engine.compute_risk_snapshot(tick)
+
+    scorer = PredictiveScorer()
+    score = scorer.score(tick)
+    predictive = PredictiveAnalysisResult(
+        scorer=PredictiveScorerResult(
+            maturity_score=score.get("maturity_score", 0.0),
+            grade=score.get("grade"),
+            confidence_factors=score.get("reasons", []),
+            extras={
+                "components": score.get("components", {}),
+                "details": score.get("details", {}),
+            },
+        ),
+        conflict_detection=ConflictDetectionResult(is_conflict=False),
+    )
+
+    pipeline = ISPTSPipelineResult()
 
     symbol = tick.get("symbol", "UNKNOWN")
     timeframe = tick.get("timeframe", "1m")
@@ -41,5 +76,7 @@ def build_unified_analysis(tick: dict) -> "UnifiedAnalysisPayloadV1":
         smc=SMCAnalysis(),
         wyckoff=WyckoffAnalysis(),
         microstructure=MicrostructureAnalysis(),
+        predictive_analysis=predictive,
+        ispts_pipeline=pipeline,
         extras={"risk": risk},
     )
