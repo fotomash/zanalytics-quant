@@ -5,6 +5,7 @@ import threading
 import queue
 from typing import Any, Dict, List, Tuple
 
+import redis
 import requests
 import streamlit as st
 
@@ -28,15 +29,43 @@ def api_url(path: str) -> str:
     return f"{base}/{p}"
 
 
-def safe_api_call(method: str, path: str, payload: Dict | None = None, timeout: float = 1.2) -> Dict:
+_cache_redis = redis.Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True)
+
+
+def _cache_key(method: str, url: str, payload: Dict | None) -> str:
+    body = json.dumps(payload, sort_keys=True) if payload else ""
+    return f"streamlit_api:{method}:{url}:{body}"
+
+
+def safe_api_call(
+    method: str,
+    path: str,
+    payload: Dict | None = None,
+    timeout: float = 1.2,
+    ttl: int = 30,
+) -> Dict:
+    url = api_url(path)
+    key = _cache_key(method.upper(), url, payload)
+
     try:
-        url = api_url(path)
+        cached = _cache_redis.get(key)
+        if cached:
+            return json.loads(cached)
+    except Exception:
+        pass
+
+    try:
         if method.upper() == "GET":
             r = requests.get(url, timeout=timeout)
         else:
             r = requests.post(url, json=payload or {}, timeout=timeout)
         if r.status_code == 200:
-            return r.json()
+            data = r.json()
+            try:
+                _cache_redis.setex(key, ttl, json.dumps(data))
+            except Exception:
+                pass
+            return data
         return {"error": f"HTTP {r.status_code}", "url": url}
     except requests.exceptions.Timeout:
         return {"error": "API timeout", "url": api_url(path)}
