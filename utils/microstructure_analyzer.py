@@ -84,6 +84,24 @@ class MicrostructureAnalyzer:
         tick_counts = []
         avg_spreads = []
         
+        # Ensure ticks_df index is datetime for resample
+        if not isinstance(ticks_df.index, pd.DatetimeIndex):
+            # Prefer an existing datetime-like column if present
+            for col in ("timestamp", "datetime", "ts"):
+                if col in ticks_df.columns:
+                    ticks_df = ticks_df.set_index(pd.to_datetime(ticks_df[col]))
+                    break
+            else:
+                # As a last resort, attempt to convert the existing index
+                ticks_df.index = pd.to_datetime(ticks_df.index)
+
+        # Ensure spread column exists
+        if 'spread' not in ticks_df.columns:
+            if {'ask', 'bid'}.issubset(ticks_df.columns):
+                ticks_df['spread'] = (ticks_df['ask'] - ticks_df['bid']).abs()
+            else:
+                ticks_df['spread'] = 0.0
+
         # Use resample for efficient aggregation
         resampler = ticks_df.resample('1Min')
         
@@ -100,9 +118,3 @@ class MicrostructureAnalyzer:
         aggregated_data['cumulative_delta'] = aggregated_data['delta'].cumsum()
         
         return aggregated_data
-'''
-
-with open('zanflow_dashboard/utils/microstructure_analyzer.py', 'w') as f:
-    f.write(microstructure_analyzer)
-
-print("1. Successfully created 'zanflow_dashboard/utils/microstructure_analyzer.py'.")
