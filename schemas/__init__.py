@@ -15,6 +15,11 @@ from .predictive_schemas import (
     PredictiveGrade,
     PredictiveScorerResult,
 )
+from .behavioral import (
+    AnalysisPayload,
+    TradeExecutionEvent,
+    BehavioralScoreOutput,
+)
 from .agent_profile_schemas import (
     PipelineConfig,
     SessionManifest,
@@ -38,4 +43,7 @@ __all__ = (
     "UnifiedAnalysisPayloadV1",
     "WyckoffAnalysis",
     "TopicConfig",
+    "AnalysisPayload",
+    "TradeExecutionEvent",
+    "BehavioralScoreOutput",
 )

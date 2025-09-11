@@ -1,9 +1,16 @@
+"""Structural Market Concepts (SMC) analyzer utilities."""
+
+from __future__ import annotations
+
 import pandas as pd
 import numpy as np
 import scipy.signal
 
 class SMCAnalyzer:
-    def __init__(self):
+    """Analyze price data for liquidity and market structure."""
+
+    def __init__(self, config: dict | None = None):
+        self.config = config or {}
         self.liquidity_zones = []
         self.order_blocks = []
         self.fair_value_gaps = []
@@ -314,3 +321,5 @@ class SMCAnalyzer:
 
         return inducements
 
+
+__all__ = ["SMCAnalyzer"]
