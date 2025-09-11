@@ -2,17 +2,27 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from typing import Dict, List, Optional
 
 import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import yaml
 
 from backend.mcp.schemas import StrategyPayloadV1
 from .routers.llm import WhisperRequest, WhisperResponse, _suggest
 from .storage import redis_client
 
 logger = logging.getLogger(__name__)
+
+MANIFEST_PATH = Path(__file__).resolve().parents[2] / "session_manifest.yaml"
+try:
+    with MANIFEST_PATH.open("r", encoding="utf-8") as fh:
+        MANIFEST = yaml.safe_load(fh) or {}
+except FileNotFoundError:  # pragma: no cover - deploy misconfiguration
+    MANIFEST = {}
+    logger.error("session manifest not found: %s", MANIFEST_PATH)
 
 app = FastAPI()
 
@@ -97,6 +107,25 @@ async def call_whisperer(prompt: str) -> str:
     return f"Whisperer unavailable for: {prompt}"
 
 
+def format_whisperer_prompt(**runtime_values: object) -> str:
+    """Retrieve and format the Wyckoff simulation prompt.
+
+    Falls back to ``runtime_values['prompt']`` if the manifest does not
+    contain the expected template. Missing format keys raise a clear error.
+    """
+
+    prompts = MANIFEST.get("whisperer_prompts", {})
+    template = prompts.get("wyckoff_simulation")
+    if not template:
+        logger.error("wyckoff_simulation prompt missing in manifest")
+        return str(runtime_values.get("prompt", ""))
+    try:
+        return template.format(**runtime_values)
+    except KeyError as exc:
+        missing = exc.args[0]
+        raise HTTPException(status_code=500, detail=f"missing prompt value: {missing}") from exc
+
+
 @app.post("/llm/analyze")
 async def analyze_query(query: AnalyzeQuery) -> Dict[str, str]:
     """Route analysis to LocalEcho or Whisperer based on confidence score."""
@@ -114,11 +143,14 @@ async def analyze_query(query: AnalyzeQuery) -> Dict[str, str]:
     prompt = latest.get("prompt", "")
     confidence = float(latest.get("confidence", 0))
 
+    values = {"prompt": prompt, "symbol": query.symbol, "confidence": confidence}
+    whisper_prompt = format_whisperer_prompt(**values)
+
     if confidence < LOCAL_THRESHOLD:
         verdict = await call_local_echo(prompt)
         agent = "LocalEcho"
     else:
-        verdict = await call_whisperer(prompt)
+        verdict = await call_whisperer(whisper_prompt)
         agent = "Whisperer"
 
     logger.info("llm.analyze agent=%s symbol=%s confidence=%s", agent, query.symbol, confidence)
