@@ -10,4 +10,6 @@ RUN pip install --no-cache-dir \
     confluent_kafka \
     requests
 
-COPY services/tick_to_bar.py /app/tick_to_bar.py
+COPY tick_to_bar.py /app/tick_to_bar.py
+
+CMD ["python", "tick_to_bar.py"]
