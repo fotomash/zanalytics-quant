@@ -11,3 +11,5 @@ def send_alert(alert: Alert):
 
 
 __all__ = ["Alert", "AlertManager", "send_alert"]
+"""Alert manager package."""
+"""Alert manager service package."""
