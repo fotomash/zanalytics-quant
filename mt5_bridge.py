@@ -36,17 +36,22 @@ class MT5Bridge:
         self.behavioral_patterns = {}
 
     def connect(self) -> bool:
-        """Establish connection to MT5."""
+        """Establish connection to MT5.
+
+        Raises:
+            RuntimeError: If MT5 initialization or login fails.
+        """
         if not mt5.initialize():
             logger.error("MT5 initialization failed")
-            return False
+            raise RuntimeError("MT5 initialization failed")
+
 
         if self.account:
             authorized = mt5.login(self.account, password=self.password, server=self.server)
             if not authorized:
                 logger.error(f"Failed to connect to account {self.account}")
                 mt5.shutdown()
-                return False
+                raise RuntimeError(f"Failed to connect to account {self.account}")
 
         self.connected = True
         return True
