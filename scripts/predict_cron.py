@@ -3,16 +3,23 @@
 
 from __future__ import annotations
 
+import argparse
+import csv
 import json
-from datetime import datetime
-from typing import Dict, Optional
 import logging
+import os
 import re
+from datetime import datetime
+from pathlib import Path
+from statistics import mean, stdev
+from typing import Dict, Optional, List
 
 import redis
+import yaml
 
 HIGH_RISK_THRESHOLD = 0.9
 WHISPERER_QUEUE = "whisperer:simulation"
+CONFIG_PATH = Path(os.getenv("PREDICT_CRON_CONFIG", "config/predict_cron.yaml"))
 
 # ---------------------------------------------------------------------------
 # Whisperer Simulation Queue Format
@@ -52,6 +59,22 @@ def _parse_risk(value: object) -> Optional[float]:
     """Parse a risk value that may be numeric or embedded in text.
 
     Returns a float if successfully parsed, otherwise None.
+
+    Examples (doctest):
+        >>> _parse_risk(0.87)
+        0.87
+        >>> _parse_risk("0.42")
+        0.42
+        >>> _parse_risk("risk=0.93; status=hi")
+        0.93
+        >>> _parse_risk("85%")
+        85.0
+        >>> _parse_risk(None) is None
+        True
+        >>> _parse_risk("") is None
+        True
+        >>> _parse_risk("n/a") is None
+        True
     """
     try:
         if value is None:
@@ -65,80 +88,6 @@ def _parse_risk(value: object) -> Optional[float]:
         return float(m.group(0)) if m else None
     except Exception:
         return None
-
-
-def process_tick(redis_client: redis.Redis, tick: Dict) -> None:
-    """Publish alerts and enqueue ticks when risk exceeds threshold.
-
-    Tolerates non-numeric risk values by attempting to extract a number; if
-    parsing fails, logs at debug level and skips the tick.
-    """
-    risk = _parse_risk(tick.get("risk_score"))
-    if risk is None:
-        logging.debug("skip tick without numeric risk: %s", tick)
-        return
-    # Keep normalized risk on the tick for downstream consumers
-    tick["risk_score"] = risk
-    if risk >= HIGH_RISK_THRESHOLD:
-        publish_alert(redis_client, tick)
-        enqueue_for_simulation(redis_client, tick)
-
-
-def main() -> int:
-    redis_client = redis.Redis(host="redis", port=6379, decode_responses=True)
-    # Placeholder tick for demonstration. Production code would call the
-    # predictive model and iterate over real-time ticks.
-    tick = {
-        "symbol": "EURUSD",
-        "price": 1.2345,
-        "risk_score": 0.95,
-        "timestamp": datetime.utcnow().isoformat(),
-    }
-    process_tick(redis_client, tick)
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
-
-import os
-import arrow
-import pyarrow as pa
-
-from services.mcp2.llm_config import call_local_echo
-
-
-def main() -> None:
-    """Invoke local echo with a simple prompt."""
-    prompt = os.getenv("PREDICT_CRON_PROMPT", "ping")
-    timestamp = arrow.utcnow().isoformat()
-    _ = pa.array([timestamp])  # ensure pyarrow imported
-    print(call_local_echo(prompt))
-
-
-if __name__ == "__main__":
-
-"""Run prediction cron with configurable risk threshold.
-
-The script reads the risk threshold from the ``RISK_THRESHOLD``
-environment variable or from ``config/predict_cron.yaml``.
-It also provides a helper to compute a recommended threshold from
-historical silence/spike data.
-"""
-
-from __future__ import annotations
-
-import argparse
-import csv
-import os
-from pathlib import Path
-from statistics import mean, stdev
-from typing import List, Optional
-
-import yaml
-
-# Default config path can be overridden for tests or alternate deployments
-CONFIG_PATH = Path(os.getenv("PREDICT_CRON_CONFIG", "config/predict_cron.yaml"))
 
 
 def _load_config_threshold() -> Optional[float]:
@@ -192,12 +141,37 @@ def recommend_threshold(history_path: str) -> float:
     return avg + 2 * sd
 
 
-def main(argv: Optional[List[str]] = None) -> None:
+def process_tick(redis_client: redis.Redis, tick: Dict) -> None:
+    """Publish alerts and enqueue ticks when risk exceeds threshold.
+
+    Tolerates non-numeric risk values by attempting to extract a number; if
+    parsing fails, logs at debug level and skips the tick.
+    """
+    risk = _parse_risk(tick.get("risk_score"))
+    if risk is None:
+        logging.debug("skip tick without numeric risk: %s", tick)
+        return
+    # Keep normalized risk on the tick for downstream consumers
+    tick["risk_score"] = risk
+    if risk >= HIGH_RISK_THRESHOLD:
+        publish_alert(redis_client, tick)
+        enqueue_for_simulation(redis_client, tick)
+
+def cli_main(argv: Optional[List[str]] = None) -> None:
     parser = argparse.ArgumentParser(description="Prediction cron")
     parser.add_argument(
         "--history",
         help="CSV file with past silence/spike data to compute a recommended threshold",
     )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Run a demo tick through the alert pipeline",
+    )
+    parser.add_argument("--symbol", default="EURUSD")
+    parser.add_argument("--price", type=float, default=1.2345)
+    parser.add_argument("--risk", default="0.95", help="Risk value or text containing it")
+    parser.add_argument("--redis-url", default=os.getenv("REDIS_URL", "redis://redis:6379/0"))
     args = parser.parse_args(argv)
 
     threshold = get_risk_threshold()
@@ -210,6 +184,26 @@ def main(argv: Optional[List[str]] = None) -> None:
         except Exception as exc:
             print(f"Unable to compute recommended threshold: {exc}")
 
+    if args.demo:
+        try:
+            r = redis.from_url(args.redis_url, decode_responses=True)
+        except Exception as exc:
+            print(f"Unable to connect to Redis: {exc}")
+            return
+        risk_val = _parse_risk(args.risk) or 0.0
+        tick = {
+            "symbol": args.symbol,
+            "price": float(args.price),
+            "risk_score": risk_val,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        process_tick(r, tick)
+
 
 if __name__ == "__main__":  # pragma: no cover - manual execution
-    main()
+    # Optional: run doctest examples for risk parsing
+    if os.getenv("RUN_RISK_PARSER_DEMO") == "1":
+        import doctest
+
+        doctest.testmod(verbose=True)
+    cli_main()

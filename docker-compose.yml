@@ -801,6 +801,37 @@ services:
     restart: unless-stopped
     networks:
       - default
+
+  predict-cron:
+    image: python:3.11-slim
+    container_name: predict-cron
+    working_dir: /app
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - RISK_THRESHOLD=${RISK_THRESHOLD:-0.9}
+      - PREDICT_CRON_INTERVAL=${PREDICT_CRON_INTERVAL:-900}
+      - PREDICT_CRON_SYMBOL=${PREDICT_CRON_SYMBOL:-EURUSD}
+      - PREDICT_CRON_PRICE=${PREDICT_CRON_PRICE:-1.2345}
+      - PREDICT_CRON_RISK=${PREDICT_CRON_RISK:-0.95}
+    command: >
+      sh -lc "pip install --no-cache-dir redis pyyaml &&
+      while true; do
+        python scripts/predict_cron.py --demo \
+          --symbol \"${PREDICT_CRON_SYMBOL}\" \
+          --price \"${PREDICT_CRON_PRICE}\" \
+          --risk \"${PREDICT_CRON_RISK}\" || true;
+        sleep ${PREDICT_CRON_INTERVAL};
+      done"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - default
   redis-ml-bridge:
     image: python:3.11-slim
     container_name: redis-ml-bridge
