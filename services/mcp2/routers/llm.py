@@ -1,5 +1,6 @@
 import os
 import asyncio
+
 import httpx
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
@@ -44,7 +45,7 @@ async def whisperer(req: WhisperRequest) -> WhisperResponse:
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from ..auth import verify_api_key
