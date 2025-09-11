@@ -647,8 +647,8 @@ services:
 
   info:
     build:
-      context: ./services/info
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/info/Dockerfile
     container_name: info
     restart: unless-stopped
     env_file:

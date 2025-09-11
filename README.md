@@ -99,14 +99,20 @@ Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/
     docker compose up -d
     ```
 
-4. **Check all services:**
+4. **Apply database migrations:**
+    ```bash
+    docker compose exec postgres \
+      psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f db/migrations/mcp2.sql
+    ```
+
+5. **Check all services:**
     ```bash
     docker compose ps
     docker compose logs dashboard
     docker compose logs mt5
     ```
 
-5. **Access the dashboards and APIs:**
+6. **Access the dashboards and APIs:**
     - **Streamlit Dashboard:**  
       Open `http://localhost:8501` or your mapped domain.
     - **MT5 API:**  
@@ -120,8 +126,8 @@ Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/
 
 ## Environment Variables
 
-Copy `.env.template` to `.env`, fill in the sensitive values, and keep the real
-file out of version control. Docker Compose reads `.env` through its `env_file`
+Copy `.env.sample` (or `.env.template` for the full set) to `.env`, fill in the sensitive values, and keep the real
+file out of version control. Never commit secrets to the repository. Docker Compose reads `.env` through its `env_file`
 directive and injects those variables into services like `mcp`. In CI pipelines,
 provide the same variables via your environment or secret manager—containers no
 longer mount `.env` directly.
