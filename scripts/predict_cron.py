@@ -68,7 +68,9 @@ def _parse_risk(value: object) -> Optional[float]:
         >>> _parse_risk("risk=0.93; status=hi")
         0.93
         >>> _parse_risk("85%")
-        85.0
+        0.85
+        >>> _parse_risk("42")
+        0.42
         >>> _parse_risk(None) is None
         True
         >>> _parse_risk("") is None
@@ -80,12 +82,20 @@ def _parse_risk(value: object) -> Optional[float]:
         if value is None:
             return None
         if isinstance(value, (int, float)):
-            return float(value)
-        s = str(value).strip()
-        if not s:
-            return None
-        m = _FLOAT_RE.search(s)
-        return float(m.group(0)) if m else None
+            num = float(value)
+            has_percent = False
+        else:
+            s = str(value).strip()
+            if not s:
+                return None
+            m = _FLOAT_RE.search(s)
+            if not m:
+                return None
+            num = float(m.group(0))
+            has_percent = "%" in s
+        if has_percent or num > 1:
+            num /= 100.0
+        return num
     except Exception:
         return None
 
