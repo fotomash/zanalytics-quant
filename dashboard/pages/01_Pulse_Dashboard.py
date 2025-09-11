@@ -14,6 +14,9 @@ import yaml
 import streamlit as st
 from dashboard.utils.plotly_donuts import oneway_donut
 from dashboard.components import chip
+from dashboard.components.ui_chip import chip
+from dashboard.components.ui_concentric import concentric_ring
+
 
 # ---------------- Config ----------------
 # Resolve paths relative to this file so the dashboard can be launched from any
@@ -155,6 +158,7 @@ def post_actions(body: Dict[str, Any], idempotency_key: str | None = None, timeo
         return False, {'error': str(e)}
 
 
+
 @st.cache_data(ttl=3600)
 def get_image_as_base64(path: str) -> str | None:
     """Return a base64 encoded string for the image at ``path``."""
@@ -226,6 +230,7 @@ def apply_advanced_styling() -> str:
     }
     </style>
     """
+
 
 
 
@@ -358,7 +363,12 @@ def secs_to_hms(seconds: int) -> str:
     return f"{h:d}:{m:02d}:{s:02d}"
 
 # ---------------- UI ----------------
-st.set_page_config(page_title='Pulse – Intraday', layout='wide')
+st.set_page_config(
+    page_title='Pulse – Intraday',
+    page_icon='🫀',
+    layout='wide',
+    initial_sidebar_state='expanded'
+)
 
 _img_base64 = get_image_as_base64("image_af247b.jpg")
 if _img_base64:
@@ -374,6 +384,8 @@ if _img_base64:
     .main .block-container {{
         background-color: rgba(0,0,0,0.025) !important;
     }}
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
     </style>
     """
     st.markdown(_background_style, unsafe_allow_html=True)
@@ -428,8 +440,32 @@ if sm.get('daily_risk_allowance_percent', False) or sm.get('current_risk_used_pe
             frac=frac,
             start_anchor="bottom",
             center_title=f"{risk_used:.1f}%",
+        risk_used  = 0.8  # %
+
+        st.plotly_chart(
+            oneway_donut(
+                title="Risk Used",
+                frac=risk_used / risk_allow if risk_allow else 0.0,
+                start_anchor="bottom",
+                center_title=f"{risk_used:.1f}%",
+                center_sub=f"of {risk_allow:.1f}%",
+            ),
+            use_container_width=True,
+        )
+
+        fig = concentric_ring(
+            center_title="Risk Used",
+            center_value=f"{risk_used:.1f}%",
+            outer_bipolar=0.0,
+            outer_cap=1.0,
+            middle_val=risk_used / risk_allow if risk_allow else 0.0,
+            middle_cap=1.0,
+            inner_unipolar=0.0,
+            inner_cap=1.0,
+            size=(180, 180),
         )
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
 
 if sm.get('session_time_remaining', False):
     with sess_cols[3]:
@@ -469,8 +505,30 @@ if tm.get('exposure_percent', False):
             frac=exp / 100.0,
             start_anchor="bottom",
             center_title=f"{exp:.0f}%",
+
+        st.plotly_chart(
+            oneway_donut(
+                title="Exposure",
+                frac=exp / 100 if exp is not None else 0.0,
+                start_anchor="bottom",
+                center_title=f"{exp:.0f}%",
+            ),
+            use_container_width=True,
+        )
+
+        fig = concentric_ring(
+            center_title="Exposure",
+            center_value=f"{exp:.0f}%",
+            outer_bipolar=0.0,
+            outer_cap=1.0,
+            middle_val=0.0,
+            middle_cap=1.0,
+            inner_unipolar=exp / 100.0,
+            inner_cap=1.0,
+            size=(180, 180),
         )
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
 
 if tm.get('max_adverse_excursion', False):
     with tcols[3]:
