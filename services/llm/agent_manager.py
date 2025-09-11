@@ -1,12 +1,17 @@
 import os
 import asyncio
-from typing import Protocol, Tuple, Optional
+from typing import Iterable, Optional, Protocol, Tuple
 
 from redis.asyncio import Redis
 
 
+class AgentMemoryInterface(Protocol):
+    async def get_agent_context(self, query: str) -> Iterable[str]:
+        ...
+
+
 class MarketNarrativeAnalyzer(Protocol):
-    async def analyze(self, threshold: float) -> Tuple[bool, str]:
+    async def analyze(self, prompt: str, threshold: float) -> Tuple[bool, str]:
         ...
 
 
@@ -17,11 +22,15 @@ class LLMAgentManager:
         self,
         redis_client: Redis,
         analyzer: MarketNarrativeAnalyzer,
+        memory_interface: AgentMemoryInterface,
+        query: str,
         interval: Optional[int] = None,
         threshold: Optional[float] = None,
     ) -> None:
         self.redis = redis_client
         self.analyzer = analyzer
+        self.memory = memory_interface
+        self.query = query
         self.interval = interval or int(os.getenv("LLM_AGENT_INTERVAL", "3600"))
         self.threshold = threshold or float(
             os.getenv("LLM_AGENT_SIGNIFICANCE_THRESHOLD", "0.5")
@@ -30,7 +39,19 @@ class LLMAgentManager:
         self._stopping = False
 
     async def _run_cycle(self) -> None:
-        is_significant, summary = await self.analyzer.analyze(self.threshold)
+        memories = await self.memory.get_agent_context(self.query)
+        formatted_memory = "\n".join(f"- {m}" for m in memories)
+        prompt = (
+            "You are a Market Narrative Analyzer.\n\n"
+            "**Relevant Historical Context (from memory):**\n"
+            f"{formatted_memory}\n\n"
+            "**Current Deterministic Analysis:**\n"
+            "- [Contents of the latest UnifiedAnalysisPayload]\n\n"
+            "**User Query:**\n"
+            f"- \"{self.query}\"\n\n"
+            "Please provide your analysis."
+        )
+        is_significant, summary = await self.analyzer.analyze(prompt, self.threshold)
         if is_significant and summary:
             await self.redis.publish("telegram-alerts", summary)
 
