@@ -1,0 +1,11 @@
+dev:
+  url: "https://mcp2-dev.zanalytics.app/sse"
+  # headers:
+  #   X-API-Key: "<dev-key>"
+  require_approval: "never"
+
+prod:
+  url: "https://mcp2.zanalytics.app/sse"
+  # headers:
+  #   X-API-Key: "<prod-key>"
+  require_approval: "never"
