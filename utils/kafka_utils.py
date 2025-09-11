@@ -1,28 +1,31 @@
 """Utilities for producing and consuming Kafka events.
 
 Environment variables:
-    KAFKA_BOOTSTRAP_SERVERS: Kafka bootstrap servers (default ``kafka:9092``)
+    KAFKA_BOOTSTRAP: Kafka bootstrap servers (default ``localhost:9092``)
+    DATABASE_URL: Database connection string
     KAFKA_GROUP_ID: Default group id for :class:`KafkaConsumer` (default ``zanalyzer``)
 """
 
-from confluent_kafka import Producer, Consumer, KafkaError
 import os
 import json
+import pyarrow as pa
+from confluent_kafka import Producer, Consumer, KafkaError
 
-KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "localhost:9092")
+DATABASE_URL = os.getenv("DATABASE_URL")
 KAFKA_GROUP_ID = os.getenv("KAFKA_GROUP_ID", "zanalyzer")
-TOPIC_TRADES = 'trades-stream'
+TOPIC_TRADES = "trades-stream"
 
 def produce_trade(data):
     """Publish a trade event to Kafka."""
-    producer = Producer({'bootstrap.servers': KAFKA_BOOTSTRAP_SERVERS})
+    producer = Producer({'bootstrap.servers': KAFKA_BOOTSTRAP})
     producer.produce(TOPIC_TRADES, key=str(data['timestamp']), value=json.dumps(data))
     producer.flush()
 
 def consume_trades(callback):
     """Consume trade events and invoke callback for each."""
     consumer = Consumer({
-        'bootstrap.servers': KAFKA_BOOTSTRAP_SERVERS,
+        'bootstrap.servers': KAFKA_BOOTSTRAP,
         'group.id': 'enrichment-group',
         'auto.offset.reset': 'earliest'
     })
@@ -65,7 +68,7 @@ class KafkaConsumer(AsyncIterator[str]):
         poll_timeout: float = 1.0,
     ) -> None:
         self._config = {
-            "bootstrap.servers": bootstrap_servers or KAFKA_BOOTSTRAP_SERVERS,
+            "bootstrap.servers": bootstrap_servers or KAFKA_BOOTSTRAP,
             "group.id": group_id or KAFKA_GROUP_ID,
             "auto.offset.reset": "earliest",
         }
