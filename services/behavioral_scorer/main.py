@@ -9,6 +9,7 @@ import json
 import os
 import signal
 import time
+from collections import deque
 from typing import Any, Dict
 
 import redis
@@ -20,7 +21,33 @@ REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 SCORE_INTERVAL = int(os.getenv("SCORE_INTERVAL", "60"))
 
+# Rapid trade detection configuration
+RAPID_TRADE_WINDOW = int(os.getenv("RAPID_TRADE_WINDOW", "60"))  # seconds
+RAPID_TRADE_THRESHOLD = int(os.getenv("RAPID_TRADE_THRESHOLD", "3"))
+PATIENCE_PENALTY = float(os.getenv("PATIENCE_PENALTY", "0.1"))
+
 TOPICS = ["final-analysis-payloads", "trade-execution-events"]
+
+
+def record_trade(trader_state: Dict[str, Any], timestamp: float) -> None:
+    """Record a trade timestamp and update patience metrics."""
+
+    trades = trader_state.setdefault("executions", deque())
+    trades.append(timestamp)
+
+    # Drop timestamps outside the configured window
+    while trades and timestamp - trades[0] > RAPID_TRADE_WINDOW:
+        trades.popleft()
+
+    if len(trades) > RAPID_TRADE_THRESHOLD:
+        trader_state["rapid_trade"] = True
+        trader_state["patience_score"] = max(
+            0.0, trader_state.get("patience_score", 1.0) - PATIENCE_PENALTY
+        )
+    else:
+        trader_state["rapid_trade"] = False
+
+    trader_state["last_trade"] = timestamp
 
 
 def main() -> None:
@@ -55,6 +82,8 @@ def main() -> None:
                 "last_trade": last_trade,
                 "analysis_count": info.get("analysis_count", 0),
                 "inactive_seconds": inactivity,
+                "patience_index": info.get("patience_score", 1.0),
+                "rapid_trades": info.get("rapid_trade", False),
             }
             key = f"behavioral_metrics:{trader_id}"
             r.set(key, json.dumps(payload))
@@ -83,9 +112,9 @@ def main() -> None:
                 consumer.commit(msg)
                 continue
 
-            trader_state = state.setdefault(trader_id, {})
+            trader_state = state.setdefault(trader_id, {"patience_score": 1.0, "executions": deque()})
             if msg.topic() == "trade-execution-events":
-                trader_state["last_trade"] = time.time()
+                record_trade(trader_state, time.time())
             elif msg.topic() == "final-analysis-payloads":
                 trader_state["analysis_count"] = trader_state.get("analysis_count", 0) + 1
 
