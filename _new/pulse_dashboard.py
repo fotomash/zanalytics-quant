@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import json
 import yaml
 import random
-import time
+from backtesting.backtest_engine import BacktestEngine, example_ml_strategy
 
 # Page configuration
 st.set_page_config(
@@ -113,6 +113,21 @@ def load_trade_history():
 
 config = load_config()
 df_trades = load_trade_history()
+
+
+def run_backtest_service() -> dict:
+    """Execute backtest and return performance metrics."""
+    prices = 100 + np.cumsum(np.random.randn(200))
+    data = pd.DataFrame({"close": prices}, index=pd.date_range(end=datetime.now(), periods=len(prices), freq="H"))
+    engine = BacktestEngine(initial_capital=10000)
+    return engine.run_backtest(data, example_ml_strategy)
+
+
+if "backtest_metrics" not in st.session_state:
+    with st.spinner("Running backtest..."):
+        st.session_state.backtest_metrics = run_backtest_service()
+
+backtest_metrics = st.session_state.backtest_metrics
 
 # Header
 st.markdown('<div class="pulse-header">🧠 ZANALYTICS PULSE</div>', unsafe_allow_html=True)
@@ -291,7 +306,7 @@ with tab2:
 
     with col2:
         # Win rate gauge
-        win_rate = 68
+        win_rate = backtest_metrics["win_rate"] * 100
         fig_gauge = go.Figure(go.Indicator(
             mode="gauge+number+delta",
             value=win_rate,
@@ -310,10 +325,11 @@ with tab2:
 
     with col3:
         # Risk metrics
-        st.metric("Sharpe Ratio", "1.85", "0.15")
-        st.metric("Max Drawdown", "-8.5%", "2.1%")
-        st.metric("Profit Factor", "2.3", "0.3")
-        st.metric("Avg Risk/Reward", "1:2.5", "0.2")
+        st.metric("Sharpe Ratio", f"{backtest_metrics['sharpe_ratio']:.2f}")
+        st.metric("Max Drawdown", f"{backtest_metrics['max_drawdown']*100:.1f}%")
+        st.metric("Profit Factor", f"{backtest_metrics['profit_factor']:.2f}")
+        avg_rr = abs(backtest_metrics['avg_win'] / backtest_metrics['avg_loss']) if backtest_metrics['avg_loss'] else float('inf')
+        st.metric("Avg Risk/Reward", f"{avg_rr:.2f}")
 
 with tab3:
     st.subheader("Behavioral Pattern Analysis")
@@ -485,7 +501,8 @@ with st.sidebar:
     # Auto-refresh toggle
     auto_refresh = st.checkbox("Auto-refresh (5s)", value=False)
     if auto_refresh:
-        time.sleep(5)
+        with st.spinner("Updating backtest..."):
+            st.session_state.backtest_metrics = run_backtest_service()
         st.rerun()
 
     st.markdown("---")
