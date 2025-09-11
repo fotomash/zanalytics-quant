@@ -44,6 +44,12 @@ def load_confluence_weights() -> Dict[str, float]:
         return {}
 
 CONFLUENCE_WEIGHTS = load_confluence_weights()
+load_dotenv(dotenv_path=Path(__file__).parents[2] / '.env')
+from dashboard.components import (
+    create_metric_donut,
+    render_confluence_gates,
+    get_confluence_weights,
+)
 
 # --- Config utility: get_config_var ---
 def get_config_var(name, default=None):
@@ -172,6 +178,10 @@ def render_pulse_snapshot() -> None:
         )
     except Exception:
         pass
+    weights = get_confluence_weights()
+    components = score.get("components", {}) if isinstance(score, dict) else {}
+    if components:
+        render_confluence_gates(components, weights)
 
 
 render_pulse_snapshot()
