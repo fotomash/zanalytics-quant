@@ -2,12 +2,38 @@
 
 from typing import Any, Dict
 
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
 
-def process_payload(payload: Dict[str, Any]) -> None:
-    """Process a single analysis payload.
+# Lazily initialised global vectorizer
+_VECTORIZER: TfidfVectorizer | None = None
 
-    This placeholder function should be replaced with real vectorization
-    logic. For now, it simply prints the payload for debugging purposes.
+
+def process_payload(payload: Dict[str, Any]) -> np.ndarray:
+    """Transform payload text into a TF-IDF embedding.
+
+    Parameters
+    ----------
+    payload:
+        Dictionary containing a ``"text"`` field with the document to embed.
+
+    Returns
+    -------
+    np.ndarray
+        TF-IDF embedding of the provided text.
     """
-    # TODO: Implement vectorization logic
-    print("Processing payload:", payload)
+
+    if "text" not in payload:
+        raise KeyError("payload must contain a 'text' field")
+
+    text = payload["text"]
+    if not isinstance(text, str):
+        raise TypeError("'text' field must be of type str")
+
+    global _VECTORIZER
+    if _VECTORIZER is None:
+        _VECTORIZER = TfidfVectorizer()
+        _VECTORIZER.fit([text])
+
+    embedding = _VECTORIZER.transform([text]).toarray()
+    return np.asarray(embedding).flatten()
