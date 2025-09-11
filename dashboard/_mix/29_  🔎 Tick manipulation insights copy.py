@@ -2032,43 +2032,41 @@ if __name__ == "__main__":
         # FIXED: Preprocess data to ensure all columns exist
         df = analyzer.preprocess_data(df)
 
-        # Uptick / Downtick and Cumulative Delta quick viz
-        try:
-            if 'price_mid' not in df.columns:
-                df['price_mid'] = (df['bid'] + df['ask']) / 2
-            df['tick_dir'] = np.sign(df['price_mid'].diff()).fillna(0).astype(int)
-            vol_col = 'inferred_volume' if 'inferred_volume' in df.columns else ('volume' if 'volume' in df.columns else None)
-            if vol_col:
-                df['delta'] = df['tick_dir'] * df[vol_col].fillna(0)
-            else:
-                df['delta'] = df['tick_dir']
-            df['cum_delta'] = df['delta'].cumsum()
-            df['uptick_ratio_100'] = (df['tick_dir'] > 0).rolling(100, min_periods=10).mean()
+        # --- Upticks & Cumulative Delta -------------------------------------------------
+        # Compute mid price and order‑flow derived features
+        df['price_mid'] = (df['bid'] + df['ask']) / 2
+        df['tick_dir'] = np.sign(df['price_mid'].diff()).fillna(0).astype(int)
+        vol_col = (
+            'inferred_volume'
+            if 'inferred_volume' in df.columns
+            else ('volume' if 'volume' in df.columns else None)
+        )
+        df['delta'] = df['tick_dir'] * df[vol_col].fillna(0) if vol_col else df['tick_dir']
+        df['cum_delta'] = df['delta'].cumsum()
+        df['uptick_ratio_100'] = (df['tick_dir'] > 0).rolling(100).mean()
 
-            import plotly.graph_objects as go
-            from plotly.subplots import make_subplots
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
 
-            fig_ud = make_subplots(specs=[[{"secondary_y": True}]])
-            fig_ud.add_trace(
-                go.Scatter(x=df.index, y=df['price_mid'], name='Mid Price', line=dict(color='white', width=1)),
-                secondary_y=False,
-            )
-            fig_ud.add_trace(
-                go.Scatter(x=df.index, y=df['cum_delta'], name='Cumulative Delta', line=dict(color='deepskyblue', width=1)),
-                secondary_y=True,
-            )
-            fig_ud.add_trace(
-                go.Scatter(x=df.index, y=df['uptick_ratio_100'], name='Uptick Ratio (100)', line=dict(color='orange', width=1, dash='dot')),
-                secondary_y=True,
-            )
-            fig_ud.update_layout(height=320, template='plotly_dark', margin=dict(l=10, r=10, t=30, b=10))
-            fig_ud.update_yaxes(title_text="Price", secondary_y=False)
-            fig_ud.update_yaxes(title_text="Δ / Ratio", secondary_y=True)
+        fig_ud = make_subplots(specs=[[{"secondary_y": True}]])
+        fig_ud.add_trace(
+            go.Scatter(x=df.index, y=df['price_mid'], name='Mid Price', line=dict(color='white', width=1)),
+            secondary_y=False,
+        )
+        fig_ud.add_trace(
+            go.Scatter(x=df.index, y=df['cum_delta'], name='Cumulative Delta', line=dict(color='deepskyblue', width=1)),
+            secondary_y=True,
+        )
+        fig_ud.add_trace(
+            go.Scatter(x=df.index, y=df['uptick_ratio_100'], name='Uptick Ratio (100)', line=dict(color='orange', width=1, dash='dot')),
+            secondary_y=True,
+        )
+        fig_ud.update_layout(height=320, template='plotly_dark', margin=dict(l=10, r=10, t=30, b=10))
+        fig_ud.update_yaxes(title_text="Price", secondary_y=False)
+        fig_ud.update_yaxes(title_text="Δ / Ratio", secondary_y=True)
 
-            with st.expander("🔼 Upticks & Cumulative Delta", expanded=False):
-                st.plotly_chart(fig_ud, use_container_width=True)
-        except Exception as _e:
-            st.info("Uptick/Delta visualization unavailable (data missing)")
+        with st.expander("🔼 Upticks & Cumulative Delta", expanded=False):
+            st.plotly_chart(fig_ud, use_container_width=True)
 
         # Heuristic sanity‑check: does this look like real tick data?
         is_mock, diag = analyzer.detect_mock_data(df)
