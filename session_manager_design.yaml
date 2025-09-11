@@ -1,5 +1,6 @@
 instrument_pair: EURUSD
 timeframe: M15
+prompt_version: v1
 topics:
   consume:
     - raw-market-data

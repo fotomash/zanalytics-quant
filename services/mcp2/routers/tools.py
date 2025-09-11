@@ -7,6 +7,7 @@ from ..schemas import DocRecord
 from ..storage import redis_client
 from ..storage.pg import get_pool
 from ..auth import verify_api_key
+from ..kafka_producer import send_trade
 
 router = APIRouter(dependencies=[Depends(verify_api_key)])
 
@@ -47,6 +48,12 @@ async def log_enriched_trade(payload: StrategyPayloadV1):
     if KAFKA_ENABLED:
         producer = await get_producer()
         await producer.send_and_wait("mcp2.enriched_trades", data.encode())
+
+    try:
+        await send_trade(trade_id, payload.model_dump())
+    except Exception:
+        # Kafka is best-effort; ignore failures
+        pass
     return {'id': trade_id}
 
 

@@ -11,4 +11,5 @@ def test_build_session_manifest_applies_defaults_and_metadata():
     assert manifest["instrument_pair"] == "GBPUSD"
     assert manifest["timeframe"] == "M15"
     assert manifest["topics"]["consume"] == ["raw-market-data"]
+    assert manifest["prompt_version"] == "v1"
     assert "created_at" in manifest["metadata"]

@@ -3,8 +3,19 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from typing import Optional, List, Any, Dict
 import math
+import os
+import threading
+import time
+import json
 from prometheus_client import Counter, Gauge, REGISTRY, generate_latest
 from schemas.health import HealthStatus
+
+try:  # pragma: no cover - optional dependency
+    import redis  # type: ignore
+except Exception:  # pragma: no cover - no redis available
+    redis = None  # type: ignore
+
+from alerts.telegram_alerts import _send as _send_telegram  # type: ignore
 
 try:
     import MetaTrader5 as mt5
@@ -25,6 +36,50 @@ raw_messages_published_total = Counter(
 mt5_connection = Gauge("mt5_connection", "MT5 connection status (1=ok,0=down)")
 
 
+HEARTBEAT_CHANNEL = os.getenv("MT5_HEARTBEAT_CHANNEL", "monitoring:mt5")
+HEARTBEAT_INTERVAL = float(os.getenv("MT5_HEARTBEAT_INTERVAL", "30"))
+ALERT_THRESHOLD = float(os.getenv("MT5_HEARTBEAT_ALERT_THRESHOLD", "90"))
+
+_last_heartbeat = time.time()
+
+
+def _heartbeat_publisher() -> None:
+    """Publish periodic heartbeats to Redis."""
+    global _last_heartbeat
+    if not redis:
+        return
+    try:
+        rds = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
+    except Exception:
+        return
+    while True:
+        payload = json.dumps({"ts": time.time()})
+        try:
+            rds.publish(HEARTBEAT_CHANNEL, payload)
+            _last_heartbeat = time.time()
+        except Exception:
+            pass
+        time.sleep(HEARTBEAT_INTERVAL)
+
+
+def _heartbeat_watchdog() -> None:
+    """Trigger alert if heartbeat publishing stops."""
+    alerted = False
+    while True:
+        elapsed = time.time() - _last_heartbeat
+        if elapsed > ALERT_THRESHOLD and not alerted:
+            try:
+                _send_telegram(
+                    f"⚠️ MT5 heartbeat missing for {int(elapsed)}s"
+                )
+            except Exception:
+                pass
+            alerted = True
+        elif elapsed <= ALERT_THRESHOLD:
+            alerted = False
+        time.sleep(max(HEARTBEAT_INTERVAL, ALERT_THRESHOLD / 2))
+
+
 @app.on_event("startup")
 def startup():
     if _mt5_import_error is not None:
@@ -32,7 +87,6 @@ def startup():
     if not mt5.initialize():
         raise RuntimeError(f"mt5.initialize() failed: {mt5.last_error()}")
     # Attempt login if env credentials are provided
-    import os
     login = os.getenv("MT5_LOGIN")
     password = os.getenv("MT5_PASSWORD")
     server = os.getenv("MT5_SERVER")
@@ -42,6 +96,10 @@ def startup():
         except Exception:
             # Non-fatal; endpoints will surface failures
             pass
+    global _last_heartbeat
+    _last_heartbeat = time.time()
+    threading.Thread(target=_heartbeat_publisher, daemon=True).start()
+    threading.Thread(target=_heartbeat_watchdog, daemon=True).start()
 
 
 @app.on_event("shutdown")

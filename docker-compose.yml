@@ -725,7 +725,7 @@ services:
     environment:
       POSTGRES_PASSWORD: postgres
     volumes:
-      - ./services/mcp2/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./services/mcp2/init.sql:/docker-entrypoint-initdb.d/init.sql:ro # initialize docs table
     restart: unless-stopped
     networks:
       - default
@@ -737,8 +737,11 @@ services:
     container_name: mcp2
     environment:
       - REDIS_URL=redis://mcp2-redis:6379/0
+      - REDIS_STREAMS_URL=${REDIS_STREAMS_URL:-redis://redis:6379/0}
       - DATABASE_URL=postgresql://postgres:postgres@mcp2-pg:5432/postgres
       - MCP2_API_KEY=${MCP2_API_KEY:-}
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      - KAFKA_TOPIC=${KAFKA_TOPIC:-mcp2.enriched_trades}
     depends_on:
       mcp2-redis:
         condition: service_started
@@ -754,6 +757,7 @@ services:
     networks:
       - traefik-public
       - default
+      - data-pipeline
     labels:
       <<: *default-labels
       traefik.enable: true
@@ -872,8 +876,8 @@ services:
 
   vectorization-service:
     build:
-      context: services/vectorization_service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/vectorization_service/Dockerfile
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
       - KAFKA_GROUP_ID=${KAFKA_GROUP_ID:-vectorization-service}

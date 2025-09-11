@@ -10,6 +10,7 @@ An OpenAI tools manifest at [`docs/connectors/actions_openai_mcp2.yaml`](connect
 | `fetch_payload`    | `GET /fetch_payload` |
 | `log_enriched_trade` | `POST /log_enriched_trade` |
 | `get_recent_trades` | `GET /trades/recent` |
+The accompanying `mcp2-pg` container loads [services/mcp2/init.sql](../services/mcp2/init.sql) on startup to create the `docs` table used for searches.
 
 ## Startup
 Build and run the service locally:
@@ -20,11 +21,25 @@ docker run --rm -p 8002:8002 mcp2-service \
   uvicorn services.mcp2.app:app --host 0.0.0.0 --port 8002
 ```
 
+## Auth
+Set a secret in `MCP2_API_KEY` and include it with every request using the `X-API-Key` header:
+
+```bash
+curl -H "X-API-Key: $MCP2_API_KEY" "$MCP_HOST/search_docs?query=alpha"
+```
+
 ## Health
 Verify the service is up:
 
 ```bash
 curl -s $MCP_HOST/health
+```
+
+## Metrics
+Prometheus metrics are exposed at `/metrics`:
+
+```bash
+curl -s $MCP_HOST/metrics | head
 ```
 
 ## Trade Logging
@@ -60,3 +75,19 @@ Setting the environment variable `MCP2_ENABLE_KAFKA=true` enables an optional Ka
 When enabled, every payload sent to `POST /log_enriched_trade` is also produced to the `mcp2.enriched_trades` topic.
 The producer connects to the broker configured by `MCP2_KAFKA_BOOTSTRAP` (default `localhost:9092`).
 
+
+## Kafka
+If `KAFKA_BROKERS` is configured the service also publishes payloads to the `enriched-analysis-payloads` topic. Without brokers the producer operates as a no-op.
+
+```bash
+export KAFKA_BROKERS=localhost:9092
+# logs still succeed even if Kafka is unreachable
+```
+
+## Redis Streams
+Enriched signals are mirrored into Redis Streams. Inspect them via `redis-cli`:
+
+```bash
+redis-cli XRANGE ml:signals - + LIMIT 5
+redis-cli XRANGE ml:risk - + LIMIT 5
+```

@@ -17,6 +17,8 @@ from confluent_kafka import Consumer
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+VERSION_PREFIX = os.getenv("STREAM_VERSION_PREFIX", "v2")
+
 class TickToBarService:
     def __init__(self):
         self.redis_host = os.getenv('REDIS_HOST', 'redis')
@@ -149,7 +151,7 @@ class TickToBarService:
         logger.info(f"Starting tick listener for symbols: {symbols}")
 
         # Create stream keys
-        streams = {f"tick:{symbol}": '0' for symbol in symbols}
+        streams = {f"{VERSION_PREFIX}:ticks:{symbol}": '0' for symbol in symbols}
 
         while True:
             try:
@@ -157,7 +159,7 @@ class TickToBarService:
                 messages = self.redis_client.xread(streams, block=1000, count=100)
 
                 for stream_name, stream_messages in messages:
-                    symbol = stream_name.split(':')[1]
+                    symbol = stream_name.split(':')[-1]
 
                     for message_id, data in stream_messages:
                         logger.debug(f"Processing tick for {symbol}: {data}")
