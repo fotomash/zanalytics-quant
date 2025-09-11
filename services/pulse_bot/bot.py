@@ -59,6 +59,8 @@ def get_kernel() -> PulseKernel:
         cfg_path = os.getenv("PULSE_CONFIG", "pulse_config.yaml")
         if not os.path.exists(cfg_path):
             logger.warning("Pulse config file %s not found; using defaults", cfg_path)
+        else:
+            logger.info("Using Pulse config %s", cfg_path)
         kernel = PulseKernel(cfg_path)
     return kernel
 
