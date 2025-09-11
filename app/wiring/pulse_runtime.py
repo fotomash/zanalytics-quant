@@ -27,7 +27,12 @@ class PulseRuntime:
     def connect_mt5(self) -> bool:
         if self.connected:
             return True
-        self.connected = self.mt5.connect()
+        try:
+            self.mt5.connect()
+            self.connected = True
+        except RuntimeError as e:
+            logger.error("MT5 connection failed: %s", e)
+            self.connected = False
         return self.connected
 
     # ---------- DATA SOURCES ----------

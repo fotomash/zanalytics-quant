@@ -44,11 +44,13 @@ class MT5Bridge:
         if not mt5.initialize():
             logger.error("MT5 initialization failed")
             raise RuntimeError("MT5 initialization failed")
+n
 
         if self.account:
             authorized = mt5.login(self.account, password=self.password, server=self.server)
             if not authorized:
-                logger.error("Failed to connect to account %s", self.account)
+
+                logger.error(f"Failed to connect to account {self.account}")
                 mt5.shutdown()
                 raise RuntimeError(f"Failed to connect to account {self.account}")
 
@@ -302,6 +304,7 @@ class MT5Bridge:
             logger.error("Failed to sync journal to API: %s", e)
             raise RuntimeError(f"Failed to sync journal to API: {e}")
 
+
         return len(payload)
 
     def generate_weekly_review(self) -> Dict:
@@ -360,10 +363,10 @@ class MT5Bridge:
 
 if __name__ == "__main__":
     bridge = MT5Bridge()
-    print("MT5 Bridge initialized")
-    print("This bridge provides:")
-    print("- Real trade history with behavioral analysis")
-    print("- Pattern detection (revenge, overconfidence, fatigue, FOMO)")
-    print("- Confluence score validation against outcomes")
-    print("- Weekly behavioral reviews")
-    print("- Direct sync with Pulse signal journal")
+    logger.warning("MT5 Bridge initialized")
+    logger.warning("This bridge provides:")
+    logger.warning("- Real trade history with behavioral analysis")
+    logger.warning("- Pattern detection (revenge, overconfidence, fatigue, FOMO)")
+    logger.warning("- Confluence score validation against outcomes")
+    logger.warning("- Weekly behavioral reviews")
+    logger.warning("- Direct sync with Pulse signal journal")
