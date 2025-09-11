@@ -1,0 +1,5 @@
+agent:
+  id: "ncos_liquidity_agent"
+  name: "NCOS Liquidity Agent"
+  version: "1.0.0"
+  type: "liquidity_analysis"

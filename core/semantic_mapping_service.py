@@ -39,14 +39,29 @@ import re
 from typing import List, Optional, Tuple
 from __future__ import annotations
 
+"""Lightweight semantic mapping service.
+
+The real project ships with a fairly feature rich implementation.  For the
+purposes of the kata and unit tests we only implement a tiny subset of the
+behaviour.  The service can read agent routing metadata from the agent
+registry and use simple keyword matching to resolve a request to a primary
+agent and optional fallbacks.
+
+The module also exposes a trivial static :func:`route` method used by the
+``BootstrapEngine`` for confidence based fallbacks.  Tests may monkey‑patch
+this static method as required.
+"""
+
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
 
 class SemanticMappingService:
+    """Resolve text requests to agents using routing hints.
+
     """Service that routes text to agents based on semantic mappings.
 
     The mappings are defined in a YAML file with the following structure::
@@ -173,14 +188,14 @@ class SemanticMappingService:
 
     Parameters
     ----------
-    mapping_path:
-        Optional path to the YAML mapping file. If not provided the service
-        looks for ``mapping_interface_v2_final.yaml`` in the current working
-        directory.
+    registry:
+        Optional registry mapping agent identifiers to objects containing a
+        ``path`` attribute pointing at the agent's YAML configuration.  The
+        YAML file may include a ``routing`` section with ``primary``,
+        ``fallback`` and ``hints.keywords`` fields.
     """
 
-    def __init__(self, mapping_path: Optional[str] = None) -> None:
-        self.mapping_path = Path(mapping_path or "mapping_interface_v2_final.yaml")
+    def __init__(self, registry: Optional[Dict[str, Any]] = None) -> None:
         self.keyword_map: Dict[str, Tuple[str, List[str]]] = {}
         self.regex_map: List[Tuple[re.Pattern[str], str, List[str]]] = []
         self._load_mappings()
@@ -220,20 +235,54 @@ class SemanticMappingService:
         The method first attempts keyword based matching. If no keyword matches,
         regular expression rules are evaluated. If no rules match,
         ``(None, [])`` is returned.
+        if registry:
+            self._load_registry(registry)
+
+    # ------------------------------------------------------------------
+    # Registry loading
+    # ------------------------------------------------------------------
+    def _load_registry(self, registry: Dict[str, Any]) -> None:
+        for agent_id, spec in registry.items():
+            path = getattr(spec, "path", None)
+            if path is None and isinstance(spec, dict):
+                path = spec.get("path")
+            if path is None:
+                continue
+            try:
+                with Path(path).open("r", encoding="utf-8") as fh:
+                    data = yaml.safe_load(fh) or {}
+            except FileNotFoundError:  # pragma: no cover - defensive
+                continue
+            agent_cfg = data.get("agent", {})
+            routing = agent_cfg.get("routing", {})
+            if not routing.get("primary"):
+                continue
+            fallbacks = routing.get("fallback", []) or []
+            hints = routing.get("hints", {})
+            keywords: List[str]
+            if isinstance(hints, dict):
+                keywords = list(hints.get("keywords", []) or [])
+            else:
+                keywords = list(hints or [])
+            for kw in keywords:
+                self.keyword_map[kw.lower()] = (agent_id, list(fallbacks))
+
+    # ------------------------------------------------------------------
+    # Resolution API
+    # ------------------------------------------------------------------
+    def resolve(self, text: str) -> Tuple[Optional[str], List[str]]:
+        """Return ``(primary, fallbacks)`` for ``text``.
+
+        Matching is case insensitive and based on simple token membership.
+        ``None`` is returned when no keyword matches.
         """
 
-        text = request_text.lower()
-        tokens = set(re.findall(r"\b\w+\b", text))
-
+        tokens = set(re.findall(r"\b\w+\b", text.lower()))
         for keyword, mapping in self.keyword_map.items():
             if keyword in tokens:
                 return mapping
-
-        for pattern, primary, fallback in self.regex_map:
-            if pattern.search(request_text):
-                return primary, fallback
-
         return None, []
+
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -314,12 +363,15 @@ from typing import List
 class SemanticMappingService:
     """Return fallback agent identifiers for a given primary agent."""
 
+    # ------------------------------------------------------------------
+    # Fallback stub used by ``BootstrapEngine``
+    # ------------------------------------------------------------------
     @staticmethod
     def route(agent_id: str) -> List[str]:  # pragma: no cover - trivial
-        """Return an ordered list of fallback agent identifiers.
+        """Return fallbacks for ``agent_id``.
 
-        The default implementation returns an empty list.  Unit tests
-        typically patch this method to supply custom routing behaviour.
+        The default implementation returns an empty list.  Tests may
+        monkey‑patch this method to provide custom behaviour.
         """
 
         return []
