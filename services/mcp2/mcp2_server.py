@@ -6,6 +6,8 @@ from typing import List
 
 from fastapi import FastAPI, Depends, Header, HTTPException
 from pydantic import BaseModel
+
+from .models import BasePayload
 import asyncpg
 import redis.asyncio as redis
 
@@ -19,7 +21,7 @@ class ToolInfo(BaseModel):
     content: str | None = None
 
 
-class ToolSearchRequest(BaseModel):
+class ToolSearchRequest(BasePayload):
     """Request model for tool search."""
 
     query: str
@@ -29,9 +31,10 @@ class ToolSearchResponse(BaseModel):
     """Response model for tool search."""
 
     results: List[ToolInfo]
+    payload: BasePayload
 
 
-class ToolFetchRequest(BaseModel):
+class ToolFetchRequest(BasePayload):
     """Request model for fetching tools by id."""
 
     ids: List[int]
@@ -41,6 +44,7 @@ class ToolFetchResponse(BaseModel):
     """Response model containing full tool records."""
 
     tools: List[ToolInfo]
+    payload: BasePayload
 
 
 class JsonFormatter(logging.Formatter):
@@ -157,7 +161,7 @@ async def tools_search(payload: ToolSearchRequest) -> ToolSearchResponse:
         pattern,
     )
     results = [ToolInfo(id=r["id"], name=r["name"], description=r["description"]) for r in rows]
-    response = ToolSearchResponse(results=results)
+    response = ToolSearchResponse(results=results, payload=payload)
     await redis_client.set(cache_key, response.model_dump_json(), ex=60)
     logger.info("search", extra={"query": payload.query, "count": len(results)})
     return response
@@ -193,4 +197,4 @@ async def tools_fetch(payload: ToolFetchRequest) -> ToolFetchResponse:
             await redis_client.set(f"tool:{info.id}", info.model_dump_json(), ex=300)
 
     logger.info("fetch", extra={"count": len(tools)})
-    return ToolFetchResponse(tools=tools)
+    return ToolFetchResponse(tools=tools, payload=payload)
