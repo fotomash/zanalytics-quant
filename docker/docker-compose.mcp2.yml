@@ -15,11 +15,17 @@ services:
       POSTGRES_HOST: ${POSTGRES_HOST}
       POSTGRES_PORT: ${POSTGRES_PORT}
       MCP_API_KEY: ${MCP_API_KEY}
-    ports:
-      - "8002:8002"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-public"
+      - "traefik.http.routers.mcp2.rule=Host(`mcp2.example.com`)"
+      - "traefik.http.routers.mcp2.entrypoints=https"
+      - "traefik.http.routers.mcp2.tls.certresolver=le"
+      - "traefik.http.services.mcp2.loadbalancer.server.port=8002"
     volumes:
       - mcp2-data:/app/data
     networks:
+      - traefik-public
       - mcp2-network
 
   redis:
@@ -50,3 +56,5 @@ volumes:
 networks:
   mcp2-network:
     driver: bridge
+  traefik-public:
+    external: true
