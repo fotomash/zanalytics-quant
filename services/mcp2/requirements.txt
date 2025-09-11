@@ -4,3 +4,4 @@ pydantic>=2
 redis
 sqlalchemy
 asyncpg
+prometheus_client==0.22.1
