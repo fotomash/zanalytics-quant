@@ -1,4 +1,6 @@
 import streamlit as st
+import yaml
+from pathlib import Path
 
 ICON_MAP = {
     "wyckoff": "\U0001F9E0",  # 🧠
@@ -78,4 +80,32 @@ def render_confluence_gates(scores: dict, weights: dict):
             """,
             unsafe_allow_html=True,
         )
+
+
+def get_confluence_weights(path: str | Path | None = None) -> dict:
+    """Load confluence weights from hybrid_confluence.yaml.
+
+    Parameters
+    ----------
+    path: str | Path | None
+        Optional override path to the YAML config. When ``None`` the
+        repository's ``knowledge/strategies/hybrid_confluence.yaml`` is used.
+
+    Returns
+    -------
+    dict
+        Mapping of gate name -> weight. Returns an empty dict if loading fails.
+    """
+
+    if path is None:
+        path = Path(__file__).resolve().parents[2] / "knowledge" / "strategies" / "hybrid_confluence.yaml"
+
+    try:
+        data = yaml.safe_load(Path(path).read_text()) or {}
+        return data.get("confluence_weights", {}) or {}
+    except Exception:
+        return {}
+
+
+__all__ = ["render_confluence_gates", "get_confluence_weights"]
 

@@ -33,7 +33,11 @@ load_dotenv(dotenv_path=Path(__file__).parents[2] / ".env")
 
 
 load_dotenv(dotenv_path=Path(__file__).parents[2] / '.env')
-from dashboard.components import create_metric_donut
+from dashboard.components import (
+    create_metric_donut,
+    render_confluence_gates,
+    get_confluence_weights,
+)
 
 # --- Config utility: get_config_var ---
 def get_config_var(name, default=None):
@@ -154,6 +158,11 @@ def render_pulse_snapshot() -> None:
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
             st.markdown('</div>', unsafe_allow_html=True)
     st.page_link("pages/03_ 📰 MACRO & NEWS.py", label="Open Macro & News", icon="📰")
+
+    weights = get_confluence_weights()
+    components = score.get("components", {}) if isinstance(score, dict) else {}
+    if components:
+        render_confluence_gates(components, weights)
 
 
 render_pulse_snapshot()
