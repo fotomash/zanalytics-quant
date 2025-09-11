@@ -968,6 +968,7 @@ class QuantumMicrostructureAnalyzer:
             'inferred_volumes': [],
             'iceberg_events': [],
             'spoofing_events': [],
+            'layering_events': [],
             'manipulation_score': 0,
             'manipulation_score': 0,
             'market_regime': 'normal',
@@ -1604,6 +1605,9 @@ These documents expand on engineered-liquidity traps, Wyckoff sweeps, and the VP
         try:
             all_events = (
                 [{'time': e['timestamp'], 'type': e['type'], 'conf': e['confidence']} for e in self.session_state['spoofing_events']] +
+                [{'time': e['start_time'], 'type': e['type'], 'conf': e['confidence']} for e in self.session_state['iceberg_events']] +
+                [{'time': e['timestamp'], 'type': e['type'], 'conf': e['confidence']} for e in self.session_state.get('layering_events', [])]
+
                 [{'time': e['timestamp'], 'type': e['type'], 'conf': e['confidence']} for e in self.session_state.get('layering_events', [])] +
                 [{'time': e['start_time'], 'type': e['type'], 'conf': e['confidence']} for e in self.session_state['iceberg_events']]
             )
@@ -1621,6 +1625,9 @@ These documents expand on engineered-liquidity traps, Wyckoff sweeps, and the VP
                     )
                 fig5.update_layout(title="Manipulation Timeline", xaxis_title="Time", yaxis_title="Confidence", showlegend=True)
                 st.plotly_chart(fig5, use_container_width=True)
+                st.caption("Manipulation Timeline: Plots the timing and confidence of detected spoofing, iceberg, and layering events. Each marker represents a detected event, with its confidence score.")
+                # Dynamic commentary
+                st.markdown(f"**Summary:** {len(self.session_state['spoofing_events'])} spoofing, {len(self.session_state['iceberg_events'])} iceberg, and {len(self.session_state.get('layering_events', []))} layering events recorded in view.")
                 st.caption("Manipulation Timeline: Plots the timing and confidence of detected spoofing, layering, and iceberg events. Each marker represents a detected event, with its confidence score.")
                 # Dynamic commentary
                 st.markdown(f"**Summary:** {len(self.session_state['spoofing_events'])} spoofing, {len(self.session_state['iceberg_events'])} iceberg, {len(self.session_state.get('layering_events', []))} layering events recorded in view.")
@@ -2125,6 +2132,7 @@ if __name__ == "__main__":
         # Calculate manipulation score
         total_events = (len(analyzer.session_state['iceberg_events']) +
                        len(analyzer.session_state['spoofing_events']) +
+                       len(analyzer.session_state['quote_stuffing_events']) +
                        len(quote_stuffing) +
                        len(analyzer.session_state['layering_events']))
         analyzer.session_state['manipulation_score'] = min(total_events / 10, 10)
