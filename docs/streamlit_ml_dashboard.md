@@ -22,8 +22,9 @@ in the Streamlit sidebar:
 
 - `STREAMLIT_REDIS_HOST` – Redis host (default `localhost`)
 - `STREAMLIT_REDIS_PORT` – Redis port (default `6379`)
-- `ML_SIGNAL_STREAM` – Redis stream carrying full model outputs (default `ml:signals`)
-- `ML_RISK_STREAM` – Redis stream carrying risk updates (default `ml:risk`)
+- `STREAM_VERSION` – Stream version suffix (default `1`)
+- `ML_SIGNAL_STREAM` – Redis stream carrying full model outputs (default `ml:signals:v<STREAM_VERSION>`)
+- `ML_RISK_STREAM` – Redis stream carrying risk updates (default `ml:risk:v<STREAM_VERSION>`)
 - `STREAMLIT_REFRESH_INTERVAL` – Refresh interval in seconds (default `5`)
 
 Use the sidebar to select which metrics to plot and how often the dashboard

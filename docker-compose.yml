@@ -804,8 +804,9 @@ services:
     environment:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
-      - ML_SIGNAL_STREAM=${ML_SIGNAL_STREAM:-ml:signals}
-      - ML_RISK_STREAM=${ML_RISK_STREAM:-ml:risk}
+      - STREAM_VERSION=${STREAM_VERSION:-1}
+      - ML_SIGNAL_STREAM
+      - ML_RISK_STREAM
     command: sh -lc "pip install --no-cache-dir redis && python services/redis_ml_bridge.py"
     depends_on:
       redis:
