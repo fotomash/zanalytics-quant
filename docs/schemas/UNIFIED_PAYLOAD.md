@@ -3,7 +3,9 @@
 `UnifiedAnalysisPayloadV1` aggregates several analytic dimensions into a single
 object for transport between services. The schema is implemented with
 [pydantic](https://docs.pydantic.dev/) models in `schemas/payloads.py` and is
-designed to be easily serialized to JSON.
+designed to be easily serialized to JSON. The enrichment service assembles this
+payload after its pipeline completes and publishes the serialized JSON to the
+`enriched-analysis-payloads` Kafka topic.
 
 Typical creation pattern:
 
@@ -27,6 +29,11 @@ payload = UnifiedAnalysisPayloadV1(
     smc=SMCAnalysis(),
     wyckoff=WyckoffAnalysis(),
     microstructure=MicrostructureAnalysis(),
+)
+
+# Serialize and publish
+producer.produce(
+    "enriched-analysis-payloads", payload.model_dump_json().encode("utf-8")
 )
 ```
 
