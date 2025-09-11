@@ -19,17 +19,44 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import uuid
-from typing import Any, Dict, List
+from typing import Any, Dict, List, TYPE_CHECKING
 
-from services.mcp2.llm_config import call_local_echo, LOCAL_THRESHOLD
+from services.mcp2.llm_config import call_local_echo
+from services.mcp2 import llm_config
 
-from sentence_transformers import SentenceTransformer
+if TYPE_CHECKING:  # pragma: no cover - for type checkers only
+    from sentence_transformers import SentenceTransformer
 
-# Load a small transformer model once at import time.  The
-# ``paraphrase-MiniLM-L3-v2`` model is only ~70MB and produces 384‑dimensional
-# embeddings which are sufficient for unit tests and lightweight feature
-# computation.
-_MODEL = SentenceTransformer("paraphrase-MiniLM-L3-v2")
+
+class _MockSentenceTransformer:
+    """Minimal stand‑in used when the real model is unavailable."""
+
+    def __init__(self, dim: int = 384) -> None:
+        self.dim = dim
+
+    def encode(self, text: str) -> List[float]:  # pragma: no cover - trivial
+        return [0.0] * self.dim
+
+
+_MODEL: "SentenceTransformer | _MockSentenceTransformer | None" = None
+
+
+def _get_model() -> "SentenceTransformer | _MockSentenceTransformer":
+    """Return a cached SentenceTransformer model instance.
+
+    The model is loaded lazily on first use.  If the library or model weights
+    are unavailable, a deterministic mock model is used instead so callers can
+    continue operating with a zero vector embedding.
+    """
+
+    global _MODEL
+    if _MODEL is None:
+        try:  # pragma: no cover - exercised in tests via monkeypatching
+            from sentence_transformers import SentenceTransformer
+            _MODEL = SentenceTransformer("paraphrase-MiniLM-L3-v2")
+        except Exception:  # pragma: no cover - fallback path
+            _MODEL = _MockSentenceTransformer()
+    return _MODEL
 
 
 def load_manifest(path: str | Path) -> Dict[str, Any]:
@@ -41,8 +68,14 @@ def load_manifest(path: str | Path) -> Dict[str, Any]:
         Location of the manifest JSON file.
     """
 
-    with Path(path).open("r", encoding="utf-8") as fh:
-        return json.load(fh)
+    p = Path(path)
+    if not p.exists():
+        raise ValueError(f"Manifest file does not exist: {p}")
+    try:
+        with p.open("r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON in manifest file {p}: {exc}") from exc
 
 
 def load_confidence_matrix(path: str | Path) -> Dict[str, Any]:
@@ -52,8 +85,14 @@ def load_confidence_matrix(path: str | Path) -> Dict[str, Any]:
     ``weight`` field.  These weights will be aggregated by :func:`enrich_ticks`.
     """
 
-    with Path(path).open("r", encoding="utf-8") as fh:
-        return json.load(fh)
+    p = Path(path)
+    if not p.exists():
+        raise ValueError(f"Confidence matrix file does not exist: {p}")
+    try:
+        with p.open("r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON in confidence matrix file {p}: {exc}") from exc
 
 
 def _generate_trade_id(trade_id: str | None = None) -> str:
@@ -94,6 +133,7 @@ def enrich_ticks(
     confidence = sum(v.get("weight", 0) for v in matrix.values() if isinstance(v, dict))
 
     model_name = manifest.get("name_for_model", "model")
+    model = _get_model()
 
     enriched: List[dict] = []
     whisper_queue: List[dict] = []
@@ -108,7 +148,11 @@ def enrich_ticks(
         nudge = f"{model_name} sees {phase} phase with confidence {confidence:.2f}"
 
         # Embedding vector for the nudge text
-        embedding = _MODEL.encode(nudge).tolist()
+        embedding = model.encode(nudge)
+        if hasattr(embedding, "tolist"):
+            embedding = embedding.tolist()
+        else:  # pragma: no cover - mock model already returns list
+            embedding = list(embedding)
 
         data.update(
             {
@@ -121,7 +165,7 @@ def enrich_ticks(
             }
         )
 
-        if data["confidence"] < LOCAL_THRESHOLD or data["phase"] in {
+        if data["confidence"] < llm_config.LOCAL_THRESHOLD or data["phase"] in {
             "spring",
             "distribution",
         }:

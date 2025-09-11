@@ -1,9 +1,13 @@
 import os
 import asyncio
-import httpx
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+
 from ..auth import verify_api_key
+import yaml
 
 router = APIRouter(dependencies=[Depends(verify_api_key)])
 
@@ -44,7 +48,7 @@ async def whisperer(req: WhisperRequest) -> WhisperResponse:
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from ..auth import verify_api_key
@@ -54,6 +58,7 @@ try:  # optional dependency; service works without it
     from openai import OpenAI  # type: ignore
 except Exception:  # pragma: no cover
     OpenAI = None  # type: ignore
+
 
 router = APIRouter(prefix="/llm", dependencies=[Depends(verify_api_key)], tags=["llm"])
 
@@ -69,6 +74,7 @@ class WhisperRequest(BaseModel):
 class ResponseMeta(BaseModel):
     endpoint: str
     version: str
+    stub: bool = Field(False, description="True when response is a stub due to missing OpenAI")
 
 
 class WhisperResponse(BaseModel):
@@ -112,11 +118,11 @@ async def _suggest(body: WhisperRequest, endpoint: str, nudges: bool) -> Whisper
     if not api_key or OpenAI is None:
         # Deterministic stub for offline/dev
         return WhisperResponse(
-            signal="Bias modest; await higher confluence and clean structure.",
+            signal="[stub] Bias modest; await higher confluence and clean structure.",
             risk="Respect cooldown; size <= max_risk; avoid news whips.",
             action="No trade yet; set alerts at key levels; review after next bar.",
             journal="Context logged; hypothesis: momentum fragile; watch liquidity sweeps.",
-            meta=ResponseMeta(endpoint=endpoint, version=VERSION),
+            meta=ResponseMeta(endpoint=endpoint, version=VERSION, stub=True),
         )
 
     try:
@@ -162,3 +168,54 @@ async def whisperer_suggest(body: WhisperRequest) -> WhisperResponse:
 async def simple_suggest(body: WhisperRequest) -> WhisperResponse:
     """Return baseline guidance without behavioral nudges."""
     return await _suggest(body, endpoint="simple", nudges=False)
+
+
+class ManifestRequest(BaseModel):
+    key: str
+    ctx: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ManifestResponse(BaseModel):
+    response: str
+    stub: bool = False
+
+
+@router.post("/run_manifest", response_model=ManifestResponse)
+async def run_manifest(body: ManifestRequest) -> ManifestResponse:
+    """Render a prompt from ``session_manifest.yaml`` and return the LLM response."""
+    manifest_path = Path(__file__).resolve().parents[3] / "session_manifest.yaml"
+    try:
+        with manifest_path.open("r", encoding="utf-8") as fh:
+            manifest = yaml.safe_load(fh) or {}
+    except FileNotFoundError:  # pragma: no cover - misconfiguration
+        raise HTTPException(status_code=503, detail="session manifest missing")
+
+    prompts = manifest.get("whisperer_prompts", {})
+    template = prompts.get(body.key)
+    if not template:
+        raise HTTPException(status_code=404, detail="prompt key not found")
+
+    try:
+        prompt = template.format(**body.ctx)
+    except KeyError as exc:
+        raise HTTPException(status_code=400, detail=f"missing ctx key: {exc.args[0]}")
+
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+    if not api_key or OpenAI is None:
+        return ManifestResponse(response=prompt, stub=True)
+
+    try:
+        client = OpenAI(api_key=api_key)
+        msg = await asyncio.to_thread(
+            client.chat.completions.create,
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+        )
+        content = (msg.choices[0].message.content or "").strip()
+    except Exception as e:  # pragma: no cover - network failure
+        raise HTTPException(status_code=503, detail="LLM service unavailable") from e
+
+    return ManifestResponse(response=content)

@@ -58,6 +58,18 @@ def test_openai_failure_returns_503(client, monkeypatch):
     assert resp.status_code == 503
 
 
+def test_stub_flag_when_api_key_missing(client, monkeypatch):
+    monkeypatch.delenv('OPENAI_API_KEY', raising=False)
+    # ensure no OpenAI client to avoid network calls
+    monkeypatch.setattr(llm_router, 'OpenAI', None)
+
+    resp = client.post('/llm/whisperer', json={'payload': _sample_payload()})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data['meta']['stub'] is True
+    assert data['signal'].startswith('[stub]')
+
+
 def test_slow_openai_call_does_not_block(monkeypatch):
     from fastapi import FastAPI
 
@@ -101,3 +113,25 @@ def test_slow_openai_call_does_not_block(monkeypatch):
             assert resp.status_code == 200
 
     asyncio.run(run_test())
+
+
+def test_run_manifest_valid_key(client, monkeypatch):
+    monkeypatch.delenv('OPENAI_API_KEY', raising=False)
+    monkeypatch.setattr(llm_router, 'OpenAI', None)
+
+    resp = client.post(
+        '/llm/run_manifest',
+        json={'key': 'wyckoff_simulation', 'ctx': {'ticker': 'BTC'}},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data['stub'] is True
+    assert 'BTC' in data['response']
+
+
+def test_run_manifest_missing_key(client, monkeypatch):
+    monkeypatch.delenv('OPENAI_API_KEY', raising=False)
+    monkeypatch.setattr(llm_router, 'OpenAI', None)
+
+    resp = client.post('/llm/run_manifest', json={'key': 'does_not_exist', 'ctx': {}})
+    assert resp.status_code == 404

@@ -1040,12 +1040,18 @@ services:
       - default
 
   ollama:
-    image: ollama/ollama
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
     ports:
       - "11434:11434"
     volumes:
-      - ollama:/root/.ollama
-    command: run llama3
+      - ollama-models:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=5m
+    networks:
+      - default
+
 
 volumes:
   grafana-data: {}
@@ -1054,6 +1060,7 @@ volumes:
   postgres-data: {}
   static_volume: {}
   timescale-data: {}
+  ollama-models: {}
   ollama: {}
 
 networks:

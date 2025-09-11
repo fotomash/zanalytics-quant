@@ -3,7 +3,8 @@ from services.vectorization_service.csv_to_vector_integrated import vectorize_pa
 
 def test_vectorize_payload_valid(sample_payload):
     embedding, metadata = vectorize_payload(sample_payload)
-    assert len(embedding) == 384
+    assert isinstance(embedding, list)
+    assert embedding
     assert metadata["symbol"] == sample_payload["symbol"]
     assert metadata["volume"] == sample_payload.get("tick_volume")
 

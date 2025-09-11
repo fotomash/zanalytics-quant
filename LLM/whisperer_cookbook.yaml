@@ -88,7 +88,7 @@ playbooks:  # Scenario-specific guides with extensive starters
     starters:
       - "Show me the smart money footprint on {symbol}"
       - "Are we hunting stops right now?"
-      - "What Wyckoff phase are we in?"
+      - "What Wyckoff phase are we in? According to the shared aversion model, what fear is the trader mitigating here?"
       - "Am I at a potential top/bottom?"  # From TXT guide
       - "Run Zanflow v12 analysis"  # From MD summary
       - "Simulate omniscient view of {symbol}"  # From TAR
@@ -120,7 +120,7 @@ playbooks:  # Scenario-specific guides with extensive starters
       - "Am I overconfident?"
       - "Detect liquidity trap"
       - "Run full diagnostic"
-      - "Analyze for Wyckoff spring"
+      - "Analyze for Wyckoff spring. According to the shared aversion model, what fear is the trader mitigating here?"
       - "Check quote stuffing"  # From agents
       - "Predict reversal risks"  # Tops/bottoms
       - "Review my weekly heatmap"
