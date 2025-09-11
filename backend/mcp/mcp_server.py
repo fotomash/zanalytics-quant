@@ -4,7 +4,12 @@ import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi import Body, Depends, FastAPI, HTTPException, Request
-from fastapi.responses import StreamingResponse, Response, FileResponse
+from fastapi.responses import (
+    StreamingResponse,
+    Response,
+    FileResponse,
+    JSONResponse,
+)
 from pydantic import BaseModel, ValidationError
 from typing import Any, Callable
 import json
@@ -42,6 +47,16 @@ from prometheus_client import (
     REGISTRY,
 )
 
+try:  # pragma: no cover - optional dependency
+    import redis
+except Exception:  # pragma: no cover - allow module to import without redis
+    redis = None
+
+try:  # pragma: no cover - optional dependency
+    import asyncpg  # type: ignore
+except Exception:  # pragma: no cover - allow module to import without asyncpg
+    asyncpg = None
+
 init_mt5()
 
 app = FastAPI(title="Zanalytics MCP Server")
@@ -69,10 +84,50 @@ MCP_TIMESTAMP = Gauge(
 @app.get("/health")
 async def health():
     REQUESTS.labels(endpoint="health").inc()
-    try:
-        return {"status": "MT5 ready", "equity": mt5.account_info().equity}
+
+    deps: dict[str, bool] = {}
+    equity: float | None = None
+
+    # MT5 dependency
+    try:  # pragma: no cover - MT5 may not be available in tests
+        equity = mt5.account_info().equity  # type: ignore[union-attr]
+        deps["mt5"] = True
     except Exception:
-        return {"status": "MT5 not ready"}
+        deps["mt5"] = False
+
+    # Redis dependency
+    try:
+        if redis is None:
+            raise RuntimeError("redis client not available")
+        rurl = os.getenv("REDIS_URL", "redis://redis:6379/0")
+        r = redis.Redis.from_url(rurl)
+        r.ping()
+        deps["redis"] = True
+    except Exception:
+        deps["redis"] = False
+
+    # Postgres dependency
+    try:
+        if asyncpg is None:
+            raise RuntimeError("asyncpg not available")
+        dsn = os.getenv(
+            "DATABASE_URL",
+            "postgresql://postgres:postgres@postgres:5432/postgres",
+        )
+        conn = await asyncpg.connect(dsn)
+        await conn.execute("SELECT 1")
+        await conn.close()
+        deps["postgres"] = True
+    except Exception:
+        deps["postgres"] = False
+
+    healthy = all(deps.values())
+    payload: dict[str, Any] = {"status": "ok" if healthy else "error", "dependencies": deps}
+    if equity is not None:
+        payload["equity"] = equity
+
+    status_code = 200 if healthy else 503
+    return JSONResponse(status_code=status_code, content=payload)
 
 
 @app.get("/.well-known/openai.yaml", include_in_schema=False)
