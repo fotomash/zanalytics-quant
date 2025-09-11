@@ -18,7 +18,7 @@ from typing import Any, Dict, List
 import yaml
 from confluent_kafka import Consumer, Producer, KafkaError
 from pydantic import ValidationError
-from confluent_kafka import Consumer, KafkaError, Producer
+from schemas.behavioral import AnalysisPayload
 
 from core.predictive_scorer import PredictiveScorer
 from core.session_journal import SessionJournal
@@ -127,7 +127,16 @@ def main() -> None:
                     print(f"kafka error: {msg.error()}")
                 continue
 
-            tick = json.loads(msg.value().decode("utf-8"))
+            try:
+                incoming = AnalysisPayload.model_validate_json(
+                    msg.value().decode("utf-8")
+                )
+            except ValidationError as exc:
+                print(f"payload validation error: {exc}")
+                consumer.commit(msg)
+                continue
+
+            tick = incoming.model_dump()
             state: Dict[str, Any] = {"tick": tick}
             success = True
             for stage_name in stages:
@@ -159,64 +168,6 @@ def main() -> None:
         producer.flush()
         consumer.close()
         journal.flush()
-
-                success = False
-                break
-        if success:
-            scorer = PredictiveScorer()
-            score = scorer.score(state)
-            predictive = PredictiveAnalysisResult(
-                scorer=PredictiveScorerResult(
-                    maturity_score=score.get("maturity_score", 0.0),
-                    grade=score.get("grade"),
-                    confidence_factors=score.get("reasons", []),
-                    extras={
-                        "components": score.get("components", {}),
-                        "details": score.get("details", {}),
-                    },
-                ),
-                conflict_detection=ConflictDetectionResult(is_conflict=False),
-            )
-
-            pipeline = ISPTSPipelineResult(
-                context_analyzer=state.get("ContextAnalyzer", {}),
-                liquidity_engine=state.get("LiquidityEngine", {}),
-                structure_validator=state.get("StructureValidator", {}),
-                fvg_locator=state.get("FVGLocator", {}),
-                risk_manager=state.get("RiskManager", {}),
-                confluence_stacker=state.get("ConfluenceStacker", {}),
-            )
-
-            ts = tick.get("ts") or tick.get("timestamp")
-            if isinstance(ts, (int, float)):
-                timestamp = datetime.fromtimestamp(ts)
-            else:
-                timestamp = ts
-
-            payload = UnifiedAnalysisPayloadV1(
-                symbol=tick.get("symbol", instrument_pair),
-                timeframe=tick.get("timeframe", timeframe),
-                timestamp=timestamp,
-                market_context=MarketContext(
-                    symbol=tick.get("symbol", instrument_pair),
-                    timeframe=tick.get("timeframe", timeframe),
-                ),
-                technical_indicators=TechnicalIndicators(),
-                smc=SMCAnalysis(),
-                wyckoff=WyckoffAnalysis(),
-                microstructure=MicrostructureAnalysis(),
-                predictive_analysis=predictive,
-                ispts_pipeline=pipeline,
-            )
-
-            producer.produce(produce_topic, payload.model_dump_json().encode("utf-8"))
-            journal.append(
-                action="pipeline_complete",
-                decision="success",
-                instrument=instrument_pair,
-                timeframe=timeframe,
-            )
-        consumer.commit(msg)
 
 
 if __name__ == "__main__":  # pragma: no cover - service entry point
