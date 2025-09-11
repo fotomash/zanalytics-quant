@@ -88,7 +88,7 @@ class MicrostructureAnalysis(BaseModel):
 
 
 class UnifiedAnalysisPayloadV1(BaseModel):
-    """Aggregate payload combining all analysis dimensions"""
+    """Version 1 unified analysis payload combining all analysis dimensions."""
 
     symbol: str = Field(..., description="Instrument identifier")
     timeframe: str = Field(
