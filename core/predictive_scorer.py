@@ -83,12 +83,41 @@ class PredictiveScorer:
             ``maturity_score`` and ``grade`` along with diagnostic details.
         """
         try:
-            # Each scoring component pulls the necessary information from the
-            # provided ``state`` and performs its own fallback calculation if
-            # required.
-            smc_result = self._score_smc(state)
-            wyckoff_result = self._score_wyckoff(state)
-            technical_result = self._score_technical(state)
+            df = self._get_df(state)
+
+            # Pull pre-computed values from ``state`` and only fall back to
+            # running the analyzers when a specific key is missing.  The
+            # ``_score_*`` helpers return any computed fields so they can be
+            # merged back into ``state`` for downstream consumers.
+            smc_result = self._score_smc(
+                df,
+                liquidity_zones=state.get('liquidity_zones'),
+                order_blocks=state.get('order_blocks'),
+                fair_value_gaps=state.get('fair_value_gaps'),
+                liquidity_sweeps=state.get('liquidity_sweeps'),
+                displacement=state.get('displacement'),
+            )
+
+            wyckoff_result = self._score_wyckoff(
+                df,
+                current_phase=state.get('current_phase'),
+                spring_upthrust=state.get('spring_upthrust'),
+                sos_sow=state.get('sos_sow'),
+            )
+
+            technical_result = self._score_technical(
+                df,
+                rsi=state.get('rsi'),
+                macd_diff=state.get('macd_diff'),
+                support_resistance=state.get('support_resistance'),
+                volume_sma=state.get('volume_sma'),
+            )
+
+            # Merge any newly computed fields back into ``state``
+            for result in (smc_result, wyckoff_result, technical_result):
+                for key, value in result.get('computed', {}).items():
+                    if key not in state and value is not None:
+                        state[key] = value
             
             # Calculate weighted score
             final_score = (
@@ -135,91 +164,130 @@ class PredictiveScorer:
                 'reasoning': [f'Error: {str(e)}'],
             }
     
-    def _score_smc(self, state: Dict) -> Dict:
+    def _score_smc(
+        self,
+        df: pd.DataFrame,
+        *,
+        liquidity_zones=None,
+        order_blocks=None,
+        fair_value_gaps=None,
+        liquidity_sweeps=None,
+        displacement=None,
+    ) -> Dict:
         """Calculate SMC-based score.
 
-        The enrichment modules may have already populated ``state`` with SMC
-        analysis fields.  When they are missing we fall back to running the
-        :class:`SMCAnalyzer` directly.
+        Parameters are optional pre-computed results.  When any are ``None`` we
+        fall back to running :class:`SMCAnalyzer` on ``df`` to populate them.
         """
-        needed = ['order_blocks', 'fair_value_gaps', 'liquidity_sweeps',
-                  'displacement', 'liquidity_zones']
-        missing = [k for k in needed if k not in state]
-        if missing:
-            analysis = self.smc.analyze(self._get_df(state))
-            for k in needed:
-                if k in analysis and k not in state:
-                    state[k] = analysis[k]
+
+        if None in (
+            order_blocks,
+            fair_value_gaps,
+            liquidity_sweeps,
+            displacement,
+            liquidity_zones,
+        ):
+            analysis = self.smc.analyze(df)
+            liquidity_zones = liquidity_zones or analysis.get('liquidity_zones')
+            order_blocks = order_blocks or analysis.get('order_blocks')
+            fair_value_gaps = fair_value_gaps or analysis.get('fair_value_gaps')
+            liquidity_sweeps = liquidity_sweeps or analysis.get('liquidity_sweeps')
+            displacement = displacement or analysis.get('displacement')
 
         score = 0
         details = []
 
-        if state.get('order_blocks'):
+        if order_blocks:
             score += 30
             details.append('Order block detected')
 
-        if state.get('fair_value_gaps'):
+        if fair_value_gaps:
             score += 25
             details.append('Fair value gap present')
 
-        if state.get('liquidity_sweeps'):
+        if liquidity_sweeps:
             score += 25
             details.append('Liquidity sweep confirmed')
 
-        if state.get('displacement'):
+        if displacement:
             score += 20
             details.append('Strong displacement')
 
         return {
             'score': min(100, score),
-            'details': details
+            'details': details,
+            'computed': {
+                'liquidity_zones': liquidity_zones,
+                'order_blocks': order_blocks,
+                'fair_value_gaps': fair_value_gaps,
+                'liquidity_sweeps': liquidity_sweeps,
+                'displacement': displacement,
+            },
         }
     
-    def _score_wyckoff(self, state: Dict) -> Dict:
-        """Calculate Wyckoff-based score using precomputed data."""
-        needed = ['current_phase', 'spring_upthrust', 'sos_sow']
-        missing = [k for k in needed if k not in state]
-        if missing:
-            analysis = self.wyckoff.analyze(self._get_df(state))
-            for k in needed:
-                if k in analysis and k not in state:
-                    state[k] = analysis[k]
+    def _score_wyckoff(
+        self,
+        df: pd.DataFrame,
+        *,
+        current_phase=None,
+        spring_upthrust=None,
+        sos_sow=None,
+    ) -> Dict:
+        """Calculate Wyckoff-based score using provided or computed data."""
+
+        if None in (current_phase, spring_upthrust, sos_sow):
+            analysis = self.wyckoff.analyze(df)
+            current_phase = current_phase or analysis.get('current_phase')
+            spring_upthrust = spring_upthrust or analysis.get('spring_upthrust')
+            sos_sow = sos_sow or analysis.get('sos_sow')
 
         score = 0
         details = []
 
-        phase = state.get('current_phase', '')
-        if phase == 'Accumulation':
+        if current_phase == 'Accumulation':
             score += 40
             details.append('Accumulation phase')
 
-        if 'spring' in str(state.get('spring_upthrust', {})):
+        if 'spring' in str(spring_upthrust or {}):
             score += 35
             details.append('Wyckoff spring detected')
 
-        if state.get('sos_sow'):
+        if sos_sow:
             score += 25
             details.append('Sign of strength')
 
         return {
             'score': min(100, score),
-            'details': details
+            'details': details,
+            'computed': {
+                'current_phase': current_phase,
+                'spring_upthrust': spring_upthrust,
+                'sos_sow': sos_sow,
+            },
         }
     
-    def _score_technical(self, state: Dict) -> Dict:
+    def _score_technical(
+        self,
+        df: pd.DataFrame,
+        *,
+        rsi=None,
+        macd_diff=None,
+        support_resistance=None,
+        volume_sma=None,
+    ) -> Dict:
         """Calculate technical indicator score using cached data."""
-        needed = ['rsi', 'macd_diff', 'support_resistance', 'volume_sma']
-        missing = [k for k in needed if k not in state]
-        if missing:
-            analysis = self.technical.calculate_all(self._get_df(state))
-            for k in needed:
-                if k in analysis and k not in state:
-                    state[k] = analysis[k]
+
+        if None in (rsi, macd_diff, support_resistance, volume_sma):
+            analysis = self.technical.calculate_all(df)
+            rsi = rsi or analysis.get('rsi')
+            macd_diff = macd_diff or analysis.get('macd_diff')
+            support_resistance = support_resistance or analysis.get('support_resistance')
+            volume_sma = volume_sma or analysis.get('volume_sma')
 
         score = 0
         details = []
 
-        rsi = state.get('rsi', {})
+        rsi_value = 50
         if isinstance(rsi, dict):
             rsi_value = rsi.get('value', 50)
         elif hasattr(rsi, 'iloc'):
@@ -240,28 +308,37 @@ class PredictiveScorer:
             score += 25
             details.append('RSI overbought')
 
-        macd_diff = state.get('macd_diff', 0)
         if hasattr(macd_diff, 'iloc'):
             try:
                 macd_diff = float(macd_diff.iloc[-1])
             except Exception:
                 macd_diff = 0
+        try:
+            macd_diff = float(macd_diff)
+        except Exception:
+            macd_diff = 0
 
         if macd_diff > 0:
             score += 25
             details.append('MACD bullish')
 
-        if state.get('support_resistance'):
+        if support_resistance:
             score += 25
             details.append('Near key level')
 
-        if self._check_volume_confirmation(state):
+        if self._check_volume_confirmation({'volume_sma': volume_sma}):
             score += 25
             details.append('Volume confirms')
 
         return {
             'score': min(100, score),
-            'details': details
+            'details': details,
+            'computed': {
+                'rsi': rsi,
+                'macd_diff': macd_diff,
+                'support_resistance': support_resistance,
+                'volume_sma': volume_sma,
+            },
         }
 
     def _get_df(self, data: Dict) -> pd.DataFrame:

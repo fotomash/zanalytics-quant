@@ -11,10 +11,18 @@ from core.predictive_scorer import PredictiveScorer
 def run(state, config):
     """Entry point for the predictive scoring enrichment module.
 
-    At this stage previous enrichment modules should have populated ``state``
-    with data such as liquidity zones, Wyckoff phase and technical indicators.
-    The :class:`PredictiveScorer` simply consumes that state and appends the
-    maturity score and grade.
+    Parameters
+    ----------
+    state : dict
+        Shared enrichment state already populated by prior modules with
+        intermediate analysis results (e.g. liquidity zones, Wyckoff phase,
+        technical indicators).
+    config : dict
+        Optional configuration for :class:`PredictiveScorer`.
+
+    The function delegates to ``PredictiveScorer.score`` which reads the
+    precomputed values from ``state`` and only falls back to heavier analysis
+    when necessary.
     """
 
     scorer = PredictiveScorer(config)
