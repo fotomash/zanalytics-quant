@@ -5,6 +5,7 @@ Connects to MT5 account history and provides real behavioral analytics.
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import json
+import logging
 
 import MetaTrader5 as mt5
 import numpy as np
@@ -14,6 +15,10 @@ import requests
 
 # Timezone constants
 LONDON = pytz.timezone("Europe/London")
+
+logger = logging.getLogger(__name__)
+if not logger.hasHandlers():
+    logging.basicConfig(level=logging.INFO)
 
 
 class MT5Bridge:
