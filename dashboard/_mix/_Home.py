@@ -523,11 +523,11 @@ class ZanalyticsDashboard:
                     )
                     st.plotly_chart(fig, use_container_width=True)
                 else:
-                    st.info("Not enough tick data for 3D surface.")
+                    st.warning("Not enough tick data for 3D surface.")
             except Exception as e:
                 st.warning(f"Error processing tick data: {e}")
         else:
-            st.info("No tick data available for 3D surface demo.")
+            st.warning("No tick data available for 3D surface.")
 
         # --- XAUUSD 15-Minute Candlestick Chart from Parquet (with FVG, Midas VWAP, Wyckoff Accumulation) ---
         try:
