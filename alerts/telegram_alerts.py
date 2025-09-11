@@ -15,13 +15,28 @@ import urllib.request
 from typing import Any, Dict
 from typing import Optional
 
+import yaml
+
 try:
     import redis  # type: ignore
 except Exception:
     redis = None  # type: ignore
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+
+def _load_config() -> Dict[str, Any]:
+    path = os.getenv("ALERT_CONFIG", "config/alert_config.yaml")
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            cfg = yaml.safe_load(fh) or {}
+            tg = cfg.get("telegram", {})
+            # Expand environment variables like ${VAR}
+            return {k: os.path.expandvars(v) if isinstance(v, str) else v for k, v in tg.items()}
+    except Exception:
+        return {}
+
+_TG_CFG = _load_config()
+BOT_TOKEN = _TG_CFG.get("bot_token") or os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID = _TG_CFG.get("chat_id") or os.getenv("TELEGRAM_CHAT_ID", "")
 ENABLED = os.getenv("ALERTS_ENABLED", "true").lower() == "true"
 MIN_GAP = float(os.getenv("ALERTS_MIN_INTERVAL_SECONDS", "60"))
 
