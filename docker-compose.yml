@@ -1040,6 +1040,19 @@ services:
       - default
 
   ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=5m
+    networks:
+      - default
+
+  ollama:
     image: ollama/ollama
     ports:
       - "11434:11434"
@@ -1054,6 +1067,7 @@ volumes:
   postgres-data: {}
   static_volume: {}
   timescale-data: {}
+  ollama-models: {}
   ollama: {}
 
 networks:
