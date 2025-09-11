@@ -2,7 +2,36 @@
 
 `UnifiedAnalysisPayloadV1` aggregates several analytic dimensions into a single
 object for transport between services. The schema is implemented with
-[pydantic](https://docs.pydantic.dev/) models in `schemas/payloads.py`.
+[pydantic](https://docs.pydantic.dev/) models in `schemas/payloads.py` and is
+designed to be easily serialized to JSON.
+
+Typical creation pattern:
+
+```python
+from datetime import datetime
+from schemas import (
+    MarketContext,
+    TechnicalIndicators,
+    SMCAnalysis,
+    WyckoffAnalysis,
+    MicrostructureAnalysis,
+    UnifiedAnalysisPayloadV1,
+)
+
+payload = UnifiedAnalysisPayloadV1(
+    symbol="BTCUSD",
+    timeframe="1m",
+    timestamp=datetime.utcnow(),
+    market_context=MarketContext(symbol="BTCUSD", timeframe="1m"),
+    technical_indicators=TechnicalIndicators(rsi=55.2),
+    smc=SMCAnalysis(),
+    wyckoff=WyckoffAnalysis(),
+    microstructure=MicrostructureAnalysis(),
+)
+```
+
+The resulting object can be `model_dump()`-ed to produce a standard JSON
+payload for API communication.
 
 ## Top level fields
 
@@ -16,16 +45,16 @@ object for transport between services. The schema is implemented with
 | `smc` | `SMCAnalysis` | Smart Money Concepts state |
 | `wyckoff` | `WyckoffAnalysis` | Wyckoff phase and events |
 | `microstructure` | `MicrostructureAnalysis` | Order flow and microstructure metrics |
-| `extras` | `Dict[str, Any]` | Unstructured additional fields |
+| `extras` | `Dict[str, Any]` | Unstructured additional fields for forward compatibility |
 
 ## Submodels
 
 ### MarketContext
 - `symbol`: instrument identifier
-- `timeframe`: timeframe for the context
+- `timeframe`: timeframe for the context (e.g. `1m`, `1h`)
 - `session`: optional session label
-- `trend`: optional textual trend description
-- `volatility`: optional volatility measure
+- `trend`: optional textual trend description (`bullish`, `bearish`)
+- `volatility`: optional volatility measure such as ATR
 
 ### TechnicalIndicators
 - `rsi`, `macd`, `vwap`: common indicator values
