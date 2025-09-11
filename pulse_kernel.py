@@ -124,9 +124,7 @@ class PulseKernel:
             }
         }
         try:
-            with open(config_path) as f:
-                data = yaml.safe_load(f) or {}
-            return {**default_cfg, **data}
+            return yaml.safe_load(open(config_path)) or default_cfg
         except FileNotFoundError:
             logger.warning(f"Config file {config_path} not found. Using defaults.")
         except yaml.YAMLError as e:

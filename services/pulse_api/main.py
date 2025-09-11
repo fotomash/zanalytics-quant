@@ -16,7 +16,13 @@ logger = logging.getLogger(__name__)
 
 
 class PulseRuntime:
-    """Singleton runtime for the Pulse kernel"""
+    """Singleton runtime for the Pulse kernel.
+
+    The configuration path is taken from the ``PULSE_CONFIG`` environment
+    variable or defaults to ``pulse_config.yaml``. Callers should ensure the
+    path points to a valid YAML file.
+    """
+
     _kernel: Optional[PulseKernel] = None
 
     @classmethod
@@ -25,6 +31,8 @@ class PulseRuntime:
             cfg_path = os.getenv("PULSE_CONFIG", "pulse_config.yaml")
             if not os.path.exists(cfg_path):
                 logger.warning("Pulse config file %s not found; using defaults", cfg_path)
+            else:
+                logger.info("Using Pulse config %s", cfg_path)
             cls._kernel = PulseKernel(cfg_path)
         return cls._kernel
 
