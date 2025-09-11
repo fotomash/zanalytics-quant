@@ -1,27 +1,45 @@
 # MCP2 Service Runbook
 
 ## Purpose
-MCP2 exposes strategy tooling endpoints for enriched trades and document search.
+MCP2 exposes strategy tooling endpoints for logging trades and searching documentation.
 
 ## Environment Variables
 - `REDIS_URL` – Redis connection string (defaults to `redis://localhost:6379/0`)
 - `DATABASE_URL` – Postgres connection string (defaults to `postgresql://postgres:postgres@localhost:5432/postgres`)
+- `MCP_HOST` – base URL for the MCP2 service (defaults to `localhost:8002`)
 
-## Endpoints
-- `GET /health` – basic liveness check
-- `POST /log_enriched_trade` – store a `StrategyPayload` in Redis
-- `GET /search_docs` – keyword search across docs
-- `GET /fetch_payload` – retrieve a logged payload by id
-- `GET /trades/recent` – return recent payloads
+## Health
+Check service availability:
 
-## Smoke Tests
+```bash
+curl -s $MCP_HOST/health
 ```
-# health
-curl -s localhost:8002/health
 
-# log then fetch
-echo '{"strategy":"demo","symbol":"AAPL","timeframe":"1D","date":"2024-01-01T00:00:00Z"}' \
-  | curl -s -X POST -H 'Content-Type: application/json' --data @- localhost:8002/log_enriched_trade
+## Trade Logging
+Log a trade payload:
+
+```bash
+curl -s -X POST -H 'Content-Type: application/json' \
+  --data '{"strategy":"demo","symbol":"AAPL","timeframe":"1D","date":"2024-01-01T00:00:00Z"}' \
+  $MCP_HOST/log_enriched_trade
+```
+
+## Doc Search
+Search indexed documents:
+
+```bash
+curl -s "$MCP_HOST/search_docs?query=alpha"
+```
+
+## Payload Retrieval
+Fetch stored payloads:
+
+```bash
+# by id
+curl -s "$MCP_HOST/fetch_payload?id=<id>"
+
+# recent trades
+curl -s "$MCP_HOST/trades/recent?limit=5"
 ```
 
 ## Notes
