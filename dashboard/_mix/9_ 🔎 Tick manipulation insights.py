@@ -44,6 +44,7 @@ from plotly.subplots import make_subplots
 import plotly.express as px
 from datetime import datetime, timedelta
 import json
+import requests
 import sys
 import os
 from pathlib import Path
@@ -435,17 +436,49 @@ def main():
         "🕒 Tick Timeframe", ticks_timeframes, disabled=not ticks_timeframes, key="tick_timeframe_board"
     )
 
+    # --- Optional Live MT5 Ticks ---
+    st.sidebar.markdown("---")
+    use_mt5 = st.sidebar.checkbox("Use MT5 API (live)", value=False)
+
     # --- Data Loading Logic ---
-    # Try to load based on sidebar selections above
+    # Try to load based on sidebar selections above or MT5
     df = pd.DataFrame()
     data_source = None
+    if use_mt5:
+        MT5_API_URL = st.secrets.get("MT5_API_URL", os.getenv("MT5_API_URL", "http://localhost:5001"))
+        symbol = st.sidebar.text_input("Symbol", value=selected_pair or "EURUSD")
+        limit = st.sidebar.slider("Tick Limit", 100, 10000, 2000, 100)
+        st.sidebar.info(f"MT5: {MT5_API_URL}")
+        try:
+            r = requests.get(f"{MT5_API_URL.rstrip('/')}/ticks", params={"symbol": symbol, "limit": limit}, timeout=5)
+            r.raise_for_status()
+            data = r.json()
+            ticks = data.get("ticks", data) if isinstance(data, dict) else data
+            df = pd.DataFrame(ticks)
+            # Normalize index and columns
+            if "time" in df.columns:
+                df.index = pd.to_datetime(df["time"], unit="s")
+            elif "timestamp" in df.columns:
+                df.index = pd.to_datetime(df["timestamp"])  # assume ISO
+            else:
+                df.index = pd.RangeIndex(len(df))
+            if {"bid", "ask"}.issubset(df.columns):
+                if "spread" not in df.columns:
+                    df["spread"] = (df["ask"] - df["bid"]).abs()
+                df["mid_price"] = (df["bid"] + df["ask"]) / 2
+            data_source = f"MT5 {symbol} (Ticks)"
+        except Exception as e:
+            st.error(f"MT5 /ticks error: {e}")
+            use_mt5 = False
+            df = pd.DataFrame()
+            data_source = None
     # Priority: Candles (Parquet) if both pair and timeframe selected, else Tick Data if both selected
-    if selected_pair and selected_candles_timeframe:
+    if not use_mt5 and selected_pair and selected_candles_timeframe:
         file_path = candles_timeframe_map.get(selected_candles_timeframe)
         if file_path and file_path.exists():
             df = load_parquet_data(file_path)
             data_source = f"{selected_pair} {selected_candles_timeframe} (Candles)"
-    elif selected_pair and selected_ticks_timeframe:
+    elif not use_mt5 and selected_pair and selected_ticks_timeframe:
         file_path = ticks_timeframe_map.get(selected_ticks_timeframe)
         if file_path:
             # Handle "Raw Tick" option
@@ -586,6 +619,28 @@ def main():
             fig.update_layout(height=600, hovermode='x unified')
 
         st.plotly_chart(fig, use_container_width=True)
+
+        # Quick uptick & cumulative delta panel
+        with st.expander("🔼 Upticks & Cumulative Delta", expanded=False):
+            try:
+                if "mid_price" not in df.columns and {"bid", "ask"}.issubset(df.columns):
+                    df["mid_price"] = (df["bid"] + df["ask"]) / 2
+                tick_dir = np.sign(df["mid_price"].diff()).fillna(0).astype(int)
+                vol_col = "inferred_volume" if "inferred_volume" in df.columns else ("volume" if "volume" in df.columns else None)
+                delta = tick_dir * (df[vol_col].fillna(0) if vol_col else 1)
+                cum_delta = delta.cumsum()
+                uptick_ratio = (tick_dir > 0).rolling(100, min_periods=10).mean()
+
+                fig_ud = make_subplots(specs=[[{"secondary_y": True}]])
+                fig_ud.add_trace(go.Scatter(x=df.index, y=df["mid_price"], name="Mid Price", line=dict(color="white", width=1)), secondary_y=False)
+                fig_ud.add_trace(go.Scatter(x=df.index, y=cum_delta, name="Cumulative Delta", line=dict(color="deepskyblue", width=1)), secondary_y=True)
+                fig_ud.add_trace(go.Scatter(x=df.index, y=uptick_ratio, name="Uptick Ratio (100)", line=dict(color="orange", width=1, dash="dot")), secondary_y=True)
+                fig_ud.update_layout(height=320, template="plotly_dark", margin=dict(l=10, r=10, t=30, b=10))
+                fig_ud.update_yaxes(title_text="Price", secondary_y=False)
+                fig_ud.update_yaxes(title_text="Δ / Ratio", secondary_y=True)
+                st.plotly_chart(fig_ud, use_container_width=True)
+            except Exception:
+                st.info("Uptick/Delta visualization unavailable (missing columns)")
 
         # If comprehensive_json is loaded, show trade setups (optional visualization)
         if comprehensive_json:
