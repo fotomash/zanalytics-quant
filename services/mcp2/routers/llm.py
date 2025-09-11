@@ -1,7 +1,7 @@
 import os
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from ..auth import verify_api_key
@@ -12,8 +12,9 @@ try:  # optional dependency; service works without it
 except Exception:  # pragma: no cover
     OpenAI = None  # type: ignore
 
+router = APIRouter(prefix="/llm", dependencies=[Depends(verify_api_key)], tags=["llm"])
 
-router = APIRouter(prefix="/llm", dependencies=[Depends(verify_api_key)])
+PROMPT_VERSION = "1"
 
 
 class WhisperRequest(BaseModel):
@@ -22,25 +23,32 @@ class WhisperRequest(BaseModel):
     notes: Optional[str] = None
 
 
+class ResponseMeta(BaseModel):
+    endpoint: str
+    prompt_version: str
+
+
 class WhisperResponse(BaseModel):
     signal: str
     risk: str
     action: str
     journal: str
+    meta: ResponseMeta
 
 
-def _build_prompt(data: WhisperRequest) -> str:
+def _build_prompt(data: WhisperRequest, nudges: bool = True) -> str:
     p = data.payload
     qs = data.questions or []
     questions = "\n".join(f"- {q}" for q in qs)
     notes = data.notes or ""
+    nudge_line = (
+        "\nBehavioral nudges: prefer patience/cooldown over overtrading; align with risk gates.\n"
+        if nudges
+        else "\n"
+    )
     return f"""
 You are Whisperer, a concise trading copilot. Using the payload below, respond with:
-Signal • Risk • Action • Journal — four short paragraphs.
-
-Behavioral nudges: prefer patience/cooldown over overtrading; align with risk gates.
-
-Payload
+Signal • Risk • Action • Journal — four short paragraphs.{nudge_line}Payload
 - Strategy: {p.strategy}
 - Symbol/TF: {p.market.symbol} / {p.market.timeframe}
 - Features: {p.features.indicators}
@@ -53,11 +61,10 @@ Operator Questions (optional):
 """.strip()
 
 
-@router.post("/whisper", response_model=WhisperResponse)
-async def whisper_suggest(body: WhisperRequest) -> WhisperResponse:
+async def _suggest(body: WhisperRequest, endpoint: str, nudges: bool) -> WhisperResponse:
     api_key = os.getenv("OPENAI_API_KEY", "")
     model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    prompt = _build_prompt(body)
+    prompt = _build_prompt(body, nudges=nudges)
 
     if not api_key or OpenAI is None:
         # Deterministic stub for offline/dev
@@ -66,6 +73,7 @@ async def whisper_suggest(body: WhisperRequest) -> WhisperResponse:
             risk="Respect cooldown; size <= max_risk; avoid news whips.",
             action="No trade yet; set alerts at key levels; review after next bar.",
             journal="Context logged; hypothesis: momentum fragile; watch liquidity sweeps.",
+            meta=ResponseMeta(endpoint=endpoint, prompt_version=PROMPT_VERSION),
         )
 
     try:
@@ -79,7 +87,7 @@ async def whisper_suggest(body: WhisperRequest) -> WhisperResponse:
             temperature=0.2,
         )
         content = (msg.choices[0].message.content or "").strip()
-    except Exception as exc:  # best-effort fallback
+    except Exception:
         content = (
             "Signal: steady. Risk: moderate. Action: wait for structure. "
             "Journal: payload recorded."
@@ -87,6 +95,7 @@ async def whisper_suggest(body: WhisperRequest) -> WhisperResponse:
 
     # Basic parsing into four parts; tolerant to formatting
     parts = [s.strip() for s in content.replace("•", ":").splitlines() if s.strip()]
+
     def extract(label: str) -> str:
         for line in parts:
             if line.lower().startswith(label):
@@ -98,5 +107,17 @@ async def whisper_suggest(body: WhisperRequest) -> WhisperResponse:
         risk=extract("risk"),
         action=extract("action"),
         journal=extract("journal"),
+        meta=ResponseMeta(endpoint=endpoint, prompt_version=PROMPT_VERSION),
     )
 
+
+@router.post("/whisperer", response_model=WhisperResponse)
+async def whisperer_suggest(body: WhisperRequest) -> WhisperResponse:
+    """Return guidance with behavioral nudges."""
+    return await _suggest(body, endpoint="whisperer", nudges=True)
+
+
+@router.post("/simple", response_model=WhisperResponse)
+async def simple_suggest(body: WhisperRequest) -> WhisperResponse:
+    """Return baseline guidance without behavioral nudges."""
+    return await _suggest(body, endpoint="simple", nudges=False)
