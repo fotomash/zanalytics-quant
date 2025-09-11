@@ -174,7 +174,7 @@ services:
       - ALERTS_SCORE_HI=90
       - ALERTS_TOXICITY_LIMIT=0.30
       - ALERTS_DD_INTRADAY_WARN=0.025
-      - MT5_API_URL=http://mt5-api:5001
+      - MT5_API_URL=http://mt5:5001
       # Avoid overriding secret key with empty value; single definition above is sufficient
     depends_on:
       postgres:
@@ -228,8 +228,8 @@ services:
     environment:
       - PYTHONPATH=/app:/app/components:/app/utils
       - PULSE_API_URL=http://django:8000
-      - MT5_API_URL=http://mt5-api:5001
-      - MT5_API_BASE=http://mt5-api:5001
+      - MT5_API_URL=http://mt5:5001
+      - MT5_API_BASE=http://mt5:5001
       - PULSE_API_BASE=http://django:8000
       - REDIS_HOST=redis
     command: redis-server /usr/local/etc/redis/redis.conf
@@ -559,8 +559,8 @@ services:
     environment:
       - PYTHONPATH=/app:/app/components:/app/utils:/app/api_integration
       - PULSE_API_URL=http://django:8000
-      - MT5_API_URL=http://mt5-api:5001
-      - MT5_URL=http://mt5-api:5001
+      - MT5_API_URL=http://mt5:5001
+      - MT5_URL=http://mt5:5001
       - DJANGO_API_URL=http://django:8000
       - DJANGO_API_PREFIX=/api/v1
       - BRIDGE_TOKEN=${BRIDGE_TOKEN:-}
