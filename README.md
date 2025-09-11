@@ -356,6 +356,8 @@ Add new Streamlit dashboards following [docs/advanced_dashboard.md](docs/advance
 ## Kafka Replay Consumer
 
 Replay historical ticks or bars from Kafka into a datastore for analysis.
+The script's entry point is the ``main`` function inside
+``ops/kafka/replay_consumer.py``.
 
 ### Basic usage
 
@@ -365,8 +367,15 @@ export KAFKA_TOPIC=ticks.BTCUSDT
 python ops/kafka/replay_consumer.py --start-offset 0 --batch-size 100
 ```
 
+For batch processing of entire poll results use:
+
+```bash
+python ops/kafka/replay_consumer.py --mode batch
+```
+
 Arguments may be set via environment variables (`KAFKA_TOPIC`,
-`KAFKA_START_OFFSET`, `KAFKA_BATCH_SIZE`) or passed on the command line.
+`KAFKA_START_OFFSET`, `KAFKA_BATCH_SIZE`, `KAFKA_CONSUMER_MODE`) or passed on
+the command line.
 
 ### Replay into Redis
 
