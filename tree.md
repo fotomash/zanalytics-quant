@@ -348,7 +348,6 @@ unified_dashboard.py
 ComprehensiveJSONProcessor.py
 ComprehensiveJSONVisualizer.py
 NCOS_INTEGRATION_SUMMARY.md
-TickVectorizer.py
 __init__.py
 analysis_engines.py
 analysis_panel.py
