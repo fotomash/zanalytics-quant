@@ -79,11 +79,6 @@ class MicrostructureAnalyzer:
         # Create a new DataFrame to store results, aligned with m1_df
         aggregated_data = pd.DataFrame(index=m1_df.index)
         
-        # Calculate metrics for each M1 bar
-        bar_deltas = []
-        tick_counts = []
-        avg_spreads = []
-        
         # Ensure ticks_df index is datetime for resample
         if not isinstance(ticks_df.index, pd.DatetimeIndex):
             # Prefer an existing datetime-like column if present
