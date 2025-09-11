@@ -28,8 +28,17 @@ def test_embedding_vector_length():
     assert len(enriched["embedding"]) == 384
 
 
-def test_llm_routing_local_echo_vs_whisperer():
+def test_echonudge_phase_routing():
     ticks = [{"phase": "spring"}, {"phase": "markup"}]
     enriched = enrich_ticks(ticks, manifest_path=MANIFEST_PATH, matrix_path=MATRIX_PATH)
-    assert "llm_verdict" in enriched[0]
-    assert "llm_verdict" not in enriched[1]
+    assert "echonudge" in enriched[0]
+    assert "echonudge" not in enriched[1]
+
+
+def test_echonudge_threshold(monkeypatch):
+    ticks = [{"phase": "markup"}]
+    enriched = enrich_ticks(ticks, manifest_path=MANIFEST_PATH, matrix_path=MATRIX_PATH)
+    assert "echonudge" not in enriched[0]
+    monkeypatch.setattr("utils.enrich.LOCAL_THRESHOLD", 2.0)
+    enriched = enrich_ticks(ticks, manifest_path=MANIFEST_PATH, matrix_path=MATRIX_PATH)
+    assert "echonudge" in enriched[0]

@@ -82,7 +82,7 @@ def enrich_ticks(
     -------
     list[dict]
         Enriched tick dictionaries including ``trade_id``, ``phase``,
-        ``confidence``, ``nudge``, ``embedding`` and optionally ``llm_verdict``
+        ``confidence``, ``nudge``, ``embedding`` and optionally ``echonudge``
         for locally handled ticks.
     """
 
@@ -121,11 +121,11 @@ def enrich_ticks(
             }
         )
 
-        if data["confidence"] < LOCAL_THRESHOLD or data["phase"] in [
+        if data["confidence"] < LOCAL_THRESHOLD or data["phase"] in {
             "spring",
             "distribution",
-        ]:
-            data["llm_verdict"] = call_local_echo(
+        }:
+            data["echonudge"] = call_local_echo(
                 f"Quick nudge for {data['phase']}, confidence {data['confidence']}: hold/sell/hedge?"
             )
         else:
