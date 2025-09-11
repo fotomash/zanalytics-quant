@@ -36,3 +36,63 @@ def consume_trades(callback):
         pass
     finally:
         consumer.close()
+
+
+import asyncio
+from typing import AsyncIterator, Optional
+
+
+class KafkaConsumer(AsyncIterator[str]):
+    """Asynchronous iterator over messages from a Kafka topic."""
+
+    def __init__(
+        self,
+        topic: str,
+        bootstrap_servers: Optional[str] = None,
+        group_id: str = "zanalyzer",
+        poll_timeout: float = 1.0,
+    ) -> None:
+        self._config = {
+            "bootstrap.servers": bootstrap_servers or KAFKA_BOOTSTRAP_SERVERS,
+            "group.id": group_id,
+            "auto.offset.reset": "earliest",
+        }
+        self._consumer = Consumer(self._config)
+        self._consumer.subscribe([topic])
+        self._poll_timeout = poll_timeout
+        self._loop = asyncio.get_event_loop()
+        self._running = True
+
+    def __aiter__(self) -> "KafkaConsumer":
+        return self
+
+    async def __anext__(self) -> str:
+        if not self._running:
+            raise StopAsyncIteration
+        msg = await self._loop.run_in_executor(None, self._consumer.poll, self._poll_timeout)
+        if msg is None:
+            return await self.__anext__()
+        if msg.error():
+            if msg.error().code() == KafkaError._PARTITION_EOF:
+                return await self.__anext__()
+            raise RuntimeError(msg.error())
+        return msg.value().decode("utf-8")
+
+    async def stop(self) -> None:
+        """Stop consuming and close the underlying consumer."""
+        if self._running:
+            self._running = False
+            await self._loop.run_in_executor(None, self._consumer.close)
+
+    async def __aenter__(self) -> "KafkaConsumer":
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        await self.stop()
+
+
+__all__ = [
+    "produce_trade",
+    "consume_trades",
+    "KafkaConsumer",
+]
