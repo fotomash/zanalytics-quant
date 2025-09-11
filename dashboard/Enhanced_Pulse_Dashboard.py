@@ -103,6 +103,18 @@ def home_page():
             metric_card("Conviction Rate", f"{st.session_state.conviction_rate:.0f}", "%", "#A78BFA", "up", "Win rate of high-confidence setups")
         with cols[3]:
             metric_card("Profit Efficiency", f"{st.session_state.profit_efficiency:.0f}", "%", "#FBBF24", "down", "Profit captured vs. peak potential")
+    st.subheader("Open Positions")
+    positions = st.session_state.get("positions", [])
+    if positions:
+        positions_df = pd.DataFrame(positions)
+        display_cols = [
+            c
+            for c in ["ticket", "symbol", "type", "volume", "price_open", "sl", "tp", "profit"]
+            if c in positions_df.columns
+        ]
+        st.dataframe(positions_df[display_cols], use_container_width=True)
+    else:
+        st.caption("No open positions.")
 
     # Other components... (as before)
     # For brevity, the rest of the home page components are added in the main function flow below
