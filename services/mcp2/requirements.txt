@@ -4,3 +4,4 @@ pydantic>=2
 redis
 sqlalchemy
 asyncpg
+httpx

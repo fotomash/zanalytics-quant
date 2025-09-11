@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from .routers.tools import router as tools_router
+from .routers.llm import router as llm_router
 
 app = FastAPI()
 
@@ -10,3 +11,4 @@ async def health():
 
 
 app.include_router(tools_router)
+app.include_router(llm_router)
