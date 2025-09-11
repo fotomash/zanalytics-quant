@@ -803,7 +803,9 @@ services:
       - default
 
   predict-cron:
-    image: python:3.11-slim
+    build:
+      context: .
+      dockerfile: Dockerfile.predict-cron
     container_name: predict-cron
     working_dir: /app
     volumes:
@@ -818,8 +820,7 @@ services:
       - PREDICT_CRON_PRICE=${PREDICT_CRON_PRICE:-1.2345}
       - PREDICT_CRON_RISK=${PREDICT_CRON_RISK:-0.95}
     command: >
-      sh -lc "pip install --no-cache-dir redis pyyaml &&
-      while true; do
+      sh -lc "while true; do
         python scripts/predict_cron.py --demo \
           --symbol \"${PREDICT_CRON_SYMBOL}\" \
           --price \"${PREDICT_CRON_PRICE}\" \
