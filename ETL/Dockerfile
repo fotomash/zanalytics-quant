@@ -1,4 +1,6 @@
-# Placeholder Dockerfile for future Airflow/Prefect orchestration
-FROM alpine:3.19
+# Minimal Dockerfile for ETL workflows
+FROM python:3.11-slim
 
-# TODO: Add Airflow/Prefect setup in future iterations
+# TODO: Install and configure Airflow or Prefect for orchestration
+# TODO: Add ETL scripts and dependencies
+
