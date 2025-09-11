@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Any, Dict
 
 from confluent_kafka import Message
@@ -6,6 +5,7 @@ from pydantic import ValidationError
 
 from utils.analysis_engines import build_unified_analysis
 from schemas.behavioral import AnalysisPayload
+from schemas import UnifiedAnalysisPayloadV1
 
 
 def on_message(ctx: Dict[str, Any], msg: Message) -> None:
@@ -25,10 +25,9 @@ def on_message(ctx: Dict[str, Any], msg: Message) -> None:
 
     tick = incoming.model_dump()
     try:
-        payload = build_unified_analysis(tick)
-        ctx["producer"].produce(
-            ctx["enriched_topic"], value=payload.model_dump_json().encode("utf-8")
-        )
+        payload: UnifiedAnalysisPayloadV1 = build_unified_analysis(tick)
+        serialized = payload.model_dump_json().encode("utf-8")
+        ctx["producer"].produce("enriched-analysis-payloads", value=serialized)
         decision = "produced_payload"
     except Exception as e:  # pragma: no cover - log and continue
         print(f"analysis error: {e}")

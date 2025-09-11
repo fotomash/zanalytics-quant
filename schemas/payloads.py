@@ -151,6 +151,7 @@ class UnifiedAnalysisPayloadV1(BaseModel):
     )
     predictive_analysis: PredictiveAnalysisResult = Field(
         ..., description="Aggregated predictive scoring and conflict detection results",
+
     )
     ispts_pipeline: ISPTSPipelineResult = Field(
         ..., description="Outputs from each stage of the ISPTS pipeline",
