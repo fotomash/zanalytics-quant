@@ -1,0 +1,71 @@
+# OpenAI functions for MCP2 actions
+require_approval: "never"
+functions:
+  - name: search_docs
+    description: Search documentation for relevant content.
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: Free-form search query text.
+        limit:
+          type: integer
+          description: Maximum number of results to return.
+          default: 5
+      required:
+        - query
+  - name: fetch_payload
+    description: Retrieve a stored payload by identifier.
+    parameters:
+      type: object
+      properties:
+        payload_id:
+          type: string
+          description: Unique identifier of the payload to fetch.
+      required:
+        - payload_id
+  - name: log_enriched_trade
+    description: Log a trade event with additional metadata for analytics.
+    parameters:
+      type: object
+      properties:
+        ticket:
+          type: integer
+          description: Trade ticket ID.
+        symbol:
+          type: string
+          description: Symbol traded.
+        side:
+          type: string
+          description: Trade direction.
+          enum: [buy, sell]
+        volume:
+          type: number
+          description: Size of the trade.
+        price:
+          type: number
+          description: Execution price.
+        metadata:
+          type: object
+          description: Optional additional metadata.
+          additionalProperties: true
+      required:
+        - ticket
+        - symbol
+        - side
+        - volume
+        - price
+  - name: get_recent_trades
+    description: Retrieve a list of recent trades.
+    parameters:
+      type: object
+      properties:
+        limit:
+          type: integer
+          description: Maximum number of trades to return.
+          default: 10
+        symbol:
+          type: string
+          description: Optional symbol filter.
+      required: []
