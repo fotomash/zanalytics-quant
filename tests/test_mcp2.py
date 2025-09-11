@@ -10,7 +10,7 @@ TEST_KEY = "test-key"
 
 @pytest.fixture
 def app_client(monkeypatch):
-    monkeypatch.setenv("MCP2_API_KEY", TEST_KEY)
+    monkeypatch.setenv("MCP_API_KEY", TEST_KEY)
     import services.mcp2.mcp2_server as mcp2_server
     importlib.reload(mcp2_server)
 
@@ -45,6 +45,12 @@ def test_health(app_client):
     resp = client.get("/health")
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
+
+
+def test_requires_api_key_header(app_client):
+    client, _, _, _ = app_client
+    resp = client.post("/mcp/tools/search", json={"query": "hammer"})
+    assert resp.status_code == 401
 
 
 def test_tools_search_cache_hit(app_client):
