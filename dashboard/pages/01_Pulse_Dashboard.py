@@ -324,21 +324,29 @@ def exposure_percent_stub(positions: list, account: dict) -> float:
     # ↪ Replace with live risk_enforcer metric when available
     return min(100.0, max(0.0, 10.0 * len(positions)))
 
-def type_to_text(t: int) -> str:
+def type_to_text(t: int | str) -> str:
     """Convert MT5 position type ``t`` to a human readable string.
+
+    Accepts either legacy numeric codes (``0``/``1``) or textual values
+    (``"BUY"``/``"SELL"``). Any unrecognised value is returned as-is.
 
     Parameters
     ----------
-    t: int
-        ``0`` for buy, ``1`` for sell; other values are returned as-is.
+    t: int | str
+        Position type code or text.
 
     Returns
     -------
     str
-        Human readable text representing the position type.
+        Normalised human readable position type.
     """
 
-    return 'BUY' if int(t) == 0 else 'SELL' if int(t) == 1 else str(t)
+    t_str = str(t).upper()
+    if t_str in {"0", "BUY"}:
+        return "BUY"
+    if t_str in {"1", "SELL"}:
+        return "SELL"
+    return t_str
 
 def secs_to_hms(seconds: int) -> str:
     """Convert seconds to ``H:MM:SS``; ``'—'`` if ``seconds`` <= 0.
