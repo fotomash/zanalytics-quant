@@ -41,8 +41,14 @@ def load_manifest(path: str | Path) -> Dict[str, Any]:
         Location of the manifest JSON file.
     """
 
-    with Path(path).open("r", encoding="utf-8") as fh:
-        return json.load(fh)
+    p = Path(path)
+    if not p.exists():
+        raise ValueError(f"Manifest file does not exist: {p}")
+    try:
+        with p.open("r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON in manifest file {p}: {exc}") from exc
 
 
 def load_confidence_matrix(path: str | Path) -> Dict[str, Any]:
@@ -52,8 +58,14 @@ def load_confidence_matrix(path: str | Path) -> Dict[str, Any]:
     ``weight`` field.  These weights will be aggregated by :func:`enrich_ticks`.
     """
 
-    with Path(path).open("r", encoding="utf-8") as fh:
-        return json.load(fh)
+    p = Path(path)
+    if not p.exists():
+        raise ValueError(f"Confidence matrix file does not exist: {p}")
+    try:
+        with p.open("r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON in confidence matrix file {p}: {exc}") from exc
 
 
 def _generate_trade_id(trade_id: str | None = None) -> str:
