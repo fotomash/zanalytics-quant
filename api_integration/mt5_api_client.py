@@ -1,6 +1,7 @@
 import os
 from typing import Optional, Dict
 
+import logging
 import pandas as pd
 import requests
 
@@ -14,9 +15,14 @@ class Mt5APIClient:
 
     def _get(self, path: str, params: Optional[Dict] = None):
         url = f"{self.base_url.rstrip('/')}/{path.lstrip('/')}"
-        resp = requests.get(url, params=params, timeout=self.timeout)
-        resp.raise_for_status()
-        return resp.json()
+        try:
+            resp = requests.get(url, params=params, timeout=self.timeout)
+            resp.raise_for_status()
+            return resp.json()
+        except requests.HTTPError as e:
+            status = getattr(e.response, "status_code", "unknown")
+            logging.warning(f"MT5 API request failed ({status}) for {url}: {e}")
+            return pd.DataFrame()
 
     def get_ticks(self, symbol: str, limit: int = 1000) -> pd.DataFrame:
         data = self._get("ticks", params={"symbol": symbol, "limit": limit})

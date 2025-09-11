@@ -154,6 +154,16 @@ curl "$MT5_API_URL/history_orders_get"
 Directly hitting `$DJANGO_API_URL/history_deals_get` or `$DJANGO_API_URL/history_orders_get` will proxy the call, but the upstream service is still the MT5 bridge.
 
 See [backend/mt5/app/routes/history.py](backend/mt5/app/routes/history.py) for details.
+
+## mt5 vs mt5-api services
+
+The stack uses two related containers:
+
+- **mt5** – runs the MetaTrader 5 bridge and exposes the REST API (including `/ticks`) on port 5001.
+- **mt5-api** – a lightweight FastAPI proxy that forwards requests to `mt5` and is typically the entry point for external traffic via Traefik.
+
+Internal services should set `MT5_API_URL` to `http://mt5:5001` so they speak directly to the bridge that serves tick data.
+
 ## How It Works (Practical Flow)
 
 Step-by-step data flow from MT5 to the dashboard. [Read more](docs/how_it_works.md).

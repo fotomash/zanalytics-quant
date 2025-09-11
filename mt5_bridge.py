@@ -45,6 +45,7 @@ class MT5Bridge:
             logger.error("MT5 initialization failed")
             raise RuntimeError("MT5 initialization failed")
 
+
         if self.account:
             authorized = mt5.login(self.account, password=self.password, server=self.server)
             if not authorized:
@@ -295,7 +296,7 @@ class MT5Bridge:
             response = requests.post(url, json=payload, headers=headers, timeout=10)
             response.raise_for_status()
         except requests.RequestException as e:
-            print(f"Failed to sync journal to API: {e}")
+            logger.warning(f"Failed to sync journal to API: {e}")
             return 0
 
         return len(payload)
@@ -356,10 +357,10 @@ class MT5Bridge:
 
 if __name__ == "__main__":
     bridge = MT5Bridge()
-    print("MT5 Bridge initialized")
-    print("This bridge provides:")
-    print("- Real trade history with behavioral analysis")
-    print("- Pattern detection (revenge, overconfidence, fatigue, FOMO)")
-    print("- Confluence score validation against outcomes")
-    print("- Weekly behavioral reviews")
-    print("- Direct sync with Pulse signal journal")
+    logger.warning("MT5 Bridge initialized")
+    logger.warning("This bridge provides:")
+    logger.warning("- Real trade history with behavioral analysis")
+    logger.warning("- Pattern detection (revenge, overconfidence, fatigue, FOMO)")
+    logger.warning("- Confluence score validation against outcomes")
+    logger.warning("- Weekly behavioral reviews")
+    logger.warning("- Direct sync with Pulse signal journal")
