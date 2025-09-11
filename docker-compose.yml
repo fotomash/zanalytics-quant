@@ -564,8 +564,11 @@ services:
       - DJANGO_API_URL=http://django:8000
       - DJANGO_API_PREFIX=/api/v1
       - BRIDGE_TOKEN=${BRIDGE_TOKEN:-}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     depends_on:
       django:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     command: >
       streamlit run Home.py --server.port=${STREAMLIT_SERVER_PORT:-8501} --server.enableCORS true --server.enableXsrfProtection false
