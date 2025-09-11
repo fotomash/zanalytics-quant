@@ -43,6 +43,9 @@ import argparse
 import os
 from typing import Iterable, Optional
 
+import pyarrow as pa
+
+from confluent_kafka import Consumer, KafkaError, TopicPartition
 try:  # pragma: no cover - module may be absent in tests
     from confluent_kafka import Consumer, KafkaError, TopicPartition
 except Exception:  # pragma: no cover - fallback for environments without kafka
@@ -112,6 +115,22 @@ def assign_start_offset(consumer: Consumer, topic: str, start_offset: Optional[i
     consumer.assign(partitions)
 
 
+def deserialize_ticks(payload: bytes) -> list[dict]:
+    """Deserialize Arrow IPC stream bytes into a list of tick dictionaries."""
+    if not payload:
+        return []
+    reader = pa.ipc.open_stream(payload)
+    table = reader.read_all()
+    return table.to_pylist()
+
+
+def process_messages(messages: Iterable) -> None:
+    """Process a batch of Kafka messages.
+
+    Replace the body of this function to forward data into Redis, Postgres,
+    or another sink.  Messages are expected to contain Arrow IPC serialized
+    ticks produced by ``backend.mt5.mt5_bridge.serialize_ticks``.
+
 def print_messages(messages: Iterable) -> None:
     """Print each message value to stdout."""
 
@@ -138,6 +157,8 @@ def batch_sink(messages: Iterable) -> None:
             if KafkaError is None or err.code() != KafkaError._PARTITION_EOF:
                 print(f"Kafka error: {err}")
             continue
+        ticks = deserialize_ticks(msg.value())
+        print(ticks)
         valid.append(msg.value().decode("utf-8"))
     print(f"Batch size: {len(valid)}")
 
