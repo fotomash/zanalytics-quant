@@ -1,72 +1,76 @@
-from __future__ import annotations
-
 """Overseer agent for system-wide monitoring and incident logging."""
 
-from importlib import import_module
-from typing import Any, Dict, Optional
+from __future__ import annotations
 
+import logging
+import time
+from typing import Any, Dict
 
-class EnhancedTicketingSystem:
-    """Minimal ticketing system integration.
+from multi_agent_memory_integration import MultiAgentMemory
+from ticketing_system import TicketingSystem
+from services.vectorization_service.brown_vector_store_integration import (
+    BrownVectorPipeline,
+)
 
-    In the full application this would connect to an external incident
-    management platform.  For repository testing purposes the implementation
-    here simply acts as a placeholder interface.
-    """
-
-    @staticmethod
-    def create_ticket(payload: Dict[str, Any]) -> None:  # pragma: no cover - side effect only
-        """Create a ticket from the given payload.
-
-        Parameters
-        ----------
-        payload:
-            Structured incident description.
-        """
-        # The real implementation would dispatch the payload to a ticketing
-        # system.  We intentionally leave this as a no-op for tests.
-        pass
+logger = logging.getLogger(__name__)
 
 
 class OverseerAgent:
     """Agent responsible for processing system events."""
 
     def __init__(self, profile: Dict[str, Any]) -> None:
-        """Initialize the agent using the supplied profile.
-
-        The profile may define ``memory`` and ``vector_store`` integrations
-        using a mapping with ``module``, ``class`` and optional ``params``
-        keys.  These integrations are dynamically imported and instantiated.
-        """
+        """Initialize the agent using the supplied profile."""
 
         self.profile = profile
-        self.memory = self._load_integration("memory")
-        self.vector_store = self._load_integration("vector_store")
+        self.ticketing: TicketingSystem | None = self._init_integration(TicketingSystem)
+        self.memory: MultiAgentMemory | None = self._init_integration(MultiAgentMemory)
+        self.vector_store: BrownVectorPipeline | None = self._init_integration(
+            BrownVectorPipeline
+        )
 
-    def _load_integration(self, key: str) -> Any:
-        """Load an optional integration defined in the profile."""
-        cfg: Optional[Dict[str, Any]] = self.profile.get(key)
-        if not cfg:
+    def _init_integration(self, cls):
+        """Instantiate an integration with basic error handling."""
+        try:
+            return cls()
+        except Exception as exc:  # pragma: no cover - network/config dependent
+            logger.warning("%s unavailable: %s", cls.__name__, exc)
             return None
-        module_name = cfg.get("module")
-        class_name = cfg.get("class")
-        if not module_name or not class_name:
-            return None
-        module = import_module(module_name)
-        cls = getattr(module, class_name)
-        params = cfg.get("params") or {}
-        return cls(**params)
+
+    def _retry(self, func, *args, retries: int = 3, **kwargs):
+        """Call ``func`` with simple retry logic."""
+        for attempt in range(retries):
+            try:
+                return func(*args, **kwargs)
+            except Exception as exc:  # pragma: no cover - integration specific
+                if attempt == retries - 1:
+                    logger.error("%s failed after %d attempts: %s", func.__name__, retries, exc)
+                else:
+                    time.sleep(1)
 
     def process_system_event(self, event: Dict[str, Any]) -> None:
         """Handle a system event and create a structured incident ticket."""
+        history = []
+        if self.memory:
+            history = self._retry(self.memory.fetch, "overseer") or []
         payload = {
             "type": event.get("type", "system_event"),
             "description": event.get("description", ""),
             "metadata": {
                 k: v for k, v in event.items() if k not in {"type", "description"}
             },
+            "history": history,
         }
-        EnhancedTicketingSystem.create_ticket(payload)
+        if self.ticketing:
+            self._retry(self.ticketing.create_ticket, payload)
+        if self.memory:
+            self._retry(self.memory.store, "overseer", payload)
+        if self.vector_store:
+            self._retry(
+                self.vector_store.upsert_vector,
+                str(time.time()),
+                [],
+                {"type": payload["type"]},
+            )
 
 
 __all__ = ["OverseerAgent"]
