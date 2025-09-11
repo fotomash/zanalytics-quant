@@ -16,10 +16,12 @@ from dashboard.utils.streamlit_api import (
     get_trading_menu_options,
     start_whisper_sse,
     drain_whisper_sse,
+    stop_whisper_sse,
     fetch_symbols,
     fetch_trade_history_filtered,
 )
 
+stop_whisper_sse()
 st.set_page_config(page_title="🧭 Whisperer Cockpit — Unified", page_icon="🧭", layout="wide")
 
 inject_glass_css()

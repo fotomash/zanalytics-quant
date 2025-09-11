@@ -8,6 +8,9 @@ from typing import Any, Dict, List, Tuple
 import requests
 import streamlit as st
 
+# Thread coordination for server‑sent events
+sse_stop_event = threading.Event()
+
 
 def get_api_base() -> str:
     """Resolve Django API base at runtime from session override or env."""
@@ -253,11 +256,15 @@ def _ensure_sse_state() -> None:
     # thread handle optional, we only track started flag
     if 'sse_thread_started' not in st.session_state:
         st.session_state['sse_thread_started'] = False
+    if 'sse_thread' not in st.session_state:
+        st.session_state['sse_thread'] = None
 
 
 def _sse_loop() -> None:
     q: queue.Queue = st.session_state['sse_whisper_queue']
     while True:
+        if sse_stop_event.is_set():
+            break
         url = api_url('api/v1/feeds/stream?topics=whispers')
         try:
             with requests.get(url, stream=True, timeout=30) as resp:
@@ -268,6 +275,8 @@ def _sse_loop() -> None:
                 st.session_state['sse_status'] = 'connected'
                 current_event = None
                 for raw in resp.iter_lines():
+                    if sse_stop_event.is_set():
+                        break
                     if raw is None:
                         continue
                     if not raw:
@@ -296,9 +305,23 @@ def start_whisper_sse() -> None:
     """Start SSE listener thread if not already running."""
     _ensure_sse_state()
     if not st.session_state['sse_thread_started']:
-        st.session_state['sse_thread_started'] = True
+        sse_stop_event.clear()
         t = threading.Thread(target=_sse_loop, daemon=True)
+        st.session_state['sse_thread'] = t
+        st.session_state['sse_thread_started'] = True
         t.start()
+
+
+def stop_whisper_sse() -> None:
+    """Stop SSE listener thread if running."""
+    if st.session_state.get('sse_thread_started'):
+        sse_stop_event.set()
+        t = st.session_state.get('sse_thread')
+        if isinstance(t, threading.Thread) and t.is_alive():
+            t.join(timeout=1.0)
+        st.session_state['sse_thread_started'] = False
+        st.session_state['sse_thread'] = None
+        st.session_state['sse_status'] = 'stopped'
 
 
 def drain_whisper_sse(max_items: int = 50) -> List[Dict[str, Any]]:
