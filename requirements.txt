@@ -64,3 +64,5 @@ asyncpg==0.29.0
 fakeredis==2.23.2
 confluent-kafka==2.3.0
 tenacity==8.2.3
+# MCP2 service dependencies
+-r services/mcp2/requirements.txt
