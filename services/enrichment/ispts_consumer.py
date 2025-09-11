@@ -173,17 +173,16 @@ def main() -> None:
     server_thread.start()
 
     journal = SessionJournal(Path("session_journal.json"))
-    shutdown = False
+    shutdown = threading.Event()
 
     def _handle_shutdown(signum, frame):
-        nonlocal shutdown
-        shutdown = True
+        shutdown.set()
 
     signal.signal(signal.SIGINT, _handle_shutdown)
     signal.signal(signal.SIGTERM, _handle_shutdown)
 
     try:
-        while not shutdown:
+        while not shutdown.is_set():
             msg = consumer.poll(1.0)
             if msg is None:
                 continue
@@ -284,8 +283,13 @@ def main() -> None:
                 )
             consumer.commit(msg)
     finally:
-        producer.flush()
-        consumer.close()
+        if producer is not None:
+            producer.flush()
+            close = getattr(producer, "close", None)
+            if callable(close):
+                close()
+        if consumer is not None:
+            consumer.close()
         journal.flush()
 
 
