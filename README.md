@@ -159,9 +159,8 @@ Legacy compose configurations have been archived under `docs/legacy/`.
 
 Copy `.env.sample` (or `.env.template` for the full set) to `.env`, fill in the sensitive values, and keep the real
 file out of version control. Never commit secrets to the repository. Docker Compose reads `.env` through its `env_file`
-directive and injects those variables into services like `mcp`. In CI pipelines,
-provide the same variables via your environment or secret manager—containers no
-longer mount `.env` directly.
+directive and injects those variables into services like `mcp`. For deployments, supply these values through your
+deployment configuration or a dedicated secrets manager—containers no longer mount `.env` directly.
 
 Key variables to configure before launching:
 
