@@ -7,7 +7,7 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -19,16 +19,6 @@ try:  # pragma: no cover - optional dependency
 except ModuleNotFoundError:  # pragma: no cover - fallback
     load_dotenv = None  # type: ignore[assignment]
 
-try:  # pragma: no cover - external dependency
-    from confluent_kafka import KafkaError
-except ModuleNotFoundError:  # pragma: no cover - lightweight stub
-    class KafkaError:  # type: ignore[too-many-ancestors]
-        """Minimal stub containing the ``_PARTITION_EOF`` attribute."""
-
-        _PARTITION_EOF = object()
-
-        def code(self) -> None:  # pragma: no cover - stub method
-            return None
 
 
 @dataclass
@@ -221,32 +211,73 @@ class BootstrapEngine:
 
     def run(
         self,
-        init_fn: Callable[[Dict[str, Any]], Dict[str, Any]],
-        message_fn: Callable[[Dict[str, Any], Any], None],
-    ) -> None:
-        """Run initialization and consume messages with the given handler."""
+        agent_id: str,
+        *args: Any,
+        threshold: float = 0.5,
+        **kwargs: Any,
+    ) -> Any:
+        """Execute an agent with confidence based fallbacks.
 
-        manifest = self.session_manifest or self._load_session_manifest()
-        context = init_fn(manifest)
-        consumer = context["consumer"]
-        try:
-            while True:
-                msg = consumer.poll(1.0)
-                if msg is None:
-                    continue
-                if msg.error():
-                    if msg.error().code() == KafkaError._PARTITION_EOF:
-                        continue
-                    print(msg.error())
+        Parameters
+        ----------
+        agent_id:
+            Identifier of the primary agent to execute.  The agent must
+            exist in :attr:`agent_registry` and contain callable entry
+            points.
+        *args, **kwargs:
+            Positional and keyword arguments passed to the agent callable.
+        threshold:
+            Minimum confidence score required for early acceptance.  If
+            the score returned by :class:`~core.confidence_tracer.ConfidenceTracer`
+            is below this value, fallback agents resolved via
+            :class:`~core.semantic_mapping_service.SemanticMappingService`
+            will be invoked sequentially.
+
+        Returns
+        -------
+        Any
+            The result produced by the agent with the highest confidence
+            score.  If no agent reaches the threshold the highest scoring
+            result is still returned.
+        """
+
+        from .confidence_tracer import ConfidenceTracer
+        from .semantic_mapping_service import SemanticMappingService
+
+        if not self.agent_registry:
+            self._load_agents()
+
+        tracer = ConfidenceTracer()
+
+        def _call_agent(aid: str) -> tuple[float, Any]:
+            cfg = self.agent_registry.get(aid)
+            if not cfg:
+                raise KeyError(f"Unknown agent: {aid}")
+            entry_points = cfg.get("entry_points", {})
+            # Prefer "on_message" for compatibility with existing agent
+            # definitions but fall back to any single callable.
+            func = (
+                entry_points.get("on_message")
+                or entry_points.get("run")
+                or entry_points.get("call")
+                or next(iter(entry_points.values()), None)
+            )
+            if not callable(func):
+                raise TypeError(f"Agent '{aid}' has no callable entry point")
+            result = func(*args, **kwargs)
+            score = tracer.trace(result)
+            return score, result
+
+        best_score, best_result = _call_agent(agent_id)
+        if best_score < threshold:
+            fallbacks = SemanticMappingService.route(agent_id)
+            for fb in fallbacks:
+                score, result = _call_agent(fb)
+                if score > best_score:
+                    best_score, best_result = score, result
+                if score >= threshold:
                     break
-                message_fn(context, msg)
-        except KeyboardInterrupt:  # pragma: no cover - user interrupt
-            pass
-        finally:
-            consumer.close()
-            producer = context.get("producer")
-            if producer is not None:
-                producer.flush()
+        return best_result
 
 
 __all__ = ["BootstrapEngine", "KafkaConfig", "RiskConfig"]
