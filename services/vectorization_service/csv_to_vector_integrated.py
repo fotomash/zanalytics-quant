@@ -10,38 +10,69 @@ from services.mcp2.vector.embeddings import embed
 logger = logging.getLogger(__name__)
 
 
-def _load_volume_fields() -> List[str]:
-    """Load volume field names from volume_field_clarity_patch.yaml if available."""
-    default_fields = ["volume", "tick_volume", "inferred_volume", "true_volume"]
-    patch_path = Path(__file__).resolve().parents[2] / "volume_field_clarity_patch.yaml"
+def _load_field_patch() -> Dict[str, object]:
+    """Load normalization rules and field mappings from YAML patch."""
+    default_patch = {
+        "normalization": {
+            "lowercase": True,
+            "strip": True,
+            "replace": {" ": "_", "-": "_"},
+        },
+        "field_mappings": {"volume": ["volume"], "tick_volume": ["tick_volume"]},
+    }
+    patch_path = Path(__file__).resolve().parent / "volume_field_clarity_patch.yaml"
     try:
         with patch_path.open("r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
-            fields = (
-                data.get("volume_fields")
-                or data.get("fields")
-                or data.get("volume")
-            )
-            if isinstance(fields, list) and fields:
-                logger.info(
-                    "loaded volume field patch", extra={"fields": fields}
-                )
-                return fields
-            logger.warning(
-                "volume_field_clarity_patch.yaml missing expected keys; using defaults",
-                extra={"defaults": default_fields},
-            )
+            patch = {
+                "normalization": data.get("normalization", default_patch["normalization"]),
+                "field_mappings": data.get("field_mappings", default_patch["field_mappings"]),
+            }
+            logger.info("loaded volume field patch", extra={"patch": patch})
+            return patch
     except FileNotFoundError:
         logger.warning(
             "volume_field_clarity_patch.yaml not found; using defaults",
-            extra={"defaults": default_fields},
+            extra={"defaults": default_patch},
         )
     except Exception:
         logger.exception("failed to load volume field patch")
-    return default_fields
+    return default_patch
 
 
-VOLUME_FIELDS = _load_volume_fields()
+FIELD_PATCH = _load_field_patch()
+
+
+def _normalize_key(key: str) -> str:
+    norm = key
+    opts = FIELD_PATCH.get("normalization", {})
+    if opts.get("lowercase"):
+        norm = norm.lower()
+    if opts.get("strip"):
+        norm = norm.strip()
+    for old, new in opts.get("replace", {}).items():
+        norm = norm.replace(old, new)
+    return norm
+
+
+def _build_alias_map() -> Dict[str, str]:
+    alias_map: Dict[str, str] = {}
+    for canonical, aliases in FIELD_PATCH.get("field_mappings", {}).items():
+        for alias in aliases:
+            alias_map[_normalize_key(alias)] = canonical
+    return alias_map
+
+
+ALIAS_TO_CANONICAL = _build_alias_map()
+REQUIRED_VOLUME_FIELDS = list(FIELD_PATCH.get("field_mappings", {}).keys())
+
+
+def _apply_field_mappings(payload: Dict) -> Dict:
+    mapped: Dict[str, object] = {}
+    for key, value in payload.items():
+        canonical = ALIAS_TO_CANONICAL.get(_normalize_key(key), _normalize_key(key))
+        mapped[canonical] = value
+    return mapped
 
 
 def vectorize_payload(payload: Dict) -> Tuple[List[float], Dict]:
@@ -61,6 +92,8 @@ def vectorize_payload(payload: Dict) -> Tuple[List[float], Dict]:
         if not isinstance(payload, dict):
             raise TypeError("payload must be a dict")
 
+        payload = _apply_field_mappings(payload)
+
         text_parts = []
         for key in sorted(payload.keys()):
             value = payload.get(key)
@@ -76,10 +109,19 @@ def vectorize_payload(payload: Dict) -> Tuple[List[float], Dict]:
             if field in payload:
                 metadata[field] = payload[field]
 
-        for vol_field in VOLUME_FIELDS:
-            if vol_field in payload:
-                metadata["volume"] = payload[vol_field]
-                break
+        volume_candidates = [f for f in REQUIRED_VOLUME_FIELDS if f in payload]
+        if not volume_candidates:
+            logger.warning(
+                "missing volume field",
+                extra={"required": REQUIRED_VOLUME_FIELDS},
+            )
+        elif len(volume_candidates) > 1:
+            logger.warning(
+                "ambiguous volume fields",
+                extra={"fields": volume_candidates},
+            )
+        if volume_candidates:
+            metadata["volume"] = payload[volume_candidates[0]]
 
         return embedding, metadata
     except Exception as exc:  # pragma: no cover - defensive
