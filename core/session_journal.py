@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
@@ -22,3 +23,9 @@ class SessionJournal:
         data = json.loads(self.path.read_text(encoding="utf-8"))
         data.append(entry)
         self.path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    def flush(self) -> None:
+        """Ensure journal contents are flushed to disk."""
+        with self.path.open("r+") as fh:
+            fh.flush()
+            os.fsync(fh.fileno())
