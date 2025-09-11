@@ -30,13 +30,14 @@ class FaissStore:
         self.ttl = ttl
         self.index = faiss.IndexIDMap(faiss.IndexFlatL2(dimension))
         self.metadata: Dict[int, Dict[str, Any]] = {}
+        self.trade_ids: List[Any] = []
         self._next_id = 0
 
-    async def add(self, embedding: List[float], payload: Any) -> None:
-        """Add an embedding with associated payload."""
-        await asyncio.to_thread(self._add, embedding, payload)
+    async def add(self, trade_id: Any, embedding: List[float], payload: Any) -> None:
+        """Add an embedding with associated payload and trade id."""
+        await asyncio.to_thread(self._add, trade_id, embedding, payload)
 
-    def _add(self, embedding: List[float], payload: Any) -> None:
+    def _add(self, trade_id: Any, embedding: List[float], payload: Any) -> None:
         vec = np.array([embedding], dtype="float32")
         idx = self._next_id
         self._next_id += 1
@@ -45,9 +46,11 @@ class FaissStore:
         self.metadata[idx] = {
             "embedding": vec[0],
             "payload": payload,
+            "trade_id": trade_id,
             "insertion_time": now,
             "last_access": now,
         }
+        self.trade_ids.append(trade_id)
         self._prune_if_needed()
 
     async def query(self, embedding: List[float], top_k: int = 5) -> Dict[str, List[Dict[str, Any]]]:
@@ -70,9 +73,10 @@ class FaissStore:
             if not meta:
                 continue
             meta["last_access"] = now
+            trade_id = self.trade_ids[int(id_)] if int(id_) < len(self.trade_ids) else None
             results.append(
                 {
-                    "id": int(id_),
+                    "id": trade_id,
                     "payload": meta["payload"],
                     "distance": float(dist),
                     "insertion_time": meta["insertion_time"],
@@ -104,10 +108,18 @@ class FaissStore:
     def _remove_ids(self, ids: List[int]) -> None:
         for id_ in ids:
             self.metadata.pop(id_, None)
+            if id_ < len(self.trade_ids):
+                self.trade_ids[id_] = None
         if self.metadata:
             id_array = np.array(list(self.metadata.keys()), dtype="int64")
             vec_array = np.array([m["embedding"] for m in self.metadata.values()], dtype="float32")
             self.index = faiss.IndexIDMap(faiss.IndexFlatL2(self.dimension))
             self.index.add_with_ids(vec_array, id_array)
+            max_id = int(id_array.max())
+            new_trade_ids: List[Any] = [None] * (max_id + 1)
+            for id_, meta in self.metadata.items():
+                new_trade_ids[id_] = meta.get("trade_id")
+            self.trade_ids = new_trade_ids
         else:
             self.index.reset()
+            self.trade_ids = []

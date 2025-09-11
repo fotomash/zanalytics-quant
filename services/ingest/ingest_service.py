@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import time
+import logging
 from datetime import datetime, timezone
 
 
@@ -13,6 +14,8 @@ VERSION_PREFIX = os.getenv("STREAM_VERSION_PREFIX", "v2")
 STREAM_KEY = os.getenv("TICK_STREAM", f"{VERSION_PREFIX}:ticks:l1")
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "1000"))
 FLUSH_MS = int(os.getenv("FLUSH_MS", "250"))
+
+logger = logging.getLogger(__name__)
 
 
 class TickBuffer:
@@ -34,6 +37,42 @@ class TickBuffer:
         data, self.buf = self.buf, []
         self.hash_seen.clear()
         return data
+
+
+async def insert_batch(conn, batch: list[dict], max_retries: int = 3, base_delay: float = 0.1) -> None:
+    delay = base_delay
+    for attempt in range(1, max_retries + 1):
+        try:
+            await conn.executemany(
+                """
+                INSERT INTO ticks_l1(symbol, ts, bid, ask, volume, hash)
+                VALUES($1,$2,$3,$4,$5,$6)
+                ON CONFLICT (hash) DO NOTHING;
+                """,
+                [
+                    (
+                        t["symbol"],
+                        t["ts"],
+                        t["bid"],
+                        t["ask"],
+                        t.get("volume", 0),
+                        t["hash"],
+                    )
+                    for t in batch
+                ],
+            )
+            return
+        except Exception as exc:  # pragma: no cover - defensive
+            rollback = getattr(conn, "rollback", None)
+            if rollback is not None:
+                await rollback()
+            else:
+                await conn.execute("ROLLBACK")
+            logger.exception("Batch insert failed on attempt %s", attempt, exc_info=exc)
+            if attempt >= max_retries:
+                raise
+            await asyncio.sleep(delay)
+            delay *= 2
 
 
 async def main() -> None:
@@ -59,24 +98,7 @@ async def main() -> None:
             last_flush = time.monotonic()
             if batch:
                 async with pool.acquire() as con:
-                    await con.executemany(
-                        """
-                        INSERT INTO ticks_l1(symbol, ts, bid, ask, volume, hash)
-                        VALUES($1,$2,$3,$4,$5,$6)
-                        ON CONFLICT (hash) DO NOTHING;
-                        """,
-                        [
-                            (
-                                t["symbol"],
-                                t["ts"],
-                                t["bid"],
-                                t["ask"],
-                                t.get("volume", 0),
-                                t["hash"],
-                            )
-                            for t in batch
-                        ],
-                    )
+                    await insert_batch(con, batch)
 
 
 if __name__ == "__main__":
