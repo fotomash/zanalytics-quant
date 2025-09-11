@@ -19,7 +19,9 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, List
+
+from services.mcp2.llm_config import call_local_echo, LOCAL_THRESHOLD
 
 from sentence_transformers import SentenceTransformer
 
@@ -61,58 +63,78 @@ def _generate_trade_id(trade_id: str | None = None) -> str:
 
 
 def enrich_ticks(
-    tick: Dict[str, Any],
+    ticks: list[dict],
     *,
     manifest_path: str | Path = "gpt-action-manifest.json",
     matrix_path: str | Path = "confidence_trace_matrix.json",
-) -> Dict[str, Any]:
-    """Enrich a tick dictionary with analytics metadata.
+) -> list[dict]:
+    """Enrich a list of tick dictionaries with analytics metadata.
 
     Parameters
     ----------
-    tick:
-        Dictionary representing a tick/trade event.  It may already contain a
-        ``trade_id`` or ``wyckoff_phase``.
+    ticks:
+        Sequence of dictionaries representing tick/trade events. Each may already
+        contain a ``trade_id`` or ``phase``/``wyckoff_phase``.
     manifest_path, matrix_path:
         Paths to the manifest and confidence matrix files respectively.
 
     Returns
     -------
-    dict
-        A new dictionary including ``trade_id``, ``wyckoff_phase``,
-        ``confidence``, ``nudge`` and ``embedding`` fields.
+    list[dict]
+        Enriched tick dictionaries including ``trade_id``, ``phase``,
+        ``confidence``, ``nudge``, ``embedding`` and optionally ``llm_verdict``
+        for locally handled ticks.
     """
 
-    data = dict(tick)  # shallow copy to avoid mutating caller state
-
-    # Load supporting data
+    # Load supporting data once
     manifest = load_manifest(manifest_path)
     matrix = load_confidence_matrix(matrix_path)
-
-    # Wyckoff phase – placeholder: use provided value or default to "Unknown"
-    phase = data.get("wyckoff_phase", "Unknown")
 
     # Aggregate confidence from matrix weights (ignoring non-dict values)
     confidence = sum(v.get("weight", 0) for v in matrix.values() if isinstance(v, dict))
 
-    # Simple nudge text combining manifest name and phase/confidence
     model_name = manifest.get("name_for_model", "model")
-    nudge = f"{model_name} sees {phase} phase with confidence {confidence:.2f}"
 
-    # Embedding vector for the nudge text
-    embedding = _MODEL.encode(nudge).tolist()
+    enriched: List[dict] = []
+    whisper_queue: List[dict] = []
 
-    data.update(
-        {
-            "trade_id": _generate_trade_id(data.get("trade_id")),
-            "wyckoff_phase": phase,
-            "confidence": confidence,
-            "nudge": nudge,
-            "embedding": embedding,
-        }
-    )
+    for tick in ticks:
+        data = dict(tick)  # shallow copy to avoid mutating caller state
 
-    return data
+        # Determine phase with backward compatibility for ``wyckoff_phase``
+        phase = data.get("phase") or data.get("wyckoff_phase", "Unknown")
+
+        # Simple nudge text combining manifest name and phase/confidence
+        nudge = f"{model_name} sees {phase} phase with confidence {confidence:.2f}"
+
+        # Embedding vector for the nudge text
+        embedding = _MODEL.encode(nudge).tolist()
+
+        data.update(
+            {
+                "trade_id": _generate_trade_id(data.get("trade_id")),
+                "wyckoff_phase": phase,
+                "phase": phase,
+                "confidence": confidence,
+                "nudge": nudge,
+                "embedding": embedding,
+            }
+        )
+
+        if data["confidence"] < LOCAL_THRESHOLD or data["phase"] in [
+            "spring",
+            "distribution",
+        ]:
+            data["llm_verdict"] = call_local_echo(
+                f"Quick nudge for {data['phase']}, confidence {data['confidence']}: hold/sell/hedge?"
+            )
+        else:
+            whisper_queue.append(data)
+
+        enriched.append(data)
+
+    # ``whisper_queue`` is kept for future remote processing
+    return enriched
 
 
 __all__ = ["enrich_ticks", "load_manifest", "load_confidence_matrix"]

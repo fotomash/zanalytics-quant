@@ -173,6 +173,9 @@ Key variables to configure before launching:
 - `DJANGO_SECRET_KEY` – secret key for Django.
 - `MCP2_API_KEY` – secret used by the `mcp` service. Add it to `.env` and Compose
   or CI will inject it; use a 32‑hex‑character value.
+- `LOCAL_THRESHOLD` – confidence cutoff for using the local echo model. Ticks
+  below this or in spring/distribution phases get a quick `llm_verdict`; others
+  queue for Whisperer.
 - `HEALTH_AGGREGATOR_URL` – base URL for the health aggregator queried by the
   dashboard's diagnostics panel.
 
