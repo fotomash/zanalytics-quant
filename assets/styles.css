@@ -1,0 +1,60 @@
+<style>
+/* Dashboard styles for Enhanced Pulse Dashboard.
+   Update styles here and reload the Streamlit app to apply changes. */
+
+    /* General Styles */
+    .stApp {
+        background-color: #111827; /* bg-gray-900 */
+        color: #D1D5DB; /* text-gray-300 */
+    }
+    /* Sidebar */
+    .st-emotion-cache-16txtl3 {
+        background-color: #1F2937;
+        border-right: 1px solid #374151;
+    }
+
+    /* Metric Card */
+    .metric-card {
+        background-color: #1F2937; /* bg-gray-800 */
+        border: 1px solid #374151; /* border-gray-700 */
+        border-radius: 0.5rem; /* rounded-lg */
+        padding: 1.5rem; /* p-6 */
+        transition: all 0.3s;
+        height: 100%;
+    }
+    .metric-card:hover {
+        border-color: #4B5563; /* hover:border-gray-600 */
+    }
+    .metric-title {
+        font-size: 0.875rem; /* text-sm */
+        font-weight: 500; /* font-medium */
+        color: #D1D5DB; /* text-gray-300 */
+    }
+    .metric-value {
+        font-size: 1.875rem; /* text-3xl */
+        font-weight: 700; /* font-bold */
+    }
+    .metric-unit {
+        font-size: 0.875rem; /* text-sm */
+        color: #9CA3AF; /* text-gray-400 */
+    }
+    .metric-description {
+        font-size: 0.75rem; /* text-xs */
+        color: #9CA3AF; /* text-gray-400 */
+        margin-top: 0.5rem;
+    }
+
+    /* Page Headers */
+    .page-header {
+        text-align: center;
+        color: white;
+        font-size: 2.25rem; /* text-4xl */
+        font-weight: 700; /* font-bold */
+    }
+    .page-subheader {
+        text-align: center;
+        color: #9CA3AF; /* text-gray-400 */
+        font-size: 1.125rem; /* text-lg */
+    }
+
+</style>

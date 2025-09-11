@@ -23,13 +23,19 @@ Current Direction (Active)
 --------------------------
 
 - [Architecture (streaming)](architecture_pulse_streaming.md)
+- [Tick stream v2 migration notes](tick_stream_v2_migration.md)
 - [Journal envelopes and contracts](journal_envelopes.md)
 - [Actions API overview](ACTIONS_API_OVERVIEW.md)
 - [Kafka sidecar quickstart](../ops/kafka/quickstart.md)
 - [Pulse runtime (gates + detail API)](../backend/django/app/nexus/pulse/README.md)
 - [Services (mirror, tick→bar, reconciler)](../services/README.md)
 - [Dashboard pages index](../dashboard/pages/README.md)
+- [Dashboard app](../dashboard/README.md)
+- [Prototype dashboards](../dashboards/README.md)
 - [Monitoring stack](monitoring.md)
+- [MCP2 connector config](connectors/mcp2_connector.yaml) – dev/prod SSE endpoints
+- [MCP2 OpenAI tools manifest](connectors/actions_openai_mcp2.yaml)
+- [MCP2 runbook](runbooks/mcp2.md)
 
 Legacy / Retired (kept for history)
 -----------------------------------
@@ -49,7 +55,6 @@ Static Info Site
 ----------------
 
 - The public info site is a static hub synced directly from this repository's `docs/` directory.
-- No WordPress backend or other dynamic CMS is involved.
 - Deploy by serving the static content via tools like Streamlit or MkDocs behind Traefik.
 - Streamlit setup details are in [streamlit.md](streamlit.md).
 
@@ -61,6 +66,9 @@ Return to [project README](../README.md)
 ## Quickstart
 
 Run this:
+
+Use the main `docker-compose.yml` and optional `docker-compose.override.yml` for local overrides.
+Legacy compose files live under `docs/legacy/`.
 
 ```bash
 docker compose up

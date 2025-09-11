@@ -4,6 +4,7 @@ from decimal import Decimal, ROUND_DOWN
 from typing import Tuple, Optional, Dict, Any
 import os
 import time
+import logging
 import requests
 
 
@@ -14,6 +15,8 @@ _SYMBOL_META_CACHE: Dict[str, Tuple[float, Dict[str, float]]] = {}
 _CACHE_TTL = float(os.getenv("SYMBOL_META_CACHE_TTL", "300"))
 
 _DEFAULT_META = {"lot_step": 0.01, "min_lot": 0.01, "max_lot": 100.0}
+
+logger = logging.getLogger(__name__)
 
 
 def _fetch_symbol_meta(symbol: str) -> Dict[str, float]:
@@ -31,7 +34,9 @@ def _fetch_symbol_meta(symbol: str) -> Dict[str, float]:
                 "max_lot": float(data.get("volume_max", _DEFAULT_META["max_lot"])),
             }
     except Exception:
-        pass
+        logger.warning(
+            "Error fetching metadata for symbol %s from %s", symbol, url, exc_info=True
+        )
     return _DEFAULT_META.copy()
 
 

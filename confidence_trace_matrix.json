@@ -1,0 +1,21 @@
+{
+  "raw_calculation": {
+    "weight": 0.4,
+    "bounds": { "min": 0.0, "max": 1.0 }
+  },
+  "simulation_adjustment": {
+    "weight": 0.2,
+    "bounds": { "min": -0.5, "max": 0.5 }
+  },
+  "normalize": {
+    "weight": 0.2,
+    "bounds": { "min": 0.0, "max": 1.0 }
+  },
+  "ensemble_contribution": {
+    "weight": 0.2,
+    "bounds": { "min": 0.0, "max": 1.0 }
+  "test_agent": {
+    "simulation_adjustment": 0.1,
+    "normalization": 1.0
+  }
+}

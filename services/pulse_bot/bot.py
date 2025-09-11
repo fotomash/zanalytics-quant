@@ -2,6 +2,7 @@ import os
 import sys
 import asyncio
 import importlib.util
+import logging
 from datetime import datetime
 from typing import Optional
 
@@ -47,13 +48,20 @@ CHAT_WHITELIST = {c.strip() for c in os.getenv("TELEGRAM_CHAT_WHITELIST", "").sp
 DJANGO_API_URL = (os.getenv("DJANGO_API_URL", "http://django:8000") or "").rstrip('/')
 DJANGO_API_TOKEN = (os.getenv("DJANGO_API_TOKEN", "") or "").strip().strip('"')
 
+logger = logging.getLogger(__name__)
+
 kernel: Optional[PulseKernel] = None
 
 
 def get_kernel() -> PulseKernel:
     global kernel
     if kernel is None:
-        kernel = PulseKernel(os.getenv("PULSE_CONFIG", "pulse_config.yaml"))
+        cfg_path = os.getenv("PULSE_CONFIG", "pulse_config.yaml")
+        if not os.path.exists(cfg_path):
+            logger.warning("Pulse config file %s not found; using defaults", cfg_path)
+        else:
+            logger.info("Using Pulse config %s", cfg_path)
+        kernel = PulseKernel(cfg_path)
     return kernel
 
 

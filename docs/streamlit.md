@@ -8,7 +8,7 @@ The repository uses a minimal Streamlit app to present Markdown files from `docs
 
 ## Traefik Routing
 
-A typical `docker-compose` setup routes HTTPS traffic through Traefik to the Streamlit container:
+A typical `docker compose` setup routes HTTPS traffic through Traefik to the Streamlit container:
 
 ```yaml
 volumes:
@@ -25,3 +25,5 @@ labels:
 - Each Markdown file becomes a page on the public info site.
 
 This setup keeps the site in sync with the repository; pushing changes to `docs/` updates the live content.
+
+For the dedicated info container and deployment details, see [info-site.md](info-site.md).

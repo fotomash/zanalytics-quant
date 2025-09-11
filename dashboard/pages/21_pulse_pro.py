@@ -20,6 +20,7 @@ from dashboard.utils.streamlit_api import (
     post_whisper_ack,
     post_whisper_act,
     fetch_symbols,
+    stop_whisper_sse,
 )
 from dashboard.utils.plotly_gates import gate_donut, confluence_donut
 try:
@@ -32,6 +33,8 @@ try:
 except Exception:
     _fetch_trade_history_filtered = None
 
+
+stop_whisper_sse()
 
 # Page configuration
 st.set_page_config(

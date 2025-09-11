@@ -1,0 +1,1 @@
+CREATE TABLE docs(id SERIAL PRIMARY KEY, content TEXT);

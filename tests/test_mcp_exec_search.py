@@ -3,21 +3,21 @@ from fastapi.testclient import TestClient
 import json
 import sys
 from pathlib import Path
+import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 import backend.mcp.mcp_server as mcp_server
 
-client = TestClient(mcp_server.app)
 TEST_KEY = "test-key"
 
 
-def setup_api_key(monkeypatch):
+@pytest.fixture
+def client(monkeypatch):
     monkeypatch.setenv("MCP_API_KEY", TEST_KEY)
-    monkeypatch.setattr(mcp_server, "API_KEY", TEST_KEY)
+    return TestClient(mcp_server.app)
 
 
-def test_exec_action_open_success(monkeypatch):
-    setup_api_key(monkeypatch)
+def test_exec_action_open_success(monkeypatch, client):
 
     class MockResponse:
         status_code = 200
@@ -42,15 +42,13 @@ def test_exec_action_open_success(monkeypatch):
     assert resp.json() == {"ok": True}
 
 
-def test_exec_action_unsupported(monkeypatch):
-    setup_api_key(monkeypatch)
+def test_exec_action_unsupported(client):
     payload = {"type": "unknown", "payload": {}}
     resp = client.post("/exec", json=payload, headers={"X-API-Key": TEST_KEY})
     assert resp.status_code == 400
 
 
-def test_search_tool_success(monkeypatch):
-    setup_api_key(monkeypatch)
+def test_search_tool_success(monkeypatch, client):
 
     class MockResponse:
         status_code = 200
@@ -69,8 +67,7 @@ def test_search_tool_success(monkeypatch):
     assert resp.json() == {"results": ["XAUUSD", "EURUSD"]}
 
 
-def test_search_tool_api_error(monkeypatch):
-    setup_api_key(monkeypatch)
+def test_search_tool_api_error(monkeypatch, client):
 
     async def mock_get(self, url):
         raise httpx.ConnectError("boom")

@@ -138,6 +138,7 @@ actions:
             - sell
         volume:
           type: number
+          description: Trade volume in lots
         type:
           type: string
           enum:

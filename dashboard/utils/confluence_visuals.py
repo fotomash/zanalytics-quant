@@ -59,5 +59,39 @@ def render_confluence_donut(gate_summary: Dict[str, Any], score: float) -> go.Fi
     return fig
 
 
-__all__ = ["render_confluence_donut"]
+def render_confluence_gates(scores: Dict[str, float], weights: Dict[str, float]) -> go.Figure:
+    """Render weighted confluence gates as a donut chart.
+
+    Parameters
+    ----------
+    scores:
+        Mapping of gate name to numeric score (0-100).
+    weights:
+        Mapping of gate name to weight. Missing gates default to weight 0.
+
+    Returns
+    -------
+    plotly.graph_objects.Figure
+        Donut chart showing gate statuses and overall confluence score.
+    """
+
+    weights = weights or {}
+    total_weight = sum(weights.values()) or 1.0
+    total_score = sum(scores.get(gate, 0) * weight for gate, weight in weights.items()) / total_weight
+    total_score = max(0.0, min(100.0, float(total_score)))
+
+    gate_summary: Dict[str, Any] = {}
+    for gate, score in scores.items():
+        s = float(score or 0)
+        if s >= 70:
+            gate_summary[gate] = "passed"
+        elif s >= 50:
+            gate_summary[gate] = "partial"
+        else:
+            gate_summary[gate] = "failed"
+
+    return render_confluence_donut(gate_summary, total_score / 100.0)
+
+
+__all__ = ["render_confluence_donut", "render_confluence_gates"]
 

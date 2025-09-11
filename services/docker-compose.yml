@@ -578,6 +578,71 @@ services:
     volumes:
       - ./:/app
 
+  caching:
+    build:
+      context: .
+      dockerfile: services/caching/Dockerfile
+    environment:
+      - KAFKA_BROKERS=${KAFKA_BROKERS:-kafka:9092}
+      - KAFKA_GROUP=${KAFKA_GROUP:-caching-service}
+      - KAFKA_TOPIC=${KAFKA_TOPIC:-enriched-analysis-payloads}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - LATEST_PAYLOAD_TTL=${LATEST_PAYLOAD_TTL:-3600}
+      - ACTIVE_FVG_TTL=${ACTIVE_FVG_TTL:-3600}
+      - BEHAVIORAL_SCORE_TTL=${BEHAVIORAL_SCORE_TTL:-3600}
+    depends_on:
+      - kafka
+      - redis
+    restart: unless-stopped
+    logging: *default-logging
+
+  overseer:
+    build:
+      context: .
+      dockerfile: services/overseer/Dockerfile
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      - OVERSEER_TOPIC=${OVERSEER_TOPIC:-overseer-events}
+    depends_on:
+      - kafka
+    restart: unless-stopped
+    logging: *default-logging
+
+  telegram:
+    build:
+      context: .
+      dockerfile: services/telegram/Dockerfile
+    environment:
+      - KAFKA_BROKER=${KAFKA_BROKER:-kafka:9092}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    depends_on:
+      - kafka
+    restart: unless-stopped
+    logging: *default-logging
+
+  vectorization-service:
+    build:
+      context: ./vectorization_service
+      dockerfile: Dockerfile
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      - KAFKA_GROUP_ID=${KAFKA_GROUP_ID:-vectorization-service}
+      - KAFKA_ANALYSIS_TOPIC=${KAFKA_ANALYSIS_TOPIC:-final-analysis-payloads}
+      - VECTOR_DB_URL=${VECTOR_DB_URL}
+      - VECTOR_DB_API_KEY=${VECTOR_DB_API_KEY}
+    depends_on:
+      - kafka
+    healthcheck:
+      test: ["CMD", "python", "healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    logging: *default-logging
+
 volumes:
   traefik-public-certificates: # Persistent volume for certificates
   grafana-data: {}

@@ -23,10 +23,7 @@ paths:
       description: |
         Supported verbs: whisper_suggest, session_boot, state_snapshot, trades_recent,
         trades_history_mt5, account_info, account_positions, account_risk, equity_today,
-        pulse_status, market_mini, market_snapshot, market_symbols, market_calendar_next,
-        market_regime, liquidity_map, opportunity_priority_items, journal_recent,
-        journal_append, behavior_events, position_open, position_close, position_modify,
-        position_hedge.
+        pulse_status, market_snapshot, market_symbols, liquidity_map, opportunity_priority_items, position_open, position_close, position_modify.
       operationId: postActionsQuery
       requestBody:
         required: true

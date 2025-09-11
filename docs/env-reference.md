@@ -1,6 +1,15 @@
 # Environment Variable Reference
 
-This document lists the environment variables defined in [`.env.template`](../.env.template). Copy the template to `.env` and adjust values for your setup. Values defined in `.env` or in the shell environment override the defaults shown here.
+This document lists the environment variables defined in [`.env.template`](../.env.template).
+Start by copying that template to a new `.env` file and filling in your own secrets.
+**Never commit the populated `.env` file to version control.**
+
+For local development, Docker Compose reads `.env` via its `env_file` directive and
+injects the values into services like `mcp`. In CI environments, provide the same
+variables through your pipeline's environment or secret store. The container no
+longer mounts `.env` directly.
+
+Values defined in `.env` or in the shell environment override the defaults shown here.
 
 ## Core Database Settings
 | Variable | Default | Override Behavior | Purpose |
@@ -17,9 +26,16 @@ This document lists the environment variables defined in [`.env.template`](../.e
 | `REDIS_URL` | `redis://redis:6379/0` | Modify to point at a different Redis instance/DB. | Connection URL used by services that expect a Redis URI. |
 | `REDIS_HOST` | `redis` | Change when Redis runs on another host. | Hostname of the Redis server. |
 | `REDIS_PORT` | `6379` | Adjust if Redis listens on a different port. | TCP port for the Redis server. |
+| `STREAM_VERSION_PREFIX` | `v2` | Change to adjust Redis stream namespace. | Version prefix for Redis stream keys (e.g., `v2:ticks:*`). |
 | `SESSION_BOOT_TTL` | `30` | Set to control session bootstrap cache lifetime in seconds. | Time‑to‑live for session bootstrap cache entries. |
 | `TRADES_RECENT_TTL` | `15` | Change to tune how long recent trades stay cached. | Cache TTL for recent trades in seconds. |
 | `RISK_STATUS_TTL` | `20` | Adjust to control risk status cache duration. | Cache TTL for risk status values in seconds. |
+
+## Kafka Settings
+| Variable | Default | Override Behavior | Purpose |
+| --- | --- | --- | --- |
+| `KAFKA_BOOTSTRAP_SERVERS` | `kafka:9092` | Change to point at a different Kafka broker. | Bootstrap servers for Kafka producers and consumers. |
+| `KAFKA_GROUP_ID` | `zanalyzer` | Set to run consumers under a different group. | Default consumer group id used by Kafka utilities. |
 
 ## Django Settings
 | Variable | Default | Override Behavior | Purpose |
@@ -30,7 +46,7 @@ This document lists the environment variables defined in [`.env.template`](../.e
 | `DJANGO_API_URL` | `http://django:8000` | Modify if the Django API is accessible elsewhere. | Base URL for the Django REST API. |
 | `DJANGO_API_PREFIX` | `/api/v1` | Adjust if the API prefix changes. | Root path prefix for Django API endpoints. |
 | `INTERNAL_API_BASE` | `http://django:8000` | Override to point at a different internal Django API host. | Base URL the MCP server uses when proxying `/exec` requests to Django. |
-| `MCP_API_KEY` | _(empty)_ | Set to a strong secret in production. | API key the MCP server expects in `X-API-Key` header. |
+| `MCP2_API_KEY` | _(empty)_ | Set to a strong secret in production. | API key the MCP server expects in `X-API-Key` header. |
 
 ## Frontend / Dashboard Defaults
 | Variable | Default | Override Behavior | Purpose |
@@ -39,6 +55,7 @@ This document lists the environment variables defined in [`.env.template`](../.e
 | `PULSE_PLAYBOOK_PATH` | _(empty)_ | Provide a path to use a custom Pulse playbook file. | Overrides the default Pulse playbook location. |
 | `ZAN_CACHE_DIR` | _(empty)_ | Set to force dashboards to use a specific cache directory. | Directory for caching dashboard data. |
 | `PULSE_CONF_WEIGHTS` | _(empty)_ | Supply JSON to customize Pulse confluence weights. | Overrides internal default weighting for Pulse signals. |
+| `HEALTH_AGGREGATOR_URL` | `http://localhost:8000/health` | Set to the URL of the health aggregator service. | Base URL the diagnostics panel queries for system health. |
 
 ## Traefik & SSL Settings
 | Variable | Default | Override Behavior | Purpose |
@@ -57,14 +74,6 @@ This document lists the environment variables defined in [`.env.template`](../.e
 | `GRAFANA_DOMAIN` | `grafana.localhost` | Change if Grafana is hosted elsewhere. | Domain mapping for the Grafana interface. |
 | `INFO_DOMAIN` | `info.localhost` | Adjust to map the informational site. | Domain mapping for the info site. |
 
-## WordPress Settings
-| Variable | Default | Override Behavior | Purpose |
-| --- | --- | --- | --- |
-| `WORDPRESS_DB_HOST` | `mysql` | Set to the host running the WordPress MySQL DB. | Hostname for the WordPress database. |
-| `WORDPRESS_DB_USER` | `wp_user` | Change to the configured WordPress DB user. | Username for the WordPress database. |
-| `WORDPRESS_DB_PASSWORD` | `your_secure_wordpress_db_password_here` | Replace with the actual password. | Password for the WordPress DB user. |
-| `WORDPRESS_DB_NAME` | `wordpress` | Modify to use a different WordPress DB name. | Name of the WordPress database. |
-
 ## MT5 Settings
 | Variable | Default | Override Behavior | Purpose |
 | --- | --- | --- | --- |
@@ -72,6 +81,8 @@ This document lists the environment variables defined in [`.env.template`](../.e
 | `MT5_API_BASE` | `http://mt5:5001` | Adjust when the base URL differs from the API URL. | Root URL for MT5 API endpoints. |
 | `CUSTOM_USER` | `your_mt5_username` | Set to your MT5 account username. | Username for authenticating with MT5. |
 | `PASSWORD` | `your_mt5_password` | Replace with the MT5 account password. | Password for the MT5 account. |
+| `MT5_HEARTBEAT_INTERVAL` | `30` | Change to control heartbeat frequency in seconds. | Interval between MT5 gateway heartbeat messages. |
+| `MT5_HEARTBEAT_ALERT_THRESHOLD` | `90` | Adjust to tune downtime alerts in seconds. | Time without heartbeat before an alert is triggered. |
 
 ## Pulse Kernel Settings
 | Variable | Default | Override Behavior | Purpose |
@@ -84,6 +95,10 @@ This document lists the environment variables defined in [`.env.template`](../.e
 | Variable | Default | Override Behavior | Purpose |
 | --- | --- | --- | --- |
 | `STREAMLIT_SERVER_PORT` | `8501` | Adjust if you want the main dashboard on another port. | Port for the primary Streamlit dashboard server. |
+
+## Info site
+| Variable | Default | Override Behavior | Purpose |
+| --- | --- | --- | --- |
 | `WIKI_DASHBOARD_PORT` | `8503` | Change to host the secondary dashboard on another port. | Port for additional UAT/info dashboards. |
 
 ## Orchestrator / Actions Client

@@ -7,21 +7,30 @@ The public info site mirrors content from this repository's `docs/` folder.
 - The container mounts the `docs/` directory as read-only.
 - `info-site.md` serves as the landing page.
 - Any additional Markdown under `docs/` becomes a navigable page.
+- During the Docker build, `services/info` copies `docs/wiki` and
+  `dashboards/info` into the image so the wiki and dashboard are baked in
+  by default.
 
 ## Deployment
 
 - A lightweight Streamlit app renders the Markdown files.
 - You can also generate a static site with tools like MkDocs.
-- Example `docker-compose` snippet:
+- The app listens on `WIKI_DASHBOARD_PORT` (default `8503`). Traefik routes
+  `info.zanalytics.app` to this container on that port.
+- Example `docker compose` snippet:
   ```yaml
   volumes:
     - ./docs:/app/docs:ro
   labels:
     - "traefik.enable=true"
-    - "traefik.http.routers.info.rule=Host(`info.example.com`)"
-    - "traefik.http.services.info.loadbalancer.server.port=8501"
+    - "traefik.http.routers.info.rule=Host(`info.zanalytics.app`)"
+    - "traefik.http.services.info.loadbalancer.server.port=8503"
   ```
-  Traefik routes HTTPS traffic to the Streamlit container on port `8501`.
+  Traefik routes HTTPS traffic to the Streamlit container on port `8503`.
+- For local testing:
+  ```bash
+  docker compose build info && docker compose up -d info
+  ```
 
 ## Auto-sync
 

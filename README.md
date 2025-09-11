@@ -2,12 +2,13 @@
 
 Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, Postgres, and Streamlit. Now with LLM‑native Actions and safe position control (partials, scaling, hedging).
 
-For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation.
+For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation. Redis cache design and deployment steps live in [redis_architecture/README.md](redis_architecture/README.md).
 
 ## Table of Contents
 - [What's Inside](#whats-inside)
 - [Architecture](#architecture)
 - [System Overview](#system-overview)
+- [Quick Start: MCP2 Metrics & Streams](#quick-start-mcp2-metrics--streams)
 - [Getting Started – Quick Launch](#getting-started-quick-launch)
 - [Environment Variables](#environment-variables)
 - [MT5 service vs. Django API](#mt5-service-vs-django-api)
@@ -19,8 +20,10 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [Journaling (ZBAR)](#journaling-zbar)
 - [Typical User Scenarios](#typical-user-scenarios)
 - [Data Enrichment & Customization](#data-enrichment-customization)
+- [Confidence Trace Matrix](#confidence-trace-matrix)
 - [Example .env Configuration](#example-env-configuration)
 - [Security & Access Control](#security-access-control)
+- [API Health Check and Query Examples](#api-health-check-and-query-examples)
 - [Contributing](#contributing)
 - [Running Tests](#running-tests)
 - [Known Issues & Best Practices](#known-issues-best-practices)
@@ -28,18 +31,20 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 
 - [License](#license)
 - [Advanced Usage](#advanced-usage)
+- [Kafka Replay Consumer](#kafka-replay-consumer)
 
 - [Full API Documentation](#full-api-documentation)
 - [FAQ](#faq)
 - [Troubleshooting Gold Mine](#troubleshooting-gold-mine)
+- [MCP2 Runbook](#mcp2-runbook)
 - [Pulse Dashboard Prototype](#pulse-dashboard-prototype)
-- [Exporting Streamlit Dashboards to WordPress](#exporting-streamlit-dashboards-to-wordpress)
 - [Further Reading](#further-reading)
 
 ## What's Inside
 - `backend/mt5`: Flask bridge to MetaTrader5 (send orders, partial close, hedge, scale)
 - `backend/django`: REST API, Actions Bus router, positions aliases, journal
-- `dashboard/`: Streamlit UI (Pulse, Whisperer, diagnostics)
+- [`dashboard/`](dashboard/README.md): Streamlit UI (Pulse, Whisperer, diagnostics)
+- [`dashboards/`](dashboards/README.md): standalone examples and templates
 - `openapi.actions.yaml`: the single schema to upload to Custom GPT
 - `docs/`: deep dives (Actions Bus, Positions & Orders, Journaling schema)
 
@@ -54,6 +59,8 @@ graph LR
   Streamlit[Dashboards] --> Django
   MT5 -->|positions/history| Django
 ```
+
+For detailed network flows, MCP2 responsibilities, and storage topology, see [docs/architecture.md](docs/architecture.md).
 
 ## System Overview
 
@@ -73,6 +80,28 @@ The Zanalytics Quant platform is architected to meet the rigorous demands of pro
 
 This modular design facilitates secure separation of concerns, easy extensibility for new features or data sources, and robust performance for professional quant workflows.
 
+
+## Quick Start: MCP2 Metrics & Streams
+
+```bash
+export MCP_HOST=http://localhost:8002
+export MCP2_API_KEY=your-dev-key
+
+# Authenticated doc search
+curl -H "X-API-Key: $MCP2_API_KEY" "$MCP_HOST/search_docs?query=alpha"
+
+# Prometheus metrics
+curl "$MCP_HOST/metrics" | head
+
+# Optional Kafka topic (no-op if brokers unset)
+export KAFKA_BROKERS=localhost:9092
+# payloads go to enriched-analysis-payloads
+
+# Inspect Redis Streams
+redis-cli XRANGE ml:signals - + LIMIT 5
+redis-cli XRANGE ml:risk - + LIMIT 5
+```
+
 ---
 
 ## Getting Started – Quick Launch
@@ -91,21 +120,30 @@ Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/
    [Environment Variables](#environment-variables) for a summary of the most important settings and
    [docs/env-reference.md](docs/env-reference.md) for the complete table.
 
+The active Docker Compose files are `docker-compose.yml` and optional `docker-compose.override.yml` for local overrides.
+Legacy compose configurations have been archived under `docs/legacy/`.
+
 3. **Build and start the platform:**
     ```bash
     docker network create traefik-public
-    docker-compose build --no-cache
-    docker-compose up -d
+    docker compose build --no-cache
+    docker compose up -d
     ```
 
-4. **Check all services:**
+4. **Apply database migrations:** run `mcp2.sql` to create the `mcp_docs` table and its `created_at` index.
     ```bash
-    docker-compose ps
-    docker-compose logs dashboard
-    docker-compose logs mt5
+    docker compose exec postgres \
+      psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f db/migrations/mcp2.sql
     ```
 
-5. **Access the dashboards and APIs:**
+5. **Check all services:**
+    ```bash
+    docker compose ps
+    docker compose logs dashboard
+    docker compose logs mt5
+    ```
+
+6. **Access the dashboards and APIs:**
     - **Streamlit Dashboard:**  
       Open `http://localhost:8501` or your mapped domain.
     - **MT5 API:**  
@@ -119,6 +157,11 @@ Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/
 
 ## Environment Variables
 
+Copy `.env.sample` (or `.env.template` for the full set) to `.env`, fill in the sensitive values, and keep the real
+file out of version control. Never commit secrets to the repository. Docker Compose reads `.env` through its `env_file`
+directive and injects those variables into services like `mcp`. For deployments, supply these values through your
+deployment configuration or a dedicated secrets manager—containers no longer mount `.env` directly.
+
 Key variables to configure before launching:
 
 - `CUSTOM_USER` and `PASSWORD` – MT5 account credentials.
@@ -128,9 +171,30 @@ Key variables to configure before launching:
 - `BRIDGE_TOKEN` – optional token sent as `X-Bridge-Token` header.
 - `VNC_DOMAIN`, `TRAEFIK_DOMAIN`, `TRAEFIK_USERNAME`, `ACME_EMAIL` – domains and Traefik settings.
 - `DJANGO_SECRET_KEY` – secret key for Django.
-- `MCP_API_KEY` – MCP uses the root `.env`; set this 32‑hex‑character key there. This key is shared across services so Whisperer connects once without drift.
+- `MCP2_API_KEY` – secret used by the `mcp` service. Add it to `.env` and Compose
+  or CI will inject it; use a 32‑hex‑character value.
+- `HEALTH_AGGREGATOR_URL` – base URL for the health aggregator queried by the
+  dashboard's diagnostics panel.
 
 For the complete list of variables, see [docs/env-reference.md](docs/env-reference.md).
+
+---
+
+### Execution Validation Settings
+
+The engine reads optional execution safeguards from
+`config/execution_validation.yaml`:
+
+```yaml
+# Execution validation configuration
+confidence_threshold: 0.8
+fallback_limits:
+  max_retries: 3
+```
+
+`confidence_threshold` defines the minimum confidence required before an
+execution proceeds. Values below this threshold can trigger logic defined in
+`fallback_limits`, such as retry limits or alternative handlers.
 
 ---
 
@@ -146,6 +210,16 @@ curl "$MT5_API_URL/history_orders_get"
 Directly hitting `$DJANGO_API_URL/history_deals_get` or `$DJANGO_API_URL/history_orders_get` will proxy the call, but the upstream service is still the MT5 bridge.
 
 See [backend/mt5/app/routes/history.py](backend/mt5/app/routes/history.py) for details.
+
+## mt5 vs mt5-api services
+
+The stack uses two related containers:
+
+- **mt5** – runs the MetaTrader 5 bridge and exposes the REST API (including `/ticks`) on port 5001.
+- **mt5-api** – a lightweight FastAPI proxy that forwards requests to `mt5` and is typically the entry point for external traffic via Traefik.
+
+Internal services should set `MT5_API_URL` to `http://mt5:5001` so they speak directly to the bridge that serves tick data.
+
 ## How It Works (Practical Flow)
 
 Step-by-step data flow from MT5 to the dashboard. [Read more](docs/how_it_works.md).
@@ -172,7 +246,7 @@ Single endpoint for GPT-driven verbs defined in `openapi.actions.yaml`. Deep div
 
 ## Dashboards & Diagnostics
 
-Streamlit pages under `dashboard/pages/` power Pulse, Whisperer, and diagnostics. `24_Trades_Diagnostics.py` compares closed trades, MT5 history, and open positions.
+Streamlit pages under `dashboard/pages/` power Pulse, Whisperer, and diagnostics. `24_Trades_Diagnostics.py` compares closed trades, MT5 history, and open positions. See [`dashboard/`](dashboard/README.md) for setup and [`dashboards/`](dashboards/README.md) for standalone examples.
 
 ---
 
@@ -192,6 +266,17 @@ Examples of real-time viewing, enrichment jobs, and troubleshooting. [docs/user_
 
 Extend scripts in `utils/` to build custom features and dashboards. [Workflow](docs/data_enrichment_customization.md).
 
+## Confidence Trace Matrix
+
+`confidence_trace_matrix.json` at the repository root configures staged confidence scoring. Each stage includes a numeric `weight` and a `bounds` object with `min` and `max` values:
+
+- **raw_calculation** – base confidence derived from raw signals.
+- **simulation_adjustment** – modifies that score using simulated scenarios.
+- **normalize** – scales the adjusted value to a standard range.
+- **ensemble_contribution** – blends confidence across multiple models.
+
+Weights typically sum to 1.0 and bounds constrain each stage's output.
+
 ---
 
 ## Example .env Configuration
@@ -205,6 +290,26 @@ Sample settings are available in [docs/example-env.md](docs/example-env.md).
 - **Traefik reverse proxy** provides SSL and HTTP Basic Auth at entrypoints.
 - All APIs require authentication and rate limits are applied.
 - Data flows are segmented per Docker network for defense in depth.
+
+## API Health Check and Query Examples
+
+Check basic server health (no authentication required):
+
+```bash
+curl -s http://localhost:8080/health
+```
+
+Query the Actions Bus with both required headers and a valid JSON body:
+
+```bash
+curl -sX POST http://localhost:8080/api/v1/actions/query \
+  -H "Authorization: Bearer dev-key-123" \
+  -H "X-API-Key: dev-key-123" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"session_boot","payload":{"user_id":"demo"}}'
+```
+
+The `Content-Type: application/json` header is mandatory when submitting JSON payloads.
 
 ---
 
@@ -248,6 +353,58 @@ Add new Streamlit dashboards following [docs/advanced_dashboard.md](docs/advance
 
 ---
 
+## Kafka Replay Consumer
+
+Replay historical ticks or bars from Kafka into a datastore for analysis.
+
+### Basic usage
+
+```bash
+export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+export KAFKA_TOPIC=ticks.BTCUSDT
+python ops/kafka/replay_consumer.py --start-offset 0 --batch-size 100
+```
+
+Arguments may be set via environment variables (`KAFKA_TOPIC`,
+`KAFKA_START_OFFSET`, `KAFKA_BATCH_SIZE`) or passed on the command line.
+
+### Replay into Redis
+
+Customize the ``process_messages`` function in
+``ops/kafka/replay_consumer.py`` to push payloads into Redis:
+
+```python
+import redis
+
+r = redis.Redis.from_url("redis://localhost:6379/0")
+
+def process_messages(messages):
+    for msg in messages:
+        if not msg.error():
+            r.lpush("ticks", msg.value())
+```
+
+### Replay into Postgres
+
+Use ``psycopg2`` or similar to insert records:
+
+```python
+import psycopg2
+
+def process_messages(messages):
+    with psycopg2.connect("postgresql://user:pass@localhost/db") as conn:
+        with conn.cursor() as cur:
+            for msg in messages:
+                if not msg.error():
+                    cur.execute("INSERT INTO ticks(raw) VALUES (%s)", (msg.value(),))
+        conn.commit()
+```
+
+These examples write raw messages; adapt the logic for your schema and
+types when storing bars or ticks for downstream analysis.
+
+---
+
 ## Full API Documentation
 
 - **Swagger:** `/swagger/`
@@ -264,7 +421,7 @@ Add new Streamlit dashboards following [docs/advanced_dashboard.md](docs/advance
 Common setup and operational questions live in [docs/faq.md](docs/faq.md).
 
 **Q: Something isn’t working—how do I see detailed error logs?**
-A: Use `docker-compose logs <service>` (add `-f` to follow in real time) or `docker logs <container>` for single containers. For service-specific errors, check Django's debug logs and MT5 bridge logs.
+A: Use `docker compose logs <service>` (add `-f` to follow in real time) or `docker logs <container>` for single containers. For service-specific errors, check Django's debug logs and MT5 bridge logs.
 
 **Q: Can I run this without Docker?**
 A: Not recommended. The MT5 and dashboard stack is designed for containerization for full reproducibility and security.
@@ -293,7 +450,7 @@ A: MetaTrader likely didn’t boot—ensure Wine and required DLLs are available
 A:
 1. Run the following to flush all cached keys:
    ```bash
-   docker-compose exec redis redis-cli FLUSHALL
+   docker compose exec redis redis-cli FLUSHALL
    ```
 2. Restart the services so caches repopulate with fresh data.
 
@@ -301,26 +458,26 @@ A:
 A:
 1. Stop the services:
    ```bash
-   docker-compose down
+   docker compose down
    ```
 2. Remove the Postgres volume (be sure you're ok losing all data):
    ```bash
-   docker volume rm <name>  # or docker-compose down -v
+   docker volume rm <name>  # or docker compose down -v
    ```
 3. Rerun migrations to recreate schema:
    ```bash
-   docker-compose run django migrate
+   docker compose run django migrate
    ```
 4. Restart the stack:
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
 
 **Q: Docker containers fail to build/start.**
 A:
 1. Verify your Docker installation and version.
-2. Rebuild images without cache using `docker-compose build --no-cache`.
-3. Check container output with `docker-compose logs`.
+2. Rebuild images without cache using `docker compose build --no-cache`.
+3. Check container output with `docker compose logs`.
 4. Ensure required ports are free to avoid conflicts.
 
 **Q: Docker containers complain about file or directory permissions.**
@@ -347,7 +504,7 @@ Then test the endpoint:
 curl -k https://mcp1.zanalytics.app/mcp | head -3
 ```
 
-You should see `{event: open...}`.
+You should see `{"event": "open", ...}`.
 
 **Q: Install or build fails due to missing packages or version conflicts?**
 A: Ensure you're using the supported Python version, then install dependencies with `poetry install` or `pip install -r requirements.txt`. If issues persist, clear cached wheels (e.g., `pip cache purge`) and try again.
@@ -368,9 +525,9 @@ A:
 
 **Q: How do I reset the containers when data gets corrupted or outdated?**
 A:
-1. Stop and remove containers and volumes: `docker-compose down -v`.
+1. Stop and remove containers and volumes: `docker compose down -v`.
 2. Remove any orphan containers: `docker container prune -f`.
-3. Rebuild and start fresh containers: `docker-compose up --build`.
+3. Rebuild and start fresh containers: `docker compose up --build`.
 4. Rerun database migrations if applicable.
 
 
@@ -381,23 +538,21 @@ See [docs/mcp_troubleshooting.md](docs/mcp_troubleshooting.md) for Traefik label
 
 1. First sign of death: Whisperer says stopped talking to connector. Curl to /mcp gives heartbeat → MCP alive. Curl to /exec gives 404. → Traefik not routing. Added traefik.http.routers.mcp.rule=Host(mcp1.zanalytics.app) and port 8001:8001 → still 404.
 2. Localhost test: curl http://localhost:8001/exec → connection refused. → Port not exposed. Added ports: - 8001:8001 in compose → now connects, but still 404.
-3. Auth 401: curl -H X-API-Key: your-dev-secret-123 → Unauthorized. → Env var wrong name. Code uses MCP_API_KEY, not API_KEY. Fixed .env → restart mcp → still 401. → Restart doesn't reload env in FastAPI. Had to --build the container to pick up MCP_API_KEY=your-dev-secret-123.
+3. Auth 401: curl -H "Authorization: Bearer your-dev-secret-123" -H "X-API-Key: your-dev-secret-123" → Unauthorized. → Env var wrong name. Code uses MCP2_API_KEY, not API_KEY. Fixed .env → restart mcp → still 401. → Restart doesn't reload env in FastAPI. Had to --build the container to pick up MCP2_API_KEY=your-dev-secret-123.
 4. Still 404 after auth works: Endpoint name wrong. Code has @app.post(/exec) but Whisperer hits /api/v1/actions/query. → Not our fault-Whisperer's connector config was hardcoded to old path. Updated connector to match real route: /exec.
 5. Pop-up hell: Whisperer says requires approval. → MCP middleware blocks unless approve:true sent. Added flag, updated curl, merged PR 241. Now auto-approves boot & equity.
 6. Wine/MetaTrader feed dead: Whisperer shows yesterday's trades. → MT5 popped resolution dialog, never clicked. Had to manually OK after reboot → feed starts. Documented in FAQ as manual step.
-7. Ghost containers eating ports: docker ps shows pulse-kernel, tick-to-bar on 8001. → docker stop pulse-kernel tick-to-bar → mcp binds clean. End result: curl -k -H X-API-Key: your-dev-secret-123 -X POST https://mcp1.zanalytics.app/exec -d '{type:session_boot, approve:true}' → returns real equity, positions, risk. Whisperer loads without pop-up. Save this. Every time something breaks, start here-no bush, no circles.
+7. Ghost containers eating ports: docker ps shows pulse-kernel, tick-to-bar on 8001. → docker stop pulse-kernel tick-to-bar → mcp binds clean. End result: curl -k -H "Authorization: Bearer your-dev-secret-123" -H "X-API-Key: your-dev-secret-123" -X POST https://mcp1.zanalytics.app/exec -d '{"type":"session_boot","approve":true}' → returns real equity, positions, risk. Whisperer loads without pop-up. Save this. Every time something breaks, start here-no bush, no circles.
+
+## MCP2 Runbook
+
+For startup commands, endpoint tests, and database maintenance, see the [MCP2 Runbook](docs/runbooks/mcp2.md).
 
 ---
 
 ## Pulse Dashboard Prototype
 
 Behavioral and risk analytics demo. [docs/pulse_dashboard_prototype.md](docs/pulse_dashboard_prototype.md).
-
----
-
-## Exporting Streamlit Dashboards to WordPress
-
-Static export workflow for publishing dashboards on WordPress. [docs/export_dashboards_wordpress.md](docs/export_dashboards_wordpress.md).
 
 ---
 
