@@ -1,4 +1,4 @@
--- Migration: MCP docs table
+-- Migration: create mcp_docs table with created_at index
 CREATE TABLE IF NOT EXISTS mcp_docs (
     id SERIAL PRIMARY KEY,
     doc TEXT NOT NULL,
