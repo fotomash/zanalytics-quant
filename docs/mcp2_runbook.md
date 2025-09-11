@@ -26,7 +26,7 @@ Build and run the service locally:
 ```bash
 docker build -t mcp2-service -f services/mcp2/Dockerfile .
 docker run --rm -p 8002:8002 mcp2-service \
-  uvicorn services.mcp2.app:app --host 0.0.0.0 --port 8002
+  uvicorn services.mcp2.main:app --host 0.0.0.0 --port 8002
 ```
 
 ## Auth

@@ -38,6 +38,7 @@ Key endpoints:
 - `GET /trades/recent?limit=<n>` — list recent trade payloads
 - `POST /llm/whisperer` — guidance with behavioral nudges
 - `POST /llm/simple` — baseline guidance without behavioral nudges
+- `POST /llm/{model}/analyze` — analyze latest stream payload via selected model
 
 For operational details, see the [mcp2 runbook](../docs/runbooks/mcp2.md).
 
