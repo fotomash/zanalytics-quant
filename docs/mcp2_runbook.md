@@ -1,6 +1,10 @@
 # MCP2 Runbook
 
-This guide covers day-to-day operations for the MCP2 service.
+This guide covers day-to-day operations for the MCP2 service. Set the `MCP_HOST` environment variable to the desired MCP domain before running the commands below.
+
+```bash
+export MCP_HOST=mcp2.zanalytics.app
+```
 
 ## Startup
 
@@ -24,6 +28,11 @@ Verify the service root and the `/exec` endpoint:
 
 ```bash
 # SSE heartbeat
+curl -k https://$MCP_HOST/mcp | head -3
+
+# Session boot
+curl -k -H "Authorization: Bearer $MCP2_API_KEY" -H "X-API-Key: $MCP2_API_KEY" \
+  -X POST https://$MCP_HOST/exec \
 curl -k https://mcp2.zanalytics.app/mcp | head -3
 
 # Session boot
