@@ -124,15 +124,21 @@ async def stream_ticks(
     start: str | None = Query(None, description="XRANGE start ID (inclusive)"),
     end: str | None = Query(None, description="XRANGE end ID (inclusive)"),
     reverse: bool = Query(True, description="Return latest first using XREVRANGE"),
+    before_id: str | None = Query(
+        None,
+        description="Pagination cursor: read entries strictly older than this ID when reverse=true; read strictly newer when reverse=false",
+    ),
 ):
     _validate_symbol(symbol)
     key = f"tick:{symbol}"
     r = redis_client.redis_streams
     try:
         if reverse:
-            entries = await r.xrevrange(key, max="+", min="-", count=count)
+            max_id = f"({before_id}" if before_id else "+"
+            entries = await r.xrevrange(key, max=max_id, min="-", count=count)
         else:
-            entries = await r.xrange(key, min=start or "-", max=end or "+", count=count)
+            min_id = f"({before_id}" if before_id else (start or "-")
+            entries = await r.xrange(key, min=min_id, max=end or "+", count=count)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"redis error: {exc}") from exc
     return _normalize_ticks(entries, symbol)
@@ -144,6 +150,10 @@ async def stream_bars(
     symbol: str,
     count: int = Query(50, ge=1, le=500),
     reverse: bool = Query(True),
+    before_id: str | None = Query(
+        None,
+        description="Pagination cursor: read entries strictly older than this ID when reverse=true; strictly newer when reverse=false",
+    ),
 ):
     if timeframe not in ALLOWED_TFS:
         raise HTTPException(status_code=400, detail="invalid timeframe")
@@ -154,9 +164,16 @@ async def stream_bars(
     primary = f"stream:bar:{timeframe}:{symbol}"
     fallback = f"bar:{timeframe}:{symbol}"
     try:
-        entries = await r.xrevrange(primary if reverse else primary, max="+", min="-", count=count) if reverse else await r.xrange(primary, min="-", max="+", count=count)
-        if not entries:
-            entries = await r.xrevrange(fallback if reverse else fallback, max="+", min="-", count=count) if reverse else await r.xrange(fallback, min="-", max="+", count=count)
+        if reverse:
+            max_id = f"({before_id}" if before_id else "+"
+            entries = await r.xrevrange(primary, max=max_id, min="-", count=count)
+            if not entries:
+                entries = await r.xrevrange(fallback, max=max_id, min="-", count=count)
+        else:
+            min_id = f"({before_id}" if before_id else "-"
+            entries = await r.xrange(primary, min=min_id, max="+", count=count)
+            if not entries:
+                entries = await r.xrange(fallback, min=min_id, max="+", count=count)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"redis error: {exc}") from exc
     return _normalize_bars(entries, symbol, timeframe)
