@@ -1,3 +1,6 @@
+import os
+from fastapi import FastAPI, Depends
+from .auth import verify_api_key
 import time
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
@@ -23,7 +26,8 @@ from prometheus_client import (
     REGISTRY,
 )
 
-app = FastAPI()
+dependencies = [Depends(verify_api_key)] if os.getenv("MCP2_API_KEY") else []
+app = FastAPI(dependencies=dependencies)
 
 REQUEST_COUNTER = Counter(
     "mcp2_requests_total",
