@@ -23,6 +23,7 @@ Current Direction (Active)
 --------------------------
 
 - [Architecture (streaming)](architecture_pulse_streaming.md)
+- [Tick stream v2 migration notes](tick_stream_v2_migration.md)
 - [Journal envelopes and contracts](journal_envelopes.md)
 - [Actions API overview](ACTIONS_API_OVERVIEW.md)
 - [Kafka sidecar quickstart](../ops/kafka/quickstart.md)

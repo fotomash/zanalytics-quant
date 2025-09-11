@@ -47,6 +47,12 @@ scrape_configs:
       - targets: ["mcp:8001"]
         labels:
           container: "mcp"
+  - job_name: mcp2
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["mcp2:8002"]
+        labels:
+          container: "mcp2"
   - job_name: pulse-api
     static_configs:
       - targets: ["pulse-api:8080"]

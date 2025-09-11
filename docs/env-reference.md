@@ -26,6 +26,7 @@ Values defined in `.env` or in the shell environment override the defaults shown
 | `REDIS_URL` | `redis://redis:6379/0` | Modify to point at a different Redis instance/DB. | Connection URL used by services that expect a Redis URI. |
 | `REDIS_HOST` | `redis` | Change when Redis runs on another host. | Hostname of the Redis server. |
 | `REDIS_PORT` | `6379` | Adjust if Redis listens on a different port. | TCP port for the Redis server. |
+| `STREAM_VERSION_PREFIX` | `v2` | Change to adjust Redis stream namespace. | Version prefix for Redis stream keys (e.g., `v2:ticks:*`). |
 | `SESSION_BOOT_TTL` | `30` | Set to control session bootstrap cache lifetime in seconds. | Time‑to‑live for session bootstrap cache entries. |
 | `TRADES_RECENT_TTL` | `15` | Change to tune how long recent trades stay cached. | Cache TTL for recent trades in seconds. |
 | `RISK_STATUS_TTL` | `20` | Adjust to control risk status cache duration. | Cache TTL for risk status values in seconds. |
@@ -80,6 +81,8 @@ Values defined in `.env` or in the shell environment override the defaults shown
 | `MT5_API_BASE` | `http://mt5:5001` | Adjust when the base URL differs from the API URL. | Root URL for MT5 API endpoints. |
 | `CUSTOM_USER` | `your_mt5_username` | Set to your MT5 account username. | Username for authenticating with MT5. |
 | `PASSWORD` | `your_mt5_password` | Replace with the MT5 account password. | Password for the MT5 account. |
+| `MT5_HEARTBEAT_INTERVAL` | `30` | Change to control heartbeat frequency in seconds. | Interval between MT5 gateway heartbeat messages. |
+| `MT5_HEARTBEAT_ALERT_THRESHOLD` | `90` | Adjust to tune downtime alerts in seconds. | Time without heartbeat before an alert is triggered. |
 
 ## Pulse Kernel Settings
 | Variable | Default | Override Behavior | Purpose |

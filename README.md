@@ -8,6 +8,7 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [What's Inside](#whats-inside)
 - [Architecture](#architecture)
 - [System Overview](#system-overview)
+- [Quick Start: MCP2 Metrics & Streams](#quick-start-mcp2-metrics--streams)
 - [Getting Started – Quick Launch](#getting-started-quick-launch)
 - [Environment Variables](#environment-variables)
 - [MT5 service vs. Django API](#mt5-service-vs-django-api)
@@ -30,6 +31,7 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 
 - [License](#license)
 - [Advanced Usage](#advanced-usage)
+- [Kafka Replay Consumer](#kafka-replay-consumer)
 
 - [Full API Documentation](#full-api-documentation)
 - [FAQ](#faq)
@@ -77,6 +79,28 @@ The Zanalytics Quant platform is architected to meet the rigorous demands of pro
 - **Streamlit Dashboard** offers a user-friendly, interactive frontend for visualization and analysis. It consumes data from the Django API and Redis cache, presenting live and historical market insights with customizable charts and controls.
 
 This modular design facilitates secure separation of concerns, easy extensibility for new features or data sources, and robust performance for professional quant workflows.
+
+
+## Quick Start: MCP2 Metrics & Streams
+
+```bash
+export MCP_HOST=http://localhost:8002
+export MCP2_API_KEY=your-dev-key
+
+# Authenticated doc search
+curl -H "X-API-Key: $MCP2_API_KEY" "$MCP_HOST/search_docs?query=alpha"
+
+# Prometheus metrics
+curl "$MCP_HOST/metrics" | head
+
+# Optional Kafka topic (no-op if brokers unset)
+export KAFKA_BROKERS=localhost:9092
+# payloads go to enriched-analysis-payloads
+
+# Inspect Redis Streams
+redis-cli XRANGE ml:signals - + LIMIT 5
+redis-cli XRANGE ml:risk - + LIMIT 5
+```
 
 ---
 
@@ -327,6 +351,58 @@ This project is proprietary and provided under a strict, non-transferable licens
 ## Advanced Usage
 
 Add new Streamlit dashboards following [docs/advanced_dashboard.md](docs/advanced_dashboard.md).
+
+---
+
+## Kafka Replay Consumer
+
+Replay historical ticks or bars from Kafka into a datastore for analysis.
+
+### Basic usage
+
+```bash
+export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+export KAFKA_TOPIC=ticks.BTCUSDT
+python ops/kafka/replay_consumer.py --start-offset 0 --batch-size 100
+```
+
+Arguments may be set via environment variables (`KAFKA_TOPIC`,
+`KAFKA_START_OFFSET`, `KAFKA_BATCH_SIZE`) or passed on the command line.
+
+### Replay into Redis
+
+Customize the ``process_messages`` function in
+``ops/kafka/replay_consumer.py`` to push payloads into Redis:
+
+```python
+import redis
+
+r = redis.Redis.from_url("redis://localhost:6379/0")
+
+def process_messages(messages):
+    for msg in messages:
+        if not msg.error():
+            r.lpush("ticks", msg.value())
+```
+
+### Replay into Postgres
+
+Use ``psycopg2`` or similar to insert records:
+
+```python
+import psycopg2
+
+def process_messages(messages):
+    with psycopg2.connect("postgresql://user:pass@localhost/db") as conn:
+        with conn.cursor() as cur:
+            for msg in messages:
+                if not msg.error():
+                    cur.execute("INSERT INTO ticks(raw) VALUES (%s)", (msg.value(),))
+        conn.commit()
+```
+
+These examples write raw messages; adapt the logic for your schema and
+types when storing bars or ticks for downstream analysis.
 
 ---
 

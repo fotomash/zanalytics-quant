@@ -32,6 +32,7 @@ except Exception:
 
 logger = logging.getLogger(__name__)
 
+VERSION_PREFIX = os.getenv("STREAM_VERSION_PREFIX", "v2")
 # Initialize risk enforcer
 if RISK_ENFORCER_AVAILABLE:
     risk_enforcer = EnhancedRiskEnforcer()
@@ -121,7 +122,7 @@ def score_post(request):
 def tick_buffer(request):
     """Fetch the last ticks for a symbol from Redis."""
     symbol = request.GET.get("symbol", "EURUSD").upper()
-    key = f"ticks:{symbol}:live"
+    key = f"{VERSION_PREFIX}:ticks:{symbol}:live"
     raw = redis_client.lrange(key, -5, -1)
     ticks = [json.loads(x) for x in raw]
     return Response({"symbol": symbol, "ticks": ticks, "source": "Redis"})
