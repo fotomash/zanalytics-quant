@@ -33,6 +33,11 @@ curl -k https://$MCP_HOST/mcp | head -3
 # Session boot
 curl -k -H "Authorization: Bearer $MCP2_API_KEY" -H "X-API-Key: $MCP2_API_KEY" \
   -X POST https://$MCP_HOST/exec \
+curl -k https://mcp2.zanalytics.app/mcp | head -3
+
+# Session boot
+curl -k -H "Authorization: Bearer $MCP2_API_KEY" -H "X-API-Key: $MCP2_API_KEY" \
+  -X POST https://mcp2.zanalytics.app/exec \
   -d '{"type":"session_boot","approve":true}'
 ```
 

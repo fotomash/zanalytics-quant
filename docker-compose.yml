@@ -191,12 +191,12 @@ services:
       traefik.enable: true
       traefik.docker.network: traefik-public
 
-      traefik.http.routers.django-http.rule: 'HostRegexp(`{domain: zanalytics\.app}`) && !Host(`mcp1.zanalytics.app`)' 
+      traefik.http.routers.django-http.rule: 'HostRegexp(`{domain: zanalytics\.app}`) && !Host(`mcp2.zanalytics.app`)'
       traefik.http.routers.django-http.entrypoints: http
       traefik.http.routers.django-http.middlewares: https-redirect
       traefik.http.routers.django-http.service: django-service
 
-      traefik.http.routers.django-https.rule: 'HostRegexp(`{domain: zanalytics\.app}`) && !Host(`mcp1.zanalytics.app`)' 
+      traefik.http.routers.django-https.rule: 'HostRegexp(`{domain: zanalytics\.app}`) && !Host(`mcp2.zanalytics.app`)'
       traefik.http.routers.django-https.entrypoints: https
       traefik.http.routers.django-https.tls: true
       traefik.http.routers.django-https.tls.certresolver: le
@@ -697,7 +697,7 @@ services:
       <<: *default-labels
       traefik.enable: true
       traefik.docker.network: traefik-public
-      traefik.http.routers.mcp.rule: Host(`mcp1.zanalytics.app`)
+      traefik.http.routers.mcp.rule: Host(`mcp2.zanalytics.app`)
       traefik.http.routers.mcp.entrypoints: websecure  
       traefik.http.routers.mcp.tls.certresolver: letsencrypt
       traefik.http.routers.mcp.tls: true
