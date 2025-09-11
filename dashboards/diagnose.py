@@ -40,6 +40,18 @@ def diff_actions_to_routes() -> str:
 def refresh_status() -> None:
     docker_out = run_cmd(["docker", "ps"])
     redis_out = run_cmd(["redis-cli", "ping"])
+    if redis_out != "PONG":
+        try:
+            from services.alert_manager.main import send_alert
+            send_alert(service_name="redis", error_message=redis_out)
+        except NotImplementedError:  # pragma: no cover - placeholder alert system
+            st.warning("Alert manager stub reached for redis")
+    if docker_out.startswith("Error"):
+        try:
+            from services.alert_manager.main import send_alert
+            send_alert(service_name="docker", error_message=docker_out)
+        except NotImplementedError:  # pragma: no cover - placeholder alert system
+            st.warning("Alert manager stub reached for docker")
     diff_text = diff_actions_to_routes()
     status_placeholder.markdown(
         f"""**docker ps**\n```text\n{docker_out}\n```\n"""
