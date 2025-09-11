@@ -12,6 +12,12 @@ _VECTORIZER: TfidfVectorizer | None = None
 def process_payload(payload: Dict[str, Any]) -> np.ndarray:
     """Transform payload text into a TF-IDF embedding.
 
+from services.mcp2.vector.embeddings import embed
+
+
+def process_payload(payload: Dict[str, Any]) -> np.ndarray:
+    """Convert the payload's text into an embedding vector.
+
     Parameters
     ----------
     payload:
@@ -44,3 +50,27 @@ def process_payload(payload: Dict[str, Any]) -> np.ndarray:
 
     embedding = _VECTORIZER.transform([text]).toarray()
     return np.asarray(embedding).flatten()
+        Mapping that **must** contain a non-empty ``"text"`` field.
+
+    Returns
+    -------
+    numpy.ndarray
+        The embedding represented as a 1‑D array of floats.
+
+    Raises
+    ------
+    ValueError
+        If ``payload`` is not a dictionary or does not contain a valid
+        ``"text"`` entry.
+    """
+
+    if not isinstance(payload, dict):
+        raise ValueError("Payload must be a dictionary containing a 'text' key.")
+
+    text = payload.get("text")
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("Payload must include a non-empty 'text' key.")
+
+    embedding = embed(text)
+    return np.asarray(embedding, dtype=float)
+

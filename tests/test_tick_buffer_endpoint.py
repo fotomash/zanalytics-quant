@@ -20,6 +20,8 @@ settings.ALLOWED_HOSTS.append("testserver")
 
 import pulse_api.views as pulse_views
 
+VERSION_PREFIX = os.getenv("STREAM_VERSION_PREFIX", "v2")
+
 
 class DummyRedis:
     def __init__(self):
@@ -46,7 +48,7 @@ def client(monkeypatch):
 
 def test_tick_buffer_returns_latest_ticks(client):
     client, redis_client = client
-    key = "ticks:EURUSD:live"
+    key = f"{VERSION_PREFIX}:ticks:EURUSD:live"
     redis_client.rpush(key, json.dumps({"price": 1.1}), json.dumps({"price": 1.2}))
 
     response = client.get("/api/pulse/ticks", {"symbol": "EURUSD"})
