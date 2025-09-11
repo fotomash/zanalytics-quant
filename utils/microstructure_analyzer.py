@@ -100,14 +100,12 @@ class MicrostructureAnalyzer:
         # Use resample for efficient aggregation on the normalized index
         resampler = ticks_df.resample('1Min')
 
-        delta_sum = resampler['delta'].sum()
-        tick_count = resampler.size()
-        avg_spread = resampler['spread'].mean()
-
         # Align the resampled data with the M1 bar index
-        aggregated_data['delta'] = delta_sum.reindex(m1_df.index, fill_value=0)
-        aggregated_data['tick_count'] = tick_count.reindex(m1_df.index, fill_value=0)
-        aggregated_data['avg_spread'] = avg_spread.reindex(m1_df.index).ffill()  # Forward fill for bars with no ticks
+        aggregated_data['delta'] = resampler['delta'].sum().reindex(m1_df.index, fill_value=0)
+        aggregated_data['tick_count'] = resampler.size().reindex(m1_df.index, fill_value=0)
+        aggregated_data['avg_spread'] = (
+            resampler['spread'].mean().reindex(m1_df.index).ffill()
+        )  # Forward fill for bars with no ticks
 
         # Calculate Cumulative Delta within each bar
         aggregated_data['cumulative_delta'] = aggregated_data['delta'].cumsum()
