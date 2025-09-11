@@ -13,6 +13,7 @@ import requests
 import yaml
 import streamlit as st
 from dashboard.utils.plotly_donuts import oneway_donut
+from dashboard.components import chip
 from dashboard.components.ui_chip import chip
 from dashboard.components.ui_concentric import concentric_ring
 
@@ -231,28 +232,6 @@ def apply_advanced_styling() -> str:
     """
 
 
-def chip(text: str, kind: str = 'neutral'):
-    """Render a colored pill with ``text``.
-
-    Parameters
-    ----------
-    text: str
-        Content of the pill.
-    kind: str
-        One of ``good``, ``warn``, ``bad`` or ``neutral`` to select colours.
-    
-    Returns
-    -------
-    None
-        The pill is written to the page via ``st.markdown``.
-    """
-
-    bg = {'good': '#dcfce7', 'warn': '#fef9c3', 'bad': '#fee2e2', 'neutral': '#f3f4f6'}.get(kind, '#f3f4f6')
-    color = {'good': '#166534', 'warn': '#854d0e', 'bad': '#991b1b', 'neutral': '#374151'}.get(kind, '#374151')
-    st.markdown(
-        f"<span style='background:{bg}; color:{color}; padding:6px 10px; border-radius:999px; font-size:12px; margin-right:6px; display:inline-block;'>{text}</span>",
-        unsafe_allow_html=True,
-    )
 
 
 def dim_block(start: bool = True):
@@ -454,6 +433,13 @@ if sm.get('daily_risk_allowance_percent', False) or sm.get('current_risk_used_pe
     with sess_cols[2]:
         # ↪ Replace with live risk_enforcer metrics
         risk_allow = 2.0  # %
+        risk_used = 0.8  # %
+        frac = risk_used / risk_allow if risk_allow else 0.0
+        fig = oneway_donut(
+            title="Risk Used",
+            frac=frac,
+            start_anchor="bottom",
+            center_title=f"{risk_used:.1f}%",
         risk_used  = 0.8  # %
 
         st.plotly_chart(
@@ -514,6 +500,11 @@ if tm.get('time_in_trade', False):
 if tm.get('exposure_percent', False):
     with tcols[2]:
         exp = exposure_percent_stub(positions, account)
+        fig = oneway_donut(
+            title="Exposure",
+            frac=exp / 100.0,
+            start_anchor="bottom",
+            center_title=f"{exp:.0f}%",
 
         st.plotly_chart(
             oneway_donut(
