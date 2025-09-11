@@ -1,0 +1,22 @@
+# MCP2 connector configuration
+schema_version: v1
+name_for_human: "Zanalytics MCP v2"
+name_for_model: "zan_mcp2"
+description_for_human: "Tool metadata search and retrieval"
+description_for_model: "Search and fetch tool records in the Zanalytics environment."
+auth:
+  type: none
+api:
+  type: openapi
+  url: https://mcp2.zanalytics.app/openapi.json
+logo_url: "https://mcp2.zanalytics.app/logo.png"
+contact_email: "support@zanalytics.app"
+legal_info_url: "https://zanalytics.app/legal"
+server_label: "MCP2 Production"
+server_url: https://mcp2.zanalytics.app/
+require_approval: "never"
+tools:
+  - search_docs
+  - fetch_payload
+  - log_enriched_trade
+  - recent_trades

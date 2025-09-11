@@ -9,7 +9,7 @@
 - Pulse Kernel (FastAPI, optional) — `services/pulse_api/main.py`
 - Dashboard (Streamlit) — depends on Django health
 
-## docker-compose
+## docker compose
 
 - Ensure `DJANGO_SECRET_KEY` only set once with default fallback
 - Celery/Celery Beat:

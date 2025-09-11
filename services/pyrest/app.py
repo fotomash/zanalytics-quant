@@ -1,18 +1,45 @@
 from datetime import datetime
+import os
+import time
 from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi.responses import Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
+)
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 # Import runtime / kernel layer
 from core.pulse_kernel import PulseKernel
 
 app = FastAPI(title="Zanalytics Pulse API", version="1.0.0", docs_url="/")
 security = HTTPBearer()
+
+# Prometheus metrics
+REQUEST_LATENCY = Histogram(
+    "pyrest_request_latency_seconds", "Request latency", ["endpoint", "method"]
+)
+REQUEST_COUNT = Counter(
+    "pyrest_request_count_total", "Request count", ["endpoint", "method", "status_code"]
+)
+KERNEL_STATUS = Gauge(
+    "pyrest_kernel_status", "Kernel connection status (1=connected,0=disconnected)"
+)
+RISK_DECISIONS = Counter(
+    "pyrest_risk_decisions_total", "Risk enforcement decisions", ["decision"]
+)
+RATE_LIMIT_EVENTS = Counter(
+    "pyrest_rate_limit_events_total", "Rate limit exceed events"
+)
+
 
 # rate limit per token (60 requests per minute)
 
@@ -22,7 +49,31 @@ def token_identifier(request: Request) -> str:
 
 limiter = Limiter(key_func=token_identifier)
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    RATE_LIMIT_EVENTS.inc()
+    return await _rate_limit_exceeded_handler(request, exc)
+
+
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration = time.perf_counter() - start
+    endpoint = request.url.path
+    method = request.method
+    REQUEST_LATENCY.labels(endpoint=endpoint, method=method).observe(duration)
+    REQUEST_COUNT.labels(
+        endpoint=endpoint, method=method, status_code=response.status_code
+    ).inc()
+    return response
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 # --- AUTH (simple Bearer) ---
 API_TOKENS: set[str] = set()  # fill from env/secret store on startup
@@ -75,17 +126,20 @@ class JournalEntry(BaseModel):
 
 # --- Runtime singleton (Kernel under the hood) ---
 KERNEL = PulseKernel()  # or PulseRuntime().kernel
-try:
-    KERNEL.connect_mt5()
-except Exception:
-    # MT5 might not be available in all environments
-    pass
+if os.getenv("PULSE_SKIP_MT5_CONNECT") != "1":
+    try:
+        KERNEL.connect_mt5()
+    except Exception:
+        # MT5 might not be available in all environments
+        pass
 
 
 # --- Health ---
 @app.get("/pulse/health")
 def health() -> Dict[str, Any]:
-    return {"status": "ok", "kernel": KERNEL.get_status()}
+    status = "connected" if getattr(KERNEL, "mt5_connected", False) else "disconnected"
+    KERNEL_STATUS.set(1 if status == "connected" else 0)
+    return {"status": "ok", "kernel": status}
 
 
 # --- Score ---
@@ -95,7 +149,7 @@ def health() -> Dict[str, Any]:
     dependencies=[Depends(auth)],
 )
 @limiter.limit("60/minute")
-def score(req: ScoreRequest) -> ScoreResponse:
+def score(req: ScoreRequest, request: Request) -> ScoreResponse:
     data = req.frame or {"symbol": req.symbol, "timeframe": req.timeframe}
     result = KERNEL.confluence_scorer.score({"df": data})
     return ScoreResponse(
@@ -115,10 +169,12 @@ def score(req: ScoreRequest) -> ScoreResponse:
     dependencies=[Depends(auth)],
 )
 @limiter.limit("60/minute")
-def risk(req: RiskRequest) -> RiskResponse:
+def risk(req: RiskRequest, request: Request) -> RiskResponse:
     allowed, warnings, details = KERNEL.risk_enforcer.allow(
         {"symbol": req.symbol, "size": req.size or req.intended_risk}
     )
+    decision = "allowed" if allowed else "blocked"
+    RISK_DECISIONS.labels(decision=decision).inc()
     return RiskResponse(allowed=allowed, warnings=warnings, details=details)
 
 
@@ -158,7 +214,7 @@ def signals_top(limit: int = 5) -> List[Dict[str, Any]]:
 # --- Journal ---
 @app.post("/pulse/journal", dependencies=[Depends(auth)])
 @limiter.limit("60/minute")
-def journal(entry: JournalEntry) -> Dict[str, bool]:
+def journal(entry: JournalEntry, request: Request) -> Dict[str, bool]:
     KERNEL.journal.write(entry.type, entry.data)
     return {"ok": True}
 

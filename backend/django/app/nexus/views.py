@@ -33,11 +33,15 @@ import json as _json
 import math
 from zoneinfo import ZoneInfo
 from datetime import timedelta
+import logging
 
 try:
     import redis as redis_lib  # optional
 except Exception:
     redis_lib = None
+
+
+logger = logging.getLogger(__name__)
 
 
 class PingView(views.APIView):
@@ -1230,6 +1234,22 @@ class ActionsQueryView(views.APIView):
                          market_regime, liquidity_map, state_snapshot, journal_recent, whisper_suggest
         """
         typ = str(request.GET.get('type') or '').strip()
+        # Compatibility: some clients mistakenly send GET with a JSON body.
+        # If no query param is provided, try to parse body and delegate to POST handler.
+        if not typ:
+            try:
+                raw = getattr(request, 'body', b'') or b''
+                if raw:
+                    import json as _json
+                    obj = _json.loads(raw.decode('utf-8'))
+                    btype = str(obj.get('type') or obj.get('operation') or '').strip()
+                    if btype:
+                        # Stash parsed body into request and reuse POST logic
+                        req = request._request
+                        req.data = obj
+                        return self.post(request)
+            except Exception:
+                pass
         try:
             if typ == 'session_boot':
                 # Map to POST handler logic with default payload extracted from query params
@@ -1375,7 +1395,9 @@ class ActionsQueryView(views.APIView):
                 positions = []
                 if include_positions:
                     try:
-                        positions = PositionsProxyView().get(request).data or []
+                        resp = PositionsProxyView().get(request)
+                        if resp.status_code == 200:
+                            positions = resp.data or []
                     except Exception:
                         positions = []
 
@@ -1384,7 +1406,8 @@ class ActionsQueryView(views.APIView):
                 if include_equity:
                     equity = { 'balance_usd': None, 'pnl_ytd_pct': None, 'drawdown_pct': None }
                     try:
-                        acct = AccountInfoView().get(request).data or {}
+                        resp = AccountInfoView().get(request)
+                        acct = resp.data if resp.status_code == 200 else {}
                     except Exception:
                         acct = {}
                     try:
@@ -2088,14 +2111,30 @@ class MarketNewsPublisherView(views.APIView):
             return Response({'ok': False, 'error': str(e)}, status=500)
 
 
-class PositionsProxyView(views.APIView):
-    """Proxy positions from MT5 bridge with normalization and safe fallback.
+def _mt5_bases():
+    bases = []
+    api = os.getenv("MT5_API_URL")
+    bridge = os.getenv("MT5_URL")
+    if api:
+        bases.append(api)
+    if bridge:
+        bases.append(bridge)
+    if not bases:
+        bases.append("http://mt5:5001")
+    return [str(b).rstrip('/') for b in bases]
 
-    GET /api/v1/account/positions -> [] on failure.
+
+class PositionsProxyView(views.APIView):
+    """Proxy positions from MT5 bridge with normalization.
+
+    Returns an error payload with non-200 status if the MT5 bridge is
+    unreachable or responds with an error.
     """
+
     permission_classes = [AllowAny]
 
     def get(self, request):
+
         base = (
             os.getenv("MT5_URL")
             or os.getenv("MT5_API_URL")
@@ -2104,10 +2143,12 @@ class PositionsProxyView(views.APIView):
         try:
             r = requests.get(f"{str(base).rstrip('/')}/positions_get", timeout=2.5)
             if not r.ok:
-                return Response([], status=200)
+                logger.error("positions_get failed with status %s", r.status_code)
+                return Response({"error": "mt5 bridge unreachable"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             data = r.json() or []
             if not isinstance(data, list):
-                return Response([], status=200)
+                logger.error("positions_get returned non-list payload")
+                return Response({"error": "invalid response from mt5"}, status=status.HTTP_502_BAD_GATEWAY)
             # Normalize time fields to ISO strings (if present)
             out = []
             for p in data:
@@ -2125,42 +2166,94 @@ class PositionsProxyView(views.APIView):
                 out.append(q)
             return Response(out)
         except Exception:
-            return Response([], status=200)
+            logger.exception("positions_get request failed")
+            return Response({"error": "mt5 bridge unreachable"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        for base in _mt5_bases():
+            try:
+                r = requests.get(f"{base}/positions_get", timeout=2.5)
+                if not r.ok:
+                    continue
+                data = r.json() or []
+                if not isinstance(data, list):
+                    continue
+                # Normalize time fields to ISO strings (if present)
+                out = []
+                for p in data:
+                    if not isinstance(p, dict):
+                        continue
+                    q = dict(p)
+                    for tkey in ("time", "time_update"):
+                        if tkey in q and q[tkey] is not None:
+                            try:
+                                # try milliseconds → ISO
+                                import pandas as _pd
+                                q[tkey] = _pd.to_datetime(int(q[tkey]), unit='s', errors='coerce').isoformat()
+                            except Exception:
+                                pass
+                    out.append(q)
+                return Response(out)
+            except Exception:
+                continue
+        return Response([], status=200)
 
 
 class AccountInfoView(views.APIView):
     """Return normalized MT5 account info with stable lowercase keys.
 
-    GET /api/v1/account/info -> { equity, balance, margin, free_margin, margin_level, profit, login, server, currency }
+    Returns an error payload with non-200 status if the MT5 bridge is
+    unreachable or responds with an error.
     """
+
     permission_classes = [AllowAny]
 
     def get(self, request):
-        base = (
-            os.getenv("MT5_URL")
-            or os.getenv("MT5_API_URL")
-            or "http://mt5:5001"
-        )
-        try:
-            r = requests.get(f"{str(base).rstrip('/')}/account_info", timeout=2.5)
-            if not r.ok:
-                return Response({}, status=200)
-            data = r.json() or {}
-            if isinstance(data, list) and data:
-                data = data[0]
-            if not isinstance(data, dict):
-                return Response({}, status=200)
-            # normalize keys to lowercase
-            norm = {str(k).lower(): v for k, v in data.items()}
-            # keep only common fields
-            keep = [
-                'equity','balance','margin','free_margin','margin_level','profit','login','server','currency'
-            ]
-            out = {k: norm.get(k) for k in keep}
-            return Response(out)
-        except Exception:
-            return Response({}, status=200)
+        """Proxy MT5 account_info and normalize keys/values.
 
+        Attempts primary `MT5_URL` then falls back to discovered bases.
+        Returns a single normalized dict.
+        """
+        bases = []
+        # Prefer explicit env base first
+        base_env = os.getenv("MT5_URL") or os.getenv("MT5_API_URL")
+        if base_env:
+            bases.append(str(base_env).rstrip('/'))
+        # Then any autodetected bases
+        for b in _mt5_bases():
+            if b not in bases:
+                bases.append(b)
+
+        errors = []
+        for base in bases or ["http://mt5:5001"]:
+            try:
+                r = requests.get(f"{base}/account_info", timeout=2.5)
+                if not r.ok:
+                    errors.append(f"{base}: {r.status_code}")
+                    continue
+                data = r.json() or {}
+                if isinstance(data, list) and data:
+                    data = data[0]
+                if not isinstance(data, dict):
+                    errors.append(f"{base}: invalid payload")
+                    continue
+                # Normalize keys to lowercase snake-ish
+                norm = {}
+                for k, v in data.items():
+                    kk = str(k).strip().lower().replace(" ", "_")
+                    norm[kk] = v
+                # Coerce certain numerics if present
+                for numk in ("balance", "equity", "margin", "margin_free", "margin_level", "profit"):
+                    if numk in norm:
+                        try:
+                            norm[numk] = float(norm[numk])
+                        except Exception:
+                            pass
+                return Response(norm)
+            except Exception as e:
+                errors.append(f"{base}: {e.__class__.__name__}")
+                continue
+        logger.warning("account_info fallback errors: %s", "; ".join(errors))
+        return Response({"error": "mt5 bridge unreachable"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 class JournalAppendView(views.APIView):
     """Append a journal entry; optionally linked to a trade by id.
@@ -2564,7 +2657,9 @@ class OrderCloseProxyView(views.APIView):
                     return None
                 return None
 
-            # Prefer explicit volume if provided; else fraction; if neither provided, attempt full close by resolving volume from bridge
+            # Prefer explicit volume if provided; else fraction; if neither provided, call v2 with minimal payload
+            # Rationale: mt5_gateway accepts bare {ticket} for full close. The legacy Flask compat endpoint requires
+            # fraction/volume, so a 400 here will trigger our fallbacks below.
             payload = {'ticket': ticket}
             if volume is not None:
                 try:
@@ -2576,18 +2671,7 @@ class OrderCloseProxyView(views.APIView):
                     payload['fraction'] = float(fraction)
                 except Exception:
                     return Response({'error': 'fraction must be numeric'}, status=400)
-            else:
-                # Full close intent: resolve current volume from bridge
-                pos = _fetch_position(ticket)
-                if pos and pos.get('volume') is not None:
-                    try:
-                        payload['volume'] = float(pos.get('volume'))
-                    except Exception:
-                        # Fall back to fraction when volume parse fails
-                        payload['fraction'] = 0.99  # close nearly full if exact volume unavailable
-                else:
-                    # If we cannot resolve position, proceed with v2 and let bridge respond; we'll retry/fallback below
-                    payload['fraction'] = 0.99
+            # else: keep minimal {'ticket'} for the primary v2 attempt
 
             # Attempt with retry/backoff on transient HTTP issues or 404s
             last_resp = None
@@ -2600,7 +2684,7 @@ class OrderCloseProxyView(views.APIView):
                         return Response(body if isinstance(body, dict) else {'ok': True})
                     except Exception:
                         return Response({'ok': True})
-                if r.status_code in (404, 502, 503, 504):
+                if r.status_code in (400, 404, 502, 503, 504):
                     # Small backoff then retry
                     import time as _t
                     _t.sleep(0.35 * (attempt + 1))
@@ -2626,7 +2710,8 @@ class OrderCloseProxyView(views.APIView):
                         except Exception:
                             frac = None
                     if frac is None:
-                        frac = 0.99
+                        # Intent is full close when neither provided; prefer full 1.0 for legacy partial_close
+                        frac = 1.0
                     rl = requests.post(f"{base}/partial_close", json={'ticket': int(ticket), 'symbol': symbol, 'fraction': float(frac)}, timeout=6.0)
                     if rl.ok:
                         body = rl.json() if rl.headers.get('content-type','').startswith('application/json') else {'ok': True}
@@ -2637,13 +2722,16 @@ class OrderCloseProxyView(views.APIView):
             # 2) If we can fetch the position, try legacy full-close endpoint which requires full position data
             if pos:
                 try:
-                    position_payload = {
-                        'type': int(pos.get('type') or pos.get('Type') or 0),
-                        'ticket': int(pos.get('ticket') or pos.get('Ticket') or ticket),
-                        'symbol': str(pos.get('symbol') or pos.get('Symbol')),
-                        'volume': float(pos.get('volume') or pos.get('Volume') or 0.0),
-                    }
-                    rc = requests.post(f"{base}/close_position", json={'position': position_payload}, timeout=6.0)
+                    # Try modern gateway shape first; fall back to legacy Flask shape
+                    rc = requests.post(f"{base}/close_position", json={'ticket': int(ticket)}, timeout=6.0)
+                    if not rc.ok:
+                        position_payload = {
+                            'type': int(pos.get('type') or pos.get('Type') or 0),
+                            'ticket': int(pos.get('ticket') or pos.get('Ticket') or ticket),
+                            'symbol': str(pos.get('symbol') or pos.get('Symbol')),
+                            'volume': float(pos.get('volume') or pos.get('Volume') or 0.0),
+                        }
+                        rc = requests.post(f"{base}/close_position", json={'position': position_payload}, timeout=6.0)
                     if rc.ok:
                         body = rc.json() if rc.headers.get('content-type','').startswith('application/json') else {'ok': True}
                         return Response({'ok': True, 'result': body})

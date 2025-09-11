@@ -4,7 +4,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pulse_kernel import PulseKernel
-from confluence_scorer import ConfluenceScorer
+from core.predictive_scorer import PredictiveScorer
 from risk_enforcer import RiskEnforcer
 from datetime import datetime
 
@@ -33,14 +33,13 @@ def sample_market_data():
 
 @pytest.mark.integration
 def test_confluence_scorer(sample_market_data):
-    """Test confluence scoring"""
-    scorer = ConfluenceScorer("pulse_config.yaml")
+    """Test predictive scoring"""
+    scorer = PredictiveScorer("pulse_config.yaml")
     result = scorer.score(sample_market_data)
 
-    assert 'score' in result
-    assert 0 <= result['score'] <= 100
-    assert 'components' in result
-    assert 'reasoning' in result
+    assert 'maturity_score' in result
+    assert 0 <= result['maturity_score'] <= 100
+    assert 'grade' in result
 
 
 @pytest.mark.integration

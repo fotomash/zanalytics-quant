@@ -1,0 +1,54 @@
+{
+  "strategy_name": "TickLevel_MicroWyckoff_EventScorer_v12",
+  "aliases": [
+    "Tick Wyckoff Event Tagger",
+    "Micro-Spring/UTAD Confirmer",
+    "Tick Wyckoff Mapper"
+  ],
+  "entry_pattern": "Analytical/Tagging Layer: Identifies and tags micro-Wyckoff events (Micro-Spring, Micro-ST, Tick-CHoCH) and potential iceberg absorption on tick data. Output serves as high-confidence confluence for LTF entry agents or PredictiveScorer.",
+  "entry_conditions": [
+    "N/A - Analytical Layer. Tags events based on:"
+  ],
+  "timeframe_mapping": {
+    "primary_analysis_tf": [
+      "Tick"
+    ],
+    "contextual_output_for_tf": [
+      "M1",
+      "M5"
+    ]
+  },
+  "confluence_conditions_indicators": [
+    "Micro-Spring/UTAD: Tick sweep + sharp volume-backed rejection at micro S/R.",
+    "Micro-ST: Retest of micro-Spring/UTAD extreme on low tick volume/density.",
+    "Tick-based CHoCH: Break of immediate micro-swing post-Spring/UTAD rejection.",
+    "Iceberg Absorption (requires LOB data): Repeated small fills at static price despite incoming volume."
+  ],
+  "risk_model": {
+    "type": "N/A (Analytical Layer)"
+  },
+  "execution_flow_ispts": [
+    "Operates as a continuous or event-driven analytical stream, enriching 'agent_state' or ZBAR with tags."
+  ],
+  "scoring": {
+    "enabled": true,
+    "type": "Event Confidence Score",
+    "description": "Generates confidence scores for each detected micro-event. These scores/tags act as input/filters for other execution agents or their PredictiveScorer modules. Enabled by 'system_mission.tick_enrichment.induce_micro_wyckoff: true'."
+  },
+  "fallback_logic": {
+    "enabled": false,
+    "description": "N/A directly, but its output quality impacts fallbacks of consuming strategies."
+  },
+  "modules_involved": [
+    "Tick_Processor.py",
+    "WyckoffEngine_TickLevel.py (specialized)",
+    "StructureValidator_TickLevel.py (specialized)",
+    "OrderbookAnalyticsEngine.py (conceptual, for LOB data if 'tick_enrichment.classify_icebergs' or 'spoofing_detection' is true)",
+    "PredictiveScorer.py (can consume these tags)",
+    "JournalLogger.py"
+  ],
+  "agent_profiles_conceptual": [
+    "Specialized analytical agent profile or an enrichment service configured in main agent YAMLs under 'tick_enrichment'."
+  ],
+  "memory_merge_flag": true
+}

@@ -1,0 +1,19 @@
+.git
+__pycache__/
+**/__pycache__/
+*.py[cod]
+**/*.py[cod]
+*.swp
+node_modules/
+**/node_modules/
+
+# Include only wiki docs and info dashboards
+# Ignore other docs and dashboards content
+
+# Ignore all docs except wiki
+/docs/*
+!/docs/wiki/**
+
+# Ignore all dashboards except info
+/dashboards/*
+!/dashboards/info/**

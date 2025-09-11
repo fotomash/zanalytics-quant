@@ -16,7 +16,7 @@ Get your monitoring stack up and running with one command using a Docker Compose
 
 ## Makefile
 
-[Note](https://docs.docker.com/compose/install/linux/): Due to `docker-compose` and the `compose` plugin, you might have one of the two installed. I have a `Makefile` that will detect which on you have installed.
+[Note](https://docs.docker.com/compose/install/linux/): Depending on your Docker setup, you might have the legacy `docker-compose` binary or the newer `docker compose` plugin. The `Makefile` detects whichever is available.
 
 You can list the targets using `make`.
 
@@ -25,13 +25,13 @@ You can list the targets using `make`.
 Boot the stack with docker compose (or `make up`):
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 Ensure all containers are running:
 
 ```bash
-docker-compose ps
+docker compose ps
 ```
 
 The output should looke like this:
@@ -114,5 +114,5 @@ The following endpoints are available:
 To remove the containers using docker compose (or `make clean`):
 
 ```bash
-docker-compose down
+docker compose down
 ```

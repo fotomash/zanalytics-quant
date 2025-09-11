@@ -12,62 +12,16 @@ x-common-labels: &default-labels
 
 services:
   traefik:
-    image: traefik:3.0
+    image: traefik:v3.1
     container_name: traefik
     ports:
-      - 80:80 # HTTP port
-      - 443:443 # HTTPS port
-    restart: always
-    labels:
-      # Traefik configuration
-      <<: *default-labels
-      traefik.enable: true
-      traefik.docker.network: traefik-public
-      traefik.http.services.traefik-dashboard.loadbalancer.server.port: 8080
-
-      # HTTP router configuration
-      traefik.http.routers.traefik-dashboard-http.entrypoints: http
-      traefik.http.routers.traefik-dashboard-http.rule: Host(`${TRAEFIK_DOMAIN?Variable not set}`)
-
-      # HTTPS router configuration
-      traefik.http.routers.traefik-dashboard-https.entrypoints: https
-      traefik.http.routers.traefik-dashboard-https.rule: Host(`${TRAEFIK_DOMAIN?Variable not set}`)
-      traefik.http.routers.traefik-dashboard-https.tls: true
-      traefik.http.routers.traefik-dashboard-https.tls.certresolver: le
-      traefik.http.routers.traefik-dashboard-https.service: api@internal
-
-      # HTTPS redirect middleware
-      traefik.http.middlewares.https-redirect.redirectscheme.scheme: https
-      traefik.http.middlewares.https-redirect.redirectscheme.permanent: true
-      traefik.http.routers.traefik-dashboard-http.middlewares: https-redirect
-
-      # HTTP Basic Auth middleware
-      traefik.http.middlewares.admin-auth.basicauth.users: ${TRAEFIK_USERNAME?Variable not set}:${TRAEFIK_HASHED_PASSWORD?Variable not set}
-      traefik.http.routers.traefik-dashboard-https.middlewares: admin-auth
+      - 80:80
+      - 443:443
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro # Docker socket for reading service labels
-      - traefik-public-certificates:/certificates # Certificate storage
-    command:
-      # Docker provider configuration
-      - --providers.docker
-      - --providers.docker.exposedbydefault=false
-
-      # Entrypoints configuration
-      - --entrypoints.http.address=:80
-      - --entrypoints.https.address=:443
-
-      # Let's Encrypt configuration
-      - --certificatesresolvers.le.acme.email=${ACME_EMAIL?Variable not set}
-      - --certificatesresolvers.le.acme.storage=/certificates/acme.json
-      - --certificatesresolvers.le.acme.tlschallenge=true
-
-      # Logging and API configuration
-      - --accesslog
-      - --log
-      - --api
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
-      - traefik-public # Public network for Traefik and other services
-    logging: *default-logging
+      - traefik-public
+    restart: unless-stopped
 
   mt5:
     build:
@@ -76,9 +30,6 @@ services:
     container_name: mt5
     volumes:
       - ./config:/config
-    ports:
-      - "8000:8000"
-      - "5001:5001"
     networks:
       - traefik-public
       - default
@@ -202,6 +153,7 @@ services:
       - ALERTS_SCORE_HI=90
       - ALERTS_TOXICITY_LIMIT=0.30
       - ALERTS_DD_INTRADAY_WARN=0.025
+      - MT5_API_URL=http://mt5:5001
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
     depends_on:
       postgres:
@@ -349,6 +301,7 @@ services:
       - ./monitoring/dashboards/log-search.json:/var/lib/grafana/dashboards/log-search.json:ro
       - ./monitoring/dashboards/traefik_official.json:/var/lib/grafana/dashboards/traefik_official.json:ro
       - ./monitoring/dashboards/altertmanager-dashboard.json:/var/lib/grafana/dashboards/altertmanager-dashboard.json:ro
+      - ./monitoring/dashboards/mcp-pulse.json:/var/lib/grafana/dashboards/mcp-pulse.json:ro
       - grafana-data:/var/lib/grafana
     depends_on:
       - prometheus
@@ -566,7 +519,7 @@ services:
       django:
         condition: service_healthy
     command: >
-      streamlit run pages/pulse_dashboard.py --server.port=${STREAMLIT_SERVER_PORT:-8501} --server.enableCORS true --server.enableXsrfProtection false
+      streamlit run dashboard/pulse_dashboard.py --server.port=${STREAMLIT_SERVER_PORT:-8501} --server.enableCORS true --server.enableXsrfProtection false
     restart: unless-stopped
     networks:
       - default
@@ -624,6 +577,71 @@ services:
     depends_on: [pulse-kernel]
     volumes:
       - ./:/app
+
+  caching:
+    build:
+      context: .
+      dockerfile: services/caching/Dockerfile
+    environment:
+      - KAFKA_BROKERS=${KAFKA_BROKERS:-kafka:9092}
+      - KAFKA_GROUP=${KAFKA_GROUP:-caching-service}
+      - KAFKA_TOPIC=${KAFKA_TOPIC:-enriched-analysis-payloads}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - LATEST_PAYLOAD_TTL=${LATEST_PAYLOAD_TTL:-3600}
+      - ACTIVE_FVG_TTL=${ACTIVE_FVG_TTL:-3600}
+      - BEHAVIORAL_SCORE_TTL=${BEHAVIORAL_SCORE_TTL:-3600}
+    depends_on:
+      - kafka
+      - redis
+    restart: unless-stopped
+    logging: *default-logging
+
+  overseer:
+    build:
+      context: .
+      dockerfile: services/overseer/Dockerfile
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      - OVERSEER_TOPIC=${OVERSEER_TOPIC:-overseer-events}
+    depends_on:
+      - kafka
+    restart: unless-stopped
+    logging: *default-logging
+
+  telegram:
+    build:
+      context: .
+      dockerfile: services/telegram/Dockerfile
+    environment:
+      - KAFKA_BROKER=${KAFKA_BROKER:-kafka:9092}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    depends_on:
+      - kafka
+    restart: unless-stopped
+    logging: *default-logging
+
+  vectorization-service:
+    build:
+      context: ./vectorization_service
+      dockerfile: Dockerfile
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      - KAFKA_GROUP_ID=${KAFKA_GROUP_ID:-vectorization-service}
+      - KAFKA_ANALYSIS_TOPIC=${KAFKA_ANALYSIS_TOPIC:-final-analysis-payloads}
+      - VECTOR_DB_URL=${VECTOR_DB_URL}
+      - VECTOR_DB_API_KEY=${VECTOR_DB_API_KEY}
+    depends_on:
+      - kafka
+    healthcheck:
+      test: ["CMD", "python", "healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    logging: *default-logging
 
 volumes:
   traefik-public-certificates: # Persistent volume for certificates

@@ -1,0 +1,28 @@
+## Session-level statistics; toggle booleans to show or hide each metric on the dashboard.
+session_metrics:
+  start_of_day_balance: true
+  current_equity: true
+  daily_risk_allowance_percent: true
+  current_risk_used_percent: true
+  session_time_remaining: true
+
+## Metrics for individual trades; set to true to display values in the UI.
+trade_metrics:
+  unrealized_pnl: true
+  time_in_trade: true
+  exposure_percent: true
+  max_adverse_excursion: true
+
+## Behavioral analytics summarizing trader performance; booleans control visibility.
+behavioral_metrics:
+  composite_posture_score: true
+  patience_index: true
+  conviction_accuracy: true
+  profit_efficiency: true
+  overtrading_alert: true
+
+## Upcoming signals and alerts; switch booleans to enable corresponding UI elements.
+future_signals:
+  next_news_release: true
+  context_alerts: true
+  whisperer_rating: true

@@ -1,0 +1,5 @@
+[
+  {"id": 1, "phase": "spring", "confidence": 0.45},
+  {"id": 2, "phase": "markup", "confidence": 0.70},
+  {"id": 3, "phase": "distribution", "confidence": 0.55}
+]

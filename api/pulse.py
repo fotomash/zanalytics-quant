@@ -5,7 +5,7 @@ import pathlib
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from confluence_scorer import ConfluenceScorer
+from core.predictive_scorer import PredictiveScorer
 
 router = APIRouter(prefix="/api/pulse", tags=["pulse"])
 
@@ -13,7 +13,7 @@ conf_dir = pathlib.Path(__file__).parent.parent / "knowledge" / "strategies"
 conf_cfg = yaml.safe_load((conf_dir / "hybrid_confluence.yaml").read_text())
 _smc_cfg = json.loads((conf_dir / "smc_advanced.json").read_text())
 _wyckoff_cfg = json.loads((conf_dir / "wyckoff_basic.json").read_text())
-scorer = ConfluenceScorer(config_path=str(conf_dir / "hybrid_confluence.yaml"))
+scorer = PredictiveScorer(config_path=str(conf_dir / "hybrid_confluence.yaml"))
 
 
 class BarIn(BaseModel):
@@ -33,7 +33,8 @@ async def receive_bar(bar: BarIn):
         result = scorer.score(bar.dict())
         return {
             "symbol": bar.symbol,
-            "score": result.get("score", 0),
+            "maturity_score": result.get("maturity_score", 0),
+            "grade": result.get("grade"),
             "timestamp": datetime.utcnow().isoformat(),
         }
     except Exception as exc:  # pragma: no cover - simple passthrough

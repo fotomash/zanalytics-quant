@@ -6,171 +6,24 @@ info:
     Slim spec for agent-facing Actions routed via a single endpoint.
     Keeps the main API under the 30‑operation cap while exposing core verbs.
 servers:
-  - url: https://django2.zanalytics.app
+  - url: https://mcp1.zanalytics.app
 x-openai:
   trusted: true
   permissions:
-    - domain: django2.zanalytics.app
+    - domain: mcp1.zanalytics.app
       always_allow: true
+  scopes:
+    - read
+    - write
+    - execute
 paths:
-  /api/v1/actions/read:
-    get:
-      summary: Query a read-only action (alias; avoids consent prompts in most runtimes)
-      operationId: getActionsRead
-      parameters:
-        - in: query
-          name: type
-          required: true
-          schema:
-            type: string
-            enum: [
-              session_boot,
-              trades_recent,
-              trades_history_mt5,
-              account_info,
-              account_positions,
-              account_risk,
-              equity_today,
-              market_mini,
-              market_symbols,
-              market_calendar_next,
-              market_regime,
-              liquidity_map,
-              state_snapshot,
-              journal_recent,
-              whisper_suggest
-            ]
-        - in: query
-          name: limit
-          required: false
-          schema: { type: integer }
-        - in: query
-          name: symbol
-          required: false
-          schema: { type: string }
-        - in: query
-          name: timeframe
-          required: false
-          schema: { type: string }
-        - in: query
-          name: date_from
-          required: false
-          schema: { type: string }
-        - in: query
-          name: date_to
-          required: false
-          schema: { type: string }
-        - in: query
-          name: pnl_min
-          required: false
-          schema: { type: number }
-        - in: query
-          name: pnl_max
-          required: false
-          schema: { type: number }
-        - in: query
-          name: user_id
-          required: false
-          schema: { type: string }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - $ref: '#/components/schemas/WhisperSuggestResponse'
-                  - type: array
-                    description: trades_recent result
-                    items:
-                      $ref: '#/components/schemas/TradeItem'
-                  - $ref: '#/components/schemas/SessionBootResponse'
-                  - type: array
-                    description: trades_history_mt5 result
-                    items:
-                      $ref: '#/components/schemas/TradeHistoryItem'
-        '400': { description: Bad Request }
-        '500': { description: Server Error }
   /api/v1/actions/query:
-    get:
-      summary: Query a read-only action (no consent prompts in most runtimes)
-      operationId: getActionsQuery
-      parameters:
-        - in: query
-          name: type
-          required: true
-          schema:
-            type: string
-            enum: [
-              session_boot,
-              trades_recent,
-              trades_history_mt5,
-              account_info,
-              account_positions,
-              account_risk,
-              equity_today,
-              market_mini,
-              market_symbols,
-              market_calendar_next,
-              market_regime,
-              liquidity_map,
-              state_snapshot,
-              journal_recent,
-              whisper_suggest
-            ]
-        - in: query
-          name: limit
-          required: false
-          schema: { type: integer }
-        - in: query
-          name: symbol
-          required: false
-          schema: { type: string }
-        - in: query
-          name: timeframe
-          required: false
-          schema: { type: string }
-        - in: query
-          name: date_from
-          required: false
-          schema: { type: string }
-        - in: query
-          name: date_to
-          required: false
-          schema: { type: string }
-        - in: query
-          name: pnl_min
-          required: false
-          schema: { type: number }
-        - in: query
-          name: pnl_max
-          required: false
-          schema: { type: number }
-        - in: query
-          name: user_id
-          required: false
-          schema: { type: string }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - $ref: '#/components/schemas/WhisperSuggestResponse'
-                  - type: array
-                    description: trades_recent result
-                    items:
-                      $ref: '#/components/schemas/TradeItem'
-                  - $ref: '#/components/schemas/SessionBootResponse'
-                  - type: array
-                    description: trades_history_mt5 result
-                    items:
-                      $ref: '#/components/schemas/TradeHistoryItem'
-        '400': { description: Bad Request }
-        '500': { description: Server Error }
     post:
-      summary: Execute an action (query verbs)
+      summary: Execute an action
+      description: |
+        Supported verbs: whisper_suggest, session_boot, state_snapshot, trades_recent,
+        trades_history_mt5, account_info, account_positions, account_risk, equity_today,
+        pulse_status, market_snapshot, market_symbols, liquidity_map, opportunity_priority_items, position_open, position_close, position_modify.
       operationId: postActionsQuery
       requestBody:
         required: true
@@ -389,6 +242,93 @@ paths:
         '404': { description: Not Found }
         '500': { description: Server Error }
 
+  /trade/open:
+    post:
+      summary: Open a new trading position
+      operationId: postTradeOpen
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PositionOpenPayload'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PositionActionResponse'
+        '400': { description: Bad Request }
+        '500': { description: Server Error }
+
+  /trade/close:
+    post:
+      summary: Close an existing trading position
+      operationId: postTradeClose
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PositionClosePayload'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PositionActionResponse'
+        '400': { description: Bad Request }
+        '404': { description: Not Found }
+        '500': { description: Server Error }
+
+  /trade/modify:
+    post:
+      summary: Modify stop-loss or take-profit for a position
+      operationId: postTradeModify
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PositionModifyPayload'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PositionActionResponse'
+        '400': { description: Bad Request }
+        '404': { description: Not Found }
+        '500': { description: Server Error }
+
+  /api/v1/mcp1/authenticate:
+    post:
+      summary: Authenticate session via MCP1
+      operationId: postMcp1Authenticate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+      responses:
+        '200':
+          description: Session valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: authenticated
+
 components:
   schemas:
     ActionQuery:
@@ -406,6 +346,7 @@ components:
         - $ref: '#/components/schemas/AccountPositionsRequest'
         - $ref: '#/components/schemas/AccountRiskRequest'
         - $ref: '#/components/schemas/EquityTodayRequest'
+        - $ref: '#/components/schemas/PulseStatusRequest'
         - $ref: '#/components/schemas/MarketMiniRequest'
         - $ref: '#/components/schemas/MarketSymbolsRequest'
         - $ref: '#/components/schemas/MarketCalendarNextRequest'
@@ -414,6 +355,7 @@ components:
         - $ref: '#/components/schemas/OpportunityPriorityItemsRequest'
         - $ref: '#/components/schemas/JournalRecentRequest'
         - $ref: '#/components/schemas/JournalAppendRequest'
+        - $ref: '#/components/schemas/BehaviorEventsRequest'
         - $ref: '#/components/schemas/WhisperSuggestRequest'
       discriminator:
         propertyName: type
@@ -430,7 +372,9 @@ components:
           account_positions: '#/components/schemas/AccountPositionsRequest'
           account_risk: '#/components/schemas/AccountRiskRequest'
           equity_today: '#/components/schemas/EquityTodayRequest'
+          pulse_status: '#/components/schemas/PulseStatusRequest'
           market_mini: '#/components/schemas/MarketMiniRequest'
+          market_snapshot: '#/components/schemas/MarketMiniRequest'
           market_symbols: '#/components/schemas/MarketSymbolsRequest'
           market_calendar_next: '#/components/schemas/MarketCalendarNextRequest'
           market_regime: '#/components/schemas/MarketRegimeRequest'
@@ -438,6 +382,7 @@ components:
           opportunity_priority_items: '#/components/schemas/OpportunityPriorityItemsRequest'
           journal_recent: '#/components/schemas/JournalRecentRequest'
           journal_append: '#/components/schemas/JournalAppendRequest'
+          behavior_events: '#/components/schemas/BehaviorEventsRequest'
           whisper_suggest: '#/components/schemas/WhisperSuggestRequest'
 
     ActionQueryRequest:
@@ -457,7 +402,9 @@ components:
             account_positions,
             account_risk,
             equity_today,
+            pulse_status,
             market_mini,
+            market_snapshot,
             market_symbols,
             market_calendar_next,
             market_regime,
@@ -465,6 +412,7 @@ components:
             opportunity_priority_items,
             journal_recent,
             journal_append,
+            behavior_events,
             position_open,
             position_close,
             position_modify,
@@ -483,6 +431,7 @@ components:
             - $ref: '#/components/schemas/MarketCalendarNextPayload'
             - $ref: '#/components/schemas/LiquidityMapPayload'
             - $ref: '#/components/schemas/OpportunityPriorityItemsPayload'
+            - $ref: '#/components/schemas/PulseStatusPayload'
             - $ref: '#/components/schemas/JournalRecentPayload'
             - $ref: '#/components/schemas/JournalAppendPayload'
             - $ref: '#/components/schemas/WhisperSuggestPayload'
@@ -567,13 +516,19 @@ components:
       properties:
         type: { type: string, const: account_risk }
         payload: { type: object, additionalProperties: false }
-
     EquityTodayRequest:
       type: object
       required: [type]
       properties:
         type: { type: string, const: equity_today }
         payload: { type: object, additionalProperties: false }
+
+    PulseStatusRequest:
+      type: object
+      required: [type, payload]
+      properties:
+        type: { type: string, const: pulse_status }
+        payload: { $ref: '#/components/schemas/PulseStatusPayload' }
 
     MarketMiniRequest:
       type: object
@@ -623,13 +578,19 @@ components:
       properties:
         type: { type: string, const: journal_recent }
         payload: { $ref: '#/components/schemas/JournalRecentPayload' }
-
     JournalAppendRequest:
       type: object
       required: [type, payload]
       properties:
         type: { type: string, const: journal_append }
         payload: { $ref: '#/components/schemas/JournalAppendPayload' }
+
+    BehaviorEventsRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, const: behavior_events }
+        payload: { type: object, additionalProperties: false }
 
     WhisperSuggestRequest:
       type: object
@@ -712,13 +673,18 @@ components:
       properties:
         symbol: { type: string, nullable: true }
         timeframe: { type: string, nullable: true, example: 'M5' }
-
     OpportunityPriorityItemsPayload:
       type: object
       properties:
         candidates: { type: array, items: { type: object } }
         symbols: { type: array, items: { type: string } }
         constraints: { type: object, additionalProperties: true }
+
+    PulseStatusPayload:
+      type: object
+      required: [symbol]
+      properties:
+        symbol: { type: string }
 
     JournalRecentPayload:
       type: object
@@ -810,7 +776,7 @@ components:
         exit: { type: number, nullable: true }
         pnl: { type: number, nullable: true }
         status: { type: string, nullable: true }
-    
+      
     PositionActionResponse:
       type: object
       description: Generic response envelope for position actions (open/close/modify/hedge)
@@ -818,7 +784,7 @@ components:
         ok: { type: boolean, nullable: true }
         success: { type: boolean, nullable: true }
         order:
-          type: object
+          type: object  
           nullable: true
           additionalProperties: true
           description: MT5 order result when returned by position_open

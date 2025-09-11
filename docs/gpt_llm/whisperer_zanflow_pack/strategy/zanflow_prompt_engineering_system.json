@@ -46,7 +46,7 @@
     "wyckoff_accumulation_distribution_prompt": {
       "id": "wyckoff_phase_analysis_v1",
       "focus": "Wyckoff methodology integration with modern order flow",
-      "prompt": "Apply Wyckoff principles to identify accumulation/distribution phases:\n\n## Phase Identification:\n1. Current suspected phase: {wyckoff_phase}\n2. Key levels:\n   - Creek/Ice line: {creek_level}\n   - Springs/Upthrusts: {spring_levels}\n   - Signs of Strength/Weakness: {sos_sow_levels}\n\n## Volume Analysis:\n1. Effort vs Result analysis on recent moves\n2. Volume patterns during tests of support/resistance\n3. Composite Operator footprints\n\n## Integration with Order Flow:\n1. Identify where institutions are likely positioned\n2. Map liquidity pools they're targeting\n3. Predict next phase transition\n\nCombine with SMC concepts for entry timing."
+      "prompt": "Apply Wyckoff principles to identify accumulation/distribution phases:\n\n## Phase Identification:\n1. Current suspected phase: {wyckoff_phase}\n2. Key levels:\n   - Creek/Ice line: {creek_level}\n   - Springs/Upthrusts: {spring_levels}\n   - Signs of Strength/Weakness: {sos_sow_levels}\n\n## Volume Analysis:\n1. Effort vs Result analysis on recent moves\n2. Volume patterns during tests of support/resistance\n3. Composite Operator footprints\n\n## Integration with Order Flow:\n1. Identify where institutions are likely positioned\n2. Map liquidity pools they're targeting\n3. Predict next phase transition\n\nCombine with SMC concepts for entry timing.\n\nAccording to the shared aversion model, what fear is the trader mitigating here?"
     },
     "session_liquidity_hunter_prompt": {
       "id": "session_liquidity_specialist_v1",

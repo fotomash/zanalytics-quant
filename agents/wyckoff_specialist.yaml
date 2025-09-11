@@ -1,0 +1,5 @@
+agent:
+  id: "wyckoff_specialist"
+  name: "Wyckoff Specialist"
+  version: "1.0.0"
+  type: "wyckoff_analysis"

@@ -171,7 +171,7 @@ __init__.py
 __pycache__
 analysis_panel.py
 chart_builder.py
-smc_analyser.py
+ smc_analyzer.py
 technical_analysis.py
 timeframe_converter.py
 volume_profile_analyzer.py
@@ -348,7 +348,6 @@ unified_dashboard.py
 ComprehensiveJSONProcessor.py
 ComprehensiveJSONVisualizer.py
 NCOS_INTEGRATION_SUMMARY.md
-TickVectorizer.py
 __init__.py
 analysis_engines.py
 analysis_panel.py
@@ -369,10 +368,10 @@ ncos_realtime_engine.py
 ncos_theory_backtester.py
 predictive_scanner_config.yaml
 qrt_quantum_config.yaml
-quantum_analysis_config:
+quantum_analysis_config.yaml
 quantum_analysis_config_v2.yaml
 quantum_microstructure_analyzer.py
-smc_analyser.py
+smc_analyzer.py
 smc_analyzer.py
 technical_analysis.py
 tick_vectorizer.py

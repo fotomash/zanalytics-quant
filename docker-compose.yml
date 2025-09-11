@@ -12,68 +12,134 @@ x-common-labels: &default-labels
 
 services:
   traefik:
-    image: traefik:3.0
+    image: traefik:v3.1
     container_name: traefik
-    ports:
-      - 80:80 # HTTP port
-      - 443:443 # HTTPS port
-    restart: always
-    labels:
-      # Traefik configuration
-      <<: *default-labels
-      traefik.enable: true
-      traefik.docker.network: traefik-public
-      traefik.http.services.traefik-dashboard.loadbalancer.server.port: 8080
-
-      # HTTP router configuration
-      traefik.http.routers.traefik-dashboard-http.entrypoints: http
-      traefik.http.routers.traefik-dashboard-http.rule: Host(`${TRAEFIK_DOMAIN?Variable not set}`)
-
-      # HTTPS router configuration
-      traefik.http.routers.traefik-dashboard-https.entrypoints: https
-      traefik.http.routers.traefik-dashboard-https.rule: Host(`${TRAEFIK_DOMAIN?Variable not set}`)
-      traefik.http.routers.traefik-dashboard-https.tls: true
-      traefik.http.routers.traefik-dashboard-https.tls.certresolver: le
-      traefik.http.routers.traefik-dashboard-https.service: api@internal
-
-      # HTTPS redirect middleware
-      traefik.http.middlewares.https-redirect.redirectscheme.scheme: https
-      traefik.http.middlewares.https-redirect.redirectscheme.permanent: true
-      traefik.http.routers.traefik-dashboard-http.middlewares: https-redirect
-
-      # HTTP Basic Auth middleware
-      traefik.http.middlewares.admin-auth.basicauth.users: ${TRAEFIK_USERNAME?Variable not set}:${TRAEFIK_HASHED_PASSWORD?Variable not set}
-      traefik.http.routers.traefik-dashboard-https.middlewares: admin-auth
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro # Docker socket for reading service labels
-      - traefik-public-certificates:/certificates # Certificate storage
     command:
-      # Docker provider configuration
       - --providers.docker
       - --providers.docker.exposedbydefault=false
-
-      # Entrypoints configuration
       - --entrypoints.http.address=:80
       - --entrypoints.https.address=:443
-
-      # Let's Encrypt configuration
-      - --certificatesresolvers.le.acme.email=${ACME_EMAIL?Variable not set}
-      - --certificatesresolvers.le.acme.storage=/certificates/acme.json
-      - --certificatesresolvers.le.acme.tlschallenge=true
-
-      # Logging and API configuration
-      - --accesslog
-      - --log
-      - --api
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.le.acme.httpchallenge=true
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=http
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt
     networks:
-      - traefik-public # Public network for Traefik and other services
-    logging: *default-logging
+      - traefik-public
+    restart: unless-stopped
+    labels:
+      traefik.http.middlewares.https-redirect.redirectscheme.scheme: https
 
   mt5:
     build:
       context: ./backend/mt5
       dockerfile: Dockerfile
     container_name: mt5
+    volumes:
+      - ./config:/config
+      - ./mt5_gateway:/opt/mt5_gateway:ro
+    networks:
+      - traefik-public
+      - default
+    env_file:
+      - .env
+    restart: unless-stopped
+    labels:
+      <<: *default-labels
+      # Enable Traefik for this service
+      traefik.enable: true
+      traefik.docker.network: traefik-public
+
+      # Router for vnc.mt5.${domain} (Port 3000)
+      traefik.http.routers.vnc-mt5-http.rule: Host(`${VNC_DOMAIN}`)
+      traefik.http.routers.vnc-mt5-http.entrypoints: http
+      traefik.http.routers.vnc-mt5-http.middlewares: https-redirect
+      traefik.http.routers.vnc-mt5-http.service: vnc-mt5-service
+
+      traefik.http.routers.vnc-mt5-https.rule: Host(`${VNC_DOMAIN}`)
+      traefik.http.routers.vnc-mt5-https.entrypoints: https
+      traefik.http.routers.vnc-mt5-https.tls: true
+      traefik.http.routers.vnc-mt5-https.tls.certresolver: le
+      traefik.http.routers.vnc-mt5-https.service: vnc-mt5-service
+
+      traefik.http.services.vnc-mt5-service.loadbalancer.server.port: 3000
+
+      # API routing moved to dedicated mt5-api service (to avoid conflicts)
+      x-traefik.disabled.api-mt5-http.rule: Host(`${API_DOMAIN}`)
+      x-traefik.disabled.api-mt5-http.entrypoints: http
+      x-traefik.disabled.api-mt5-http.middlewares: https-redirect
+      x-traefik.disabled.api-mt5-http.service: api-mt5-service
+
+      x-traefik.disabled.api-mt5-https.rule: Host(`${API_DOMAIN}`)
+      x-traefik.disabled.api-mt5-https.entrypoints: https
+      x-traefik.disabled.api-mt5-https.tls: true
+      x-traefik.disabled.api-mt5-https.tls.certresolver: le
+      x-traefik.disabled.api-mt5-https.service: api-mt5-service
+    logging: *default-logging
+    depends_on:
+      - traefik
+
+  mt5-raw:
+    build:
+      context: ./backend/mt5
+      dockerfile: Dockerfile
+    container_name: mt5-raw
+    volumes:
+      - ./config:/config
+      - ./mt5_gateway:/opt/mt5_gateway:ro
+    networks:
+      - traefik-public
+      - default
+    env_file:
+      - .env
+    environment:
+      - DNS_PREFIX=mcp1
+    restart: unless-stopped
+    labels:
+      <<: *default-labels
+      # Enable Traefik for this service
+      traefik.enable: true
+      traefik.docker.network: traefik-public
+
+      # Router for vnc.mt5.${domain} (Port 3000)
+      traefik.http.routers.vnc-mt5-http.rule: Host(`${VNC_DOMAIN}`)
+      traefik.http.routers.vnc-mt5-http.entrypoints: http
+      traefik.http.routers.vnc-mt5-http.middlewares: https-redirect
+      traefik.http.routers.vnc-mt5-http.service: vnc-mt5-service
+
+      traefik.http.routers.vnc-mt5-https.rule: Host(`${VNC_DOMAIN}`)
+      traefik.http.routers.vnc-mt5-https.entrypoints: https
+      traefik.http.routers.vnc-mt5-https.tls: true
+      traefik.http.routers.vnc-mt5-https.tls.certresolver: le
+      traefik.http.routers.vnc-mt5-https.service: vnc-mt5-service
+
+      traefik.http.services.vnc-mt5-service.loadbalancer.server.port: 3000
+
+      # API routing moved to dedicated mt5-api service (to avoid conflicts)
+      x-traefik.disabled.api-mt5-http.rule: Host(`${API_DOMAIN}`)
+      x-traefik.disabled.api-mt5-http.entrypoints: http
+      x-traefik.disabled.api-mt5-http.middlewares: https-redirect
+      x-traefik.disabled.api-mt5-http.service: api-mt5-service
+
+      x-traefik.disabled.api-mt5-https.rule: Host(`${API_DOMAIN}`)
+      x-traefik.disabled.api-mt5-https.entrypoints: https
+      x-traefik.disabled.api-mt5-https.tls: true
+      x-traefik.disabled.api-mt5-https.tls.certresolver: le
+      x-traefik.disabled.api-mt5-https.service: api-mt5-service
+    logging: *default-logging
+    depends_on:
+      - traefik
+
+  mt5-managed:
+    build:
+      context: ./backend/mt5
+      dockerfile: Dockerfile
+    container_name: mt5-managed
     volumes:
       - ./config:/config
       - ./mt5_gateway:/opt/mt5_gateway:ro
@@ -85,6 +151,8 @@ services:
       - default
     env_file:
       - .env
+    environment:
+      - DNS_PREFIX=mcp2
     restart: unless-stopped
     labels:
       <<: *default-labels
@@ -133,13 +201,14 @@ services:
       - .env
     environment:
       - MT5_API_URL=http://mt5:5001
+      - MT5_URL=http://mt5:5001
+      - DJANGO_API_URL=http://django:8000
+      - DJANGO_API_PREFIX=/api/v1
+      - BRIDGE_TOKEN=${BRIDGE_TOKEN:-}
       - MT5_API_STUB_FALLBACK=1
     networks:
       - traefik-public
       - default
-    depends_on:
-      mt5:
-        condition: service_started
     labels:
       <<: *default-labels
       traefik.enable: true
@@ -158,6 +227,12 @@ services:
       traefik.http.routers.api-mt5-https.service: api-mt5-service
 
       traefik.http.services.api-mt5-service.loadbalancer.server.port: 5001
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   postgres:
     image: postgres:15-alpine
@@ -210,11 +285,11 @@ services:
       # Avoid overriding secret key with empty value; single definition above is sufficient
     depends_on:
       postgres:
-        condition: service_started
+        condition: service_healthy
       traefik:
         condition: service_started
       redis:
-        condition: service_started
+        condition: service_healthy
     networks:
       - default
       - traefik-public
@@ -223,12 +298,12 @@ services:
       traefik.enable: true
       traefik.docker.network: traefik-public
 
-      traefik.http.routers.django-http.rule: Host(`${DJANGO_DOMAIN}`)
+      traefik.http.routers.django-http.rule: 'HostRegexp(`{domain: zanalytics\.app}`) && !Host(`mcp2.zanalytics.app`)'
       traefik.http.routers.django-http.entrypoints: http
       traefik.http.routers.django-http.middlewares: https-redirect
       traefik.http.routers.django-http.service: django-service
 
-      traefik.http.routers.django-https.rule: Host(`${DJANGO_DOMAIN}`)
+      traefik.http.routers.django-https.rule: 'HostRegexp(`{domain: zanalytics\.app}`) && !Host(`mcp2.zanalytics.app`)'
       traefik.http.routers.django-https.entrypoints: https
       traefik.http.routers.django-https.tls: true
       traefik.http.routers.django-https.tls.certresolver: le
@@ -298,7 +373,7 @@ services:
       django:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     networks:
       - default
     labels:
@@ -327,7 +402,7 @@ services:
       celery:
         condition: service_started
       redis:
-        condition: service_started
+        condition: service_healthy
     networks:
       - default
     labels:
@@ -356,6 +431,7 @@ services:
       - ./monitoring/dashboards/log-search.json:/var/lib/grafana/dashboards/log-search.json:ro
       - ./monitoring/dashboards/traefik_official.json:/var/lib/grafana/dashboards/traefik_official.json:ro
       - ./monitoring/dashboards/altertmanager-dashboard.json:/var/lib/grafana/dashboards/altertmanager-dashboard.json:ro
+      - ./monitoring/dashboards/mcp-pulse.json:/var/lib/grafana/dashboards/mcp-pulse.json:ro
       - grafana-data:/var/lib/grafana
     depends_on:
       - prometheus
@@ -371,7 +447,7 @@ services:
       <<: *default-labels
       traefik.enable: true
       traefik.docker.network: traefik-public
-      traefik.http.routers.grafana.rule: Host(`${GRAFANA_DOMAIN?Variable not set}`)
+      traefik.http.routers.grafana.rule: Host(${GRAFANA_DOMAIN})
       traefik.http.routers.grafana.entrypoints: https
       traefik.http.routers.grafana.tls: true
       traefik.http.routers.grafana.tls.certresolver: le
@@ -591,10 +667,15 @@ services:
       - PYTHONPATH=/app:/app/components:/app/utils:/app/api_integration
       - PULSE_API_URL=http://django:8000
       - MT5_API_URL=http://mt5:5001
+      - MT5_URL=http://mt5:5001
+      - DJANGO_API_URL=http://django:8000
+      - DJANGO_API_PREFIX=/api/v1
+      - BRIDGE_TOKEN=${BRIDGE_TOKEN:-}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     depends_on:
-      mt5:
-        condition: service_started
       django:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     command: >
       streamlit run Home.py --server.port=${STREAMLIT_SERVER_PORT:-8501} --server.enableCORS true --server.enableXsrfProtection false
@@ -623,41 +704,6 @@ services:
       start_period: 20s
     logging: *default-logging
 
-# Streamlit UAC test container
-  streamlit-uac:
-    build: .
-    command: streamlit run dashboard/pulse_dashboard.py --server.port=${STREAMLIT_SERVER_PORT:-8501}
-    ports: ["8502:8501"]
-    env_file: [.env]
-    depends_on: [pulse-kernel]
-    volumes:
-      - ./:/app
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
-    container_name: zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - 2181:2181
-    networks:
-      - default
-
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    container_name: kafka
-    depends_on:
-      - zookeeper
-    ports:
-      - 9092:9092
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    networks:
-      - default
-
   pulse-bot:
     image: python:3.11-slim
     container_name: pulse-bot
@@ -678,11 +724,76 @@ services:
       django:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - default
 
+  info:
+    build:
+      context: .
+      dockerfile: services/info/Dockerfile
+    container_name: info
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - WIKI_DASHBOARD_PORT=${WIKI_DASHBOARD_PORT:-8503}
+    ports:
+      - "8503:8503"
+    networks:
+      - default
+      - traefik-public
+    labels:
+      <<: *default-labels
+      traefik.enable: true
+      traefik.docker.network: traefik-public
+      traefik.http.routers.info.rule: Host(`info.zanalytics.app`)
+      traefik.http.routers.info.entrypoints: https
+      traefik.http.routers.info.tls.certresolver: le
+      traefik.http.services.info.loadbalancer.server.port: 8503
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8503/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # whisperer-mcp service removed; see docs/mcp-audit-trail.md for audit history
+
+  mcp:
+    build:
+      context: ./backend/mcp
+    container_name: mcp
+    volumes:
+      - ./.env:/app/.env
+    ports:
+      - "8001:8001"
+    environment:
+      - INTERNAL_API_BASE=http://django:8000
+      - MCP2_API_KEY=${MCP2_API_KEY:-}
+      - DATABASE_URL=${DATABASE_URL:-}
+    depends_on:
+      - django
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8001/health', timeout=3).getcode()==200 else sys.exit(1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - traefik-public
+    labels:
+      <<: *default-labels
+      traefik.enable: true
+      traefik.docker.network: traefik-public
+      traefik.http.routers.mcp.rule: Host(`mcp.zanalytics.app`)
+      traefik.http.routers.mcp.entrypoints: https
+      traefik.http.routers.mcp.tls.certresolver: le
+      traefik.http.routers.mcp.tls: true
+      traefik.http.routers.mcp.service: mcp-service
+      traefik.http.services.mcp-service.loadbalancer.server.port: 8001
+    restart: unless-stopped
   market-fetcher:
     image: curlimages/curl:8.8.0
     container_name: market-fetcher
@@ -694,17 +805,273 @@ services:
     networks:
       - default
 
+  predict-cron:
+    image: python:3.11-slim
+    container_name: predict-cron
+    working_dir: /app
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - RISK_THRESHOLD=${RISK_THRESHOLD:-0.9}
+      - PREDICT_CRON_INTERVAL=${PREDICT_CRON_INTERVAL:-900}
+      - PREDICT_CRON_SYMBOL=${PREDICT_CRON_SYMBOL:-EURUSD}
+      - PREDICT_CRON_PRICE=${PREDICT_CRON_PRICE:-1.2345}
+      - PREDICT_CRON_RISK=${PREDICT_CRON_RISK:-0.95}
+    command: >
+      sh -lc "pip install --no-cache-dir redis pyyaml &&
+      while true; do
+        python scripts/predict_cron.py --demo \
+          --symbol \"${PREDICT_CRON_SYMBOL}\" \
+          --price \"${PREDICT_CRON_PRICE}\" \
+          --risk \"${PREDICT_CRON_RISK}\" || true;
+        sleep ${PREDICT_CRON_INTERVAL};
+      done"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - default
+  redis-ml-bridge:
+    image: python:3.11-slim
+    container_name: redis-ml-bridge
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - STREAM_VERSION=${STREAM_VERSION:-1}
+      - ML_SIGNAL_STREAM
+      - ML_RISK_STREAM
+    command: sh -lc "pip install --no-cache-dir redis && python services/redis_ml_bridge.py"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - default
+
+  mcp2-redis:
+    image: redis:7-alpine
+    container_name: mcp2-redis
+    restart: unless-stopped
+    networks:
+      - default
+
+  mcp2-pg:
+    image: postgres:15-alpine
+    container_name: mcp2-pg
+    environment:
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./services/mcp2/init.sql:/docker-entrypoint-initdb.d/init.sql:ro # initialize docs table
+    restart: unless-stopped
+    networks:
+      - default
+
+  mcp2:
+    build:
+      context: .
+      dockerfile: services/mcp2/Dockerfile
+    container_name: mcp2
+    environment:
+      - REDIS_URL=redis://mcp2-redis:6379/0
+      - REDIS_STREAMS_URL=${REDIS_STREAMS_URL:-redis://redis:6379/0}
+      - DATABASE_URL=postgresql://postgres:postgres@mcp2-pg:5432/postgres
+      - MCP2_API_KEY=${MCP2_API_KEY:-}
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      - KAFKA_TOPIC=${KAFKA_TOPIC:-mcp2.enriched_trades}
+    depends_on:
+      mcp2-redis:
+        condition: service_started
+      mcp2-pg:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8002/health', timeout=3).getcode()==200 else sys.exit(1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - traefik-public
+      - default
+      - data-pipeline
+    labels:
+      <<: *default-labels
+      traefik.enable: true
+      traefik.docker.network: traefik-public
+      traefik.http.routers.mcp2.rule: Host(`mcp2.zanalytics.app`)
+      traefik.http.routers.mcp2.entrypoints: https
+      traefik.http.routers.mcp2.tls.certresolver: le
+      traefik.http.routers.mcp2.tls: true
+      traefik.http.routers.mcp2.service: mcp2-service
+      traefik.http.services.mcp2-service.loadbalancer.server.port: 8002
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - data-pipeline
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - data-pipeline
+
+  enrichment:
+    build:
+      context: .
+      dockerfile: services/enrichment/Dockerfile
+    environment:
+      KAFKA_BROKER: ${KAFKA_BROKER:-kafka:9092}
+      RAW_MARKET_DATA_TOPIC: ${RAW_MARKET_DATA_TOPIC:-raw-market-data}
+      ENRICHED_TOPIC: ${ENRICHED_TOPIC:-enriched-analysis-payloads}
+    depends_on:
+      - kafka
+    networks:
+      - data-pipeline
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: timescaledb
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-timescale}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescale-data:/var/lib/postgresql/data
+    networks:
+      - data-pipeline
+
+  persistence:
+    image: python:3.11-slim
+    container_name: persistence
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      - KAFKA_BROKERS=${KAFKA_BROKERS:-kafka:9092}
+      - TOPIC=enriched-analysis-payloads
+      - PG_DSN=postgresql://postgres:timescale@timescaledb:5432/postgres
+    command: >
+      sh -lc "pip install --no-cache-dir psycopg2-binary confluent-kafka &&
+      python services/persistence/consumer.py"
+    depends_on:
+      kafka:
+        condition: service_started
+      timescaledb:
+        condition: service_started
+    networks:
+      - data-pipeline
+
+  caching:
+    build:
+      context: .
+      dockerfile: services/caching/Dockerfile
+    environment:
+      - KAFKA_BROKERS=${KAFKA_BROKERS:-kafka:9092}
+      - KAFKA_GROUP=${KAFKA_GROUP:-caching-service}
+      - KAFKA_TOPIC=${KAFKA_TOPIC:-enriched-analysis-payloads}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - LATEST_PAYLOAD_TTL=${LATEST_PAYLOAD_TTL:-3600}
+      - ACTIVE_FVG_TTL=${ACTIVE_FVG_TTL:-3600}
+      - BEHAVIORAL_SCORE_TTL=${BEHAVIORAL_SCORE_TTL:-3600}
+    depends_on:
+      kafka:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "${CACHING_PORT:-8000}:8000" # optional metrics/health endpoint
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - data-pipeline
+      - default
+
+  vectorization-service:
+    build:
+      context: .
+      dockerfile: services/vectorization_service/Dockerfile
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      - KAFKA_GROUP_ID=${KAFKA_GROUP_ID:-vectorization-service}
+      - KAFKA_ANALYSIS_TOPIC=${KAFKA_ANALYSIS_TOPIC:-final-analysis-payloads}
+      - VECTOR_DB_URL=${VECTOR_DB_URL}
+      - VECTOR_DB_API_KEY=${VECTOR_DB_API_KEY}
+    depends_on:
+      kafka:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - data-pipeline
+      - default
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=5m
+    networks:
+      - default
+
+
 volumes:
-  traefik-public-certificates: # Persistent volume for certificates
   grafana-data: {}
   prometheus-data: {}
   redis-data: {}
   postgres-data: {}
   static_volume: {}
+  timescale-data: {}
+  ollama-models: {}
+  ollama: {}
 
 networks:
   default:
     driver: bridge
+  data-pipeline:
+    driver: bridge
+    internal: true
   traefik-public:
     external: true
     name: traefik-public
