@@ -89,7 +89,7 @@ logger.setLevel(logging.INFO)
 app = FastAPI(title="Zanalytics MCP v2")
 
 API_KEY_HEADER = "X-API-Key"
-EXPECTED_API_KEY = os.getenv("MCP2_API_KEY")
+EXPECTED_API_KEY = os.getenv("MCP_API_KEY")
 
 
 async def require_api_key(api_key: str = Header(..., alias=API_KEY_HEADER)) -> str:
