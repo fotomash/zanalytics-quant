@@ -32,6 +32,8 @@ services:
     networks:
       - traefik-public
     restart: unless-stopped
+    labels:
+      traefik.http.middlewares.https-redirect.redirectscheme.scheme: https
 
   mt5:
     build:
@@ -340,7 +342,7 @@ services:
       <<: *default-labels
       traefik.enable: true
       traefik.docker.network: traefik-public
-      traefik.http.routers.grafana.rule: Host(`${GRAFANA_DOMAIN?Variable not set}`)
+      traefik.http.routers.grafana.rule: Host(${GRAFANA_DOMAIN})
       traefik.http.routers.grafana.entrypoints: https
       traefik.http.routers.grafana.tls: true
       traefik.http.routers.grafana.tls.certresolver: le
@@ -675,13 +677,11 @@ services:
       traefik.enable: true
       traefik.docker.network: traefik-public
       traefik.http.routers.mcp.rule: Host(`mcp.zanalytics.app`)
-      traefik.http.routers.mcp.entrypoints: websecure
-      traefik.http.routers.mcp.tls.certresolver: letsencrypt
+      traefik.http.routers.mcp.entrypoints: https
+      traefik.http.routers.mcp.tls.certresolver: le
       traefik.http.routers.mcp.tls: true
       traefik.http.routers.mcp.service: mcp-service
       traefik.http.services.mcp-service.loadbalancer.server.port: 8001
-      traefik.http.middlewares.mcp-strip: null
-      traefik.http.routers.mcp.middlewares: null
     restart: unless-stopped
   market-fetcher:
     image: curlimages/curl:8.8.0
@@ -735,6 +735,7 @@ services:
     environment:
       - REDIS_URL=redis://mcp2-redis:6379/0
       - DATABASE_URL=postgresql://postgres:postgres@mcp2-pg:5432/postgres
+      - MCP2_API_KEY=${MCP2_API_KEY:-}
     depends_on:
       mcp2-redis:
         condition: service_started
@@ -749,13 +750,11 @@ services:
       traefik.enable: true
       traefik.docker.network: traefik-public
       traefik.http.routers.mcp2.rule: Host(`mcp2.zanalytics.app`)
-      traefik.http.routers.mcp2.entrypoints: websecure
-      traefik.http.routers.mcp2.tls.certresolver: letsencrypt
+      traefik.http.routers.mcp2.entrypoints: https
+      traefik.http.routers.mcp2.tls.certresolver: le
       traefik.http.routers.mcp2.tls: true
       traefik.http.routers.mcp2.service: mcp2-service
       traefik.http.services.mcp2-service.loadbalancer.server.port: 8002
-      traefik.http.middlewares.mcp2-strip: null
-      traefik.http.routers.mcp2.middlewares: null
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
@@ -864,8 +863,8 @@ services:
 
   vectorization-service:
     build:
-      context: .
-      dockerfile: services/vectorization_service/Dockerfile
+      context: services/vectorization_service
+      dockerfile: Dockerfile
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
       - KAFKA_GROUP_ID=${KAFKA_GROUP_ID:-vectorization-service}
