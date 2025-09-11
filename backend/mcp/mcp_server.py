@@ -20,7 +20,7 @@ try:  # pragma: no cover - optional dependency
 except Exception:  # pragma: no cover - allow module to import without pandas
     pd = None
 from dotenv import load_dotenv
-from utils.time import localize_tz
+from utils.time_utils import localize_tz
 
 try:  # pragma: no cover - optional dependency
     import MetaTrader5 as mt5  # type: ignore

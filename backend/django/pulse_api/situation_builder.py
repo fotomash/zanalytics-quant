@@ -1,7 +1,7 @@
 import os
 import requests
 import pandas as pd
-from utils.time import localize_tz
+from utils.time_utils import localize_tz
 
 MT5_URL = os.getenv("MT5_URL", "http://mt5:5001")
 
