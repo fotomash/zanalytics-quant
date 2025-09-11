@@ -1,8 +1,16 @@
+"""Utilities for producing and consuming Kafka events.
+
+Environment variables:
+    KAFKA_BOOTSTRAP_SERVERS: Kafka bootstrap servers (default ``kafka:9092``)
+    KAFKA_GROUP_ID: Default group id for :class:`KafkaConsumer` (default ``zanalyzer``)
+"""
+
 from confluent_kafka import Producer, Consumer, KafkaError
 import os
 import json
 
-KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092')
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+KAFKA_GROUP_ID = os.getenv("KAFKA_GROUP_ID", "zanalyzer")
 TOPIC_TRADES = 'trades-stream'
 
 def produce_trade(data):
@@ -39,50 +47,53 @@ def consume_trades(callback):
 
 
 import asyncio
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator, Optional, Sequence
 
 
 class KafkaConsumer(AsyncIterator[str]):
-    """Asynchronous iterator over messages from a Kafka topic."""
+    """Asynchronous iterator over messages from Kafka topics.
+
+    The consumer can subscribe to multiple topics, including wildcard
+    patterns (e.g., ``"trades-*"``). Messages are yielded as UTF-8 strings.
+    """
 
     def __init__(
         self,
-        topic: str,
+        topics: Sequence[str],
         bootstrap_servers: Optional[str] = None,
-        group_id: str = "zanalyzer",
+        group_id: Optional[str] = None,
         poll_timeout: float = 1.0,
     ) -> None:
         self._config = {
             "bootstrap.servers": bootstrap_servers or KAFKA_BOOTSTRAP_SERVERS,
-            "group.id": group_id,
+            "group.id": group_id or KAFKA_GROUP_ID,
             "auto.offset.reset": "earliest",
         }
         self._consumer = Consumer(self._config)
-        self._consumer.subscribe([topic])
+        self._consumer.subscribe(list(topics))
         self._poll_timeout = poll_timeout
-        self._loop = asyncio.get_event_loop()
         self._running = True
 
     def __aiter__(self) -> "KafkaConsumer":
         return self
 
     async def __anext__(self) -> str:
-        if not self._running:
-            raise StopAsyncIteration
-        msg = await self._loop.run_in_executor(None, self._consumer.poll, self._poll_timeout)
-        if msg is None:
-            return await self.__anext__()
-        if msg.error():
-            if msg.error().code() == KafkaError._PARTITION_EOF:
-                return await self.__anext__()
-            raise RuntimeError(msg.error())
-        return msg.value().decode("utf-8")
+        while self._running:
+            msg = await asyncio.to_thread(self._consumer.poll, self._poll_timeout)
+            if msg is None:
+                continue
+            if msg.error():
+                if msg.error().code() == KafkaError._PARTITION_EOF:
+                    continue
+                raise RuntimeError(msg.error())
+            return msg.value().decode("utf-8")
+        raise StopAsyncIteration
 
     async def stop(self) -> None:
         """Stop consuming and close the underlying consumer."""
         if self._running:
             self._running = False
-            await self._loop.run_in_executor(None, self._consumer.close)
+            await asyncio.to_thread(self._consumer.close)
 
     async def __aenter__(self) -> "KafkaConsumer":
         return self
