@@ -21,6 +21,7 @@ from typing import Dict, List
 
 import redis
 import streamlit as st
+from dashboard.components import create_metric_donut
 
 
 @dataclass
@@ -86,8 +87,12 @@ def main() -> None:
         metrics = {}
 
     st.title("Live ML Metrics")
-    for name, value in metrics.items():
-        st.metric(name, value if value is not None else "—")
+    palette = ["#10B981", "#3B82F6", "#F59E0B", "#8B5CF6", "#EF4444", "#14B8A6"]
+    for idx, (name, value) in enumerate(metrics.items()):
+        color = palette[idx % len(palette)]
+        val = value if value is not None else 0
+        fig = create_metric_donut(val, name, color, suffix="")
+        st.plotly_chart(fig, use_container_width=False, config={"displayModeBar": False})
 
     time.sleep(cfg.refresh_interval)
     st.experimental_rerun()
