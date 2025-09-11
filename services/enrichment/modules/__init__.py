@@ -1,7 +1,7 @@
 """Enrichment service modules.
 
-Aliases are provided for modules whose filenames differ from their import
-names in :mod:`services.enrichment.pipeline`.
+Provides convenient aliases so modules can be loaded by simplified names in
+:mod:`services.enrichment.pipeline`.
 """
 
 from __future__ import annotations
@@ -26,17 +26,3 @@ __all__ = [
     "predictive_scorer",
     "structure_validator",
 ]
-"""Enrichment service modules."""
-
-from . import context_analyzer, fvg_locator, liquidity_engine, predictive_scorer, structure_validator
-
-__all__ = [
-    "context_analyzer",
-    "fvg_locator",
-    "liquidity_engine",
-    "predictive_scorer",
-    "structure_validator",
-]
-from . import liquidity_engine
-
-__all__ = ["liquidity_engine"]
