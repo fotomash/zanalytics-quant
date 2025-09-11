@@ -9,6 +9,17 @@ import requests
 import streamlit as st
 
 
+_session = requests.Session()
+
+
+def _session_request(method: str, url: str, payload: Dict | None, timeout: float) -> requests.Response:
+    method = method.upper()
+    kwargs = {"timeout": timeout}
+    if method != "GET":
+        kwargs["json"] = payload or {}
+    return _session.request(method, url, **kwargs)
+
+
 def get_api_base() -> str:
     """Resolve Django API base at runtime from session override or env."""
     base = st.session_state.get("adv19_api_base") or os.getenv("DJANGO_API_URL", "http://django:8000")
@@ -29,21 +40,18 @@ def api_url(path: str) -> str:
 
 
 def safe_api_call(method: str, path: str, payload: Dict | None = None, timeout: float = 1.2) -> Dict:
+    url = api_url(path)
     try:
-        url = api_url(path)
-        if method.upper() == "GET":
-            r = requests.get(url, timeout=timeout)
-        else:
-            r = requests.post(url, json=payload or {}, timeout=timeout)
+        r = _session_request(method, url, payload, timeout)
         if r.status_code == 200:
             return r.json()
         return {"error": f"HTTP {r.status_code}", "url": url}
     except requests.exceptions.Timeout:
-        return {"error": "API timeout", "url": api_url(path)}
+        return {"error": "API timeout", "url": url}
     except requests.exceptions.ConnectionError:
-        return {"error": "API connection failed", "url": api_url(path)}
+        return {"error": "API connection failed", "url": url}
     except Exception as e:
-        return {"error": str(e), "url": api_url(path)}
+        return {"error": str(e), "url": url}
 
 
 @st.cache_data(show_spinner=False)
