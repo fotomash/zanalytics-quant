@@ -703,3 +703,41 @@ class WyckoffAnalyzer:
                     })
         
         return co_analysis
+
+
+def build_unified_analysis(tick: dict) -> "UnifiedAnalysisPayloadV1":
+    """Run core analyzers and validate against UnifiedAnalysisPayloadV1."""
+
+    from datetime import datetime
+    from components import confluence_engine, advanced_stoploss_lots_engine
+    from schemas.payloads import (
+        MarketContext,
+        TechnicalIndicators,
+        SMCAnalysis,
+        WyckoffAnalysis,
+        MicrostructureAnalysis,
+        UnifiedAnalysisPayloadV1,
+    )
+
+    confluence = confluence_engine.compute_confluence_indicators_df(tick)
+    risk = advanced_stoploss_lots_engine.compute_risk_snapshot(tick)
+
+    symbol = tick.get("symbol", "UNKNOWN")
+    timeframe = tick.get("timeframe", "1m")
+    ts = tick.get("ts") or tick.get("timestamp")
+    if isinstance(ts, (int, float)):
+        timestamp = datetime.fromtimestamp(ts)
+    else:
+        timestamp = ts
+
+    return UnifiedAnalysisPayloadV1(
+        symbol=symbol,
+        timeframe=timeframe,
+        timestamp=timestamp,
+        market_context=MarketContext(symbol=symbol, timeframe=timeframe),
+        technical_indicators=TechnicalIndicators(extras=confluence),
+        smc=SMCAnalysis(),
+        wyckoff=WyckoffAnalysis(),
+        microstructure=MicrostructureAnalysis(),
+        extras={"risk": risk},
+    )
