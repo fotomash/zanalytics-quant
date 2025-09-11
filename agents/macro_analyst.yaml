@@ -1,0 +1,5 @@
+agent:
+  id: "macro_analyst"
+  name: "Macro Analyst"
+  version: "1.0.0"
+  type: "macro_analysis"
