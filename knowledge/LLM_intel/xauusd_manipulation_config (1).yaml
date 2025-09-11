@@ -1,0 +1,55 @@
+# XAUUSD Manipulation Detection Configuration
+# Optimized for your specific data patterns
+
+manipulation_thresholds:
+  spread_manipulation:
+    normal_spread: 0.26  # From your data analysis
+    alert_threshold: 0.52  # 2x normal
+    critical_threshold: 1.0  # ~4x normal
+
+  quote_stuffing:
+    normal_tick_rate: 60  # ticks/minute from your data
+    alert_threshold: 180  # 3x normal
+    critical_threshold: 300  # 5x normal
+
+  volume_anomalies:
+    # Since your tick data lacks volume, use tick frequency as proxy
+    normal_frequency: 1.0  # ticks/second
+    spike_threshold: 5.0   # 5x normal frequency
+
+agent_configuration:
+  correlation_engine:
+    pairs_to_monitor: ["XAUUSD", "EURUSD", "GBPUSD"]
+    correlation_threshold: 0.8
+    memory_lookback: "30_days"
+
+  risk_monitor:
+    severity_levels:
+      low: 1-3
+      medium: 4-6
+      high: 7-8
+      critical: 9-10
+    response_actions:
+      low: "log_event"
+      medium: "alert_trader"
+      high: "reduce_position"
+      critical: "emergency_exit"
+
+  liquidity_tracker:
+    spread_percentiles:
+      p50: 0.26  # Your median spread
+      p90: 0.45  # Alert level
+      p99: 0.80  # Critical level
+    volume_reconstruction: true  # Enable for tick data without volume
+
+vector_memory:
+  embedding_model: "text-embedding-3-small"
+  similarity_threshold: 0.75
+  max_memories_per_query: 5
+  memory_retention: "90_days"
+
+performance_targets:
+  max_response_time: "200ms"
+  max_tokens_per_query: 1500
+  min_confidence_score: 0.7
+  max_false_positive_rate: 0.05

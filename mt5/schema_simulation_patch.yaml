@@ -1,0 +1,183 @@
+version: 2.1-sim
+created_by: Team Brown
+timestamp: '2025-06-07T02:19:39.744339'
+description: Simulation-aware schema patches for meta-simulation conditions
+simulation_hooks:
+  time_compression:
+    modes:
+      realtime:
+        tick_rate: natural
+        confidence_decay: 0.01
+        memory_persistence: full
+      accelerated:
+        tick_rate: 10x
+        confidence_decay: 0.05
+        memory_persistence: selective
+      instant_tick:
+        tick_rate: infinite
+        confidence_decay: 0.0
+        memory_persistence: snapshot
+    tick_synchronization:
+      method: barrier_sync
+      max_drift_ms: 10
+      sync_points:
+      - agent_decision
+      - memory_write
+      - confidence_calc
+  confidence_adjustments:
+    simulation_aware_scaling:
+      instant_tick:
+        correlation_engine:
+          base_confidence: 0.7
+          variance_reduction: 0.5
+          explanation: Reduced variance in deterministic simulation
+        statistical_engine:
+          base_confidence: 0.6
+          outlier_sensitivity: 2.0
+          explanation: Increased sensitivity to catch simulation artifacts
+        risk_engine:
+          base_confidence: 0.8
+          risk_multiplier: 1.2
+          explanation: Conservative risk assessment in compressed time
+        liquidity_specialist:
+          base_confidence: 0.5
+          trap_detection_threshold: 0.9
+          explanation: Higher threshold due to missing microstructure
+      accelerated:
+        global_confidence_floor: 0.4
+        decay_compensation: 0.1
+        interpolation_method: cubic_spline
+    confidence_trace_hooks:
+      enabled: true
+      trace_fields:
+      - raw
+      - adjusted
+      - normalized
+      - final
+      storage: memory/simulation/confidence_traces.jsonl
+  routing_modifications:
+    simulation_routing:
+      instant_tick_overrides:
+        disable_timeouts: true
+        fallback_strategy: immediate
+        loop_detection:
+          enabled: true
+          max_hops: 3
+          break_strategy: return_default
+      cache_behavior:
+        instant_tick: disabled
+        accelerated: aggressive
+        realtime: standard
+    semantic_disambiguation:
+      temporal_terms:
+        now:
+          instant_tick: current_simulation_step
+          accelerated: current_tick_batch
+          realtime: system_timestamp
+        recent:
+          instant_tick: last_1_steps
+          accelerated: last_10_ticks
+          realtime: last_5_minutes
+        historical:
+          instant_tick: last_100_steps
+          accelerated: last_1000_ticks
+          realtime: last_24_hours
+      confidence_terms:
+        high_confidence:
+          instant_tick: '> 0.7'
+          accelerated: '> 0.75'
+          realtime: '> 0.8'
+        consensus:
+          instant_tick: 2+ agents agree
+          accelerated: 3+ agents agree
+          realtime: majority agents agree
+  memory_adaptations:
+    simulation_memory_modes:
+      instant_tick:
+        write_strategy: batch_at_step_end
+        read_strategy: snapshot_consistent
+        versioning: step_based
+        gc_policy: keep_last_1000_steps
+      accelerated:
+        write_strategy: async_buffered
+        read_strategy: eventually_consistent
+        versioning: timestamp_based
+        gc_policy: time_window_24h
+    state_coherence:
+      validation_frequency:
+        instant_tick: every_step
+        accelerated: every_100_ticks
+        realtime: every_minute
+      coherence_checks:
+      - confidence_sum_to_one
+      - memory_timestamp_ordering
+      - agent_state_consistency
+  indicator_adjustments:
+    temporal_indicators:
+      smoothed_delta:
+        instant_tick:
+          window: 1
+          method: raw_delta
+        accelerated:
+          window: 5
+          method: weighted_average
+      regime_shift_detector:
+        instant_tick:
+          lookback: 10
+          confirmation_bars: 1
+        accelerated:
+          lookback: 30
+          confirmation_bars: 2
+      anomaly_zscore:
+        instant_tick:
+          window: 10
+          z_threshold: 3.0
+        accelerated:
+          window: 15
+          z_threshold: 2.5
+  simulation_metadata:
+    required_context:
+      simulation_mode: string
+      tick_number: integer
+      wall_clock_time: timestamp
+      simulated_time: timestamp
+      time_compression_ratio: float
+    injection_points:
+      pre_agent_call: inject_simulation_context
+      post_confidence_calc: adjust_for_simulation
+      pre_memory_write: tag_simulation_state
+  fallback_behaviors:
+    simulation_defaults:
+      missing_data:
+        instant_tick: use_last_known
+        accelerated: interpolate
+        realtime: wait_or_timeout
+      agent_timeout:
+        instant_tick: immediate_default
+        accelerated: fast_timeout_100ms
+        realtime: standard_timeout_5s
+      confidence_fallback:
+        instant_tick: 0.5
+        accelerated: 0.4
+        realtime: 0.3
+validation_rules:
+  simulation_coherence:
+    tests:
+    - name: confidence_monotonicity
+      description: Confidence should not jump erratically in instant mode
+      condition: abs(confidence_t - confidence_t-1) < 0.3
+    - name: routing_determinism
+      description: Same input should produce same route in instant mode
+      condition: hash(input) -> consistent_route
+    - name: memory_causality
+      description: Memory writes must respect simulation step ordering
+      condition: memory_timestamp[t] < memory_timestamp[t+1]
+performance_targets:
+  instant_tick:
+    steps_per_second: 10000
+    memory_overhead_mb: 100
+    decision_latency_us: 10
+  accelerated:
+    ticks_per_second: 1000
+    memory_overhead_mb: 500
+    decision_latency_ms: 1

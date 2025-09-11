@@ -451,6 +451,7 @@ class QuantumMicrostructureAnalyzer:
             'timestamp': str(df['timestamp'].iloc[-1]) if not df.empty else None,
             'iceberg_events': session_state.get('iceberg_events', []),
             'spoofing_events': session_state.get('spoofing_events', []),
+            'layering_events': session_state.get('layering_events', []),
             'trap_events': session_state.get('trap_events', []),
             'market_regime': session_state.get('market_regime', 'unknown'),
             'manipulation_score': session_state.get('manipulation_score', 0),
@@ -472,7 +473,7 @@ class QuantumMicrostructureAnalyzer:
         pattern = st.text_input("Enter pattern or keyword (e.g. 'iceberg', 'trap', 'spoofing')", "")
         if pattern:
             results = []
-            for key in ['iceberg_events', 'spoofing_events', 'trap_events']:
+            for key in ['iceberg_events', 'spoofing_events', 'layering_events', 'trap_events']:
                 events = self.session_state.get(key, [])
                 for e in events:
                     if pattern.lower() in str(e).lower():
@@ -487,7 +488,7 @@ class QuantumMicrostructureAnalyzer:
     def execute_pattern_search(self, pattern):
         """Search session events for a pattern/keyword."""
         results = []
-        for key in ['iceberg_events', 'spoofing_events', 'trap_events']:
+        for key in ['iceberg_events', 'spoofing_events', 'layering_events', 'trap_events']:
             events = self.session_state.get(key, [])
             for e in events:
                 if pattern.lower() in str(e).lower():
@@ -515,7 +516,7 @@ class QuantumMicrostructureAnalyzer:
         # Example: correlate spoofing/iceberg/trap events with features
         feature_cols = ['spread', 'tick_rate', 'vpin', 'inferred_volume']
         event_cols = []
-        for key in ['iceberg_events', 'spoofing_events', 'trap_events']:
+        for key in ['iceberg_events', 'spoofing_events', 'layering_events', 'trap_events']:
             if self.session_state.get(key):
                 event_df = pd.DataFrame(self.session_state[key])
                 if not event_df.empty and 'timestamp' in event_df:
@@ -537,6 +538,7 @@ class QuantumMicrostructureAnalyzer:
         end = str(df['timestamp'].iloc[-1]) if not df.empty else ''
         iceberg_count = len(session_state.get('iceberg_events', []))
         spoof_count = len(session_state.get('spoofing_events', []))
+        layering_count = len(session_state.get('layering_events', []))
         regime = session_state.get('market_regime', 'unknown')
         manip_score = session_state.get('manipulation_score', 0)
         narrative = (
@@ -545,6 +547,7 @@ class QuantumMicrostructureAnalyzer:
             f"- Manipulation score: **{manip_score:.2f}**\n"
             f"- Iceberg orders detected: **{iceberg_count}**\n"
             f"- Spoofing events detected: **{spoof_count}**\n"
+            f"- Layering events detected: **{layering_count}**\n"
             f"- VPIN average: **{df['vpin'].mean():.3f}**\n"
         )
         if manip_score > 5:
@@ -567,9 +570,10 @@ class QuantumMicrostructureAnalyzer:
         c.drawString(30, height-100, f"Manipulation Score: {self.session_state.get('manipulation_score', 0):.2f}")
         c.drawString(30, height-120, f"Iceberg Orders: {len(self.session_state.get('iceberg_events', []))}")
         c.drawString(30, height-140, f"Spoofing Events: {len(self.session_state.get('spoofing_events', []))}")
+        c.drawString(30, height-160, f"Layering Events: {len(self.session_state.get('layering_events', []))}")
         c.setFont("Helvetica", 9)
-        c.drawString(30, height-170, "Session Narrative:")
-        text_obj = c.beginText(30, height-190)
+        c.drawString(30, height-180, "Session Narrative:")
+        text_obj = c.beginText(30, height-200)
         for line in narrative.split('\n'):
             text_obj.textLine(line)
         c.drawText(text_obj)
@@ -1600,6 +1604,7 @@ These documents expand on engineered-liquidity traps, Wyckoff sweeps, and the VP
         try:
             all_events = (
                 [{'time': e['timestamp'], 'type': e['type'], 'conf': e['confidence']} for e in self.session_state['spoofing_events']] +
+                [{'time': e['timestamp'], 'type': e['type'], 'conf': e['confidence']} for e in self.session_state.get('layering_events', [])] +
                 [{'time': e['start_time'], 'type': e['type'], 'conf': e['confidence']} for e in self.session_state['iceberg_events']]
             )
             if all_events:
@@ -1616,9 +1621,9 @@ These documents expand on engineered-liquidity traps, Wyckoff sweeps, and the VP
                     )
                 fig5.update_layout(title="Manipulation Timeline", xaxis_title="Time", yaxis_title="Confidence", showlegend=True)
                 st.plotly_chart(fig5, use_container_width=True)
-                st.caption("Manipulation Timeline: Plots the timing and confidence of detected spoofing and iceberg events. Each marker represents a detected event, with its confidence score.")
+                st.caption("Manipulation Timeline: Plots the timing and confidence of detected spoofing, layering, and iceberg events. Each marker represents a detected event, with its confidence score.")
                 # Dynamic commentary
-                st.markdown(f"**Summary:** {len(self.session_state['spoofing_events'])} spoofing and {len(self.session_state['iceberg_events'])} iceberg events recorded in view.")
+                st.markdown(f"**Summary:** {len(self.session_state['spoofing_events'])} spoofing, {len(self.session_state['iceberg_events'])} iceberg, {len(self.session_state.get('layering_events', []))} layering events recorded in view.")
         except Exception:
             pass
 
@@ -1898,7 +1903,7 @@ These documents expand on engineered-liquidity traps, Wyckoff sweeps, and the VP
                     st.info("No spoofing events detected")
 
             with tab3:
-                layering_events = self.detect_layering(df)
+                layering_events = self.session_state.get('layering_events', [])
                 self.render_layering_tab(layering_events)
 
             with tab4:
@@ -2040,9 +2045,21 @@ if __name__ == "__main__":
             df['delta'] = df['tick_dir'] * (df[vol_col].fillna(0) if vol_col else 1)
             df['cum_delta'] = df['delta'].cumsum()
             df['uptick_ratio_100'] = (df['tick_dir'] > 0).rolling(100, min_periods=10).mean()
+        # --- Upticks & Cumulative Delta -------------------------------------------------
+        # Compute mid price and order‑flow derived features
+        df['price_mid'] = (df['bid'] + df['ask']) / 2
+        df['tick_dir'] = np.sign(df['price_mid'].diff()).fillna(0).astype(int)
+        vol_col = (
+            'inferred_volume'
+            if 'inferred_volume' in df.columns
+            else ('volume' if 'volume' in df.columns else None)
+        )
+        df['delta'] = df['tick_dir'] * df[vol_col].fillna(0) if vol_col else df['tick_dir']
+        df['cum_delta'] = df['delta'].cumsum()
+        df['uptick_ratio_100'] = (df['tick_dir'] > 0).rolling(100).mean()
 
-            import plotly.graph_objects as go
-            from plotly.subplots import make_subplots
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
 
             fig_ud = make_subplots(specs=[[{"secondary_y": True}]])
             fig_ud.add_trace(
@@ -2064,6 +2081,25 @@ if __name__ == "__main__":
                 st.plotly_chart(fig_ud, use_container_width=True)
         except Exception:
             st.info("Uptick/Delta visualization unavailable (data missing)")
+        fig_ud = make_subplots(specs=[[{"secondary_y": True}]])
+        fig_ud.add_trace(
+            go.Scatter(x=df.index, y=df['price_mid'], name='Mid Price', line=dict(color='white', width=1)),
+            secondary_y=False,
+        )
+        fig_ud.add_trace(
+            go.Scatter(x=df.index, y=df['cum_delta'], name='Cumulative Delta', line=dict(color='deepskyblue', width=1)),
+            secondary_y=True,
+        )
+        fig_ud.add_trace(
+            go.Scatter(x=df.index, y=df['uptick_ratio_100'], name='Uptick Ratio (100)', line=dict(color='orange', width=1, dash='dot')),
+            secondary_y=True,
+        )
+        fig_ud.update_layout(height=320, template='plotly_dark', margin=dict(l=10, r=10, t=30, b=10))
+        fig_ud.update_yaxes(title_text="Price", secondary_y=False)
+        fig_ud.update_yaxes(title_text="Δ / Ratio", secondary_y=True)
+
+        with st.expander("🔼 Upticks & Cumulative Delta", expanded=False):
+            st.plotly_chart(fig_ud, use_container_width=True)
 
         # Heuristic sanity‑check: does this look like real tick data?
         is_mock, diag = analyzer.detect_mock_data(df)
@@ -2084,11 +2120,13 @@ if __name__ == "__main__":
         quote_stuffing = analyzer.detect_quote_stuffing(df)
         analyzer.session_state['quote_stuffing_events'] = quote_stuffing
         layering = analyzer.detect_layering(df)
+        analyzer.session_state['layering_events'] = layering
 
         # Calculate manipulation score
         total_events = (len(analyzer.session_state['iceberg_events']) +
                        len(analyzer.session_state['spoofing_events']) +
-                       len(quote_stuffing) + len(layering))
+                       len(quote_stuffing) +
+                       len(analyzer.session_state['layering_events']))
         analyzer.session_state['manipulation_score'] = min(total_events / 10, 10)
 
         # Detect toxic flow periods

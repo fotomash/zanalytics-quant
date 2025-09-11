@@ -1,0 +1,25 @@
+unified_mt5_processing:
+  detection_logic:
+    step1: Check column headers to identify data type
+    step2: If <TICKVOL> present -> Candlestick data
+    step3: If <FLAGS> present -> Tick data
+    step4: Apply appropriate processing pipeline
+  pipelines:
+    tick_pipeline:
+      1_filter: Remove rows where both BID and ASK are NaN
+      2_spread: Calculate spread as ASK - BID
+      3_midpoint: Calculate midpoint as (BID + ASK) / 2
+      4_volume: Use <VOLUME> for trade size analysis
+      5_flags: Decode FLAGS for data quality assessment
+    candle_pipeline:
+      1_validate: Ensure OHLC relationships (HIGH >= LOW, etc.)
+      2_volume: Select appropriate volume column based on asset type
+      3_spread: Use <SPREAD> for cost analysis
+      4_features: Calculate additional features (body size, wicks, etc.)
+  volume_mapping:
+    tick_to_candle:
+      tick_count: Count ticks in period -> <TICKVOL>
+      volume_sum: Sum <VOLUME> in period -> <VOL>
+    indicator_mapping:
+      volume_based: Use <TICKVOL> for forex, <VOL> for others
+      tick_analysis: Use tick data <VOLUME> for microstructure
