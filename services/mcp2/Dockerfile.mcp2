@@ -3,5 +3,7 @@ WORKDIR /app
 COPY services/mcp2/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 COPY services/mcp2/mcp2_server.py ./
+# Copy the server code into the image
+COPY . .
 EXPOSE 8002
 CMD ["uvicorn", "mcp2_server:app", "--host", "0.0.0.0", "--port", "8002"]
