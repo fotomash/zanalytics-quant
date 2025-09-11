@@ -11,7 +11,11 @@ from pydantic import BaseModel
 import yaml
 
 from backend.mcp.schemas import StrategyPayloadV1
-from .routers.llm import WhisperRequest, WhisperResponse, _suggest
+from .routers.llm import (
+    WhisperRequest as SuggestRequest,
+    WhisperResponse as SuggestResponse,
+    _suggest,
+)
 from .storage import redis_client
 
 logger = logging.getLogger(__name__)
@@ -36,8 +40,8 @@ class StreamRequest(BaseModel):
     notes: Optional[str] = None
 
 
-@app.post("/llm/{model}/analyze", response_model=WhisperResponse)
-async def analyze(model: str, body: StreamRequest) -> WhisperResponse:
+@app.post("/llm/{model}/analyze", response_model=SuggestResponse)
+async def analyze(model: str, body: StreamRequest) -> SuggestResponse:
     """Read the most recent payload from ``body.stream`` and analyze it.
 
     The endpoint looks up the latest entry in the named Redis stream, parses the
@@ -61,12 +65,22 @@ async def analyze(model: str, body: StreamRequest) -> WhisperResponse:
         raise HTTPException(status_code=400, detail="missing payload field")
 
     payload = StrategyPayloadV1.model_validate_json(payload_json)
-    req = WhisperRequest(payload=payload, questions=body.questions, notes=body.notes)
+    req = SuggestRequest(payload=payload, questions=body.questions, notes=body.notes)
     nudges = model.lower() != "simple"
     return await _suggest(req, endpoint=f"{model}/analyze", nudges=nudges)
 
 
 LOCAL_THRESHOLD = float(os.getenv("LOCAL_THRESHOLD", "0.5"))
+
+
+class WhisperRequest(BaseModel):
+    prompt: str
+
+
+class WhisperResponse(BaseModel):
+    response: str
+    agent: str
+    whisperer: Optional[str] = None
 
 
 class AnalyzeQuery(BaseModel):
@@ -155,6 +169,31 @@ async def analyze_query(query: AnalyzeQuery) -> Dict[str, str]:
 
     logger.info("llm.analyze agent=%s symbol=%s confidence=%s", agent, query.symbol, confidence)
     return {"verdict": verdict, "agent": agent}
+
+
+@app.post("/llm/echonudge", response_model=WhisperResponse)
+async def echonudge(req: WhisperRequest) -> WhisperResponse:
+    """Evaluate ``prompt`` with the local Echo service.
+
+    If the local verdict contains ``high risk`` the prompt is escalated to the
+    Whisperer service for deeper analysis.
+    """
+
+    local = await call_local_echo(req.prompt)
+    if "high risk" in local.lower():
+        whisper = await call_whisperer(f"Escalate: {req.prompt}")
+        return WhisperResponse(
+            response=local, whisperer=whisper, agent="EchoNudge → Whisperer"
+        )
+    return WhisperResponse(response=local, agent="EchoNudge")
+
+
+@app.post("/llm/whisperer", response_model=WhisperResponse)
+async def whisperer(req: WhisperRequest) -> WhisperResponse:
+    """Return the cloud Whisperer analysis for ``prompt``."""
+
+    verdict = await call_whisperer(req.prompt)
+    return WhisperResponse(response=verdict, agent="Whisperer")
 
 
 __all__ = ["app"]
