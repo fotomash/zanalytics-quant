@@ -7,7 +7,7 @@ from .payloads import (
     WyckoffAnalysis,
     MicrostructureAnalysis,
     PredictiveAnalysisResult,
-    ISPTSPipelineResult,
+    ISPTSPipelineResult,  # ISPTS pipeline stage outputs
     UnifiedAnalysisPayloadV1,
 )
 from .predictive_schemas import (
