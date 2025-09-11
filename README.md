@@ -98,8 +98,8 @@ export KAFKA_BROKERS=localhost:9092
 # payloads go to enriched-analysis-payloads
 
 # Inspect Redis Streams
-redis-cli XRANGE ml:signals - + LIMIT 5
-redis-cli XRANGE ml:risk - + LIMIT 5
+redis-cli XRANGE ml:signals:v1 - + LIMIT 5
+redis-cli XRANGE ml:risk:v1 - + LIMIT 5
 ```
 
 ---
@@ -159,9 +159,8 @@ Legacy compose configurations have been archived under `docs/legacy/`.
 
 Copy `.env.sample` (or `.env.template` for the full set) to `.env`, fill in the sensitive values, and keep the real
 file out of version control. Never commit secrets to the repository. Docker Compose reads `.env` through its `env_file`
-directive and injects those variables into services like `mcp`. In CI pipelines,
-provide the same variables via your environment or secret manager—containers no
-longer mount `.env` directly.
+directive and injects those variables into services like `mcp`. For deployments, supply these values through your
+deployment configuration or a dedicated secrets manager—containers no longer mount `.env` directly.
 
 Key variables to configure before launching:
 
@@ -357,6 +356,8 @@ Add new Streamlit dashboards following [docs/advanced_dashboard.md](docs/advance
 ## Kafka Replay Consumer
 
 Replay historical ticks or bars from Kafka into a datastore for analysis.
+The script's entry point is the ``main`` function inside
+``ops/kafka/replay_consumer.py``.
 
 ### Basic usage
 
@@ -366,8 +367,15 @@ export KAFKA_TOPIC=ticks.BTCUSDT
 python ops/kafka/replay_consumer.py --start-offset 0 --batch-size 100
 ```
 
+For batch processing of entire poll results use:
+
+```bash
+python ops/kafka/replay_consumer.py --mode batch
+```
+
 Arguments may be set via environment variables (`KAFKA_TOPIC`,
-`KAFKA_START_OFFSET`, `KAFKA_BATCH_SIZE`) or passed on the command line.
+`KAFKA_START_OFFSET`, `KAFKA_BATCH_SIZE`, `KAFKA_CONSUMER_MODE`) or passed on
+the command line.
 
 ### Replay into Redis
 

@@ -12,12 +12,13 @@ Environment variables:
 
 - `REDIS_HOST` (default `localhost`)
 - `REDIS_PORT` (default `6379`)
-- `ML_SIGNAL_STREAM` (default `ml:signals`)
-- `ML_RISK_STREAM` (default `ml:risk`)
+- `STREAM_VERSION` (default `1`)
+- `ML_SIGNAL_STREAM` (default `ml:signals:v<STREAM_VERSION>`)
+- `ML_RISK_STREAM` (default `ml:risk:v<STREAM_VERSION>`)
 
 ## Payload schema
 
-Signals published to `ML_SIGNAL_STREAM` follow this structure:
+Signals published to `ML_SIGNAL_STREAM` (e.g. `ml:signals:v1`) follow this structure:
 
 ```json
 {
@@ -29,7 +30,7 @@ Signals published to `ML_SIGNAL_STREAM` follow this structure:
 }
 ```
 
-A reduced payload containing just `symbol`, `risk`, and `timestamp` is also added to `ML_RISK_STREAM`.
+A reduced payload containing just `symbol`, `risk`, and `timestamp` is also added to `ML_RISK_STREAM` (e.g. `ml:risk:v1`).
 
 ## Integration
 

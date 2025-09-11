@@ -61,6 +61,8 @@ def _ensure_mt5():
         # Non-fatal guard
         pass
 
+_ensure_mt5()
+
 @app.get("/account_info")
 def account_info_alias():
     _ensure_mt5()

@@ -52,3 +52,11 @@ class MT5KafkaProducer:
     def flush(self, timeout: float = 10.0):
         """Block until all queued messages are delivered."""
         self.producer.flush(timeout)
+
+    def close(self) -> None:
+        """Close the underlying Kafka producer."""
+        try:
+            self.producer.close()
+        except Exception:
+            # Closing the producer is best-effort; ignore failures
+            pass
