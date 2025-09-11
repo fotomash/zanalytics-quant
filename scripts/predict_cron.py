@@ -16,8 +16,6 @@ from typing import Dict, Optional, List
 
 import redis
 import yaml
-
-HIGH_RISK_THRESHOLD = 0.9
 WHISPERER_QUEUE = "whisperer:simulation"
 CONFIG_PATH = Path(os.getenv("PREDICT_CRON_CONFIG", "config/predict_cron.yaml"))
 
@@ -118,6 +116,13 @@ def get_risk_threshold() -> float:
     return 0.5
 
 
+# Determine the risk threshold once at startup.
+# It can be overridden via the ``RISK_THRESHOLD`` environment variable or by
+# setting ``risk_threshold`` in ``config/predict_cron.yaml``. See
+# ``docs/update_risk_threshold.md`` for details.
+RISK_THRESHOLD = get_risk_threshold()
+
+
 def recommend_threshold(history_path: str) -> float:
     """Compute a recommended threshold from historical data.
 
@@ -141,8 +146,10 @@ def recommend_threshold(history_path: str) -> float:
     return avg + 2 * sd
 
 
-def process_tick(redis_client: redis.Redis, tick: Dict) -> None:
-    """Publish alerts and enqueue ticks when risk exceeds threshold.
+def process_tick(
+    redis_client: redis.Redis, tick: Dict, threshold: float = RISK_THRESHOLD
+) -> None:
+    """Publish alerts and enqueue ticks when risk exceeds ``threshold``.
 
     Tolerates non-numeric risk values by attempting to extract a number; if
     parsing fails, logs at debug level and skips the tick.
@@ -153,7 +160,7 @@ def process_tick(redis_client: redis.Redis, tick: Dict) -> None:
         return
     # Keep normalized risk on the tick for downstream consumers
     tick["risk_score"] = risk
-    if risk >= HIGH_RISK_THRESHOLD:
+    if risk >= threshold:
         publish_alert(redis_client, tick)
         enqueue_for_simulation(redis_client, tick)
 
@@ -174,7 +181,7 @@ def cli_main(argv: Optional[List[str]] = None) -> None:
     parser.add_argument("--redis-url", default=os.getenv("REDIS_URL", "redis://redis:6379/0"))
     args = parser.parse_args(argv)
 
-    threshold = get_risk_threshold()
+    threshold = RISK_THRESHOLD
     print(f"Using risk threshold: {threshold}")
 
     if args.history:
@@ -197,7 +204,7 @@ def cli_main(argv: Optional[List[str]] = None) -> None:
             "risk_score": risk_val,
             "timestamp": datetime.utcnow().isoformat(),
         }
-        process_tick(r, tick)
+        process_tick(r, tick, threshold=threshold)
 
 
 if __name__ == "__main__":  # pragma: no cover - manual execution
