@@ -98,8 +98,8 @@ export KAFKA_BROKERS=localhost:9092
 # payloads go to enriched-analysis-payloads
 
 # Inspect Redis Streams
-redis-cli XRANGE ml:signals - + LIMIT 5
-redis-cli XRANGE ml:risk - + LIMIT 5
+redis-cli XRANGE ml:signals:v1 - + LIMIT 5
+redis-cli XRANGE ml:risk:v1 - + LIMIT 5
 ```
 
 ---

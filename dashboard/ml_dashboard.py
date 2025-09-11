@@ -1,8 +1,8 @@
 """Streamlit ML dashboard for visualizing ML bridge outputs from Redis streams.
 
 This dashboard subscribes to the streams produced by the Redis ML bridge:
-- ``ml:signals`` for full model outputs
-- ``ml:risk`` for risk-only updates
+- ``ml:signals:v{STREAM_VERSION}`` for full model outputs
+- ``ml:risk:v{STREAM_VERSION}`` for risk-only updates
 
 Users can select which metrics to chart and control the auto-refresh interval
 from the sidebar. Redis connections are cached for efficiency.
@@ -31,8 +31,11 @@ class AppConfig:
 
     redis_host: str = os.getenv("STREAMLIT_REDIS_HOST", "localhost")
     redis_port: int = int(os.getenv("STREAMLIT_REDIS_PORT", "6379"))
-    signal_stream: str = os.getenv("ML_SIGNAL_STREAM", "ml:signals")
-    risk_stream: str = os.getenv("ML_RISK_STREAM", "ml:risk")
+    stream_version: str = os.getenv("STREAM_VERSION", "1")
+    signal_stream: str = os.getenv(
+        "ML_SIGNAL_STREAM", f"ml:signals:v{stream_version}"
+    )
+    risk_stream: str = os.getenv("ML_RISK_STREAM", f"ml:risk:v{stream_version}")
     metrics: List[str] = field(default_factory=lambda: ["risk", "alpha", "confidence"])
     refresh_interval: int = int(os.getenv("STREAMLIT_REFRESH_INTERVAL", "5"))
 
