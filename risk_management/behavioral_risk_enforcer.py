@@ -17,6 +17,19 @@ class BehavioralRiskEnforcer:
         self.policies = self._load_policies(policies_path)
         self.cooldown_until: Optional[datetime] = None
 
+    def _publish_alert(self, message: str, order: Dict) -> None:
+        """Send a summary alert to Redis for external notifications."""
+        alert = {
+            "event": "behavioral_risk",
+            "message": message,
+            "order": order,
+            "payload_id": order.get("payload_id"),
+        }
+        try:
+            self.redis.publish("telegram-alerts", json.dumps(alert))
+        except Exception as exc:  # pragma: no cover - notification failures shouldn't break flow
+            logger.error("Failed to publish behavioral risk alert: %s", exc)
+
     def _load_policies(self, path: str) -> Dict:
         try:
             with open(path, "r") as f:
@@ -49,7 +62,9 @@ class BehavioralRiskEnforcer:
         # Existing cooldown check
         if self.cooldown_until and datetime.utcnow() < self.cooldown_until:
             allowed = False
-            messages.append("Action blocked: Cooling-off period active due to rapid trading.")
+            msg = "Action blocked: Cooling-off period active due to rapid trading."
+            messages.append(msg)
+            self._publish_alert(msg, order)
             return allowed, order, messages
 
         # Rule: daily drawdown
@@ -57,7 +72,9 @@ class BehavioralRiskEnforcer:
         dd = scores.get("daily_drawdown")
         if dd_rule and dd is not None and dd > dd_rule.get("threshold", 1):
             allowed = False
-            messages.append("Action blocked: Daily drawdown limit exceeded.")
+            msg = "Action blocked: Daily drawdown limit exceeded."
+            messages.append(msg)
+            self._publish_alert(msg, order)
             return allowed, order, messages
 
         # Rule: patience index -> cooldown
@@ -68,7 +85,9 @@ class BehavioralRiskEnforcer:
             if cooldown:
                 self.cooldown_until = datetime.utcnow() + timedelta(minutes=cooldown)
             allowed = False
-            messages.append("Action blocked: Cooling-off period active due to rapid trading.")
+            msg = "Action blocked: Cooling-off period active due to rapid trading."
+            messages.append(msg)
+            self._publish_alert(msg, order)
             return allowed, order, messages
 
         # Rule: discipline score -> reduce lot size
@@ -78,6 +97,11 @@ class BehavioralRiskEnforcer:
             reduction = disc_rule.get("reduce_max_lot_size_by", 0)
             if reduction and order.get("quantity"):
                 order["quantity"] = order["quantity"] * (1 - reduction)
-                messages.append("Lot size reduced due to low discipline score.")
+                msg = "Lot size reduced due to low discipline score."
+                messages.append(msg)
+
+        if messages:
+            # Publish the first message as a summary of the enforcement action
+            self._publish_alert(messages[0], order)
 
         return allowed, order, messages

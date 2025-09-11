@@ -314,11 +314,9 @@ class RealTimeTradingEngine:
         
     async def send_order(self, order: Dict) -> str:
         """Send order to broker (mock implementation)"""
-        allowed, adjusted, messages = self.behavioral_enforcer.enforce(order)
+        allowed, adjusted, _ = self.behavioral_enforcer.enforce(order)
         if not allowed:
-            msg = messages[0] if messages else "Action blocked by BehavioralRiskEnforcer"
-            self.logger.warning(msg)
-            raise RuntimeError(msg)
+            raise RuntimeError("Order blocked by BehavioralRiskEnforcer")
 
         # In real implementation, this would connect to broker API
         order_id = f"ORD_{datetime.now().timestamp()}"
