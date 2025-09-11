@@ -12,10 +12,15 @@ from typing import Dict, List, Optional, Tuple
 import json
 import yaml
 import requests
+import logging
 
 # Timezone constants
 LONDON = pytz.timezone("Europe/London")
 UTC = pytz.UTC
+
+logger = logging.getLogger(__name__)
+if not logger.hasHandlers():
+    logging.basicConfig(level=logging.INFO)
 
 class MT5Bridge:
     """
@@ -33,28 +38,30 @@ class MT5Bridge:
         self.behavioral_patterns = {}
         
     def connect(self) -> bool:
-        """Establish connection to MT5 with proper error handling."""
+        """Establish connection to MT5 with proper error handling.
+
+        Raises:
+            RuntimeError: If MT5 initialization or login fails.
+        """
         try:
-            # Initialize MT5
             if not mt5.initialize():
-                print("MT5 initialization failed")
-                return False
-                
-            # Optional login (if account provided)
+                logger.error("MT5 initialization failed")
+                raise RuntimeError("MT5 initialization failed")
+
             if self.account:
                 if not mt5.login(self.account, password=self.password, server=self.server):
-                    print(f"Login failed for account {self.account}")
+                    logger.error(f"Login failed for account {self.account}")
                     mt5.shutdown()
-                    return False
-                    
+                    raise RuntimeError(f"Login failed for account {self.account}")
+
             self.connected = True
-            print(f"Successfully connected to MT5{f' account {self.account}' if self.account else ''}")
+            logger.info("Successfully connected to MT5%s", f" account {self.account}" if self.account else "")
             return True
-            
+
         except Exception as e:
-            print(f"Connection error: {e}")
+            logger.error("Connection error: %s", e)
             self.disconnect()
-            return False
+            raise
     
     def disconnect(self):
         """Safely disconnect from MT5."""
@@ -515,28 +522,29 @@ if __name__ == "__main__":
     )
     
     # Connect with error handling
-    if bridge.connect():
+    try:
+        bridge.connect()
         try:
             # Get behavioral report
             report = bridge.get_behavioral_report()
             print(json.dumps(report, indent=2, default=str))
-            
+
             # Validate confluence scores
             validation = bridge.get_confluence_validation()
             print("\nConfluence Validation:")
             print(validation)
-            
+
             # Generate weekly review
             review = bridge.generate_weekly_review()
             print("\nWeekly Review:")
             print(json.dumps(review, indent=2))
-            
+
             # Sync to journal
             synced = bridge.sync_to_pulse_journal()
             print(f"\nSynced {synced} trades to journal")
-            
+
         finally:
             # Always disconnect cleanly
             bridge.disconnect()
-    else:
-        print("Failed to connect to MT5")
+    except RuntimeError as e:
+        print(e)

@@ -42,7 +42,9 @@ def verify_mt5_and_history(days_back=7):
     if not bridge:
         print("[SKIP] MT5 verification skipped (bridge not importable).")
         return None
-    if not bridge.connect():
+    try:
+        bridge.connect()
+    except RuntimeError:
         print("[SKIP] MT5 verification skipped (no connection).")
         return None
     try:
@@ -60,7 +62,12 @@ def verify_mt5_and_history(days_back=7):
 
 def verify_journal_sync():
     bridge = _load_bridge()
-    if not bridge or not bridge.connect():
+    if not bridge:
+        print("[SKIP] Journal sync via MT5 skipped.")
+        return None
+    try:
+        bridge.connect()
+    except RuntimeError:
         print("[SKIP] Journal sync via MT5 skipped.")
         return None
     try:
