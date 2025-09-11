@@ -1,14 +1,27 @@
 from pathlib import Path
+import shutil
+import yaml
 
 from core.bootstrap_engine import BootstrapEngine
 
 
-def test_bootstrap_engine_loads_agents_and_manifest():
-    engine = BootstrapEngine(base_dir=Path(__file__).resolve().parents[1])
+def test_bootstrap_engine_loads_agents_and_manifest(tmp_path: Path):
+    base_dir = tmp_path
+
+    # Copy existing agent definition so registry can be populated
+    src_agents = Path(__file__).resolve().parents[1] / "agents"
+    shutil.copytree(src_agents, base_dir / "agents")
+
+    # Create an active session manifest inside <base_dir>/sessions
+    sessions_dir = base_dir / "sessions"
+    sessions_dir.mkdir()
+    manifest_data = {"instrument_pair": "EURUSD"}
+    (sessions_dir / "session_manifest.yaml").write_text(yaml.safe_dump(manifest_data))
+
+    engine = BootstrapEngine(base_dir=base_dir)
     engine.boot()
+
     assert "enrichment_agent" in engine.agent_registry
-    # Entry points are loaded as strings or callables
     entry_points = engine.agent_registry["enrichment_agent"].get("entry_points", {})
     assert "on_init" in entry_points and "on_message" in entry_points
-    # Manifest should load if file exists
-    assert engine.session_manifest is not None
+    assert engine.session_manifest == manifest_data
