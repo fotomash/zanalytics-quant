@@ -20,16 +20,6 @@ try:  # pragma: no cover - optional dependency
 except ModuleNotFoundError:  # pragma: no cover - fallback
     load_dotenv = None  # type: ignore[assignment]
 
-try:  # pragma: no cover - external dependency
-    from confluent_kafka import KafkaError
-except ModuleNotFoundError:  # pragma: no cover - lightweight stub
-    class KafkaError:  # type: ignore[too-many-ancestors]
-        """Minimal stub containing the ``_PARTITION_EOF`` attribute."""
-
-        _PARTITION_EOF = object()
-
-        def code(self) -> None:  # pragma: no cover - stub method
-            return None
 
 
 @dataclass
@@ -46,6 +36,14 @@ class RiskConfig:
 
     instrument: str
     timeframe: str
+
+
+@dataclass
+class ExecutionValidationConfig:
+    """Configuration for execution confidence checks."""
+
+    confidence_threshold: float = 0.0
+    fallback_limits: Dict[str, Any] | None = None
 
 
 class BootstrapEngine:
@@ -88,6 +86,7 @@ class BootstrapEngine:
         self.session_manifest: Dict[str, Any] = {}
         self.kafka_config: Optional[KafkaConfig] = None
         self.risk_config: Optional[RiskConfig] = None
+        self.execution_validation_config: Optional[ExecutionValidationConfig] = None
         self.config_registry: Dict[str, Any] = {}
         self.semantic_service = semantic_service or SemanticMappingService()
 
@@ -196,6 +195,22 @@ class BootstrapEngine:
         self.config_registry["kafka"] = self.kafka_config
         self.config_registry["risk"] = self.risk_config
 
+        self._load_execution_validation()
+
+    def _load_execution_validation(self) -> None:
+        """Load execution validation settings from config file."""
+
+        path = self.base_dir / "config" / "execution_validation.yaml"
+        if not path.exists():
+            return
+        with path.open("r", encoding="utf-8") as fh:
+            data = yaml.safe_load(fh) or {}
+        self.execution_validation_config = ExecutionValidationConfig(
+            confidence_threshold=float(data.get("confidence_threshold", 0.0)),
+            fallback_limits=data.get("fallback_limits", {}),
+        )
+        self.config_registry["execution_validation"] = self.execution_validation_config
+
     def _load_agents(self) -> None:
         """Populate ``agent_registry`` from the provided registry mapping."""
 
@@ -262,7 +277,89 @@ class BootstrapEngine:
                 logging.getLogger(__name__).warning(
                     "No handler succeeded for task %s", task
                 )
+    @property
+    def execution_confidence_threshold(self) -> float | None:
+        """Expose configured execution confidence threshold."""
+
+        if self.execution_validation_config is None:
+            return None
+        return self.execution_validation_config.confidence_threshold
+
+    def run(
+        self,
+        agent_id: str,
+        *args: Any,
+        threshold: float = 0.5,
+        **kwargs: Any,
+    ) -> Any:
+        """Execute an agent with confidence based fallbacks.
+
+        Parameters
+        ----------
+        agent_id:
+            Identifier of the primary agent to execute.  The agent must
+            exist in :attr:`agent_registry` and contain callable entry
+            points.
+        *args, **kwargs:
+            Positional and keyword arguments passed to the agent callable.
+        threshold:
+            Minimum confidence score required for early acceptance.  If
+            the score returned by :class:`~core.confidence_tracer.ConfidenceTracer`
+            is below this value, fallback agents resolved via
+            :class:`~core.semantic_mapping_service.SemanticMappingService`
+            will be invoked sequentially.
+
+        Returns
+        -------
+        Any
+            The result produced by the agent with the highest confidence
+            score.  If no agent reaches the threshold the highest scoring
+            result is still returned.
+        """
+
+        from .confidence_tracer import ConfidenceTracer
+        from .semantic_mapping_service import SemanticMappingService
+
+        if not self.agent_registry:
+            self._load_agents()
+
+        tracer = ConfidenceTracer()
+
+        def _call_agent(aid: str) -> tuple[float, Any]:
+            cfg = self.agent_registry.get(aid)
+            if not cfg:
+                raise KeyError(f"Unknown agent: {aid}")
+            entry_points = cfg.get("entry_points", {})
+            # Prefer "on_message" for compatibility with existing agent
+            # definitions but fall back to any single callable.
+            func = (
+                entry_points.get("on_message")
+                or entry_points.get("run")
+                or entry_points.get("call")
+                or next(iter(entry_points.values()), None)
+            )
+            if not callable(func):
+                raise TypeError(f"Agent '{aid}' has no callable entry point")
+            result = func(*args, **kwargs)
+            score = tracer.trace(result)
+            return score, result
+
+        best_score, best_result = _call_agent(agent_id)
+        if best_score < threshold:
+            fallbacks = SemanticMappingService.route(agent_id)
+            for fb in fallbacks:
+                score, result = _call_agent(fb)
+                if score > best_score:
+                    best_score, best_result = score, result
+                if score >= threshold:
+                    break
+        return best_result
 
 
-__all__ = ["BootstrapEngine", "KafkaConfig", "RiskConfig"]
+__all__ = [
+    "BootstrapEngine",
+    "KafkaConfig",
+    "RiskConfig",
+    "ExecutionValidationConfig",
+]
 
