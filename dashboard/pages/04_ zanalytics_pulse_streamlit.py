@@ -16,11 +16,14 @@ from dashboard.utils.streamlit_api import (
     start_whisper_sse,
     drain_whisper_sse,
     get_sse_status,
+    stop_whisper_sse,
     fetch_trade_history,
     fetch_trade_history_filtered,
     fetch_symbols,
 )
 from dashboard.components.ui_concentric import concentric_ring
+
+stop_whisper_sse()
 
 # Page configuration
 st.set_page_config(
