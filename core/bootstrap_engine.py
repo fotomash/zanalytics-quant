@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 from pathlib import Path
@@ -78,7 +77,7 @@ class BootstrapEngine:
                  manifest_path: Optional[Path] = None) -> None:
         self.base_dir = Path(base_dir) if base_dir else Path(__file__).resolve().parent.parent
         self.env_file = Path(env_file) if env_file else self.base_dir / ".env"
-        self.manifest_path = Path(manifest_path) if manifest_path else self.base_dir / "gpt-action-manifest.json"
+        self.manifest_path = Path(manifest_path) if manifest_path else self.base_dir / "session_manifest.yaml"
         self.agent_registry: Dict[str, Dict[str, Any]] = {}
         self.session_manifest: Optional[Dict[str, Any]] = None
 
@@ -102,10 +101,27 @@ class BootstrapEngine:
                             format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
     def _load_session_manifest(self) -> None:
-        """Load a session manifest JSON file if available."""
-        if self.manifest_path.exists():  # pragma: no branch
-            with self.manifest_path.open("r", encoding="utf-8") as fh:
-                self.session_manifest = json.load(fh)
+        """Load a session manifest YAML file if available.
+
+        The method first checks for an active session file inside
+        ``<base_dir>/sessions``. Supported file names are
+        ``session_manifest.yaml`` and ``bootstrap.yaml``. If none of these
+        files are found, the engine falls back to ``self.manifest_path``.
+        """
+
+        sessions_dir = self.base_dir / "sessions"
+        candidate = None
+        if sessions_dir.exists():
+            for name in ("session_manifest.yaml", "bootstrap.yaml"):
+                path = sessions_dir / name
+                if path.exists():
+                    candidate = path
+                    break
+
+        manifest_file = candidate if candidate is not None else self.manifest_path
+        if manifest_file.exists():  # pragma: no branch
+            with manifest_file.open("r", encoding="utf-8") as fh:
+                self.session_manifest = yaml.safe_load(fh) or {}
 
     def _load_agents(self) -> None:
         """Load all agent definitions from ``agents/*.yaml``."""
