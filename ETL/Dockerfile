@@ -1,12 +1,18 @@
-# Dockerfile prepared for future Airflow/Prefect orchestration
-FROM apache/airflow:2.7.1
+# Single-stage Dockerfile for running ETL workflows with Prefect
+FROM python:3.11-slim
+
+# Configure Prefect and Python paths
+ENV PREFECT_HOME=/opt/prefect \
+    PYTHONPATH=/opt/etl
 
 WORKDIR /opt/etl
 
-# TODO: Implement Airflow/Prefect setup and ETL pipeline
-# Minimal Dockerfile for ETL workflows
-FROM python:3.11-slim
+# Install Prefect for orchestration
+RUN pip install --no-cache-dir prefect
 
-# TODO: Install and configure Airflow or Prefect for orchestration
-# TODO: Add ETL scripts and dependencies
+# Copy ETL scripts into the image
+COPY utils ./utils
+COPY scripts ./scripts
 
+# Start Prefect's Orion server by default
+ENTRYPOINT ["prefect", "orion", "start"]
