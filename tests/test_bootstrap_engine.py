@@ -19,6 +19,8 @@ def test_bootstrap_engine_loads_agents_and_manifest(tmp_path: Path):
         "instrument_pair": "EURUSD",
         "ingestion_service": {"source": "test"},
         "enrichment_service": {"level": "basic"},
+        "timeframe": "M15",
+        "topics": {"consume": ["raw"], "produce": "out"},
     }
     (sessions_dir / "session_manifest.yaml").write_text(yaml.safe_dump(manifest_data))
 
@@ -43,3 +45,7 @@ def test_bootstrap_engine_loads_agents_and_manifest(tmp_path: Path):
     entry_points = engine.agent_registry["enrichment_agent"].get("entry_points", {})
     assert "on_init" in entry_points and "on_message" in entry_points
     assert engine.session_manifest == manifest_data
+    assert engine.kafka_config.consume == ["raw"]
+    assert engine.kafka_config.produce == "out"
+    assert engine.risk_config.instrument == "EURUSD"
+    assert engine.risk_config.timeframe == "M15"

@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import yaml
 
@@ -28,6 +29,22 @@ except ModuleNotFoundError:  # pragma: no cover - lightweight stub
 
         def code(self) -> None:  # pragma: no cover - stub method
             return None
+
+
+@dataclass
+class KafkaConfig:
+    """Configuration for Kafka topics."""
+
+    consume: List[str]
+    produce: str
+
+
+@dataclass
+class RiskConfig:
+    """Minimal risk session configuration."""
+
+    instrument: str
+    timeframe: str
 
 
 class BootstrapEngine:
@@ -64,6 +81,9 @@ class BootstrapEngine:
 
         self.agent_registry: Dict[str, Dict[str, Any]] = {}
         self.session_manifest: Dict[str, Any] = {}
+        self.kafka_config: Optional[KafkaConfig] = None
+        self.risk_config: Optional[RiskConfig] = None
+        self.config_registry: Dict[str, Any] = {}
 
     # ------------------------------------------------------------------
     # Bootstrapping helpers
@@ -80,6 +100,8 @@ class BootstrapEngine:
         self.start_enrichment_service(
             self.session_manifest.get("enrichment_service")
         )
+
+        self._build_configs()
         self._load_agents()
 
     def _setup_environment(self) -> None:
@@ -141,6 +163,33 @@ class BootstrapEngine:
                     self.session_manifest = json.load(fh)
         return self.session_manifest
 
+    def _build_configs(self) -> None:
+        """Instantiate configuration dataclasses from the manifest."""
+
+        if not self.session_manifest:
+            return
+
+        topics = self.session_manifest.get("topics")
+        instrument = self.session_manifest.get("instrument") or self.session_manifest.get(
+            "instrument_pair"
+        )
+        timeframe = self.session_manifest.get("timeframe")
+
+        if not topics or "consume" not in topics or "produce" not in topics:
+            raise ValueError("Session manifest missing required topic definitions")
+        if not instrument:
+            raise ValueError("Session manifest missing required field 'instrument'")
+        if not timeframe:
+            raise ValueError("Session manifest missing required field 'timeframe'")
+
+        self.kafka_config = KafkaConfig(
+            consume=list(topics.get("consume", [])),
+            produce=topics["produce"],
+        )
+        self.risk_config = RiskConfig(instrument=instrument, timeframe=timeframe)
+        self.config_registry["kafka"] = self.kafka_config
+        self.config_registry["risk"] = self.risk_config
+
     def _load_agents(self) -> None:
         """Populate ``agent_registry`` from the provided registry mapping."""
 
@@ -200,5 +249,5 @@ class BootstrapEngine:
                 producer.flush()
 
 
-__all__ = ["BootstrapEngine"]
+__all__ = ["BootstrapEngine", "KafkaConfig", "RiskConfig"]
 
