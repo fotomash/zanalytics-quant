@@ -10,6 +10,7 @@ An OpenAI tools manifest at [`docs/connectors/actions_openai_mcp2.yaml`](connect
 | `fetch_payload`    | `GET /fetch_payload` |
 | `log_enriched_trade` | `POST /log_enriched_trade` |
 | `get_recent_trades` | `GET /trades/recent` |
+| `get_stream_entries` | `GET /streams/{stream}` |
 The accompanying `mcp2-pg` container loads [services/mcp2/init.sql](../services/mcp2/init.sql) on startup to create the `docs` table used for searches.
 
 ## Authentication
@@ -98,4 +99,14 @@ Enriched signals are mirrored into Redis Streams. Inspect them via `redis-cli`:
 ```bash
 redis-cli XRANGE ml:signals - + LIMIT 5
 redis-cli XRANGE ml:risk - + LIMIT 5
+```
+
+## Stream Access
+Retrieve recent entries from Redis Streams. Stream names should be supplied
+without the `mcp2:` prefix. Currently the `trades` stream is available for
+consuming enriched trade messages.
+
+```bash
+# most recent trade messages
+curl -s "$MCP_HOST/streams/trades?limit=5"
 ```

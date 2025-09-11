@@ -15,6 +15,7 @@ from fastapi import FastAPI, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, generate_latest
 
 from .routers.tools import router as tools_router
+from .routers.streams import router as streams_router
 from .routers.llm import router as llm_router
 
 from .routers.streams import router as streams_router

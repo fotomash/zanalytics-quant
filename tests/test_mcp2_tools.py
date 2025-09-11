@@ -75,14 +75,15 @@ def test_tools_fetch(client):
     trade_id = '123'
     payload = {
         'strategy': 'demo',
-        'symbol': 'AAPL',
-        'timeframe': '1D',
-        'date': '2024-01-01T00:00:00Z',
-        'notes': 'hello',
+        'timestamp': '2024-01-01T00:00:00Z',
+        'market': {'symbol': 'AAPL', 'timeframe': '1D'},
+        'features': {},
+        'risk': {},
+        'positions': {},
     }
     fake_redis.kv[redis_client.ns(f'payload:{trade_id}')] = json.dumps(payload)
     resp = client.get('/mcp/tools/fetch', params={'id': trade_id})
     assert resp.status_code == 200
     data = resp.json()
-    assert data['symbol'] == 'AAPL'
+    assert data['market']['symbol'] == 'AAPL'
     assert data['strategy'] == 'demo'
