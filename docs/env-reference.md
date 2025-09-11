@@ -107,6 +107,11 @@ Values defined in `.env` or in the shell environment override the defaults shown
 | `API_URL` | `http://localhost:8010` | Set to the URL of the orchestrator/actions API. | Endpoint used by scripts/tests to interact with actions. |
 | `API_TOKEN` | _(empty)_ | Provide a token to enable authenticated requests. | Authentication token for the orchestrator API. |
 
+## LLM Routing
+| Variable | Default | Override Behavior | Purpose |
+| --- | --- | --- | --- |
+| `LOCAL_THRESHOLD` | `0.6` | Raise or lower to adjust when ticks are sent to Whisperer. | Confidence cutoff for local echo vs. remote Whisperer processing. |
+
 ## Celery Settings
 | Variable | Default | Override Behavior | Purpose |
 | --- | --- | --- | --- |
