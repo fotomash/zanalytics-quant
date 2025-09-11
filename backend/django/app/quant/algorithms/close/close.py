@@ -54,8 +54,8 @@ def close_algorithm():
                 closed_order = get_order_from_ticket(ticket)
                 closed_deal = get_deal_from_ticket(ticket)
 
-                if closed_deal is None:
-                    error_msg = f"Failed to retrieve deal for closed ticket {ticket}."
+                if closed_order is None or closed_deal is None:
+                    error_msg = f"Failed to retrieve order or deal for closed ticket {ticket}."
                     logger.error({
                         "error": error_msg,
                         "ticket": ticket,
