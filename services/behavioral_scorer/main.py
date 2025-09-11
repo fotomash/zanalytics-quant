@@ -15,6 +15,8 @@ from typing import Any, Dict
 import redis
 from confluent_kafka import Consumer, KafkaError
 
+from services.common.redis_utils import set_behavioral_score
+
 
 KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:9092")
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
@@ -85,8 +87,7 @@ def main() -> None:
                 "patience_index": info.get("patience_score", 1.0),
                 "rapid_trades": info.get("rapid_trade", False),
             }
-            key = f"behavioral_metrics:{trader_id}"
-            r.set(key, json.dumps(payload))
+            set_behavioral_score(r, trader_id, payload)
 
     try:
         while not shutdown:
