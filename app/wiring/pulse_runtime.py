@@ -1,10 +1,12 @@
 from __future__ import annotations
-import os, json, time
+import os, json, time, logging
 from pathlib import Path
 from typing import Dict, Any
 from mt5_bridge_production import MT5Bridge              # ← from your file
 from pulse_kernel import PulseKernel                     # ← orchestrator
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 JOURNAL_PATH = os.getenv("PULSE_JOURNAL_PATH", "signal_journal.json")
 
@@ -16,7 +18,10 @@ class PulseRuntime:
             password=os.getenv("MT5_PASSWORD") or None,
             server=os.getenv("MT5_SERVER") or None,
         )
-        self.kernel = PulseKernel(config_path=os.getenv("PULSE_CONFIG", "pulse_config.yaml"))
+        cfg_path = os.getenv("PULSE_CONFIG", "pulse_config.yaml")
+        if not os.path.exists(cfg_path):
+            logger.warning("Pulse config file %s not found; using defaults", cfg_path)
+        self.kernel = PulseKernel(config_path=cfg_path)
         self.connected = False
 
     def connect_mt5(self) -> bool:
