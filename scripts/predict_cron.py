@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import Dict
+from typing import Dict, Optional
+import logging
+import re
 
 import redis
 
@@ -43,9 +45,41 @@ def enqueue_for_simulation(redis_client: redis.Redis, tick: Dict) -> None:
     redis_client.rpush(WHISPERER_QUEUE, json.dumps(tick))
 
 
+_FLOAT_RE = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
+
+
+def _parse_risk(value: object) -> Optional[float]:
+    """Parse a risk value that may be numeric or embedded in text.
+
+    Returns a float if successfully parsed, otherwise None.
+    """
+    try:
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        s = str(value).strip()
+        if not s:
+            return None
+        m = _FLOAT_RE.search(s)
+        return float(m.group(0)) if m else None
+    except Exception:
+        return None
+
+
 def process_tick(redis_client: redis.Redis, tick: Dict) -> None:
-    """Publish alerts and enqueue ticks when risk exceeds threshold."""
-    if tick.get("risk_score", 0) >= HIGH_RISK_THRESHOLD:
+    """Publish alerts and enqueue ticks when risk exceeds threshold.
+
+    Tolerates non-numeric risk values by attempting to extract a number; if
+    parsing fails, logs at debug level and skips the tick.
+    """
+    risk = _parse_risk(tick.get("risk_score"))
+    if risk is None:
+        logging.debug("skip tick without numeric risk: %s", tick)
+        return
+    # Keep normalized risk on the tick for downstream consumers
+    tick["risk_score"] = risk
+    if risk >= HIGH_RISK_THRESHOLD:
         publish_alert(redis_client, tick)
         enqueue_for_simulation(redis_client, tick)
 
