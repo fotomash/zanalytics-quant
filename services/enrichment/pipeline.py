@@ -7,11 +7,11 @@ results.  Execution stops early if ``state['status']`` is set to ``"FAIL"`` or
 an exception is raised.
 
 Order of execution:
-    1. structure
-    2. liquidity
-    3. context
-    4. FVG
-    5. predictive score
+    1. structure_validator
+    2. liquidity_engine
+    3. context_analyzer
+    4. fvg_locator
+    5. predictive_scorer
 """
 
 from __future__ import annotations
@@ -23,9 +23,9 @@ from typing import Any, Dict, Iterable, Optional
 # ``services.enrichment.modules`` and expose a ``run`` callable.
 MODULE_ORDER: Iterable[str] = (
     "structure_validator",
-    "liquidity",
-    "context",
-    "fvg",
+    "liquidity_engine",
+    "context_analyzer",
+    "fvg_locator",
     "predictive_scorer",
 )
 
