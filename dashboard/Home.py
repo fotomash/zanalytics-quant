@@ -26,6 +26,7 @@ from utils.session_mindset import render_session_mindset_panel as render_session
 from api_integration.mt5_api_client import Mt5APIClient
 import os
 load_dotenv(dotenv_path=Path(__file__).parents[2] / '.env')
+from dashboard.components import create_metric_donut
 
 # --- Config utility: get_config_var ---
 def get_config_var(name, default=None):
@@ -110,10 +111,24 @@ def render_pulse_snapshot() -> None:
     risk = safe_api_call("GET", "risk/summary") or {}
     adapter = safe_api_call("GET", "adapter/status") or {}
 
+    try:
+        latency = float(adapter.get("lag", 0) or 0)
+    except (TypeError, ValueError):
+        latency = 0.0
+    latency_max = max(latency * 1.2, 100)
+
     cols = st.columns(3)
-    cols[0].metric("Confluence", score.get("score", "—"))
-    cols[1].metric("Risk Left", risk.get("risk_left", "—"))
-    cols[2].metric("Latency", adapter.get("lag", "—"))
+    specs = [
+        ("Confluence", score.get("score"), "#22C55E", "%", 100),
+        ("Risk Left", risk.get("risk_left"), "#3B82F6", "%", 100),
+        ("Latency", latency, "#F59E0B", "ms", latency_max),
+    ]
+    for col, (title, val, color, suf, mx) in zip(cols, specs):
+        with col:
+            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+            fig = create_metric_donut(val or 0, title, color, suffix=suf, max_value=mx)
+            st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+            st.markdown('</div>', unsafe_allow_html=True)
     st.page_link("pages/03_ 📰 MACRO & NEWS.py", label="Open Macro & News", icon="📰")
 
 render_pulse_snapshot()

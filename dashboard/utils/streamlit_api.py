@@ -286,6 +286,32 @@ def apply_custom_styling() -> None:
         "linear-gradient(rgba(0,0,0,0.80), rgba(0,0,0,0.80)), url(data:image/jpeg;base64," + img_b64 + ")"
         if img_b64
         else "#0B1220"
+
+    Usage: call once near the top of the page.
+
+    Theme developers can override the defaults by defining CSS variables:
+    ``--glass-color`` (RGB), ``--glass-bg-opacity`` and ``--glass-border-opacity``.
+    """
+    st.markdown(
+        """
+        <style>
+        .stApp {
+            background: radial-gradient(1200px 600px at 10% 10%, rgba(29,78,216,0.08) 0%, rgba(15,23,42,0.0) 60%),
+                        radial-gradient(800px 400px at 90% 0%, rgba(6,182,212,0.08) 0%, rgba(15,23,42,0.0) 60%),
+                        linear-gradient(135deg, #0B1220 0%, #111827 100%);
+        }
+        .glass {
+            background: rgba(var(--glass-color, 255,255,255), var(--glass-bg-opacity, 0.04));
+            border: 1px solid rgba(var(--glass-color, 255,255,255), var(--glass-border-opacity, 0.08));
+            border-radius: 14px;
+            padding: 10px 14px;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        }
+        .section-title { color: #9CA3AF; font-size: 0.9rem; margin-bottom: 6px; }
+        </style>
+        """,
+        unsafe_allow_html=True,
     )
     css = f"""
     <style>

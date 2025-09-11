@@ -2,7 +2,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import time
 import plotly.graph_objects as go
 
 st.set_page_config(layout="wide", page_title="Zan.Pulse", page_icon="⚡")
@@ -138,10 +137,9 @@ def journal_page():
 
 def main():
     st.sidebar.title("Zan.Pulse ⚡")
-    
     # P&L in sidebar
     pnl_placeholder = st.sidebar.empty()
-    
+
     pages = {
         "Home": "Pulse Command Center",
         "Intelligence": "Market Intelligence Hub",
@@ -149,8 +147,12 @@ def main():
         "Whisperer": "The Whisperer Interface",
         "Journal": "Decision Journal & Analytics"
     }
-    
+
     selection_key = st.sidebar.radio("Navigation", list(pages.keys()), format_func=lambda page: pages[page])
+
+    refresh_seconds = st.sidebar.slider(
+        "Refresh interval (seconds)", min_value=1, max_value=60, value=3, step=1
+    )
 
     # Initialize state
     if 'discipline_score' not in st.session_state:
@@ -160,6 +162,21 @@ def main():
         st.session_state.profit_efficiency = 68
         st.session_state.current_pnl = 2847
         st.session_state.daily_target = 4000
+
+    # Update metrics
+    st.session_state.current_pnl += (np.random.random() - 0.5) * 50
+    st.session_state.discipline_score = max(
+        60, min(100, st.session_state.discipline_score + (np.random.random() - 0.5) * 2)
+    )
+    st.session_state.patience_index = max(
+        30, min(300, st.session_state.patience_index + (np.random.random() - 0.5) * 10)
+    )
+
+    pnl_color = "green" if st.session_state.current_pnl >= 0 else "red"
+    pnl_placeholder.markdown(
+        f"### P&L: <span style='color:{pnl_color};'>${st.session_state.current_pnl:,.0f}</span>",
+        unsafe_allow_html=True,
+    )
 
     # Page rendering
     if selection_key == "Home":
@@ -173,19 +190,7 @@ def main():
     elif selection_key == "Journal":
         journal_page()
 
-    # Simulate real-time updates
-    while True:
-        st.session_state.current_pnl += (np.random.random() - 0.5) * 50
-        st.session_state.discipline_score = max(60, min(100, st.session_state.discipline_score + (np.random.random() - 0.5) * 2))
-        st.session_state.patience_index = max(30, min(300, st.session_state.patience_index + (np.random.random() - 0.5) * 10))
-
-        pnl_color = "green" if st.session_state.current_pnl >= 0 else "red"
-        pnl_placeholder.markdown(f"### P&L: <span style='color:{pnl_color};'>${st.session_state.current_pnl:,.0f}</span>", unsafe_allow_html=True)
-        
-        if selection_key == "Home":
-            st.rerun()
-        
-        time.sleep(3)
+    st.autorefresh(interval=refresh_seconds * 1000, key="pulse_dashboard_refresh")
 
 
 if __name__ == "__main__":
