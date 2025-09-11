@@ -89,6 +89,51 @@ def run_http_server() -> None:
     server.serve_forever()
 
 
+def _write_batch(cur, batch: list[dict]) -> None:
+    """Insert a batch of payloads using the given cursor."""
+    params = []
+    for payload in batch:
+        ts_raw = payload.get("timestamp") or payload.get("ts")
+        ts = parse_ts(ts_raw)
+        symbol = payload.get("symbol")
+        params.append((ts, symbol, Json(payload)))
+    cur.executemany(
+        "INSERT INTO enriched_data (ts, symbol, payload) VALUES (%s, %s, %s)",
+        params,
+    )
+    payloads_written_to_db_total.inc(len(batch))
+
+
+def replay_to_postgres(consumer, *, batch_size: int = 100) -> None:
+    """Consume messages from ``consumer`` and persist them to Postgres."""
+    if psycopg2 is None:
+        raise RuntimeError("psycopg2 is required")
+    conn = psycopg2.connect(PG_DSN)
+    cur = conn.cursor()
+    batch: list[dict] = []
+    try:
+        while True:
+            msg = consumer.poll(1.0)
+            if msg is None:
+                break
+            if msg.error():
+                continue
+            try:
+                payload = json.loads(msg.value())
+            except Exception:
+                continue
+            batch.append(payload)
+            if len(batch) >= batch_size:
+                _write_batch(cur, batch)
+                conn.commit()
+                batch.clear()
+    finally:
+        if batch:
+            _write_batch(cur, batch)
+            conn.commit()
+        conn.close()
+
+
 def main() -> None:
     if Consumer is None or psycopg2 is None:
         print("Missing dependencies for consumer; exiting")
