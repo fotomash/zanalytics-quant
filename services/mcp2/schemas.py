@@ -9,8 +9,7 @@ from schemas.payloads import (
     SMCAnalysis,
     WyckoffAnalysis,
     MicrostructureAnalysis,
-    BehavioralMetrics,
-    UnifiedAnalysisPayload,
+    UnifiedAnalysisPayloadV1,
 )
 
 

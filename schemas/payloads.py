@@ -53,17 +53,7 @@ class MicrostructureAnalysis(BaseModel):
     toxicity_score: Optional[float] = None
 
 
-class BehavioralMetrics(BaseModel):
-    """Trader behaviour or sentiment metrics"""
-
-    sentiment: Optional[float] = None
-    positioning: Optional[float] = None
-    discipline: Optional[float] = None
-    patience: Optional[float] = None
-    notes: Optional[str] = None
-
-
-class UnifiedAnalysisPayload(BaseModel):
+class UnifiedAnalysisPayloadV1(BaseModel):
     """Aggregate payload combining all analysis dimensions"""
 
     symbol: str
@@ -74,5 +64,4 @@ class UnifiedAnalysisPayload(BaseModel):
     smc: SMCAnalysis
     wyckoff: WyckoffAnalysis
     microstructure: MicrostructureAnalysis
-    behavioral: BehavioralMetrics
     extras: Dict[str, Any] = Field(default_factory=dict)
