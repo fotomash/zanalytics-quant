@@ -3,7 +3,7 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi import Body, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse, Response, FileResponse
 from pydantic import BaseModel, ValidationError
 from typing import Any, Callable
@@ -11,15 +11,13 @@ import json
 import asyncio
 import httpx
 import time
-import logging
-from pathlib import Path
 from auth import verify_api_key
 
 try:  # pragma: no cover - optional dependency
     import pandas as pd
 except Exception:  # pragma: no cover - allow module to import without pandas
     pd = None
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from utils.time_utils import localize_tz
 
 try:  # pragma: no cover - optional dependency
@@ -48,18 +46,9 @@ init_mt5()
 
 app = FastAPI(title="Zanalytics MCP Server")
 
-logger = logging.getLogger(__name__)
-_dotenv_candidates = [Path(__file__).parent, Path("/app"), Path.cwd()]
-for base in _dotenv_candidates:
-    candidate = base / ".env"
-    if candidate.exists():
-        load_dotenv(candidate)
-        break
-else:
-    load_dotenv()
-    logger.warning(
-        "No .env file found; proceeding without loading environment variables"
-    )
+
+# Load environment variables from the closest .env if present
+load_dotenv(find_dotenv(usecwd=True), override=True)
 
 INTERNAL_API_BASE = os.getenv("INTERNAL_API_BASE", "http://django:8000")
 
@@ -117,7 +106,8 @@ async def generate_mcp_stream():
         ) + "\n"
 
 
-@app.get("/mcp")
+# Requires Authorization or X-API-Key header
+@app.get("/mcp", dependencies=[Depends(verify_api_key)])
 async def mcp_stream():
     REQUESTS.labels(endpoint="mcp").inc()
     return StreamingResponse(
@@ -127,19 +117,25 @@ async def mcp_stream():
     )
 
 
+# Requires Authorization or X-API-Key header
 @app.api_route(
     "/exec/{full_path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     dependencies=[Depends(verify_api_key)],
 )
-async def exec_proxy(request: Request, full_path: str):
+async def exec_proxy(
+    request: Request,
+    full_path: str,
+    body: dict = Body(...),
+):
+    """Proxy arbitrary requests to the internal API."""
     REQUESTS.labels(endpoint="exec").inc()
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.request(
                 method=request.method,
                 url=f"{INTERNAL_API_BASE}/{full_path}",
-                json=await request.json() if request.method != "GET" else None,
+                json=body if request.method != "GET" else None,
                 headers={
                     k: v
                     for k, v in request.headers.items()
@@ -192,8 +188,9 @@ class ExecPayload(BaseModel):
     payload: dict
 
 
+# Requires Authorization or X-API-Key header
 @app.post("/exec", dependencies=[Depends(verify_api_key)])
-async def exec_action(payload: ExecPayload):
+async def exec_action(payload: ExecPayload = Body(...)):
     """Execute trading actions via the internal API."""
     REQUESTS.labels(endpoint="exec_action").inc()
     mapping = {
@@ -224,6 +221,7 @@ async def exec_action(payload: ExecPayload):
     return resp.json()
 
 
+# Requires Authorization or X-API-Key header
 @app.post("/tool/search", dependencies=[Depends(verify_api_key)])
 async def search_tool(query: str):
     """Search available market symbols via the internal API."""
@@ -315,6 +313,7 @@ async def _handle_account_positions():
     return df.to_dict("records")
 
 
+# Requires Authorization or X-API-Key header
 @app.post("/api/v1/actions/query", dependencies=[Depends(verify_api_key)])
 async def post_actions_query(payload: ActionsQuery):
     REQUESTS.labels(endpoint="actions_query").inc()
