@@ -32,6 +32,9 @@ Current Direction (Active)
 - [Dashboard app](../dashboard/README.md)
 - [Prototype dashboards](../dashboards/README.md)
 - [Monitoring stack](monitoring.md)
+- [MCP2 connector config](connectors/mcp2_connector.yaml) – dev/prod SSE endpoints
+- [MCP2 OpenAI tools manifest](connectors/actions_openai_mcp2.yaml)
+- [MCP2 runbook](runbooks/mcp2.md)
 
 Legacy / Retired (kept for history)
 -----------------------------------
@@ -62,6 +65,9 @@ Return to [project README](../README.md)
 ## Quickstart
 
 Run this:
+
+Use the main `docker-compose.yml` and optional `docker-compose.override.yml` for local overrides.
+Legacy compose files live under `docs/legacy/`.
 
 ```bash
 docker compose up

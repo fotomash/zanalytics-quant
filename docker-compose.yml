@@ -191,12 +191,12 @@ services:
       traefik.enable: true
       traefik.docker.network: traefik-public
 
-      traefik.http.routers.django-http.rule: 'HostRegexp(`{domain: zanalytics\.app}`) && !Host(`mcp1.zanalytics.app`)' 
+      traefik.http.routers.django-http.rule: 'HostRegexp(`{domain: zanalytics\.app}`) && !Host(`mcp2.zanalytics.app`)'
       traefik.http.routers.django-http.entrypoints: http
       traefik.http.routers.django-http.middlewares: https-redirect
       traefik.http.routers.django-http.service: django-service
 
-      traefik.http.routers.django-https.rule: 'HostRegexp(`{domain: zanalytics\.app}`) && !Host(`mcp1.zanalytics.app`)' 
+      traefik.http.routers.django-https.rule: 'HostRegexp(`{domain: zanalytics\.app}`) && !Host(`mcp2.zanalytics.app`)'
       traefik.http.routers.django-https.entrypoints: https
       traefik.http.routers.django-https.tls: true
       traefik.http.routers.django-https.tls.certresolver: le
@@ -564,8 +564,11 @@ services:
       - DJANGO_API_URL=http://django:8000
       - DJANGO_API_PREFIX=/api/v1
       - BRIDGE_TOKEN=${BRIDGE_TOKEN:-}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     depends_on:
       django:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     command: >
       streamlit run Home.py --server.port=${STREAMLIT_SERVER_PORT:-8501} --server.enableCORS true --server.enableXsrfProtection false
@@ -594,32 +597,6 @@ services:
       start_period: 20s
     logging: *default-logging
 
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
-    container_name: zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - 2181:2181
-    networks:
-      - default
-
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    container_name: kafka
-    depends_on:
-      - zookeeper
-    ports:
-      - 9092:9092
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    networks:
-      - default
-
   pulse-bot:
     image: python:3.11-slim
     container_name: pulse-bot
@@ -647,8 +624,8 @@ services:
 
   info:
     build:
-      context: ./services/info
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/info/Dockerfile
     container_name: info
     restart: unless-stopped
     env_file:
@@ -684,10 +661,11 @@ services:
     volumes:
       - ./.env:/app/.env
     ports:
-    - 8001:8001
+      - "8001:8001"
     environment:
       - INTERNAL_API_BASE=http://django:8000
-      - MCP_API_KEY=${MCP_API_KEY:-}
+      - MCP2_API_KEY=${MCP2_API_KEY:-}
+      - DATABASE_URL=${DATABASE_URL:-}
     depends_on:
       - django
     networks:
@@ -696,8 +674,8 @@ services:
       <<: *default-labels
       traefik.enable: true
       traefik.docker.network: traefik-public
-      traefik.http.routers.mcp.rule: Host(`mcp1.zanalytics.app`)
-      traefik.http.routers.mcp.entrypoints: websecure  
+      traefik.http.routers.mcp.rule: Host(`mcp.zanalytics.app`)
+      traefik.http.routers.mcp.entrypoints: websecure
       traefik.http.routers.mcp.tls.certresolver: letsencrypt
       traefik.http.routers.mcp.tls: true
       traefik.http.routers.mcp.service: mcp-service
@@ -734,16 +712,195 @@ services:
     networks:
       - default
 
+  mcp2-redis:
+    image: redis:7-alpine
+    container_name: mcp2-redis
+    restart: unless-stopped
+    networks:
+      - default
+
+  mcp2-pg:
+    image: postgres:15-alpine
+    container_name: mcp2-pg
+    environment:
+      POSTGRES_PASSWORD: postgres
+    restart: unless-stopped
+    networks:
+      - default
+
+  mcp2:
+    build:
+      context: services/mcp2
+    container_name: mcp2
+    environment:
+      - REDIS_URL=redis://mcp2-redis:6379/0
+      - DATABASE_URL=postgresql://postgres:postgres@mcp2-pg:5432/postgres
+    depends_on:
+      mcp2-redis:
+        condition: service_started
+      mcp2-pg:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - traefik-public
+      - default
+    labels:
+      <<: *default-labels
+      traefik.enable: true
+      traefik.docker.network: traefik-public
+      traefik.http.routers.mcp2.rule: Host(`mcp2.zanalytics.app`)
+      traefik.http.routers.mcp2.entrypoints: websecure
+      traefik.http.routers.mcp2.tls.certresolver: letsencrypt
+      traefik.http.routers.mcp2.tls: true
+      traefik.http.routers.mcp2.service: mcp2-service
+      traefik.http.services.mcp2-service.loadbalancer.server.port: 8002
+      traefik.http.middlewares.mcp2-strip: null
+      traefik.http.routers.mcp2.middlewares: null
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - data-pipeline
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - data-pipeline
+
+  enrichment:
+    build:
+      context: .
+      dockerfile: services/enrichment/Dockerfile
+    environment:
+      KAFKA_BROKER: ${KAFKA_BROKER:-kafka:9092}
+      RAW_MARKET_DATA_TOPIC: ${RAW_MARKET_DATA_TOPIC:-raw-market-data}
+      ENRICHED_TOPIC: ${ENRICHED_TOPIC:-enriched-analysis-payloads}
+    depends_on:
+      - kafka
+    networks:
+      - data-pipeline
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: timescaledb
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-timescale}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescale-data:/var/lib/postgresql/data
+    networks:
+      - data-pipeline
+
+  persistence:
+    image: python:3.11-slim
+    container_name: persistence
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      - KAFKA_BROKERS=${KAFKA_BROKERS:-kafka:9092}
+      - TOPIC=enriched-analysis-payloads
+      - PG_DSN=postgresql://postgres:timescale@timescaledb:5432/postgres
+    command: >
+      sh -lc "pip install --no-cache-dir psycopg2-binary confluent-kafka &&
+      python services/persistence/consumer.py"
+    depends_on:
+      kafka:
+        condition: service_started
+      timescaledb:
+        condition: service_started
+    networks:
+      - data-pipeline
+
+  caching:
+    build:
+      context: .
+      dockerfile: services/caching/Dockerfile
+    environment:
+      - KAFKA_BROKERS=${KAFKA_BROKERS:-kafka:9092}
+      - KAFKA_GROUP=${KAFKA_GROUP:-caching-service}
+      - KAFKA_TOPIC=${KAFKA_TOPIC:-enriched-analysis-payloads}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - LATEST_PAYLOAD_TTL=${LATEST_PAYLOAD_TTL:-3600}
+      - ACTIVE_FVG_TTL=${ACTIVE_FVG_TTL:-3600}
+      - BEHAVIORAL_SCORE_TTL=${BEHAVIORAL_SCORE_TTL:-3600}
+    depends_on:
+      kafka:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "${CACHING_PORT:-8000}:8000" # optional metrics/health endpoint
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - data-pipeline
+      - default
+
+  vectorization-service:
+    build:
+      context: .
+      dockerfile: services/vectorization_service/Dockerfile
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      - KAFKA_GROUP_ID=${KAFKA_GROUP_ID:-vectorization-service}
+      - KAFKA_ANALYSIS_TOPIC=${KAFKA_ANALYSIS_TOPIC:-final-analysis-payloads}
+      - VECTOR_DB_URL=${VECTOR_DB_URL}
+      - VECTOR_DB_API_KEY=${VECTOR_DB_API_KEY}
+    depends_on:
+      kafka:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - data-pipeline
+      - default
+
 volumes:
   grafana-data: {}
   prometheus-data: {}
   redis-data: {}
   postgres-data: {}
   static_volume: {}
+  timescale-data: {}
 
 networks:
   default:
     driver: bridge
+  data-pipeline:
+    driver: bridge
+    internal: true
   traefik-public:
     external: true
     name: traefik-public

@@ -1,0 +1,29 @@
+{
+  "session_id": "srb_20250611_001",
+  "timestamp": "2025-06-11T10:30:00Z",
+  "delta_type": "incremental",
+  "previous_state_hash": "sha256:abc123...",
+  "changes": {
+    "trades": [
+      {
+        "id": "T001",
+        "timestamp": "2025-06-11T10:30:00Z",
+        "symbol": "EURUSD",
+        "side": "buy",
+        "size": 0.1,
+        "price": 1.08452
+      }
+    ],
+    "positions": {
+      "EURUSD": {
+        "size": 0.1,
+        "avg_price": 1.08452,
+        "pnl": 10.0
+      }
+    }
+  },
+  "metadata": {
+    "compression": "zstd",
+    "version": "1.0"
+  }
+}

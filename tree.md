@@ -368,7 +368,7 @@ ncos_realtime_engine.py
 ncos_theory_backtester.py
 predictive_scanner_config.yaml
 qrt_quantum_config.yaml
-quantum_analysis_config:
+quantum_analysis_config.yaml
 quantum_analysis_config_v2.yaml
 quantum_microstructure_analyzer.py
 smc_analyzer.py

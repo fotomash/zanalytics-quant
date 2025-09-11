@@ -1,7 +1,10 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from typing import Optional, List, Any, Dict
 import math
+from prometheus_client import Counter, Gauge, REGISTRY, generate_latest
+from schemas.health import HealthStatus
 
 try:
     import MetaTrader5 as mt5
@@ -13,6 +16,13 @@ else:
     _mt5_import_error = None
 
 app = FastAPI(title="MT5 Gateway", version="1.0.0")
+
+# Prometheus metrics
+raw_messages_published_total = Counter(
+    "raw_messages_published_total",
+    "Total raw messages published",
+)
+mt5_connection = Gauge("mt5_connection", "MT5 connection status (1=ok,0=down)")
 
 
 @app.on_event("startup")
@@ -42,9 +52,16 @@ def shutdown():
         pass
 
 
-@app.get("/health")
-def health():
-    return {"ok": True, "name": "mt5-gateway", "version": "1.0.0"}
+@app.get("/health", response_model=HealthStatus)
+def health() -> HealthStatus:
+    connected = mt5.initialize() if mt5 else False
+    mt5_connection.set(1 if connected else 0)
+    return HealthStatus.healthy("mt5-gateway", {"mt5": connected})
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    return PlainTextResponse(generate_latest(REGISTRY))
 
 
 @app.get("/routes")

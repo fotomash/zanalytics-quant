@@ -15,7 +15,37 @@ def make_behavioral_compass(
     pnl_norm: float | None = None,          # -1..+1 (inner tiny dial)
     title: str = "Behavioral Compass",
     subtitle: str | None = None,
-):
+    ) -> go.Figure:
+    """Create a Plotly figure showing a multi-ring behavioral compass.
+
+    Parameters
+    ----------
+    discipline : float, default 100.0
+        Outer green ring representing disciplined trades as a percentage.
+    patience_ratio : float, default 0.0
+        Tempo indicator in ``[-0.5, 0.5]``. Positive values draw a clockwise
+        blue arc, negative values draw a counter‑clockwise amber arc.
+    efficiency : float, default 50.0
+        Profit efficiency percentage rendered on a cyan ring. Values below
+        50\% appear faint.
+    conviction_hi_win : float, default 0.0
+        Portion of high-confidence wins displayed on the top semicircle.
+    conviction_lo_loss : float, default 0.0
+        Portion of low-confidence losses displayed on the bottom semicircle.
+    pnl_norm : float, optional
+        Normalised P&L in ``[-1, 1]``. When ``None`` the central dial is
+        omitted.
+    title : str, default "Behavioral Compass"
+        Main title shown above the compass.
+    subtitle : str, optional
+        Secondary title placed beneath ``title``; omitted when ``None``.
+
+    Returns
+    -------
+    go.Figure
+        The configured Plotly figure representing the behavioral compass.
+    """
+
     fig = go.Figure()
 
     # Background circle

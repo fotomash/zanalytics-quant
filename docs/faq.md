@@ -117,10 +117,10 @@ docker compose restart mt5
 Verify ticks with `curl "$MT5_API_URL/ticks?symbol=EURUSD&limit=1"`.
 
 **Q: Which headers carry the API key?**
-A: Send both `Authorization: Bearer $MCP_API_KEY` and `X-API-Key: $MCP_API_KEY`:
+A: Send both `Authorization: Bearer $MCP2_API_KEY` and `X-API-Key: $MCP2_API_KEY`:
 ```bash
-curl -H "Authorization: Bearer $MCP_API_KEY" \
-     -H "X-API-Key: $MCP_API_KEY" http://localhost:8001/api/...
+curl -H "Authorization: Bearer $MCP2_API_KEY" \
+     -H "X-API-Key: $MCP2_API_KEY" http://localhost:8001/api/...
 ```
 See [api-security.md](api-security.md) for rotation guidance.
 

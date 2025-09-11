@@ -1,29 +1,36 @@
-from fastapi import FastAPI, Request, HTTPException, Depends
-from fastapi.responses import StreamingResponse, Response, FileResponse
+import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from fastapi import Body, Depends, FastAPI, HTTPException, Request
+from fastapi.responses import (
+    StreamingResponse,
+    Response,
+    FileResponse,
+    JSONResponse,
+)
 from pydantic import BaseModel, ValidationError
 from typing import Any, Callable
 import json
 import asyncio
 import httpx
-import os
 import time
-import logging
-from pathlib import Path
 from auth import verify_api_key
 
 try:  # pragma: no cover - optional dependency
     import pandas as pd
 except Exception:  # pragma: no cover - allow module to import without pandas
     pd = None
-from dotenv import load_dotenv
-from utils.time import localize_tz
+from dotenv import load_dotenv, find_dotenv
+from utils.time_utils import localize_tz
 
 try:  # pragma: no cover - optional dependency
     import MetaTrader5 as mt5  # type: ignore
 except Exception:  # pragma: no cover - allow module to import without MT5
     mt5 = None
-from .mt5_adapter import init_mt5
-from .models import (
+from mt5_adapter import init_mt5
+from models import (
     ACCOUNT_POSITIONS,
     SESSION_BOOT,
     TRADES_HISTORY_MT5,
@@ -40,22 +47,23 @@ from prometheus_client import (
     REGISTRY,
 )
 
+try:  # pragma: no cover - optional dependency
+    import redis
+except Exception:  # pragma: no cover - allow module to import without redis
+    redis = None
+
+try:  # pragma: no cover - optional dependency
+    import asyncpg  # type: ignore
+except Exception:  # pragma: no cover - allow module to import without asyncpg
+    asyncpg = None
+
 init_mt5()
 
 app = FastAPI(title="Zanalytics MCP Server")
 
-logger = logging.getLogger(__name__)
-_dotenv_candidates = [Path(__file__).parent, Path("/app"), Path.cwd()]
-for base in _dotenv_candidates:
-    candidate = base / ".env"
-    if candidate.exists():
-        load_dotenv(candidate)
-        break
-else:
-    load_dotenv()
-    logger.warning(
-        "No .env file found; proceeding without loading environment variables"
-    )
+
+# Load environment variables from the closest .env if present
+load_dotenv(find_dotenv(usecwd=True), override=True)
 
 INTERNAL_API_BASE = os.getenv("INTERNAL_API_BASE", "http://django:8000")
 
@@ -76,10 +84,50 @@ MCP_TIMESTAMP = Gauge(
 @app.get("/health")
 async def health():
     REQUESTS.labels(endpoint="health").inc()
-    try:
-        return {"status": "MT5 ready", "equity": mt5.account_info().equity}
+
+    deps: dict[str, bool] = {}
+    equity: float | None = None
+
+    # MT5 dependency
+    try:  # pragma: no cover - MT5 may not be available in tests
+        equity = mt5.account_info().equity  # type: ignore[union-attr]
+        deps["mt5"] = True
     except Exception:
-        return {"status": "MT5 not ready"}
+        deps["mt5"] = False
+
+    # Redis dependency
+    try:
+        if redis is None:
+            raise RuntimeError("redis client not available")
+        rurl = os.getenv("REDIS_URL", "redis://redis:6379/0")
+        r = redis.Redis.from_url(rurl)
+        r.ping()
+        deps["redis"] = True
+    except Exception:
+        deps["redis"] = False
+
+    # Postgres dependency
+    try:
+        if asyncpg is None:
+            raise RuntimeError("asyncpg not available")
+        dsn = os.getenv(
+            "DATABASE_URL",
+            "postgresql://postgres:postgres@postgres:5432/postgres",
+        )
+        conn = await asyncpg.connect(dsn)
+        await conn.execute("SELECT 1")
+        await conn.close()
+        deps["postgres"] = True
+    except Exception:
+        deps["postgres"] = False
+
+    healthy = all(deps.values())
+    payload: dict[str, Any] = {"status": "ok" if healthy else "error", "dependencies": deps}
+    if equity is not None:
+        payload["equity"] = equity
+
+    status_code = 200 if healthy else 503
+    return JSONResponse(status_code=status_code, content=payload)
 
 
 @app.get("/.well-known/openai.yaml", include_in_schema=False)
@@ -113,7 +161,8 @@ async def generate_mcp_stream():
         ) + "\n"
 
 
-@app.get("/mcp")
+# Requires Authorization or X-API-Key header
+@app.get("/mcp", dependencies=[Depends(verify_api_key)])
 async def mcp_stream():
     REQUESTS.labels(endpoint="mcp").inc()
     return StreamingResponse(
@@ -123,19 +172,25 @@ async def mcp_stream():
     )
 
 
+# Requires Authorization or X-API-Key header
 @app.api_route(
     "/exec/{full_path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     dependencies=[Depends(verify_api_key)],
 )
-async def exec_proxy(request: Request, full_path: str):
+async def exec_proxy(
+    request: Request,
+    full_path: str,
+    body: dict = Body(...),
+):
+    """Proxy arbitrary requests to the internal API."""
     REQUESTS.labels(endpoint="exec").inc()
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.request(
                 method=request.method,
                 url=f"{INTERNAL_API_BASE}/{full_path}",
-                json=await request.json() if request.method != "GET" else None,
+                json=body if request.method != "GET" else None,
                 headers={
                     k: v
                     for k, v in request.headers.items()
@@ -188,8 +243,9 @@ class ExecPayload(BaseModel):
     payload: dict
 
 
+# Requires Authorization or X-API-Key header
 @app.post("/exec", dependencies=[Depends(verify_api_key)])
-async def exec_action(payload: ExecPayload):
+async def exec_action(payload: ExecPayload = Body(...)):
     """Execute trading actions via the internal API."""
     REQUESTS.labels(endpoint="exec_action").inc()
     mapping = {
@@ -220,6 +276,7 @@ async def exec_action(payload: ExecPayload):
     return resp.json()
 
 
+# Requires Authorization or X-API-Key header
 @app.post("/tool/search", dependencies=[Depends(verify_api_key)])
 async def search_tool(query: str):
     """Search available market symbols via the internal API."""
@@ -311,6 +368,7 @@ async def _handle_account_positions():
     return df.to_dict("records")
 
 
+# Requires Authorization or X-API-Key header
 @app.post("/api/v1/actions/query", dependencies=[Depends(verify_api_key)])
 async def post_actions_query(payload: ActionsQuery):
     REQUESTS.labels(endpoint="actions_query").inc()

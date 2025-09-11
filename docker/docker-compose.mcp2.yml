@@ -1,0 +1,56 @@
+version: '3'
+
+services:
+  mcp2:
+    image: mcp2:latest
+    depends_on:
+      - postgres
+      - redis
+    env_file:
+      - ../.env
+    environment:
+      MCP2_API_KEY: ${MCP2_API_KEY}
+      DATABASE_URL: ${DATABASE_URL}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-public"
+      - "traefik.http.routers.mcp2.rule=Host(`mcp2.example.com`)"
+      - "traefik.http.routers.mcp2.entrypoints=https"
+      - "traefik.http.routers.mcp2.tls.certresolver=le"
+      - "traefik.http.services.mcp2.loadbalancer.server.port=8002"
+    volumes:
+      - mcp2-data:/app/data
+    networks:
+      - traefik-public
+      - mcp2-network
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    networks:
+      - mcp2-network
+
+  postgres:
+    image: postgres:15-alpine
+    env_file:
+      - ../.env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - mcp2-network
+
+volumes:
+  mcp2-data:
+  redis-data:
+  postgres-data:
+
+networks:
+  mcp2-network:
+    driver: bridge
+  traefik-public:
+    external: true

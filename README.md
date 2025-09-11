@@ -2,7 +2,7 @@
 
 Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, Postgres, and Streamlit. Now with LLM‑native Actions and safe position control (partials, scaling, hedging).
 
-For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation.
+For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation. Redis cache design and deployment steps live in [redis_architecture/README.md](redis_architecture/README.md).
 
 ## Table of Contents
 - [What's Inside](#whats-inside)
@@ -19,6 +19,7 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [Journaling (ZBAR)](#journaling-zbar)
 - [Typical User Scenarios](#typical-user-scenarios)
 - [Data Enrichment & Customization](#data-enrichment-customization)
+- [Confidence Trace Matrix](#confidence-trace-matrix)
 - [Example .env Configuration](#example-env-configuration)
 - [Security & Access Control](#security-access-control)
 - [API Health Check and Query Examples](#api-health-check-and-query-examples)
@@ -33,6 +34,7 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [Full API Documentation](#full-api-documentation)
 - [FAQ](#faq)
 - [Troubleshooting Gold Mine](#troubleshooting-gold-mine)
+- [MCP2 Runbook](#mcp2-runbook)
 - [Pulse Dashboard Prototype](#pulse-dashboard-prototype)
 - [Further Reading](#further-reading)
 
@@ -55,6 +57,8 @@ graph LR
   Streamlit[Dashboards] --> Django
   MT5 -->|positions/history| Django
 ```
+
+For detailed network flows, MCP2 responsibilities, and storage topology, see [docs/architecture.md](docs/architecture.md).
 
 ## System Overview
 
@@ -92,6 +96,9 @@ Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/
    [Environment Variables](#environment-variables) for a summary of the most important settings and
    [docs/env-reference.md](docs/env-reference.md) for the complete table.
 
+The active Docker Compose files are `docker-compose.yml` and optional `docker-compose.override.yml` for local overrides.
+Legacy compose configurations have been archived under `docs/legacy/`.
+
 3. **Build and start the platform:**
     ```bash
     docker network create traefik-public
@@ -99,14 +106,20 @@ Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/
     docker compose up -d
     ```
 
-4. **Check all services:**
+4. **Apply database migrations:** run `mcp2.sql` to create the `mcp_docs` table and its `created_at` index.
+    ```bash
+    docker compose exec postgres \
+      psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f db/migrations/mcp2.sql
+    ```
+
+5. **Check all services:**
     ```bash
     docker compose ps
     docker compose logs dashboard
     docker compose logs mt5
     ```
 
-5. **Access the dashboards and APIs:**
+6. **Access the dashboards and APIs:**
     - **Streamlit Dashboard:**  
       Open `http://localhost:8501` or your mapped domain.
     - **MT5 API:**  
@@ -120,8 +133,8 @@ Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/
 
 ## Environment Variables
 
-Copy `.env.template` to `.env`, fill in the sensitive values, and keep the real
-file out of version control. Docker Compose reads `.env` through its `env_file`
+Copy `.env.sample` (or `.env.template` for the full set) to `.env`, fill in the sensitive values, and keep the real
+file out of version control. Never commit secrets to the repository. Docker Compose reads `.env` through its `env_file`
 directive and injects those variables into services like `mcp`. In CI pipelines,
 provide the same variables via your environment or secret manager—containers no
 longer mount `.env` directly.
@@ -135,10 +148,30 @@ Key variables to configure before launching:
 - `BRIDGE_TOKEN` – optional token sent as `X-Bridge-Token` header.
 - `VNC_DOMAIN`, `TRAEFIK_DOMAIN`, `TRAEFIK_USERNAME`, `ACME_EMAIL` – domains and Traefik settings.
 - `DJANGO_SECRET_KEY` – secret key for Django.
-- `MCP_API_KEY` – secret used by the `mcp` service. Add it to `.env` and Compose
+- `MCP2_API_KEY` – secret used by the `mcp` service. Add it to `.env` and Compose
   or CI will inject it; use a 32‑hex‑character value.
+- `HEALTH_AGGREGATOR_URL` – base URL for the health aggregator queried by the
+  dashboard's diagnostics panel.
 
 For the complete list of variables, see [docs/env-reference.md](docs/env-reference.md).
+
+---
+
+### Execution Validation Settings
+
+The engine reads optional execution safeguards from
+`config/execution_validation.yaml`:
+
+```yaml
+# Execution validation configuration
+confidence_threshold: 0.8
+fallback_limits:
+  max_retries: 3
+```
+
+`confidence_threshold` defines the minimum confidence required before an
+execution proceeds. Values below this threshold can trigger logic defined in
+`fallback_limits`, such as retry limits or alternative handlers.
 
 ---
 
@@ -209,6 +242,17 @@ Examples of real-time viewing, enrichment jobs, and troubleshooting. [docs/user_
 ## Data Enrichment & Customization
 
 Extend scripts in `utils/` to build custom features and dashboards. [Workflow](docs/data_enrichment_customization.md).
+
+## Confidence Trace Matrix
+
+`confidence_trace_matrix.json` at the repository root configures staged confidence scoring. Each stage includes a numeric `weight` and a `bounds` object with `min` and `max` values:
+
+- **raw_calculation** – base confidence derived from raw signals.
+- **simulation_adjustment** – modifies that score using simulated scenarios.
+- **normalize** – scales the adjusted value to a standard range.
+- **ensemble_contribution** – blends confidence across multiple models.
+
+Weights typically sum to 1.0 and bounds constrain each stage's output.
 
 ---
 
@@ -419,11 +463,15 @@ See [docs/mcp_troubleshooting.md](docs/mcp_troubleshooting.md) for Traefik label
 
 1. First sign of death: Whisperer says stopped talking to connector. Curl to /mcp gives heartbeat → MCP alive. Curl to /exec gives 404. → Traefik not routing. Added traefik.http.routers.mcp.rule=Host(mcp1.zanalytics.app) and port 8001:8001 → still 404.
 2. Localhost test: curl http://localhost:8001/exec → connection refused. → Port not exposed. Added ports: - 8001:8001 in compose → now connects, but still 404.
-3. Auth 401: curl -H "Authorization: Bearer your-dev-secret-123" -H "X-API-Key: your-dev-secret-123" → Unauthorized. → Env var wrong name. Code uses MCP_API_KEY, not API_KEY. Fixed .env → restart mcp → still 401. → Restart doesn't reload env in FastAPI. Had to --build the container to pick up MCP_API_KEY=your-dev-secret-123.
+3. Auth 401: curl -H "Authorization: Bearer your-dev-secret-123" -H "X-API-Key: your-dev-secret-123" → Unauthorized. → Env var wrong name. Code uses MCP2_API_KEY, not API_KEY. Fixed .env → restart mcp → still 401. → Restart doesn't reload env in FastAPI. Had to --build the container to pick up MCP2_API_KEY=your-dev-secret-123.
 4. Still 404 after auth works: Endpoint name wrong. Code has @app.post(/exec) but Whisperer hits /api/v1/actions/query. → Not our fault-Whisperer's connector config was hardcoded to old path. Updated connector to match real route: /exec.
 5. Pop-up hell: Whisperer says requires approval. → MCP middleware blocks unless approve:true sent. Added flag, updated curl, merged PR 241. Now auto-approves boot & equity.
 6. Wine/MetaTrader feed dead: Whisperer shows yesterday's trades. → MT5 popped resolution dialog, never clicked. Had to manually OK after reboot → feed starts. Documented in FAQ as manual step.
 7. Ghost containers eating ports: docker ps shows pulse-kernel, tick-to-bar on 8001. → docker stop pulse-kernel tick-to-bar → mcp binds clean. End result: curl -k -H "Authorization: Bearer your-dev-secret-123" -H "X-API-Key: your-dev-secret-123" -X POST https://mcp1.zanalytics.app/exec -d '{"type":"session_boot","approve":true}' → returns real equity, positions, risk. Whisperer loads without pop-up. Save this. Every time something breaks, start here-no bush, no circles.
+
+## MCP2 Runbook
+
+For startup commands, endpoint tests, and database maintenance, see the [MCP2 Runbook](docs/runbooks/mcp2.md).
 
 ---
 

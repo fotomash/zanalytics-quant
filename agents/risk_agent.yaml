@@ -1,0 +1,23 @@
+agent:
+  id: "risk_agent"
+  name: "Risk Agent"
+  version: "1.0.0"
+  type: "risk"
+
+  capabilities:
+    - risk_evaluation
+
+  domain:
+    primary: "risk_management"
+    secondary: []
+
+  entry_points:
+    on_message: "services.risk.handler"
+
+  routing:
+    primary: false
+    fallback: []
+    hints:
+      keywords:
+        - risk
+

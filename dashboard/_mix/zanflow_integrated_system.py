@@ -504,7 +504,10 @@ async def run_integrated_dashboard():
                             # Send alert if confluence is high
                             if enable_telegram and analysis.get('confluence_score', 0) >= min_confluence:
                                 alert_message = telegram_alerts.format_trade_alert(analysis, symbol)
-                                await telegram_alerts.send_alert(alert_message)
+                                try:
+                                    await telegram_alerts.send_alert(alert_message)
+                                except NotImplementedError:
+                                    st.warning("Alerting is not yet implemented.")
 
                 else:
                     st.warning("No data files found in configured directory")

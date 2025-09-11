@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from utils.smc_analyzer import SMCAnalyzer
+from core.smc_analyzer import SMCAnalyzer
 
 
 def _sample_df(rows: int = 60) -> pd.DataFrame:

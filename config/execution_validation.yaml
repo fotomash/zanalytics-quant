@@ -1,0 +1,5 @@
+# Execution validation configuration
+confidence_threshold: 0.8
+fallback_limits:
+  max_retries: 3
+  max_fallbacks: 1
