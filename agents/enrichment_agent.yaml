@@ -27,3 +27,12 @@ agent:
   entry_points:
     on_init: "services.enrichment.initialize"
     on_message: "services.enrichment.handler"
+
+  routing:
+    primary: true
+    fallback:
+      - analysis_agent
+    hints:
+      keywords:
+        - enrich
+        - data

@@ -1,0 +1,6 @@
+{
+  "test_agent": {
+    "simulation_adjustment": 0.1,
+    "normalization": 1.0
+  }
+}
