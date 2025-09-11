@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from typing import Any, Dict
 
 from confluent_kafka import Message
@@ -12,6 +13,14 @@ def on_message(ctx: Dict[str, Any], msg: Message) -> None:
     try:
         payload = build_unified_analysis(tick)
         ctx["producer"].produce(ctx["enriched_topic"], value=payload.model_dump_json())
+        decision = "produced_payload"
     except Exception as e:  # pragma: no cover - log and continue
         print(f"analysis error: {e}")
+        decision = f"error: {e}"
+    ctx["journal"].append(
+        action="enrich_tick",
+        decision=decision,
+        instrument=ctx.get("instrument_pair"),
+        timeframe=ctx.get("timeframe"),
+    )
     ctx["consumer"].commit(msg)
