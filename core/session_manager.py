@@ -34,7 +34,7 @@ def build_session_manifest(
         if value is not None:
             manifest[key] = value
 
-    manifest.setdefault("prompt_version", "v1")
+    manifest.setdefault("version", "1.0")
     metadata = manifest.setdefault("metadata", {})
     if not metadata.get("created_at"):
         metadata["created_at"] = datetime.utcnow().isoformat()

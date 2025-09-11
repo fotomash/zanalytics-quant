@@ -82,7 +82,7 @@ agent_profile_module = ModuleType("schemas.agent_profile_schemas")
 class PipelineConfig(BaseModel):
     stages: list[str] = []
 class SessionManifest(BaseModel):
-    prompt_version: str = "v1"
+    version: str = "1.0"
     instrument_pair: str
     timeframe: str
     topics: object
@@ -201,7 +201,7 @@ def test_stage_order_and_success_publishes_output(monkeypatch):
     stage_map = {name: stage_factory(name) for name in stages}
 
     manifest = SimpleNamespace(
-        prompt_version="v1",
+        version="1.0",
         instrument_pair="EURUSD",
         timeframe="M1",
         topics=SimpleNamespace(consume=["input"], produce="output"),
@@ -245,7 +245,7 @@ def test_stage_failure_stops_processing_and_journals(monkeypatch):
     }
 
     manifest = SimpleNamespace(
-        prompt_version="v1",
+        version="1.0",
         instrument_pair="EURUSD",
         timeframe="M1",
         topics=SimpleNamespace(consume=["input"], produce="output"),
