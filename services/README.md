@@ -39,3 +39,18 @@ Key endpoints:
 
 For operational details, see the [mcp2 runbook](../docs/runbooks/mcp2.md).
 
+Telegram Bot
+------------
+
+Build and run the Telegram service:
+
+```
+docker compose -f services/docker-compose.yml up telegram
+```
+
+Ensure the following environment variables are set before starting:
+
+- `KAFKA_BROKER` – address of the Kafka broker (default `kafka:9092`)
+- `TELEGRAM_BOT_TOKEN` – token for your Telegram bot
+- `TELEGRAM_CHAT_ID` – destination chat ID for messages
+
