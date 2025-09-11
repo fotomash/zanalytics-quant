@@ -8,6 +8,7 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [What's Inside](#whats-inside)
 - [Architecture](#architecture)
 - [System Overview](#system-overview)
+- [Quick Start: MCP2 Metrics & Streams](#quick-start-mcp2-metrics--streams)
 - [Getting Started – Quick Launch](#getting-started-quick-launch)
 - [Environment Variables](#environment-variables)
 - [MT5 service vs. Django API](#mt5-service-vs-django-api)
@@ -77,6 +78,28 @@ The Zanalytics Quant platform is architected to meet the rigorous demands of pro
 - **Streamlit Dashboard** offers a user-friendly, interactive frontend for visualization and analysis. It consumes data from the Django API and Redis cache, presenting live and historical market insights with customizable charts and controls.
 
 This modular design facilitates secure separation of concerns, easy extensibility for new features or data sources, and robust performance for professional quant workflows.
+
+
+## Quick Start: MCP2 Metrics & Streams
+
+```bash
+export MCP_HOST=http://localhost:8002
+export MCP2_API_KEY=your-dev-key
+
+# Authenticated doc search
+curl -H "X-API-Key: $MCP2_API_KEY" "$MCP_HOST/search_docs?query=alpha"
+
+# Prometheus metrics
+curl "$MCP_HOST/metrics" | head
+
+# Optional Kafka topic (no-op if brokers unset)
+export KAFKA_BROKERS=localhost:9092
+# payloads go to enriched-analysis-payloads
+
+# Inspect Redis Streams
+redis-cli XRANGE ml:signals - + LIMIT 5
+redis-cli XRANGE ml:risk - + LIMIT 5
+```
 
 ---
 
