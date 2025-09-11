@@ -111,3 +111,10 @@ def journal_recent(limit: int = 25):
         if raw:
             out.append(json.loads(raw))
     return {"items": out}
+
+
+@app.on_event("shutdown")
+async def shutdown_event() -> None:
+    """Release resources on application shutdown."""
+    k = PulseRuntime.kernel()
+    k.flush_and_close()

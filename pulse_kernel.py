@@ -364,9 +364,24 @@ class PulseKernel:
         pass
 
     def flush_and_close(self) -> None:
-        """Cleanup method to ensure Kafka producer flushes messages."""
-        self.kafka_producer.flush()
-        self.kafka_producer.close()
+        """Cleanup method to ensure Kafka and Redis resources are released."""
+        try:
+            # Flush pending Kafka messages and close the producer
+            self.kafka_producer.flush()
+        finally:
+            try:
+                self.kafka_producer.close()
+            except Exception:
+                pass
+
+        # Close Redis connection pool
+        try:
+            self.redis_client.close()
+        except Exception:
+            try:
+                self.redis_client.connection_pool.disconnect()
+            except Exception:
+                pass
 
     def get_status(self) -> Dict:
         """Get current system status"""
