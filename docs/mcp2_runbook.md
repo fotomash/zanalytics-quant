@@ -24,11 +24,11 @@ Verify the service root and the `/exec` endpoint:
 
 ```bash
 # SSE heartbeat
-curl -k https://mcp1.zanalytics.app/mcp | head -3
+curl -k https://mcp2.zanalytics.app/mcp | head -3
 
 # Session boot
 curl -k -H "Authorization: Bearer $MCP2_API_KEY" -H "X-API-Key: $MCP2_API_KEY" \
-  -X POST https://mcp1.zanalytics.app/exec \
+  -X POST https://mcp2.zanalytics.app/exec \
   -d '{"type":"session_boot","approve":true}'
 ```
 
