@@ -6,8 +6,7 @@ from .payloads import (
     SMCAnalysis,
     WyckoffAnalysis,
     MicrostructureAnalysis,
-    BehavioralMetrics,
-    UnifiedAnalysisPayload,
+    UnifiedAnalysisPayloadV1,
 )
 
 __all__ = [
@@ -16,6 +15,5 @@ __all__ = [
     "SMCAnalysis",
     "WyckoffAnalysis",
     "MicrostructureAnalysis",
-    "BehavioralMetrics",
-    "UnifiedAnalysisPayload",
+    "UnifiedAnalysisPayloadV1",
 ]
