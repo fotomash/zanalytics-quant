@@ -1,6 +1,10 @@
-"""
-ConfluenceScorer - Multi-Strategy Signal Fusion
-Wraps existing analyzers to produce unified scoring
+"""Predictive scoring utilities.
+
+This module was formerly :mod:`confluence_scorer` and has been relocated to
+``core.predictive_scorer``.  The :class:`PredictiveScorer` combines multiple
+analysis engines to produce a single maturity score and grade.  For backward
+compatibility the same implementation is also exposed as
+``ConfluenceStacker``.
 """
 
 import numpy as np
@@ -17,7 +21,7 @@ from components.technical_analysis import TechnicalAnalysis
 logger = logging.getLogger(__name__)
 
 
-class ConfluenceScorer:
+class PredictiveScorer:
     """Combine signals from multiple analysis methods into a single score."""
 
     def __init__(self, config_path: str = "pulse_config.yaml"):
@@ -47,21 +51,21 @@ class ConfluenceScorer:
             'low': 40
         }
         
-    def score(self, data: Dict) -> Dict:
-        """
-        Calculate confluence score from market data.
-        
+    def score(self, state: Dict) -> Dict:
+        """Calculate maturity score from market data.
+
         Args:
-            data: Normalized market data frame
-            
+            state: Normalized market data frame
+
         Returns:
-            Dict with score, grade, components, and reasons
+            Dict containing ``maturity_score`` and ``grade`` keys along with
+            additional diagnostic information.
         """
         try:
             # Get individual scores
-            smc_result = self._score_smc(data)
-            wyckoff_result = self._score_wyckoff(data)
-            technical_result = self._score_technical(data)
+            smc_result = self._score_smc(state)
+            wyckoff_result = self._score_wyckoff(state)
+            technical_result = self._score_technical(state)
             
             # Calculate weighted score
             final_score = (
@@ -82,30 +86,30 @@ class ConfluenceScorer:
             )
             
             return {
-                'score': round(final_score, 1),
+                'maturity_score': round(final_score, 1),
                 'grade': grade,
                 'components': {
                     'smc': smc_result['score'],
                     'wyckoff': wyckoff_result['score'],
-                    'technical': technical_result['score']
+                    'technical': technical_result['score'],
                 },
                 'reasons': reasons,
                 'reasoning': reasons,
                 'details': {
                     'smc': smc_result['details'],
                     'wyckoff': wyckoff_result['details'],
-                    'technical': technical_result['details']
-                }
+                    'technical': technical_result['details'],
+                },
             }
             
         except Exception as e:
             logger.error(f"Error calculating confluence score: {e}")
             return {
-                'score': 0,
+                'maturity_score': 0,
                 'grade': 'error',
                 'components': {},
                 'reasons': [f'Error: {str(e)}'],
-                'reasoning': [f'Error: {str(e)}']
+                'reasoning': [f'Error: {str(e)}'],
             }
     
     def _score_smc(self, data: Dict) -> Dict:
@@ -259,3 +263,8 @@ class ConfluenceScorer:
             reasons.insert(0, '⚠️ LOW CONFLUENCE')
             
         return reasons[:5]  # Limit to top 5 reasons
+
+
+# Backwards compatible alias
+ConfluenceStacker = PredictiveScorer
+
