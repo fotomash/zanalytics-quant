@@ -1,4 +1,5 @@
 import numpy as np
+import numpy as np
 import pytest
 import requests
 
@@ -7,8 +8,9 @@ from services.vectorization_service.brown_vector_store_integration import BrownV
 
 
 @pytest.fixture(autouse=True)
-def reset_vectorizer():
-    pipeline._VECTORIZER = None
+def fake_embed(monkeypatch):
+    """Provide a lightweight deterministic embedding for tests."""
+    monkeypatch.setattr(pipeline, "embed", lambda text: [0.1, 0.2])
 
 
 def test_process_payload_generates_embedding():
