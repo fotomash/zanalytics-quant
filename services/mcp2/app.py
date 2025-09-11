@@ -1,7 +1,10 @@
-from fastapi import FastAPI
+import os
+from fastapi import FastAPI, Depends
+from .auth import verify_api_key
 from .routers.tools import router as tools_router
 
-app = FastAPI()
+dependencies = [Depends(verify_api_key)] if os.getenv("MCP2_API_KEY") else []
+app = FastAPI(dependencies=dependencies)
 
 
 @app.get('/health')

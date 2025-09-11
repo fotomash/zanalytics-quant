@@ -11,6 +11,13 @@ An OpenAI tools manifest at [`docs/connectors/actions_openai_mcp2.yaml`](connect
 | `log_enriched_trade` | `POST /log_enriched_trade` |
 | `get_recent_trades` | `GET /trades/recent` |
 
+## Authentication
+Set `MCP2_API_KEY` to enable request authentication. When set, clients must provide the key in either an `X-API-Key` header or an `Authorization: Bearer <key>` header.
+
+```bash
+curl -H "X-API-Key: $MCP2_API_KEY" $MCP_HOST/health
+```
+
 ## Startup
 Build and run the service locally:
 
@@ -24,7 +31,7 @@ docker run --rm -p 8002:8002 mcp2-service \
 Verify the service is up:
 
 ```bash
-curl -s $MCP_HOST/health
+curl -s -H "X-API-Key: $MCP2_API_KEY" $MCP_HOST/health
 ```
 
 ## Trade Logging
@@ -32,15 +39,16 @@ Submit a trade payload using the `StrategyPayloadV1` schema:
 
 ```bash
 curl -s -X POST -H 'Content-Type: application/json' \
+  -H "X-API-Key: $MCP2_API_KEY" \
   --data '{"strategy":"demo","timestamp":"2024-01-01T00:00:00Z","market":{"symbol":"AAPL","timeframe":"1D"},"features":{},"risk":{},"positions":{}}' \
   $MCP_HOST/log_enriched_trade
 ```
 
 ## Doc Search
 Query indexed documentation:
-
 ```bash
-curl -s "$MCP_HOST/search_docs?query=alpha"
+
+curl -s -H "X-API-Key: $MCP2_API_KEY" "$MCP_HOST/search_docs?query=alpha"
 ```
 
 ## Payload Retrieval
@@ -48,8 +56,8 @@ Fetch stored payloads:
 
 ```bash
 # by id
-curl -s "$MCP_HOST/fetch_payload?id=<id>"
+curl -s -H "X-API-Key: $MCP2_API_KEY" "$MCP_HOST/fetch_payload?id=<id>"
 
 # recent trades
-curl -s "$MCP_HOST/trades/recent?limit=5"
+curl -s -H "X-API-Key: $MCP2_API_KEY" "$MCP_HOST/trades/recent?limit=5"
 ```
