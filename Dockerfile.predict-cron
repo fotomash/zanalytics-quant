@@ -2,5 +2,7 @@ FROM python:3.11-slim
 WORKDIR /app
 RUN pip install --no-cache-dir redis pyyaml
 COPY scripts/predict_cron.py ./predict_cron.py
+COPY config/predict_cron.yaml ./config/predict_cron.yaml
+
 COPY config/predict_cron.yaml config/
 CMD ["python", "predict_cron.py"]
