@@ -1,0 +1,14 @@
+rules:
+  - id: corr_gt_0_8
+    pattern: "corr_cluster>=0.8"
+    caution: "high"
+    reason: "Overlapping exposure linked to drawdowns"
+  - id: sweep_trap_low_conf
+    pattern: "sweep_prob>=0.7 AND confidence<0.6"
+    caution: "medium"
+    reason: "High sweep with weak confidence → inducement risk"
+  - id: vol_spike_low
+    pattern: "phase=neutral AND volume<50"
+    caution: "low"
+    reason: "Low participation; prone to false signals"
+

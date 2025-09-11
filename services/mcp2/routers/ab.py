@@ -92,17 +92,9 @@ async def _call_openai(prompt: str) -> str:
         # Offline stub mirrors the contract
         return json.dumps({"label": "skip", "priority": "low", "action": "wait", "reason": "openai off"})
     client = OpenAI(api_key=api_key)
-    try:
-        msg = await redis_client.redis.execute_command(  # small trick to avoid blocking event loop
-            "EVAL",
-            "return 1",
-            0,
-        )
-        # Run blocking OpenAI call in a thread
-    except Exception:
-        pass
     from asyncio import to_thread
 
+    # Run blocking OpenAI call in a thread
     resp = await to_thread(
         client.chat.completions.create,
         model=model,
@@ -136,6 +128,7 @@ async def _maybe_publish(diff: dict[str, Any], prompt: str, en: dict[str, Any], 
             "whisper": wh,
         }
         await redis_client.redis.publish("telegram-alerts", json.dumps(payload))
+        AB_PUBLISHED.inc()
         return True
     except Exception:
         return False
@@ -146,6 +139,7 @@ async def ab_echonudge_whisperer(body: ABRequest) -> ABResponse:
     prompt = body.prompt or _compose_prompt(body.scenario or "", body.features)
 
     # EchoNudge via Ollama
+    AB_RUNS.labels("echonudge").inc()
     en_raw = await _call_ollama(prompt)
     try:
         en = json.loads(en_raw)
@@ -155,6 +149,7 @@ async def ab_echonudge_whisperer(body: ABRequest) -> ABResponse:
         raise HTTPException(status_code=502, detail="invalid EchoNudge JSON")
 
     # Whisperer via OpenAI (same contract/system prompt)
+    AB_RUNS.labels("whisperer").inc()
     wh_raw = await _call_openai(prompt)
     try:
         wh = json.loads(wh_raw)
@@ -170,3 +165,13 @@ async def ab_echonudge_whisperer(body: ABRequest) -> ABResponse:
 
     return ABResponse(prompt=prompt, echonudge=en, whisperer=wh, conflict=conflict, diff=d, published=published)
 
+
+# Metrics
+from prometheus_client import Counter, REGISTRY
+
+AB_RUNS = Counter(
+    "mcp2_ab_runs_total", "A/B runs per engine", ["engine"], registry=REGISTRY
+)
+AB_PUBLISHED = Counter(
+    "mcp2_ab_conflicts_published_total", "Conflicts published to Redis", registry=REGISTRY
+)
