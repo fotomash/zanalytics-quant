@@ -9,14 +9,30 @@ from __future__ import annotations
 import json
 import os
 import traceback
+from datetime import datetime
 from importlib import import_module
 from pathlib import Path
 from typing import Any, Dict, List
 
 import yaml
-from confluent_kafka import Consumer, Producer, KafkaError
+from confluent_kafka import Consumer, KafkaError, Producer
 
+from core.predictive_scorer import PredictiveScorer
 from core.session_journal import SessionJournal
+from schemas import (
+    ISPTSPipelineResult,
+    MarketContext,
+    MicrostructureAnalysis,
+    PredictiveAnalysisResult,
+    SMCAnalysis,
+    TechnicalIndicators,
+    UnifiedAnalysisPayloadV1,
+    WyckoffAnalysis,
+)
+from schemas.predictive_schemas import (
+    ConflictDetectionResult,
+    PredictiveScorerResult,
+)
 
 KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:9092")
 SESSION_MANIFEST = Path("session_manifest.yaml")
@@ -104,7 +120,53 @@ def main() -> None:
                 success = False
                 break
         if success:
-            producer.produce(produce_topic, json.dumps(state).encode("utf-8"))
+            scorer = PredictiveScorer()
+            score = scorer.score(state)
+            predictive = PredictiveAnalysisResult(
+                scorer=PredictiveScorerResult(
+                    maturity_score=score.get("maturity_score", 0.0),
+                    grade=score.get("grade"),
+                    confidence_factors=score.get("reasons", []),
+                    extras={
+                        "components": score.get("components", {}),
+                        "details": score.get("details", {}),
+                    },
+                ),
+                conflict_detection=ConflictDetectionResult(is_conflict=False),
+            )
+
+            pipeline = ISPTSPipelineResult(
+                context_analyzer=state.get("ContextAnalyzer", {}),
+                liquidity_engine=state.get("LiquidityEngine", {}),
+                structure_validator=state.get("StructureValidator", {}),
+                fvg_locator=state.get("FVGLocator", {}),
+                risk_manager=state.get("RiskManager", {}),
+                confluence_stacker=state.get("ConfluenceStacker", {}),
+            )
+
+            ts = tick.get("ts") or tick.get("timestamp")
+            if isinstance(ts, (int, float)):
+                timestamp = datetime.fromtimestamp(ts)
+            else:
+                timestamp = ts
+
+            payload = UnifiedAnalysisPayloadV1(
+                symbol=tick.get("symbol", instrument_pair),
+                timeframe=tick.get("timeframe", timeframe),
+                timestamp=timestamp,
+                market_context=MarketContext(
+                    symbol=tick.get("symbol", instrument_pair),
+                    timeframe=tick.get("timeframe", timeframe),
+                ),
+                technical_indicators=TechnicalIndicators(),
+                smc=SMCAnalysis(),
+                wyckoff=WyckoffAnalysis(),
+                microstructure=MicrostructureAnalysis(),
+                predictive_analysis=predictive,
+                ispts_pipeline=pipeline,
+            )
+
+            producer.produce(produce_topic, payload.model_dump_json().encode("utf-8"))
             journal.append(
                 action="pipeline_complete",
                 decision="success",
