@@ -16,7 +16,7 @@ from .predictive_schemas import (
     PredictiveScorerResult,
 )
 
-__all__ = [
+__all__ = (
     "ConflictDetectionResult",
     "ISPTSPipelineResult",
     "MarketContext",
@@ -28,4 +28,4 @@ __all__ = [
     "TechnicalIndicators",
     "UnifiedAnalysisPayloadV1",
     "WyckoffAnalysis",
-]
+)
