@@ -99,7 +99,7 @@ Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/
     docker compose up -d
     ```
 
-4. **Apply database migrations:**
+4. **Apply database migrations:** run `mcp2.sql` to create the `mcp_docs` table and its `created_at` index.
     ```bash
     docker compose exec postgres \
       psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f db/migrations/mcp2.sql
