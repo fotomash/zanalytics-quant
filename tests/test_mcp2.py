@@ -1,176 +1,114 @@
-import importlib
-from types import SimpleNamespace
-from unittest.mock import AsyncMock
-
 import pytest
 from fastapi.testclient import TestClient
-
-TEST_KEY = "test-key"
+from services.mcp2.app import app
 
 
 @pytest.fixture
-def app_client(monkeypatch):
-
-    monkeypatch.setenv("MCP2_API_KEY", TEST_KEY)
-    monkeypatch.setenv(
-        "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/postgres"
-    )
-    import services.mcp2.mcp2_server as mcp2_server
-    importlib.reload(mcp2_server)
-
+def client(monkeypatch):
     class FakeRedis:
         def __init__(self):
-            self.store = {}
-            self.get = AsyncMock(side_effect=self._get)
-            self.set = AsyncMock(side_effect=self._set)
-            self.close = AsyncMock()
+            self.kv = {}
+            self.lst = []
 
-        async def _get(self, key):
-            return self.store.get(key)
+        async def set(self, key, value):
+            self.kv[key] = value
 
-        async def _set(self, key, value, ex=None):
-            self.store[key] = value
+        async def get(self, key):
+            return self.kv.get(key)
+
+        async def lpush(self, key, value):
+            self.lst.insert(0, value)
+
+        async def lrange(self, key, start, end):
+            end = None if end == -1 else end + 1
+            return self.lst[start:end]
 
     fake_redis = FakeRedis()
-    fake_pool = SimpleNamespace(fetch=AsyncMock(), close=AsyncMock())
-
-    monkeypatch.setattr(mcp2_server, "redis_client", fake_redis)
-    monkeypatch.setattr(mcp2_server, "pg_pool", fake_pool)
     monkeypatch.setattr(
-        mcp2_server.asyncpg, "create_pool", AsyncMock(return_value=fake_pool)
+        'services.mcp2.storage.redis_client.redis', fake_redis
     )
 
-    client = TestClient(mcp2_server.app)
-    return client, fake_redis, fake_pool, mcp2_server
+    class FakePool:
+        async def fetch(self, query, *args):
+            return [{'id': 1, 'content': 'alpha document'}]
+
+    async def fake_get_pool():
+        return FakePool()
+
+    monkeypatch.setattr('services.mcp2.storage.pg.get_pool', fake_get_pool)
+    monkeypatch.setattr('services.mcp2.routers.tools.get_pool', fake_get_pool)
+
+    return TestClient(app), fake_redis
 
 
-BASE_FIELDS = {
-    "strategy": "test",
-    "symbol": "AAPL",
-    "timeframe": "1D",
-    "date": "2024-01-01T00:00:00Z",
-}
-
-
-def test_health(app_client):
-    client, _, _, _ = app_client
-    resp = client.get("/health")
-    assert resp.status_code == 200
-    assert resp.json() == {"status": "ok"}
-
-
-def test_requires_api_key_header(app_client):
-    client, _, _, _ = app_client
-    resp = client.post("/mcp/tools/search", json={"query": "hammer", **BASE_FIELDS})
-    assert resp.status_code == 401
-
-
-def test_tools_search_cache_hit(app_client):
-    client, fake_redis, fake_pool, mcp2 = app_client
-    query = "hammer"
-    cached = mcp2.ToolSearchResponse(
-        results=[mcp2.ToolInfo(id=1, name="Hammer", description="useful")],
-        payload=mcp2.BasePayload(**BASE_FIELDS),
-    )
-    fake_redis.store[f"toolsearch:{query}"] = cached.model_dump_json()
-
-    resp = client.post(
-        "/mcp/tools/search",
-        json={"query": query, **BASE_FIELDS},
-        headers={"X-API-Key": TEST_KEY},
-    )
-
-    assert resp.status_code == 200
-    fake_pool.fetch.assert_not_called()
-    assert fake_redis.get.await_count == 1
-    assert resp.json() == cached.model_dump(mode="json")
-
-
-def test_tools_search_db_fallback(app_client):
-    client, fake_redis, fake_pool, mcp2 = app_client
-    query = "saw"
-    fake_pool.fetch.return_value = [
-        {"id": 2, "name": "Saw", "description": "cutting"}
-    ]
-
-    resp = client.post(
-        "/mcp/tools/search",
-        json={"query": query, **BASE_FIELDS},
-        headers={"X-API-Key": TEST_KEY},
-    )
-
-    assert resp.status_code == 200
-    assert fake_pool.fetch.await_count == 1
-    assert fake_redis.set.await_count == 1
-
-    expected = mcp2.ToolSearchResponse(
-        results=[mcp2.ToolInfo(id=2, name="Saw", description="cutting")],
-        payload=mcp2.BasePayload(**BASE_FIELDS),
-    )
-    assert resp.json() == expected.model_dump(mode="json")
-    assert (
-        fake_redis.store[f"toolsearch:{query}"] == expected.model_dump_json()
-    )
-
-
-def test_tools_fetch_cache_hit(app_client):
-    client, fake_redis, fake_pool, mcp2 = app_client
-    tool = mcp2.ToolInfo(id=1, name="Hammer", description="useful", content="full")
-    fake_redis.store["tool:1"] = tool.model_dump_json()
-
-    resp = client.post(
-        "/mcp/tools/fetch",
-        json={"ids": [1], **BASE_FIELDS},
-        headers={"X-API-Key": TEST_KEY},
-    )
-
-    assert resp.status_code == 200
-    fake_pool.fetch.assert_not_called()
-    payload_dict = mcp2.BasePayload(**BASE_FIELDS).model_dump(mode="json")
-    assert resp.json() == {
-        "tools": [tool.model_dump(mode="json")],
-        "payload": payload_dict,
+def test_log_and_fetch(client):
+    client, _ = client
+    payload = {
+        'strategy': 'demo',
+        'symbol': 'AAPL',
+        'timeframe': '1D',
+        'date': '2024-01-01T00:00:00Z',
+        'notes': 'hello',
     }
-
-
-def test_tools_fetch_db_fallback(app_client):
-    client, fake_redis, fake_pool, mcp2 = app_client
-    fake_pool.fetch.return_value = [
-        {"id": 2, "name": "Saw", "description": "cut", "content": "full"}
-    ]
-
-    resp = client.post(
-        "/mcp/tools/fetch",
-        json={"ids": [2], **BASE_FIELDS},
-        headers={"X-API-Key": TEST_KEY},
-    )
-
+    resp = client.post('/log_enriched_trade', json=payload)
     assert resp.status_code == 200
-    assert fake_pool.fetch.await_count == 1
-    assert fake_redis.set.await_count == 1
+    trade_id = resp.json()['id']
 
-    expected_tool = mcp2.ToolInfo(
-        id=2, name="Saw", description="cut", content="full"
-    )
-    payload_dict = mcp2.BasePayload(**BASE_FIELDS).model_dump(mode="json")
-    assert resp.json() == {
-        "tools": [expected_tool.model_dump(mode="json")],
-        "payload": payload_dict,
+    resp2 = client.get('/fetch_payload', params={'id': trade_id})
+    assert resp2.status_code == 200
+    assert resp2.json()['symbol'] == 'AAPL'
+
+
+def test_search_docs(client):
+    client, _ = client
+    resp = client.get('/search_docs', params={'query': 'alpha'})
+    assert resp.status_code == 200
+    assert resp.json() == [{'id': 1, 'content': 'alpha document'}]
+
+
+def test_recent_trades(client):
+    client, _ = client
+    payload = {
+        'strategy': 'demo',
+        'symbol': 'AAPL',
+        'timeframe': '1D',
+        'date': '2024-01-01T00:00:00Z',
     }
-    assert fake_redis.store["tool:2"] == expected_tool.model_dump_json()
+    client.post('/log_enriched_trade', json=payload)
+    resp = client.get('/trades/recent', params={'limit': 1})
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
 
 
-def test_payload_validation(app_client):
-    client, _, _, _ = app_client
-    bad_payload = {
-        "query": "hammer",
-        "symbol": "AAPL",
-        "timeframe": "1D",
-        "date": "2024-01-01T00:00:00Z",
-    }
-    resp = client.post(
-        "/mcp/tools/search",
-        json=bad_payload,
-        headers={"X-API-Key": TEST_KEY},
-    )
-    assert resp.status_code == 422
+def test_redis_connectivity():
+    import os
+    import asyncio
+    import redis.asyncio as redis
+
+    url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+
+    async def check():
+        r = redis.from_url(url)
+        await r.ping()
+
+    try:
+        asyncio.run(check())
+    except Exception:
+        pytest.skip('redis not available')
+
+
+def test_postgres_connectivity():
+    import os
+    import asyncio
+    import asyncpg
+
+    url = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/postgres')
+
+    async def check():
+        conn = await asyncpg.connect(url)
+        await conn.close()
+
+    try:
+        asyncio.run(check())
+    except Exception:
+        pytest.skip('postgres not available')
