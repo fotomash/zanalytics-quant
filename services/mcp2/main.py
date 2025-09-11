@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
+import os
+from typing import Dict, List, Optional
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -52,6 +54,75 @@ async def analyze(model: str, body: StreamRequest) -> WhisperResponse:
     req = WhisperRequest(payload=payload, questions=body.questions, notes=body.notes)
     nudges = model.lower() != "simple"
     return await _suggest(req, endpoint=f"{model}/analyze", nudges=nudges)
+
+
+LOCAL_THRESHOLD = float(os.getenv("LOCAL_THRESHOLD", "0.5"))
+
+
+class AnalyzeQuery(BaseModel):
+    """Query for direct analysis selecting the appropriate LLM agent."""
+
+    symbol: str
+
+
+async def call_local_echo(prompt: str) -> str:
+    """Send the prompt to the local Ollama instance."""
+
+    url = os.getenv("LOCAL_ECHO_URL")
+    if url:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(url, json={"prompt": prompt}, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("verdict") or data.get("response") or str(data)
+        except Exception as exc:  # pragma: no cover - network failure
+            logger.error("local echo request failed: %s", exc)
+    return f"Local echo unavailable for: {prompt}"
+
+
+async def call_whisperer(prompt: str) -> str:
+    """Send the prompt to the cloud Whisperer service."""
+
+    url = os.getenv("WHISPERER_URL")
+    if url:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(url, json={"prompt": prompt}, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("verdict") or data.get("response") or str(data)
+        except Exception as exc:  # pragma: no cover - network failure
+            logger.error("whisperer request failed: %s", exc)
+    return f"Whisperer unavailable for: {prompt}"
+
+
+@app.post("/llm/analyze")
+async def analyze_query(query: AnalyzeQuery) -> Dict[str, str]:
+    """Route analysis to LocalEcho or Whisperer based on confidence score."""
+
+    key = redis_client.ns(query.symbol)
+    try:
+        entries = await redis_client.redis_streams.xrevrange(key, count=1)
+    except Exception as exc:  # pragma: no cover - redis failure
+        logger.error("redis stream read failed: %s", exc)
+        raise HTTPException(status_code=500, detail="redis error") from exc
+    if not entries:
+        raise HTTPException(status_code=404, detail="stream empty")
+
+    _, latest = entries[0]
+    prompt = latest.get("prompt", "")
+    confidence = float(latest.get("confidence", 0))
+
+    if confidence < LOCAL_THRESHOLD:
+        verdict = await call_local_echo(prompt)
+        agent = "LocalEcho"
+    else:
+        verdict = await call_whisperer(prompt)
+        agent = "Whisperer"
+
+    logger.info("llm.analyze agent=%s symbol=%s confidence=%s", agent, query.symbol, confidence)
+    return {"verdict": verdict, "agent": agent}
 
 
 __all__ = ["app"]
