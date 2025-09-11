@@ -6,12 +6,13 @@ when enabled, posts trade actions back to the Django gateway. Retrieved data
 drives the Streamlit UI to render real‑time trading metrics and controls.
 """
 
-import os, json, time, uuid, math, datetime as dt
+import os, json, time, uuid, datetime as dt
 from typing import Any, Dict, List
+import base64
 import requests
 import yaml
 import streamlit as st
-import plotly.graph_objects as go
+from dashboard.components.ui_concentric import concentric_ring
 
 # ---------------- Config ----------------
 # Resolve paths relative to this file so the dashboard can be launched from any
@@ -152,46 +153,79 @@ def post_actions(body: Dict[str, Any], idempotency_key: str | None = None, timeo
     except Exception as e:
         return False, {'error': str(e)}
 
-def donut(value: float, minv: float, maxv: float, label: str, unit: str = '', color='#2dd4bf'):
-    """Render a donut chart for ``value`` within ``minv``–``maxv``.
 
-    Parameters
-    ----------
-    value, minv, maxv: float
-        Range values used to compute the filled and empty portions.
-    label: str
-        Caption displayed beneath the numeric value.
-    unit: str
-        Optional units appended to the value text.
-    color: str
-        Hex color for the filled portion of the chart.
-    
-    Returns
-    -------
-    None
-        The chart is rendered directly via Streamlit.
+@st.cache_data(ttl=3600)
+def get_image_as_base64(path: str) -> str | None:
+    """Return a base64 encoded string for the image at ``path``."""
+    try:
+        with open(path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode()
+    except Exception:
+        return None
+
+
+def apply_advanced_styling() -> str:
+    """CSS for metrics, buttons, tabs, and tiles."""
+    return """
+    <style>
+    /* Enhanced metrics */
+    [data-testid="metric-container"] {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        border-radius: 12px;
+        padding: 1rem;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        transition: all 0.3s ease;
+    }
+    [data-testid="metric-container"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.3);
+        border-color: rgba(59, 130, 246, 0.5);
+    }
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        background: rgba(26, 29, 58, 0.5);
+        border-radius: 10px;
+        padding: 0.5rem;
+        gap: 0.5rem;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background: transparent;
+        color: #94a3b8;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        color: white;
+    }
+    /* Buttons */
+    .stButton > button {
+        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 0.5rem 2rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 20px rgba(59, 130, 246, 0.4);
+    }
+    /* Cards */
+    .dashboard-card {
+        background: rgba(26, 29, 58, 0.4);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+    }
+    </style>
     """
 
-    value = max(min(value, maxv), minv)
-    filled = value - minv
-    total = max(maxv - minv, 1.0)
-    empty = max(total - filled, 0.0)
-    fig = go.Figure(go.Pie(
-        values=[filled, empty],
-        hole=0.75,
-        sort=False,
-        marker=dict(colors=[color, '#e5e7eb']),
-        textinfo='none'
-    ))
-    fig.update_layout(
-        margin=dict(l=0, r=0, t=0, b=0),
-        showlegend=False,
-        annotations=[
-            dict(text=f"{value:.0f}{unit}", x=0.5, y=0.5, font_size=18, showarrow=False),
-            dict(text=label, x=0.5, y=0.24, font_size=12, showarrow=False, font_color='#6b7280'),
-        ],
-    )
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 def chip(text: str, kind: str = 'neutral'):
     """Render a colored pill with ``text``.
@@ -346,6 +380,26 @@ def secs_to_hms(seconds: int) -> str:
 
 # ---------------- UI ----------------
 st.set_page_config(page_title='Pulse – Intraday', layout='wide')
+
+_img_base64 = get_image_as_base64("image_af247b.jpg")
+if _img_base64:
+    _background_style = f"""
+    <style>
+    [data-testid=\"stAppViewContainer\"] > .main {{
+        background-image: linear-gradient(rgba(0,0,0,0.80), rgba(0,0,0,0.80)), url(data:image/jpeg;base64,{_img_base64});
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }}
+    .main .block-container {{
+        background-color: rgba(0,0,0,0.025) !important;
+    }}
+    </style>
+    """
+    st.markdown(_background_style, unsafe_allow_html=True)
+
+st.markdown(apply_advanced_styling(), unsafe_allow_html=True)
 st.title('Pulse – Intraday Trader View')
 
 metrics_cfg = load_yaml(METRICS_PATH)
@@ -389,7 +443,18 @@ if sm.get('daily_risk_allowance_percent', False) or sm.get('current_risk_used_pe
         # ↪ Replace with live risk_enforcer metrics
         risk_allow = 2.0  # %
         risk_used  = 0.8  # %
-        donut(risk_used, 0, risk_allow, 'Risk Used', '%')
+        fig = concentric_ring(
+            center_title="Risk Used",
+            center_value=f"{risk_used:.1f}%",
+            outer_bipolar=0.0,
+            outer_cap=1.0,
+            middle_val=risk_used / risk_allow if risk_allow else 0.0,
+            middle_cap=1.0,
+            inner_unipolar=0.0,
+            inner_cap=1.0,
+            size=(180, 180),
+        )
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 if sm.get('session_time_remaining', False):
     with sess_cols[3]:
@@ -424,7 +489,18 @@ if tm.get('time_in_trade', False):
 if tm.get('exposure_percent', False):
     with tcols[2]:
         exp = exposure_percent_stub(positions, account)
-        donut(exp, 0, 100, 'Exposure', '%')
+        fig = concentric_ring(
+            center_title="Exposure",
+            center_value=f"{exp:.0f}%",
+            outer_bipolar=0.0,
+            outer_cap=1.0,
+            middle_val=0.0,
+            middle_cap=1.0,
+            inner_unipolar=exp / 100.0,
+            inner_cap=1.0,
+            size=(180, 180),
+        )
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 if tm.get('max_adverse_excursion', False):
     with tcols[3]:
