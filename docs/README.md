@@ -66,6 +66,9 @@ Return to [project README](../README.md)
 
 Run this:
 
+Use the main `docker-compose.yml` and optional `docker-compose.override.yml` for local overrides.
+Legacy compose files live under `docs/legacy/`.
+
 ```bash
 docker compose up
 ```

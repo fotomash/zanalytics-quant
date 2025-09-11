@@ -96,6 +96,9 @@ Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/
    [Environment Variables](#environment-variables) for a summary of the most important settings and
    [docs/env-reference.md](docs/env-reference.md) for the complete table.
 
+The active Docker Compose files are `docker-compose.yml` and optional `docker-compose.override.yml` for local overrides.
+Legacy compose configurations have been archived under `docs/legacy/`.
+
 3. **Build and start the platform:**
     ```bash
     docker network create traefik-public
