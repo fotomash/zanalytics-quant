@@ -1,7 +1,8 @@
-"""Enrichment module leveraging :class:`core.wyckoff_analyzer.WyckoffAnalyzer`.
+"""Enrichment module wrapping :class:`core.context_analyzer.ContextAnalyzer`.
 
-The ``run`` function executes a full Wyckoff analysis on the provided
-DataFrame and merges a few key results into the shared ``state`` dictionary.
+This module exposes a ``run`` function compatible with the enrichment pipeline
+that analyzes market context and records Wyckoff-inspired phase information and
+SOS/SOW events in the shared ``state`` dictionary.
 """
 
 from __future__ import annotations
@@ -10,23 +11,30 @@ from typing import Any, Dict
 
 import pandas as pd
 
-from core.wyckoff_analyzer import WyckoffAnalyzer
+from core.context_analyzer import ContextAnalyzer
 
 
 def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
-    """Run Wyckoff context analysis and merge results into ``state``."""
-    df: pd.DataFrame = state.get("dataframe")  # type: ignore[assignment]
-    analyzer = WyckoffAnalyzer(config)
+    """Run context analysis and merge results into ``state``.
+
+    Parameters
+    ----------
+    state:
+        Mutable pipeline state expected to contain a ``dataframe`` key.
+    config:
+        Configuration dictionary (currently unused).
+    """
+
+    df = state.get("dataframe")
+    required_cols = {"open", "high", "low", "close", "volume"}
+    if not isinstance(df, pd.DataFrame) or not required_cols.issubset(df.columns):
+        state["status"] = "FAIL"
+        return state
+
+    analyzer = ContextAnalyzer()
     results = analyzer.analyze(df)
 
-    # Store selected analysis outputs under descriptive keys
-    state["wyckoff_current_phase"] = results.get("current_phase")
-    state["wyckoff_events"] = results.get("events")
-    state["wyckoff_volume_analysis"] = results.get("volume_analysis")
-    state["wyckoff_analysis"] = results
-
-    # Update overall status based on detected phase, if any
-    phase = results.get("current_phase")
-    state["status"] = phase if phase else state.get("status")
-
+    state.update(results)
+    state["status"] = "PASS"
     return state
+

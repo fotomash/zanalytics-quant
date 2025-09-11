@@ -49,15 +49,17 @@ def run(
     Returns
     -------
     Dict[str, Any]
-        Final state after running the pipeline.
+        Final state after running the pipeline with per-module outputs.
     """
 
     state: Dict[str, Any] = {
         "dataframe": dataframe,
         "metadata": metadata,
         "status": "PASS",
+        "outputs": {},
     }
     configs = configs or {}
+    outputs: Dict[str, Any] = state["outputs"]
 
     for name in MODULE_ORDER:
         if state.get("status") == "FAIL":
@@ -65,7 +67,11 @@ def run(
         try:
             module = import_module(f".modules.{name}", package=__package__)
             runner = getattr(module, "run")
+
+            before_keys = set(state.keys())
             state = runner(state, configs.get(name, {}))
+            new_keys = set(state.keys()) - before_keys
+            outputs[name] = {k: state[k] for k in new_keys}
         except Exception as exc:  # pragma: no cover - safeguard
             state["status"] = "FAIL"
             state.setdefault("errors", {})[name] = str(exc)

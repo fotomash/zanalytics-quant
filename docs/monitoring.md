@@ -22,6 +22,22 @@ visualize node statistics, container performance, application metrics, and
 centralized logs. The Grafana UI is available at `http://localhost:3000`, and
 additional dashboards can be added or customized to suit operational needs.
 
+### Diagnostics Cockpit
+
+`dashboard/diagnostics_cockpit.py` provides a Streamlit view that combines
+service health checks, Kafka throughput, cache hit ratios, and alert summaries.
+Run it locally with:
+
+```
+PROMETHEUS_URL=http://localhost:9090 \
+LOKI_URL=http://localhost:3100 \
+GRAFANA_URL=http://localhost:3000 \
+streamlit run dashboard/diagnostics_cockpit.py
+```
+
+Links in the cockpit jump to the Alertmanager, log search, and container metric
+dashboards for deeper investigation.
+
 ## Log pipeline
 
 Promtail tails container logs and forwards them to Loki for centralized
@@ -39,4 +55,8 @@ Alertmanager receives these alerts, groups and de‑duplicates them, and routes
 notifications to configured receivers such as the Uncomplicated Alert Receiver
 UI. Alerts persist until the triggering condition clears or they are
 acknowledged.
+
+The Streamlit monitoring view at `dashboard/_mix/monitoring_dashboard.py` now
+pulls its metrics and recent alerts directly from Prometheus and Loki to avoid
+stale placeholder data.
 

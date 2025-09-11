@@ -1,4 +1,4 @@
-"""Entrypoint for running the enrichment pipeline."""
+"""Entrypoint for running the enrichment pipeline orchestrator."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ def main(
     metadata: Dict[str, Any],
     configs: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
-    """Execute the enrichment pipeline with the given inputs."""
+    """Execute the enrichment pipeline and return its final state."""
 
     return run_pipeline(dataframe, metadata, configs or {})
 

@@ -597,6 +597,19 @@ services:
     restart: unless-stopped
     logging: *default-logging
 
+  telegram:
+    build:
+      context: .
+      dockerfile: services/telegram/Dockerfile
+    environment:
+      - KAFKA_BROKER=${KAFKA_BROKER:-kafka:9092}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    depends_on:
+      - kafka
+    restart: unless-stopped
+    logging: *default-logging
+
 volumes:
   traefik-public-certificates: # Persistent volume for certificates
   grafana-data: {}
