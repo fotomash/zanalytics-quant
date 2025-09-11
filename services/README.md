@@ -24,3 +24,18 @@ Status
 
 - Experimental/shadow mode until parity passes (≥99.9% for 5 trading days)
 
+MCP2
+----
+
+Strategy tooling service for logging enriched trade payloads and searching documentation.
+
+Key endpoints:
+
+- `GET /health` — service health check
+- `POST /log_enriched_trade` — store an enriched trade payload
+- `GET /search_docs?query=<text>` — search indexed docs
+- `GET /fetch_payload?id=<id>` — retrieve a stored payload by ID
+- `GET /trades/recent?limit=<n>` — list recent trade payloads
+
+See the [MCP2 Service Runbook](../docs/runbooks/mcp2.md) for operational details.
+
