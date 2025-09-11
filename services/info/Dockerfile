@@ -13,4 +13,5 @@ RUN pip install --no-cache-dir streamlit==1.37.1 markdown==3.6
 RUN if [ -d /tmp/docs/wiki ]; then mv /tmp/docs/wiki /app/wiki; fi \
     && if [ -d /tmp/dashboards/info ]; then mkdir -p /app/dashboards && mv /tmp/dashboards/info /app/dashboards/info; fi
 
-CMD ["streamlit", "run", "/app/dashboards/info/main.py", "--server.port=${WIKI_DASHBOARD_PORT}", "--server.address=0.0.0.0"]
+# Use shell form to expand env var at runtime; provide default
+CMD sh -lc "streamlit run /app/dashboards/info/main.py --server.port=${WIKI_DASHBOARD_PORT:-8503} --server.address=0.0.0.0"
