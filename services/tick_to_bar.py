@@ -59,4 +59,4 @@ def run(symbol: str, in_stream: str, out_stream: str, idle_flush: float = 3.0):
 
 if __name__ == "__main__":
     sym = os.getenv("SYMBOL", "EURUSD")
-    run(symbol=sym, in_stream=f"{VERSION_PREFIX}:ticks:{sym}", out_stream=f"stream:bars:{sym}:1m")
+    run(symbol=sym, in_stream=f"{VERSION_PREFIX}:ticks:{sym}", out_stream=f"stream:bar:1m:{sym}")

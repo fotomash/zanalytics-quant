@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from datetime import datetime, timezone
 from typing import Any, Literal
@@ -33,6 +34,7 @@ async def read_stream(stream: str, limit: int = Query(10, ge=1, le=100)):
 
 ALLOWED_TFS = {"1m", "5m", "15m", "1h", "4h", "1d"}
 SYMBOL_RE = re.compile(r"^[A-Za-z0-9._:-]{3,24}$")
+STREAM_VERSION_PREFIX = os.getenv("STREAM_VERSION_PREFIX", "v2")
 
 
 class TickItem(BaseModel):
@@ -148,15 +150,26 @@ async def stream_ticks(
     ),
 ):
     _validate_symbol(symbol)
-    key = f"tick:{symbol}"
+    # Prefer versioned tick stream; fall back to legacy keys
+    primary = f"{STREAM_VERSION_PREFIX}:ticks:{symbol}"
+    legacy1 = f"tick:{symbol}"
+    legacy2 = f"ticks:{symbol}"
     r = redis_client.redis_streams
     try:
         if reverse:
             max_id = f"({before_id}" if before_id else "+"
-            entries = await r.xrevrange(key, max=max_id, min="-", count=count)
+            entries = await r.xrevrange(primary, max=max_id, min="-", count=count)
+            if not entries:
+                entries = await r.xrevrange(legacy1, max=max_id, min="-", count=count)
+            if not entries:
+                entries = await r.xrevrange(legacy2, max=max_id, min="-", count=count)
         else:
             min_id = f"({before_id}" if before_id else (start or "-")
-            entries = await r.xrange(key, min=min_id, max=end or "+", count=count)
+            entries = await r.xrange(primary, min=min_id, max=end or "+", count=count)
+            if not entries:
+                entries = await r.xrange(legacy1, min=min_id, max=end or "+", count=count)
+            if not entries:
+                entries = await r.xrange(legacy2, min=min_id, max=end or "+", count=count)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"redis error: {exc}") from exc
     return _normalize_ticks(entries, symbol)
@@ -177,21 +190,26 @@ async def stream_bars(
         raise HTTPException(status_code=400, detail="invalid timeframe")
     _validate_symbol(symbol)
 
-    # Prefer stream:bar:{tf}:{symbol}; fallback to bar:{tf}:{symbol}
+    # Prefer stream:bar:{tf}:{symbol}; fall back to bar:{tf}:{symbol} and legacy stream:bars:{symbol}:{tf}
     r = redis_client.redis_streams
     primary = f"stream:bar:{timeframe}:{symbol}"
     fallback = f"bar:{timeframe}:{symbol}"
+    legacy = f"stream:bars:{symbol}:{timeframe}"
     try:
         if reverse:
             max_id = f"({before_id}" if before_id else "+"
             entries = await r.xrevrange(primary, max=max_id, min="-", count=count)
             if not entries:
                 entries = await r.xrevrange(fallback, max=max_id, min="-", count=count)
+            if not entries:
+                entries = await r.xrevrange(legacy, max=max_id, min="-", count=count)
         else:
             min_id = f"({before_id}" if before_id else "-"
             entries = await r.xrange(primary, min=min_id, max="+", count=count)
             if not entries:
                 entries = await r.xrange(fallback, min=min_id, max="+", count=count)
+            if not entries:
+                entries = await r.xrange(legacy, min=min_id, max="+", count=count)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"redis error: {exc}") from exc
     return _normalize_bars(entries, symbol, timeframe)
