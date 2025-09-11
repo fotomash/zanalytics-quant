@@ -62,6 +62,15 @@ Consumes `final-analysis-payloads` messages and writes embeddings to an external
 
 ```
 docker compose -f services/docker-compose.yml up vectorization_service
+Overseer
+--------
+
+Simple consumer that logs messages from a Kafka topic.
+
+Start the service:
+
+```
+docker compose -f services/docker-compose.yml up overseer
 ```
 
 Required environment variables:
@@ -73,3 +82,6 @@ Required environment variables:
 - `VECTOR_DB_API_KEY` – API key used for authentication
 
 See [docs/vectorization_service.md](../docs/vectorization_service.md) for complete details.
+- `KAFKA_BOOTSTRAP_SERVERS` – address of the Kafka broker (default `kafka:9092`)
+- `OVERSEER_TOPIC` – Kafka topic to consume (default `overseer-events`)
+
