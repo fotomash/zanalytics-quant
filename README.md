@@ -120,8 +120,8 @@ Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/
 
 ## Environment Variables
 
-Copy `.env.template` to `.env`, fill in the sensitive values, and keep the real
-file out of version control. Docker Compose reads `.env` through its `env_file`
+Copy `.env.sample` (or `.env.template` for the full set) to `.env`, fill in the sensitive values, and keep the real
+file out of version control. Never commit secrets to the repository. Docker Compose reads `.env` through its `env_file`
 directive and injects those variables into services like `mcp`. In CI pipelines,
 provide the same variables via your environment or secret manager—containers no
 longer mount `.env` directly.
