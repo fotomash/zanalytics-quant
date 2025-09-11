@@ -17,7 +17,7 @@ Dockerfiles
 Compose
 -------
 
-See `docker-compose.kafka.yml` for Redpanda and service definitions.
+See `docker-compose.yml` for Kafka and service definitions.
 
 Status
 ------
