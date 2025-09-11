@@ -6,12 +6,13 @@ when enabled, posts trade actions back to the Django gateway. Retrieved data
 drives the Streamlit UI to render real‑time trading metrics and controls.
 """
 
-import os, json, time, uuid, math, datetime as dt
+import os, json, time, uuid, datetime as dt
 from typing import Any, Dict, List
 import requests
 import yaml
 import streamlit as st
-import plotly.graph_objects as go
+from dashboard.utils.plotly_donuts import oneway_donut
+from dashboard.components.ui_chip import chip
 
 # ---------------- Config ----------------
 # Resolve paths relative to this file so the dashboard can be launched from any
@@ -151,70 +152,6 @@ def post_actions(body: Dict[str, Any], idempotency_key: str | None = None, timeo
         return ok, data
     except Exception as e:
         return False, {'error': str(e)}
-
-def donut(value: float, minv: float, maxv: float, label: str, unit: str = '', color='#2dd4bf'):
-    """Render a donut chart for ``value`` within ``minv``–``maxv``.
-
-    Parameters
-    ----------
-    value, minv, maxv: float
-        Range values used to compute the filled and empty portions.
-    label: str
-        Caption displayed beneath the numeric value.
-    unit: str
-        Optional units appended to the value text.
-    color: str
-        Hex color for the filled portion of the chart.
-    
-    Returns
-    -------
-    None
-        The chart is rendered directly via Streamlit.
-    """
-
-    value = max(min(value, maxv), minv)
-    filled = value - minv
-    total = max(maxv - minv, 1.0)
-    empty = max(total - filled, 0.0)
-    fig = go.Figure(go.Pie(
-        values=[filled, empty],
-        hole=0.75,
-        sort=False,
-        marker=dict(colors=[color, '#e5e7eb']),
-        textinfo='none'
-    ))
-    fig.update_layout(
-        margin=dict(l=0, r=0, t=0, b=0),
-        showlegend=False,
-        annotations=[
-            dict(text=f"{value:.0f}{unit}", x=0.5, y=0.5, font_size=18, showarrow=False),
-            dict(text=label, x=0.5, y=0.24, font_size=12, showarrow=False, font_color='#6b7280'),
-        ],
-    )
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-
-def chip(text: str, kind: str = 'neutral'):
-    """Render a colored pill with ``text``.
-
-    Parameters
-    ----------
-    text: str
-        Content of the pill.
-    kind: str
-        One of ``good``, ``warn``, ``bad`` or ``neutral`` to select colours.
-    
-    Returns
-    -------
-    None
-        The pill is written to the page via ``st.markdown``.
-    """
-
-    bg = {'good': '#dcfce7', 'warn': '#fef9c3', 'bad': '#fee2e2', 'neutral': '#f3f4f6'}.get(kind, '#f3f4f6')
-    color = {'good': '#166534', 'warn': '#854d0e', 'bad': '#991b1b', 'neutral': '#374151'}.get(kind, '#374151')
-    st.markdown(
-        f"<span style='background:{bg}; color:{color}; padding:6px 10px; border-radius:999px; font-size:12px; margin-right:6px; display:inline-block;'>{text}</span>",
-        unsafe_allow_html=True,
-    )
 
 def dim_block(start: bool = True):
     """Context manager helper to dim or restore a UI block.
@@ -389,7 +326,16 @@ if sm.get('daily_risk_allowance_percent', False) or sm.get('current_risk_used_pe
         # ↪ Replace with live risk_enforcer metrics
         risk_allow = 2.0  # %
         risk_used  = 0.8  # %
-        donut(risk_used, 0, risk_allow, 'Risk Used', '%')
+        st.plotly_chart(
+            oneway_donut(
+                title="Risk Used",
+                frac=risk_used / risk_allow if risk_allow else 0.0,
+                start_anchor="bottom",
+                center_title=f"{risk_used:.1f}%",
+                center_sub=f"of {risk_allow:.1f}%",
+            ),
+            use_container_width=True,
+        )
 
 if sm.get('session_time_remaining', False):
     with sess_cols[3]:
@@ -424,7 +370,15 @@ if tm.get('time_in_trade', False):
 if tm.get('exposure_percent', False):
     with tcols[2]:
         exp = exposure_percent_stub(positions, account)
-        donut(exp, 0, 100, 'Exposure', '%')
+        st.plotly_chart(
+            oneway_donut(
+                title="Exposure",
+                frac=exp / 100 if exp is not None else 0.0,
+                start_anchor="bottom",
+                center_title=f"{exp:.0f}%",
+            ),
+            use_container_width=True,
+        )
 
 if tm.get('max_adverse_excursion', False):
     with tcols[3]:
