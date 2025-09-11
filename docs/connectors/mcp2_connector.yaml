@@ -8,15 +8,15 @@ auth:
   type: none
 api:
   type: openapi
-  url: "https://mcp2.zanalytics.app/openapi.json"
+  url: https://mcp2.zanalytics.app/openapi.json
 logo_url: "https://mcp2.zanalytics.app/logo.png"
 contact_email: "support@zanalytics.app"
 legal_info_url: "https://zanalytics.app/legal"
 server_label: "MCP2 Production"
-server_url: "https://mcp2.zanalytics.app"
+server_url: https://mcp2.zanalytics.app/
 require_approval: "never"
 tools:
   - search_docs
   - fetch_payload
   - log_enriched_trade
-  - get_recent_trades
+  - recent_trades
