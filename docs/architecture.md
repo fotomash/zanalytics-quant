@@ -32,3 +32,16 @@ Traefik also routes requests to the Streamlit info site on port `8501`; see [str
 
 For metrics collection, dashboards, and alerts, see [monitoring.md](monitoring.md).
 
+
+## MCP2 Role
+
+MCP2 brokers `/exec` commands from external clients to the Django API. It handles authentication, forwards requests, and mediates approvals for operations that modify state.
+
+## Redis and Postgres Topology
+
+Redis provides the in-memory event bus and cache for ticks, bars, and ephemeral session data. Postgres stores durable records such as positions, journal entries, and enrichment results. Django connects to both stores, while the MT5 bridge publishes market data into Redis.
+
+## Future Multi-Stream Plans
+
+Today all realtime data flows through Redis. A future phase will add a Kafka stream alongside Redis, allowing replayable journals and multi-source analytics. MCP2 will coordinate across these streams to support concurrent data feeds and smoother failover.
+

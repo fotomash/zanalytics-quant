@@ -33,6 +33,7 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [Full API Documentation](#full-api-documentation)
 - [FAQ](#faq)
 - [Troubleshooting Gold Mine](#troubleshooting-gold-mine)
+- [MCP2 Runbook](#mcp2-runbook)
 - [Pulse Dashboard Prototype](#pulse-dashboard-prototype)
 - [Further Reading](#further-reading)
 
@@ -55,6 +56,8 @@ graph LR
   Streamlit[Dashboards] --> Django
   MT5 -->|positions/history| Django
 ```
+
+For detailed network flows, MCP2 responsibilities, and storage topology, see [docs/architecture.md](docs/architecture.md).
 
 ## System Overview
 
@@ -430,6 +433,10 @@ See [docs/mcp_troubleshooting.md](docs/mcp_troubleshooting.md) for Traefik label
 5. Pop-up hell: Whisperer says requires approval. → MCP middleware blocks unless approve:true sent. Added flag, updated curl, merged PR 241. Now auto-approves boot & equity.
 6. Wine/MetaTrader feed dead: Whisperer shows yesterday's trades. → MT5 popped resolution dialog, never clicked. Had to manually OK after reboot → feed starts. Documented in FAQ as manual step.
 7. Ghost containers eating ports: docker ps shows pulse-kernel, tick-to-bar on 8001. → docker stop pulse-kernel tick-to-bar → mcp binds clean. End result: curl -k -H "Authorization: Bearer your-dev-secret-123" -H "X-API-Key: your-dev-secret-123" -X POST https://mcp1.zanalytics.app/exec -d '{"type":"session_boot","approve":true}' → returns real equity, positions, risk. Whisperer loads without pop-up. Save this. Every time something breaks, start here-no bush, no circles.
+
+## MCP2 Runbook
+
+For startup commands, endpoint tests, and database maintenance see [docs/mcp2_runbook.md](docs/mcp2_runbook.md).
 
 ---
 
