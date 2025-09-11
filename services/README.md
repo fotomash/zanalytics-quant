@@ -36,6 +36,8 @@ Key endpoints:
 - `GET /search_docs?query=<text>` — search indexed docs
 - `GET /fetch_payload?id=<id>` — retrieve a stored payload by ID
 - `GET /trades/recent?limit=<n>` — list recent trade payloads
+- `POST /llm/whisperer` — guidance with behavioral nudges
+- `POST /llm/simple` — baseline guidance without behavioral nudges
 
 For operational details, see the [mcp2 runbook](../docs/runbooks/mcp2.md).
 
