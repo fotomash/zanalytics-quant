@@ -79,12 +79,15 @@ class TopSignalsResponse(BaseModel):
     items: conlist(TopSignal, min_length=0, max_length=25)
 
 
-class PulseRuntime:
-    _instance = None
+    class PulseRuntime:
+        _instance = None
 
-    def __init__(self):
-        self.kernel = PulseKernel(config_path=os.getenv("PULSE_CONFIG", "pulse_config.yaml"))
-        logger.info("PulseRuntime initialized")
+        def __init__(self):
+            cfg_path = os.getenv("PULSE_CONFIG", "pulse_config.yaml")
+            if not os.path.exists(cfg_path):
+                logger.warning("Pulse config file %s not found; using defaults", cfg_path)
+            self.kernel = PulseKernel(config_path=cfg_path)
+            logger.info("PulseRuntime initialized")
 
     @classmethod
     def instance(cls):
