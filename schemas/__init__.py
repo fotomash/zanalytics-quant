@@ -15,6 +15,12 @@ from .predictive_schemas import (
     PredictiveGrade,
     PredictiveScorerResult,
 )
+from .agent_profile_schemas import (
+    PipelineConfig,
+    SessionManifest,
+    StageDefinition,
+    TopicConfig,
+)
 
 __all__ = (
     "ConflictDetectionResult",
@@ -24,8 +30,12 @@ __all__ = (
     "PredictiveAnalysisResult",
     "PredictiveGrade",
     "PredictiveScorerResult",
+    "PipelineConfig",
+    "SessionManifest",
     "SMCAnalysis",
     "TechnicalIndicators",
+    "StageDefinition",
     "UnifiedAnalysisPayloadV1",
     "WyckoffAnalysis",
+    "TopicConfig",
 )
