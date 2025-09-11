@@ -8,11 +8,11 @@ topic. A lightweight FastAPI server exposes health and metrics endpoints.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import signal
 import threading
 import time
-import traceback
 from datetime import datetime
 from enum import Enum
 from importlib import import_module
@@ -30,8 +30,6 @@ from prometheus_client import (
     Histogram,
     generate_latest,
 )
-from confluent_kafka import Consumer, Producer, KafkaError
-from pydantic import ValidationError
 from schemas.behavioral import AnalysisPayload
 
 from core.predictive_scorer import PredictiveScorer
@@ -57,6 +55,8 @@ app = FastAPI()
 
 consumer: Consumer | None = None
 producer: Producer | None = None
+
+logger = logging.getLogger(__name__)
 
 enriched_payloads_processed_total = Counter(
     "enriched_payloads_processed_total",
@@ -106,8 +106,8 @@ def _load_manifest() -> SessionManifest:
     try:
         data = yaml.safe_load(SESSION_MANIFEST.read_text(encoding="utf-8"))
         return SessionManifest.model_validate(data)
-    except ValidationError as exc:
-        print(f"manifest validation error: {exc}")
+    except (OSError, yaml.YAMLError, ValidationError) as exc:
+        logger.error("manifest validation error: %s", exc)
         raise ValueError("invalid session manifest") from exc
 
 
@@ -116,8 +116,8 @@ def _load_pipeline() -> List[str]:
         data = json.loads(PIPELINE_PATH.read_text(encoding="utf-8"))
         pipeline = PipelineConfig.model_validate(data)
         return [stage.name for stage in pipeline.stages]
-    except ValidationError as exc:
-        print(f"pipeline validation error: {exc}")
+    except (OSError, json.JSONDecodeError, ValidationError) as exc:
+        logger.error("pipeline validation error: %s", exc)
         raise ValueError("invalid pipeline configuration") from exc
 
 
@@ -150,7 +150,7 @@ def main() -> None:
         manifest = _load_manifest()
         stages = _load_pipeline()
     except ValueError as exc:
-        print(f"configuration error: {exc}")
+        logger.error("configuration error: %s", exc)
         return
 
     topics = manifest.topics
@@ -189,7 +189,7 @@ def main() -> None:
                 continue
             if msg.error():
                 if msg.error().code() != KafkaError._PARTITION_EOF:
-                    print(f"kafka error: {msg.error()}")
+                    logger.error("kafka error: %s", msg.error())
                 continue
 
             start_time = time.perf_counter()
@@ -199,7 +199,7 @@ def main() -> None:
                     msg.value().decode("utf-8")
                 )
             except ValidationError as exc:
-                print(f"payload validation error: {exc}")
+                logger.error("payload validation error: %s", exc)
                 consumer.commit(msg)
                 continue
 
@@ -212,7 +212,7 @@ def main() -> None:
                     result = stage_fn(state)
                     state[stage_name] = result
                 except Exception as exc:  # pragma: no cover - runtime logging
-                    traceback.print_exc()
+                    logger.exception("stage '%s' failed", stage_name)
                     journal.append(
                         action="pipeline_stage",
                         decision=f"{stage_name}_failed",
