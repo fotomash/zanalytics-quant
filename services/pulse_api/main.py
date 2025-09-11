@@ -1,4 +1,5 @@
 import os
+import logging
 from typing import Any, Dict, Optional
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
@@ -11,6 +12,9 @@ APP_NAME = "pulse-api"
 app = FastAPI(title="Zanalytics Pulse API", version="1.0.0")
 
 
+logger = logging.getLogger(__name__)
+
+
 class PulseRuntime:
     """Singleton runtime for the Pulse kernel"""
     _kernel: Optional[PulseKernel] = None
@@ -19,6 +23,8 @@ class PulseRuntime:
     def kernel(cls) -> PulseKernel:
         if cls._kernel is None:
             cfg_path = os.getenv("PULSE_CONFIG", "pulse_config.yaml")
+            if not os.path.exists(cfg_path):
+                logger.warning("Pulse config file %s not found; using defaults", cfg_path)
             cls._kernel = PulseKernel(cfg_path)
         return cls._kernel
 

@@ -18,6 +18,7 @@ import logging
 from redis.exceptions import RedisError
 from confluent_kafka import Producer
 from tenacity import retry, stop_after_attempt, wait_exponential
+import yaml
 try:
     from whisper_engine import WhisperEngine, State, serialize_whispers
 except Exception:
@@ -66,7 +67,6 @@ class PulseKernel:
         self.whisper = None
         if WhisperEngine is not None:
             try:
-                import yaml
                 cfg = yaml.safe_load(open(config_path)) if os.path.exists(config_path) else {}
             except Exception:
                 cfg = {}
@@ -109,8 +109,7 @@ class PulseKernel:
 
     def _load_config(self, config_path: str) -> Dict:
         """Load configuration from YAML file"""
-        # In production, use proper YAML loading
-        return {
+        default_cfg = {
             'redis': {'host': 'redis_service', 'port': 6379, 'db': 0},
             'risk_limits': {
                 'daily_loss_limit': 500,
@@ -124,6 +123,15 @@ class PulseKernel:
                 'fatigue_hour': 22
             }
         }
+        try:
+            with open(config_path) as f:
+                data = yaml.safe_load(f) or {}
+            return {**default_cfg, **data}
+        except FileNotFoundError:
+            logger.warning(f"Config file {config_path} not found. Using defaults.")
+        except yaml.YAMLError as e:
+            logger.error(f"Error parsing config file {config_path}: {e}")
+        return default_cfg
     
     def _init_daily_stats(self) -> Dict:
         """Initialize daily statistics"""
