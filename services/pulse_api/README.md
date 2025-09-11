@@ -20,10 +20,29 @@ third-party dependencies to a minimum.
 | `POST` | `/pulse/journal` | Append an entry to the journal. |
 | `GET` | `/pulse/journal/recent` | Fetch recent journal entries from Redis. |
 
+## Authentication
+
+All mutating and data endpoints are protected by a simple API key. Set the
+`PULSE_API_KEY` environment variable when starting the service and include the
+same value in requests using the `X-API-Key` header:
+
+```bash
+export PULSE_API_KEY="secret123"
+uvicorn services.pulse_api.main:app --reload
+
+# Example request
+curl -H "X-API-Key: secret123" \
+     -H "Content-Type: application/json" \
+     -d '{"symbol": "EURUSD"}' \
+     http://localhost:8000/pulse/score
+```
+
 ## Environment variables
 
 - **`PULSE_CONFIG`** – Path to the Pulse configuration file. Defaults to
   `pulse_config.yaml` when unset.
+- **`PULSE_API_KEY`** – API key required for authorized requests. Requests must
+  supply this value in the `X-API-Key` header.
 
 ## Local development
 

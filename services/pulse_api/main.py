@@ -1,7 +1,7 @@
 import os
 import logging
 from typing import Any, Dict, Optional
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Header, HTTPException, status
 from pydantic import BaseModel, Field
 from datetime import datetime
 
@@ -13,6 +13,30 @@ app = FastAPI(title="Zanalytics Pulse API", version="1.0.0")
 
 
 logger = logging.getLogger(__name__)
+
+# Simple API key authentication
+API_KEY_HEADER = "X-API-Key"
+EXPECTED_API_KEY = os.getenv("PULSE_API_KEY")
+
+
+def require_api_key(api_key: str = Header(..., alias=API_KEY_HEADER)) -> str:
+    """Validate the provided API key against ``PULSE_API_KEY``.
+
+    Raises ``HTTPException`` if the key is missing or invalid. The environment
+    variable must be set; otherwise a 500 error is returned.
+    """
+    if not EXPECTED_API_KEY:
+        logger.error("PULSE_API_KEY not set; refusing all requests")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="API key not configured",
+        )
+    if api_key != EXPECTED_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key",
+        )
+    return api_key
 
 
 class PulseRuntime:
@@ -63,7 +87,7 @@ def health() -> Dict[str, Any]:
 
 
 @app.post("/pulse/score")
-async def score(req: ScoreRequest):
+async def score(req: ScoreRequest, api_key: str = Depends(require_api_key)):
     k = PulseRuntime.kernel()
     payload = {"symbol": req.symbol, "tf": req.tf, "df": req.df or {}}
     result = await k.on_frame(payload)
@@ -79,7 +103,7 @@ async def score(req: ScoreRequest):
 
 
 @app.post("/pulse/risk")
-async def risk(req: RiskRequest):
+async def risk(req: RiskRequest, api_key: str = Depends(require_api_key)):
     k = PulseRuntime.kernel()
     signal = {"score": req.score, "size": req.size, "meta": req.meta or {}}
     allowed, warnings, details = k.risk_enforcer.allow(signal)  # type: ignore
@@ -87,7 +111,7 @@ async def risk(req: RiskRequest):
 
 
 @app.post("/pulse/journal")
-async def journal_create(req: JournalCreate):
+async def journal_create(req: JournalCreate, api_key: str = Depends(require_api_key)):
     k = PulseRuntime.kernel()
     entry = {
         "timestamp": req.ts or datetime.utcnow().isoformat(),
@@ -99,7 +123,7 @@ async def journal_create(req: JournalCreate):
 
 
 @app.get("/pulse/journal/recent")
-def journal_recent(limit: int = 25):
+def journal_recent(limit: int = 25, api_key: str = Depends(require_api_key)):
     k = PulseRuntime.kernel()
     import redis, json
     r = redis.Redis(**k.config["redis"])
