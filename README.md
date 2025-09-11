@@ -99,14 +99,20 @@ Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/
     docker compose up -d
     ```
 
-4. **Check all services:**
+4. **Apply database migrations:**
+    ```bash
+    docker compose exec postgres \
+      psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f db/migrations/mcp2.sql
+    ```
+
+5. **Check all services:**
     ```bash
     docker compose ps
     docker compose logs dashboard
     docker compose logs mt5
     ```
 
-5. **Access the dashboards and APIs:**
+6. **Access the dashboards and APIs:**
     - **Streamlit Dashboard:**  
       Open `http://localhost:8501` or your mapped domain.
     - **MT5 API:**  
