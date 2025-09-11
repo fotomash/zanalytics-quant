@@ -6,6 +6,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..auth import verify_api_key
 from ..storage import redis_client
@@ -94,18 +95,29 @@ async def _call_openai(prompt: str) -> str:
     client = OpenAI(api_key=api_key)
     from asyncio import to_thread
 
-    # Run blocking OpenAI call in a thread
-    resp = await to_thread(
-        client.chat.completions.create,
-        model=model,
-        messages=[
-            {"role": "system", "content": EN_SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.2,
-    )
-    content = (resp.choices[0].message.content or "").strip()
-    return content
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=4), reraise=True)
+    def _chat() -> str:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": EN_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.2,
+        )
+        return (resp.choices[0].message.content or "").strip()
+
+    try:
+        return await to_thread(_chat)
+    except Exception:
+        return json.dumps(
+            {
+                "label": "skip",
+                "priority": "low",
+                "action": "wait",
+                "reason": "openai error",
+            }
+        )
 
 
 def _diff(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
