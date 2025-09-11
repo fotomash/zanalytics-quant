@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pulse SSE Test Client</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #0b1220; color: #e6eaf2; }
+    header { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; gap: 8px; align-items: center; }
+    input, select, button { background: #0f172a; color: #e6eaf2; border: 1px solid rgba(255,255,255,0.12); padding: 8px 10px; border-radius: 6px; }
+    input[type="checkbox"] { transform: scale(1.2); margin: 0 8px 0 0; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); margin-right: 8px; }
+    main { padding: 12px; }
+    #log { background: #0f172a; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 8px; height: 60vh; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .line { margin: 0; padding: 4px 0; border-bottom: 1px dashed rgba(255,255,255,0.06); }
+    .event { color: #60a5fa; }
+    .whisper { color: #22c55e; }
+    .market { color: #fbbf24; }
+    .mirror { color: #a78bfa; }
+    .error { color: #ef4444; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  </style>
+  <script>
+    let es = null;
+    function qs(k, d) { const u = new URL(location.href); return u.searchParams.get(k) ?? d; }
+    function log(kind, msg) {
+      const el = document.getElementById('log');
+      const p = document.createElement('div');
+      p.className = 'line ' + (kind || '');
+      const ts = new Date().toLocaleTimeString();
+      p.textContent = `[${ts}] ${msg}`;
+      el.appendChild(p);
+      el.scrollTop = el.scrollHeight;
+    }
+    function connect() {
+      const base = document.getElementById('base').value.replace(/\/$/, '');
+      const topics = Array.from(document.querySelectorAll('input[name="topics"]:checked')).map(x => x.value).join(',');
+      const url = `${base}/api/v1/feeds/stream?topics=${encodeURIComponent(topics)}`;
+      if (es) { es.close(); es = null; }
+      log('event', `Connecting to ${url} ...`);
+      try {
+        es = new EventSource(url, { withCredentials: false });
+      } catch (e) { log('error', 'EventSource init failed: ' + e); return; }
+      es.addEventListener('open', () => log('event', 'SSE open'));
+      es.addEventListener('error', (e) => log('error', 'SSE error (check CORS/server): ' + (e?.message || '')));
+      es.addEventListener('heartbeat', () => log('event', 'heartbeat'));
+      es.addEventListener('hello', (e) => log('event', `hello ${e.data}`));
+      es.addEventListener('whisper', (e) => log('whisper', `whisper ${e.data}`));
+      es.addEventListener('market', (e) => log('market', `market ${e.data}`));
+      es.addEventListener('mirror', (e) => log('mirror', `mirror ${e.data}`));
+    }
+    function disconnect() {
+      if (es) { es.close(); es = null; log('event', 'SSE closed'); }
+    }
+    window.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('base').value = qs('base', location.origin);
+      const topics = (qs('topics', 'mirror,whispers,market') + '').split(',');
+      for (const t of topics) {
+        const el = document.querySelector(`input[name="topics"][value="${t}"]`);
+        if (el) el.checked = true;
+      }
+    });
+  </script>
+  </head>
+  <body>
+    <header>
+      <div class="row">
+        <strong>Pulse SSE Test</strong>
+        <input id="base" size="36" placeholder="https://mcp1.zanalytics.app" />
+        <span class="chip"><input type="checkbox" name="topics" value="whispers" checked /><label>whispers</label></span>
+        <span class="chip"><input type="checkbox" name="topics" value="market" checked /><label>market</label></span>
+        <span class="chip"><input type="checkbox" name="topics" value="mirror" checked /><label>mirror</label></span>
+        <button onclick="connect()">Connect</button>
+        <button onclick="disconnect()">Disconnect</button>
+      </div>
+    </header>
+    <main>
+      <div id="log"></div>
+    </main>
+  </body>
+</html>
+

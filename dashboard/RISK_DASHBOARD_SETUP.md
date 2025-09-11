@@ -1,6 +1,10 @@
-# Risk Management Dashboard Setup
+# Risk Management Dashboard Setup (Retired)
 
-## 1. File Placement
+> Status: Retired. This guide documents an early bootstrap for the risk
+> dashboards. The current, actively maintained direction is documented in
+> `docs/README.md` and the per‑page code/README files under `dashboard/pages/`.
+
+## 1. File Placement (historical)
 
 Place the dashboard file in your Streamlit pages directory:
 ```bash
@@ -9,7 +13,7 @@ cp 16_risk_manager.py dashboard/pages/
 cp 16_risk_manager_mock.py dashboard/pages/16_risk_manager.py
 ```
 
-## 2. Environment Configuration
+## 2. Environment Configuration (historical)
 
 Create or update your `.env` file with MT5 credentials:
 ```bash
@@ -29,14 +33,14 @@ python-dotenv==1.0.0
 
 Install in your Docker container:
 ```bash
-docker-compose exec django pip install MetaTrader5 plotly redis python-dotenv
+docker compose exec django pip install MetaTrader5 plotly redis python-dotenv
 ```
 
 ## 4. Access the Dashboard
 
 1. Start your services:
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 2. Access Streamlit:
@@ -108,11 +112,11 @@ python 16_risk_manager_mock.py
 - Ensure MetaTrader5 package is installed
 
 ### Redis Connection Issues
-- Verify Redis is running: `docker-compose ps redis`
-- Check Redis connectivity: `docker-compose exec redis redis-cli ping`
+- Verify Redis is running: `docker compose ps redis`
+- Check Redis connectivity: `docker compose exec redis redis-cli ping`
 
 ### Dashboard Not Loading
-- Check Streamlit logs: `docker-compose logs streamlit`
+- Check Streamlit logs: `docker compose logs streamlit`
 - Verify file permissions
 - Ensure all dependencies are installed
 

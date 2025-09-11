@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /srv/pulse-api
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential curl && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+COPY services/mcp2/requirements.txt services/mcp2/
+RUN pip install -r requirements.txt
+
+COPY pulse_kernel.py risk_enforcer.py pulse_config.yaml ./
+COPY core/predictive_scorer.py core/__init__.py ./core/
+COPY app ./app
+
+EXPOSE 8000
+CMD ["python", "app/main.py"]

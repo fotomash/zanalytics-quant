@@ -1,0 +1,132 @@
+# ===============================
+# MASTER STRATEGY PLAYBOOK v1
+# ===============================
+# Contains all institutional strategies, risk modules, behavioral overlays,
+# and data engines normalized into a unified schema.
+# ===============================
+
+strategies:
+
+  # -----------------------------
+  # SMC & Liquidity Frameworks
+  # -----------------------------
+  - strategy_name: "SMC_EngineeredLiquidity_TrapReversal_v12"
+    aliases: ["Inducement Sweep POI Reversal", "AlphaRipper Style"]
+    description: >
+      Institutional-grade liquidity trap strategy: inducement → sweep → POI reversal.
+    entry_model:
+      htf_context:
+        timeframes: ["Daily", "H4", "H1"]
+        bias_rules: ["Strong vs Weak HL classification"]
+        poi_types: ["OB", "FVG", "Breaker"]
+      setup_tf:
+        timeframes: ["M15", "M5"]
+        triggers: ["Liquidity sweep + rejection", "CHoCH/BoS displacement"]
+      entry_tf:
+        timeframes: ["M1", "Tick"]
+        confirmations: ["Refined POI tap", "LTF CHoCH"]
+    confluence:
+      required: ["HTF bias", "Sweep rejection", "CHoCH"]
+      optional: ["Fib OTE", "Session timing"]
+    risk_model:
+      sl_logic: "Beyond sweep extreme + ATR buffer"
+      tp_logic: ["TP1 = IRL", "TP2 = ERL"]
+      rr_min: 2.0
+    scoring:
+      enabled: true
+    fallback_logic: ["If POI invalidated, re-route"]
+    modules: ["ContextAnalyzer.py", "LiquidityEngine.py", "RiskManager.py"]
+    behavioral_filters:
+      - condition: "discipline < 70"
+        action: "pause execution"
+    journaling_tags: ["strategy_name", "htf_bias", "sweep_level", "entry_price"]
+
+  - strategy_name: "SMC_LiquiditySweep_StructureShift_POI_v5"
+    aliases: ["v5 Legacy Playbook"]
+    description: "Simpler legacy SMC sweep + CHoCH framework."
+    entry_model:
+      htf_context:
+        timeframes: ["H4", "H1"]
+        bias_rules: ["Range between Strong HLs"]
+    risk_model:
+      sl_logic: "Beyond POI extreme"
+      tp_logic: ["TP1 = IRL", "TP2 = ERL"]
+      rr_min: 2.0
+
+  - strategy_name: "SMC_Inducement_Sweep_StructureShift_POI_v10"
+    aliases: ["v10 Legacy Playbook"]
+    description: "Enhanced inducement → sweep → POI v10 strategy."
+    entry_model:
+      htf_context:
+        timeframes: ["Daily", "H4", "H1"]
+        bias_rules: ["Daily/H4 BoS defines bias"]
+
+  # -----------------------------
+  # Wyckoff Strategies
+  # -----------------------------
+  - strategy_name: "Wyckoff_Classic_Phases_A_to_E_v12"
+    aliases: ["Wyckoff Method", "Classic Wyckoff Schematics"]
+    description: "Phase A–E Wyckoff strategy with Springs/UTADs."
+    entry_model:
+      htf_context:
+        timeframes: ["Daily", "H4"]
+        bias_rules: ["Phase A–E mapping"]
+    risk_model:
+      sl_logic: "Below SC/Spring or above UTAD"
+      tp_logic: ["TP1 = TR midpoint", "TP2 = Creek/Ice"]
+
+  - strategy_name: "Wyckoff_MENTFX_PhaseC_Spring_UTAD_v12"
+    aliases: ["MENTFX Wyckoff Method"]
+    description: "Phase C Spring/UTAD liquidity traps with VSA confirmation."
+
+  # -----------------------------
+  # Institutional Flow
+  # -----------------------------
+  - strategy_name: "Institutional_OrderFlow_v12"
+    aliases: ["Institutional Flow Framework"]
+    description: "HTF bias → Liquidity mapping → POI → CHoCH/BoS → Entry."
+    entry_model:
+      htf_context:
+        timeframes: ["Daily", "H4"]
+        bias_rules: ["Daily BoS anchors bias"]
+    risk_model:
+      sl_logic: "Beyond POI with buffer"
+      tp_logic: ["TP1 = IRL", "TP2 = ERL"]
+
+  - strategy_name: "Inducement_Sweep_POI_v12"
+    aliases: ["ISPOI Framework"]
+    description: "Inducement → Liquidity Sweep → POI reversal."
+
+  - strategy_name: "MTF_FVG_Alignment_v12"
+    aliases: ["Multi-Timeframe FVG"]
+    description: "HTF bias alignment with M1 FVG precision entries."
+
+  # -----------------------------
+  # Risk & Data Engines
+  # -----------------------------
+  - strategy_name: "Hybrid_SL_TP_v12"
+    aliases: ["Hybrid Stop Loss Planner"]
+    description: "Adaptive SL/TP engine blending structure + volatility."
+    risk_model:
+      sl_logic: "Swing low/high + ATR + spread"
+      tp_logic: ["TP1 = IRL", "TP2 = ERL"]
+      rr_min: 2.0
+
+  - strategy_name: "Volume_Field_Clarity_v12"
+    aliases: ["Volume Schema"]
+    description: "Ensures distinct tick, true, profile, breakout, POC fields."
+
+  # -----------------------------
+  # Orchestration & Behavioral
+  # -----------------------------
+  - strategy_name: "ZANFLOW_v12_Orchestration"
+    aliases: ["ZANFLOW Master Catalog"]
+    description: "Master orchestration across Wyckoff, SMC, Order Flow, ISPOI."
+
+  - strategy_name: "Whisperer_Behavioral_Overlay_v12"
+    aliases: ["Behavioral Co-Pilot"]
+    description: "Discipline, patience, and risk gating module."
+
+  - strategy_name: "LiveData_LLM_Integration_v12"
+    aliases: ["LLM Data Engine"]
+    description: "Real-time price/volume feed for LLM-native agents."

@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pulse Cockpit (Preview)</title>
+  <style>
+    :root { --bg:#0b1220; --panel:#0f172a; --muted:#9CA3AF; --fg:#E5E7EB; --grid:#1F2937; --chip:#182033; --accent:#60a5fa; --pos:#22c55e; --neg:#ef4444; --warn:#f59e0b; }
+    html,body { margin:0; background:var(--bg); color:var(--fg); font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    header { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:12px 16px; border-bottom:1px solid rgba(255,255,255,0.06); }
+    header input, header button { background:var(--panel); color:var(--fg); border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:8px 10px; }
+    header .chip { background:var(--chip); border:1px solid rgba(255,255,255,0.12); padding:6px 10px; border-radius:14px; }
+    .container { padding:16px; display:grid; gap:16px; grid-template-columns: repeat(12, 1fr); }
+    .card { background:var(--panel); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:12px; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    .title { margin:0 0 8px 0; font-size:14px; color:var(--muted); letter-spacing:0.3px; }
+    .heading { margin:0; font-size:18px; }
+    .spark { height:60px; }
+    .muted { color:var(--muted); }
+    .badge { display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:12px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); }
+    .pill { padding:2px 8px; border-radius:999px; font-size:12px; background:#1d293b; border:1px solid rgba(255,255,255,0.12); }
+    #whispers { height:240px; overflow:auto; border-radius:8px; background:#0b1220; border:1px dashed rgba(255,255,255,0.12); padding:8px; }
+    .w { margin:0; padding:8px; border-bottom:1px dashed rgba(255,255,255,0.06); }
+    .w .t { color:var(--muted); margin-right:8px; font-variant-numeric: tabular-nums; }
+    .w.success { color:var(--pos); }
+    .w.warning { color:var(--warn); }
+    .w.insight { color:var(--accent); }
+    .split { display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+    .center { display:flex; align-items:center; justify-content:center; }
+  </style>
+  <!-- React + Recharts via CDN for quick preview -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script crossorigin src="https://unpkg.com/recharts/umd/Recharts.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    const { useState, useEffect, useRef } = React;
+    const { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } = Recharts;
+
+    function fmtUSD(x) { try { return (x>=0?'$':'-$') + Math.abs(x).toLocaleString(undefined, {maximumFractionDigits:0}); } catch { return String(x) }
+    }
+
+    function CenterDonut({ rings, center, size=220 }) {
+      // rings: [{ value:0..1, color:'#', thickness: n } ... inner-first]
+      const ref = useRef(null);
+      useEffect(() => {
+        const svg = ref.current; if (!svg) return; svg.innerHTML='';
+        const cx = size/2, cy = size/2;
+        const mk = (tag) => document.createElementNS('http://www.w3.org/2000/svg', tag);
+        // center label
+        const g = mk('g');
+        const t1 = mk('text'); t1.setAttribute('x', cx); t1.setAttribute('y', cy-6); t1.setAttribute('text-anchor','middle'); t1.setAttribute('fill','#E5E7EB'); t1.setAttribute('font-size','18'); t1.setAttribute('font-weight','600'); t1.textContent = center.value;
+        const t2 = mk('text'); t2.setAttribute('x', cx); t2.setAttribute('y', cy+14); t2.setAttribute('text-anchor','middle'); t2.setAttribute('fill','#9CA3AF'); t2.setAttribute('font-size','12'); t2.textContent = center.label;
+        g.appendChild(t1); g.appendChild(t2); svg.appendChild(g);
+        // draw rings outermost first to avoid overlap cropping
+        const base = Math.min(size/2 - 10, size/2 - rings.length*18);
+        rings.slice().reverse().forEach((ring, idx) => {
+          const i = rings.length - 1 - idx; // original index
+          const r = base + (idx*22);
+          const stroke = ring.thickness ?? 16;
+          const circ = 2 * Math.PI * r;
+          const track = mk('circle');
+          track.setAttribute('cx', cx); track.setAttribute('cy', cy); track.setAttribute('r', r);
+          track.setAttribute('fill','none'); track.setAttribute('stroke','#1F2937'); track.setAttribute('stroke-width', stroke);
+          track.setAttribute('opacity','0.5'); svg.appendChild(track);
+          const arc = mk('circle');
+          arc.setAttribute('cx', cx); arc.setAttribute('cy', cy); arc.setAttribute('r', r);
+          arc.setAttribute('fill','none'); arc.setAttribute('stroke', ring.color);
+          arc.setAttribute('stroke-width', stroke);
+          arc.setAttribute('stroke-linecap','round');
+          arc.setAttribute('stroke-dasharray', `${circ}`);
+          const clamped = Math.max(0, Math.min(1, ring.value || 0));
+          arc.setAttribute('stroke-dashoffset', String(circ * (1 - clamped)));
+          arc.setAttribute('transform', `rotate(-90 ${cx} ${cy})`);
+          svg.appendChild(arc);
+        });
+      }, [rings, center, size]);
+      return React.createElement('svg', {ref, width:size, height:size});
+    }
+
+    function Spark({ data, color }) {
+      return (
+        React.createElement('div', { className:'spark' },
+          React.createElement(ResponsiveContainer, { width:'100%', height:'100%' },
+            React.createElement(LineChart, { data },
+              React.createElement(XAxis, { dataKey:'x', hide:true }),
+              React.createElement(YAxis, { hide:true, domain:['dataMin','dataMax'] }),
+              React.createElement(Tooltip, { contentStyle:{ background:'#0b1220', border:'1px solid rgba(255,255,255,0.2)'} }),
+              React.createElement(Line, { type:'monotone', dataKey:'y', stroke:color, strokeWidth:2, dot:false })
+            )
+          )
+        )
+      );
+    }
+
+    function App() {
+      const [base, setBase] = useState((new URL(window.location)).searchParams.get('base') || window.location.origin);
+      const [session, setSession] = useState({ balance: 0, equity:0, pnl:0, sod_equity:0, target:0, loss:0 });
+      const [behavior, setBehavior] = useState({ discipline:0, patience:0, efficiency:0, conviction:0 });
+      const [market, setMarket] = useState({ vix: {series:[], value:null}, dxy:{series:[], value:null}, regime:'—' });
+      const [whispers, setWhispers] = useState([]);
+
+      // Fetch helpers
+      async function jget(path) {
+        const u = `${base.replace(/\/$/,'')}/${path.replace(/^\//,'')}`;
+        const r = await fetch(u, { credentials:'omit' });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return await r.json();
+      }
+
+      async function loadAll() {
+        try {
+          const [info, risk, mirror, mini] = await Promise.all([
+            jget('/api/v1/account/info'),
+            jget('/api/v1/account/risk'),
+            jget('/api/v1/mirror/state'),
+            jget('/api/v1/market/mini')
+          ]);
+          const equity = Number(info?.equity || 0);
+          const balance = Number(info?.balance || 0);
+          const sod = Number(risk?.sod_equity || balance || equity);
+          const targetAmt = Number(risk?.target_amount || 0);
+          const lossAmt = Number(risk?.loss_amount || 0);
+          const pnl = equity - sod;
+          setSession({ balance, equity, pnl, sod_equity:sod, target:targetAmt, loss:lossAmt });
+          setBehavior({
+            discipline: Number(mirror?.discipline ?? 0),
+            patience: Number(mirror?.patience_ratio ?? 0),
+            efficiency: Number(mirror?.efficiency ?? 0),
+            conviction: Number(mirror?.conviction_hi_win ?? 0)
+          });
+          const vix = { series: (mini?.vix?.series||[]).map((y, i) => ({x:i, y})), value: mini?.vix?.value };
+          const dxy = { series: (mini?.dxy?.series||[]).map((y, i) => ({x:i, y})), value: mini?.dxy?.value };
+          setMarket({ vix, dxy, regime: mini?.regime || '—' });
+        } catch (e) { console.warn('loadAll', e); }
+      }
+
+      // SSE whispers (best-effort), fallback to poll /whispers
+      useEffect(() => {
+        let es = null, stop = false, poll = null;
+        const connect = () => {
+          try {
+            es = new EventSource(`${base.replace(/\/$/,'')}/api/v1/feeds/stream?topics=whispers`);
+            es.addEventListener('whisper', (e) => {
+              try { const d = JSON.parse(e.data); const ts = new Date().toLocaleTimeString();
+                setWhispers((L) => [{ time:ts, type:(d?.severity||'insight'), message:(d?.message||'') }, ...L].slice(0, 100));
+              } catch(_){}
+            });
+            es.addEventListener('error', () => { if (es) { es.close(); es = null; } startPoll(); });
+          } catch {
+            startPoll();
+          }
+        };
+        const startPoll = () => {
+          if (poll) return;
+          poll = setInterval(async () => {
+            try {
+              const data = await jget('/api/pulse/whispers');
+              const arr = Array.isArray(data?.whispers) ? data.whispers : [];
+              const now = new Date().toLocaleTimeString();
+              setWhispers(arr.slice(-20).reverse().map(w => ({ time: now, type:(w?.severity||'insight'), message:(w?.message||'') })));
+            } catch { /* ignore */ }
+          }, 4000);
+        };
+        connect();
+        return () => { stop = true; if (es) es.close(); if (poll) clearInterval(poll); };
+      }, [base]);
+
+      useEffect(() => { loadAll(); const t = setInterval(loadAll, 8000); return () => clearInterval(t); }, [base]);
+
+      // Derived donut rings
+      const pos = session.pnl >= 0;
+      const prog = pos ? (session.target>0 ? session.pnl/session.target : 0) : (session.loss>0 ? Math.abs(session.pnl)/session.loss : 0);
+      const ddUsed = session.equity < session.sod_equity && session.loss>0 ? (session.sod_equity - session.equity)/session.loss : 0;
+
+      return (
+        React.createElement(React.Fragment, null,
+          React.createElement('header', null,
+            React.createElement('strong', null, 'Pulse Cockpit (Preview)'),
+            React.createElement('span', { className:'chip' }, `Regime: ${market.regime}`),
+            React.createElement('input', { value:base, onChange:(e)=>setBase(e.target.value), size:40 }),
+            React.createElement('button', { onClick:loadAll }, 'Refresh')
+          ),
+          React.createElement('div', { className:'container' },
+            // Session donut + market
+            React.createElement('div', { className:'card center', style:{ gridColumn:'span 4' } },
+              React.createElement(CenterDonut, {
+                size: 240,
+                center: { value: fmtUSD(session.equity), label: 'Session' },
+                rings: [
+                  { value: Math.max(0, Math.min(1, prog)), color: pos ? 'var(--pos)' : 'var(--neg)', thickness: 18 },
+                  { value: Math.max(0, Math.min(1, ddUsed)), color: 'var(--neg)', thickness: 16 },
+                  { value: 0.80, color: 'rgba(239,68,68,0.35)', thickness: 14 }, // hard deck visual collar (static)
+                ]
+              })
+            ),
+            React.createElement('div', { className:'card', style:{ gridColumn:'span 4' } },
+              React.createElement('p', { className:'title' }, 'Market Mini'),
+              React.createElement('div', { className:'row' },
+                React.createElement('div', { style:{ flex:1 } },
+                  React.createElement('div', { className:'row', style:{ justifyContent:'space-between' } },
+                    React.createElement('span', null, 'VIX'),
+                    React.createElement('span', { className:'muted' }, String(market?.vix?.value ?? '—'))
+                  ),
+                  React.createElement(Spark, { data: market?.vix?.series || [], color: '#60a5fa' })
+                ),
+                React.createElement('div', { style:{ flex:1 } },
+                  React.createElement('div', { className:'row', style:{ justifyContent:'space-between' } },
+                    React.createElement('span', null, 'DXY'),
+                    React.createElement('span', { className:'muted' }, String(market?.dxy?.value ?? '—'))
+                  ),
+                  React.createElement(Spark, { data: market?.dxy?.series || [], color: '#fbbf24' })
+                )
+              )
+            ),
+            React.createElement('div', { className:'card', style:{ gridColumn:'span 4' } },
+              React.createElement('p', { className:'title' }, 'Behavioral'),
+              React.createElement('div', { className:'row', style:{ gap:'8px' } },
+                React.createElement('span', { className:'badge' }, 'Discipline', React.createElement('span', { className:'pill' }, String(behavior.discipline))),
+                React.createElement('span', { className:'badge' }, 'Patience', React.createElement('span', { className:'pill' }, String(behavior.patience))),
+                React.createElement('span', { className:'badge' }, 'Efficiency', React.createElement('span', { className:'pill' }, String(behavior.efficiency))),
+                React.createElement('span', { className:'badge' }, 'Conviction', React.createElement('span', { className:'pill' }, String(behavior.conviction)))
+              )
+            ),
+
+            // Whispers
+            React.createElement('div', { className:'card', style:{ gridColumn:'span 12' } },
+              React.createElement('p', { className:'title' }, 'Whispers'),
+              React.createElement('div', { id:'whispers' },
+                whispers.map((w, i) => React.createElement('p', { key:i, className:`w ${w.type}` },
+                  React.createElement('span', { className:'t' }, w.time),
+                  React.createElement('span', null, w.message)
+                ))
+              )
+            )
+          )
+        )
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(App));
+  </script>
+</body>
+</html>
+

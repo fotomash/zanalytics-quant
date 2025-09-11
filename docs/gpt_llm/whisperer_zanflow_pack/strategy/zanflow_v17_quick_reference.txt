@@ -1,0 +1,33 @@
+
+ZANFLOW v17 QUICK REFERENCE
+==========================
+
+CORE STRATEGIES:
+- SMC Structural Flip POI v12: M15 BOS/CHoCH → M1 confirmation
+- Inducement Sweep: Liquidity grab → Structure break → POI entry
+- London/NY Reversal: Session-based liquidity hunting
+- Wyckoff Phases: Accumulation/Distribution trading
+
+KEY MODULES:
+- ContextAnalyzer: HTF bias & liquidity mapping
+- StructureValidator: BOS/CHoCH detection
+- PoiIdentifier: Order Blocks, FVGs, Breakers
+- EntryExecutorSMC: Precision LTF entries
+- RiskManager: Adaptive SL/TP management
+- PredictiveScorer: Maturity score evolution
+
+SHORTCUTS:
+- ss: Scan current setups
+- as: Agent status
+- lm: Liquidity map
+- zb: ZBAR viewer
+- es: Emergency stop
+
+TYPICAL WORKFLOW:
+1. Check HTF bias (Context Analysis)
+2. Identify liquidity targets
+3. Wait for structure break (BOS/CHoCH)
+4. Validate POI creation
+5. Monitor LTF confirmation
+6. Execute with proper risk management
+7. Log to ZBAR for analysis

@@ -1,0 +1,921 @@
+openapi: 3.1.0
+info:
+  title: Zanalytics Pulse – Whisperer API
+  version: 0.1.0
+  description: |
+    Minimal endpoints used by the dashboard, bot and GPT Actions.
+    Authentication is not required; an optional `X-Pulse-Key` header may be
+    enabled later without breaking this contract.
+servers:
+  - url: https://mcp1.zanalytics.app
+paths:
+  /api/v1/ping/:
+    get:
+      summary: Health check
+      operationId: ping
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+  /api/v1/market/mini:
+    get:
+      summary: Market header mini payload
+      operationId: getMarketMini
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vix:
+                    type: object
+                    properties:
+                      series:
+                        type: array
+                        items: { type: number }
+                      value:
+                        type: number
+                  dxy:
+                    type: object
+                    properties:
+                      series:
+                        type: array
+                        items: { type: number }
+                      value:
+                        type: number
+                  news:
+                    type: object
+                    properties:
+                      label: { type: string }
+                      countdown: { type: string, nullable: true }
+                  regime:
+                    type: string
+  
+  /api/v1/mirror/state:
+    get:
+      summary: Behavioral mirror state
+      operationId: getMirrorState
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BehavioralMirror'
+  /api/v1/discipline/summary:
+    get:
+      summary: Discipline daily/7‑day summary with events
+      operationId: getDisciplineSummary
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisciplineSummary'
+  /api/v1/profit-horizon:
+    get:
+      summary: Profit Horizon data (last N closed trades)
+      operationId: getProfitHorizon
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20, minimum: 1, maximum: 100 }
+      responses: { '200': { description: OK } }
+  /api/v1/feed/balance:
+    get:
+      summary: Balance feed (awaiting-friendly)
+      operationId: getFeedBalance
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  balance_usd: { type: number }
+                  pnl_total_pct: { type: number, nullable: true }
+                  pnl_inception_momentum_pct: { type: number, nullable: true }
+                  pnl_ytd_pct: { type: number, nullable: true }
+                  markers:
+                    type: object
+                    properties:
+                      inception: { type: number, nullable: true }
+                      prev_close: { type: number, nullable: true }
+                      ath_balance: { type: number, nullable: true }
+                      atl_balance: { type: number, nullable: true }
+  /api/v1/feed/equity:
+    get:
+      summary: Equity feed (awaiting-friendly)
+      operationId: getFeedEquity
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session_pnl: { type: number }
+                  pct_to_target: { type: number, nullable: true, description: "-1..+1 normalized vs loss/target" }
+                  risk_used_pct: { type: number, nullable: true, description: "0..1 or 0..100 accepted" }
+                  exposure_pct: { type: number, nullable: true, description: "0..1 or 0..100 accepted" }
+                  markers:
+                    type: object
+                    properties:
+                      daily_target: { type: number, nullable: true }
+                      daily_loss_limit: { type: number, nullable: true }
+                      account_drawdown_hard: { type: number, nullable: true }
+  /api/v1/feed/trade:
+    get:
+      summary: Trade feed (awaiting-friendly)
+      operationId: getFeedTrade
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pnl_day_vs_goal: { type: number, nullable: true }
+                  realized_usd: { type: number, nullable: true }
+                  unrealized_usd: { type: number, nullable: true }
+                  profit_efficiency: { type: number, nullable: true }
+                  eff_trend_15m: { type: number, nullable: true }
+
+  /api/v1/feed/pulse-detail:
+    get:
+      summary: Pulse gate snapshot (structure/liquidity/wyckoff/risk/confluence)
+      operationId: getPulseDetail
+      parameters:
+        - in: query
+          name: symbol
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PulseDetailResponse'
+
+  # /api/v1/health/telegram intentionally omitted from Actions surface to keep op-count < 30
+  
+  /api/v1/account/positions:
+    get:
+      summary: Normalized open positions proxy
+      operationId: getAccountPositions
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '503':
+          description: MT5 bridge unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+  
+  /api/v1/account/info:
+    get:
+      summary: Normalized MT5 account info
+      operationId: getAccountInfo
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  equity: { type: number, nullable: true }
+                  balance: { type: number, nullable: true }
+                  margin: { type: number, nullable: true }
+                  free_margin: { type: number, nullable: true }
+                  margin_level: { type: number, nullable: true }
+                  profit: { type: number, nullable: true }
+                  login: { type: string, nullable: true }
+                  server: { type: string, nullable: true }
+                  currency: { type: string, nullable: true }
+        '503':
+          description: MT5 bridge unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+  
+  /api/v1/journal/recent:
+    get:
+      summary: Recent journal entries
+      operationId: getJournalRecent
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, minimum: 1, maximum: 200 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: integer }
+                    ts: { type: string }
+                    trade_id: { type: integer, nullable: true }
+                    text: { type: string }
+  /api/v1/account/risk:
+    get:
+      summary: Session risk envelope and targets
+      operationId: getAccountRisk
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sod_equity: { type: number, nullable: true, description: Start-of-day equity in account currency }
+                  daily_profit_pct: { type: number, nullable: true, description: Profit target percent for the day }
+                  daily_risk_pct: { type: number, nullable: true, description: Max daily loss percent (risk budget) }
+                  target_amount: { type: number, nullable: true, description: Absolute daily profit target amount }
+                  loss_amount: { type: number, nullable: true, description: Absolute daily loss cap amount }
+                  used_pct: { type: number, nullable: true, description: Daily risk used (0..1 or 0..100) }
+                  exposure_pct: { type: number, nullable: true, description: Current exposure (0..1 or 0..100) }
+  /api/v1/orders/market:
+    post:
+      summary: Place a market order (safe proxy)
+      operationId: postOrderMarket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [symbol, volume, side]
+              properties:
+                symbol: { type: string }
+                volume: { type: number }
+                side: { type: string, enum: [buy, sell] }
+                sl: { type: number, nullable: true }
+                tp: { type: number, nullable: true }
+                comment: { type: string, nullable: true }
+      responses: { '200': { description: OK } }
+  /api/v1/orders/modify:
+    post:
+      summary: Modify SL/TP for an existing position
+      operationId: postOrderModify
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket]
+              properties:
+                ticket: { type: integer }
+                sl: { type: number, nullable: true }
+                tp: { type: number, nullable: true }
+      responses: { '200': { description: OK } }
+  /api/v1/orders/close:
+    post:
+      summary: Close full or partial position
+      operationId: postOrderClose
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket]
+              properties:
+                ticket: { type: integer }
+                fraction: { type: number, nullable: true, description: 0..1 }
+      responses: { '200': { description: OK } }
+
+  /api/v1/positions/open:
+    post:
+      summary: Open a new market position (alias → orders/market)
+      operationId: postPositionsOpen
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [symbol, side, volume]
+              properties:
+                symbol: { type: string }
+                side: { type: string, enum: [buy, sell] }
+                volume: { type: number }
+                sl: { type: number, nullable: true }
+                tp: { type: number, nullable: true }
+      responses:
+        '200': { description: OK }
+
+  /api/v1/positions/close:
+    post:
+      summary: Close full or partial position (alias → orders/close)
+      operationId: postPositionsClose
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket]
+              properties:
+                ticket: { type: integer }
+                fraction: { type: number, minimum: 0.01, maximum: 1.0, nullable: true }
+                volume: { type: number, nullable: true }
+      responses:
+        '200': { description: OK }
+
+  /api/v1/positions/modify:
+    post:
+      summary: Modify SL/TP for an existing position (alias → orders/modify)
+      operationId: postPositionsModify
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket]
+              properties:
+                ticket: { type: integer }
+                sl: { type: number, nullable: true }
+                tp: { type: number, nullable: true }
+      responses:
+        '200': { description: OK }
+
+  /api/v1/positions/{ticket}/modify:
+    post:
+      summary: Modify SL/TP for an existing position by ticket in path
+      operationId: postPositionsModifyByTicket
+      parameters:
+        - in: path
+          name: ticket
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sl: { type: number, nullable: true }
+                tp: { type: number, nullable: true }
+      responses:
+        '200': { description: OK }
+
+  /api/v1/positions/hedge:
+    post:
+      summary: Open opposite-side hedge order for a position
+      operationId: postPositionsHedge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket]
+              properties:
+                ticket: { type: integer }
+                volume: { type: number, nullable: true, description: Defaults to position volume }
+      responses:
+        '200': { description: OK }
+  
+  
+  /api/v1/market/symbols:
+    get:
+      summary: Available symbols list
+      operationId: getMarketSymbols
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  symbols:
+                    type: array
+                    items: { type: string }
+  /api/v1/market/calendar/next:
+    get:
+      summary: Next high-impact calendar events
+      operationId: getMarketCalendarNext
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 5, minimum: 1, maximum: 20 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    ts: { type: string }
+                    label: { type: string }
+                    importance: { type: string }
+                    currency: { type: string }
+  /api/v1/market/regime:
+    get:
+      summary: Market regime signal and features
+      operationId: getMarketRegime
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  regime: { type: string }
+                  score: { type: number, nullable: true }
+                  features:
+                    type: object
+                    properties:
+                      vix_trend: { type: number, nullable: true }
+                      dxy_trend: { type: number, nullable: true }
+                      breadth: { type: number, nullable: true }
+                      atr: { type: number, nullable: true }
+  # --- Playbook endpoints (minimal) ---
+  /api/v1/playbook/session-init:
+    post:
+      summary: Initialize a session playbook and return prioritized strategies
+      operationId: postPlaybookSessionInit
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                symbols: { type: array, items: { type: string } }
+                constraints: { type: object, additionalProperties: true }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session_id: { type: string }
+                  strategies:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        score: { type: number }
+                        rationale: { type: string }
+                        params: { type: object }
+  /api/v1/liquidity/map:
+    get:
+      summary: Liquidity heatmap snapshot for dashboard panel
+      operationId: getLiquidityMap
+      parameters:
+        - in: query
+          name: symbol
+          schema: { type: string }
+        - in: query
+          name: timeframe
+          schema: { type: string, example: "M5" }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  asof: { type: string }
+                  levels:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        price: { type: number }
+                        kind: { type: string, enum: [swing_high, swing_low, imbalance, fvg, orderblock] }
+                        strength: { type: number }
+  /api/v1/opportunity/priority-items:
+    post:
+      summary: Rank candidate opportunities for Auto‑Launcher
+      operationId: postOpportunityPriorityItems
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                candidates:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      symbol: { type: string }
+                      signal: { type: string }
+                      score: { type: number }
+                      meta: { type: object }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        symbol: { type: string }
+                        priority: { type: number }
+                        reason: { type: string }
+  /api/v1/ai/explain-signal:
+    post:
+      summary: Explain a signal with context and persist to journal
+      operationId: postAIExplainSignal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                signal: { type: string }
+                context: { type: object }
+                trade_id: { type: integer, nullable: true }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  explanation: { type: string }
+                  journal_id: { type: integer, nullable: true }
+  /api/v1/report/daily-summary:
+    get:
+      summary: Daily rollup summary for reports and emails
+      operationId: getReportDailySummary
+      parameters:
+        - in: query
+          name: date
+          schema: { type: string, nullable: true, description: YYYY-MM-DD }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  date: { type: string }
+                  equity_open: { type: number }
+                  equity_close: { type: number }
+                  pnl_day: { type: number }
+                  best_trades: { type: array, items: { type: object } }
+  /api/v1/behavioral/patterns:
+    get:
+      summary: Behavioral patterns summary (last 30 days)
+      operationId: getBehavioralPatterns
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  window_days: { type: integer }
+                  revenge_trading:
+                    type: object
+                    properties:
+                      active: { type: boolean }
+                      count: { type: integer }
+                      note: { type: string }
+                  fomo:
+                    type: object
+                    properties:
+                      active: { type: boolean }
+                      count: { type: integer }
+                      note: { type: string }
+                  fear_cut_winners:
+                    type: object
+                    properties:
+                      active: { type: boolean }
+                      count: { type: integer }
+                      note: { type: string }
+  /api/v1/journal/entry:
+    post:
+      summary: Structured journal entry (post-trade reflection)
+      operationId: postJournalEntry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [trade_id]
+              properties:
+                trade_id: { type: integer }
+                confidence: { type: integer, minimum: 0, maximum: 10 }
+                reflection: { type: string }
+                text: { type: string }
+                tags: { type: array, items: { type: string } }
+      responses:
+        '200': { description: OK }
+  # /api/v1/session/set_focus trimmed from Actions surface (can re-add if needed)
+  /api/v1/positions/{ticket}/protect:
+    get:
+      summary: Suggested protection options for an open position
+      operationId: getPositionProtectOptions
+      parameters:
+        - in: path
+          name: ticket
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  actions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        label: { type: string }
+                        action: { type: string }
+                        params: { type: object }
+  /api/pulse/whispers:
+    get:
+      summary: Latest whispers list (JSON)
+      operationId: getWhispers
+      responses: { '200': { description: OK } }
+  /api/v1/trades/history:
+    get:
+      summary: Trade history with filters (behavioral-friendly)
+      operationId: getTradeHistory
+      parameters:
+        - in: query
+          name: source
+          schema: { type: string, enum: [db, mt5], nullable: true }
+          description: Use `source=mt5` to return live MT5 deals (bypass DB)
+        - in: query
+          name: symbol
+          schema: { type: string, nullable: true }
+          description: Filter by symbol (e.g., XAUUSD)
+        - in: query
+          name: date_from
+          schema: { type: string, nullable: true, description: ISO date or datetime }
+          description: Include trades with entry_time >= date_from
+        - in: query
+          name: date_to
+          schema: { type: string, nullable: true, description: ISO date or datetime }
+          description: Include trades with entry_time <= date_to
+        - in: query
+          name: pnl_min
+          schema: { type: number, nullable: true }
+          description: Minimum PnL (USD)
+        - in: query
+          name: pnl_max
+          schema: { type: number, nullable: true }
+          description: Maximum PnL (USD)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: integer }
+                    ts: { type: string }
+                    symbol: { type: string }
+                    direction: { type: string }
+                    entry: { type: number }
+                    exit: { type: number, nullable: true }
+                    pnl: { type: number, nullable: true }
+                    status: { type: string }
+  /api/pulse/whisper/ack:
+    post:
+      summary: Acknowledge a whisper
+      operationId: postWhisperAck
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: { type: string }
+                reason: { type: string, nullable: true }
+      responses: { '200': { description: OK } }
+  /api/pulse/whisper/act:
+    post:
+      summary: Act on a whisper (journal intent)
+      operationId: postWhisperAct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: { type: string }
+                action: { type: string }
+      responses: { '200': { description: OK } }
+
+  /score/peek:
+    post:
+      summary: Preview confluence score from recent bars
+      operationId: postScorePeek
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bars:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      ts: { type: string, format: date-time }
+                      open: { type: number }
+                      high: { type: number }
+                      low: { type: number }
+                      close: { type: number }
+            example:
+              bars:
+                - ts: "2024-05-24T12:00:00Z"
+                  open: 1.2345
+                  high: 1.2350
+                  low: 1.2330
+                  close: 1.2340
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  score: { type: number }
+                  reasons:
+                    type: array
+                    items: { type: string }
+                  components:
+                    type: object
+                    additionalProperties: { type: number }
+              example:
+                score: 72
+                reasons:
+                  - "Wyckoff upthrust"
+                  - "Liquidity drop"
+                components:
+                  smc: 70
+                  wyckoff: 65
+                  technical: 80
+  
+  
+components:
+  schemas:
+    GateResult:
+      type: object
+      properties:
+        passed: { type: boolean }
+        direction: { type: string, nullable: true }
+        details: { type: object, additionalProperties: true }
+      required: [passed]
+    WyckoffGate:
+      type: object
+      properties:
+        passed: { type: boolean }
+        phase: { type: string, nullable: true }
+        direction: { type: string, nullable: true }
+      required: [passed]
+    Confluence:
+      type: object
+      properties:
+        confidence: { type: number, format: float }
+        passed: { type: boolean }
+      required: [confidence, passed]
+    RiskEnvelope:
+      type: object
+      properties:
+        used_pct: { type: number, format: float, nullable: true }
+        exposure_pct: { type: number, format: float, nullable: true }
+        target_amount: { type: number, format: float, nullable: true }
+        loss_amount: { type: number, format: float, nullable: true }
+    PulseDetailResponse:
+      type: object
+      properties:
+        structure: { $ref: '#/components/schemas/GateResult' }
+        liquidity: { $ref: '#/components/schemas/GateResult' }
+        wyckoff: { $ref: '#/components/schemas/WyckoffGate' }
+        risk: { $ref: '#/components/schemas/RiskEnvelope' }
+        confluence: { $ref: '#/components/schemas/Confluence' }
+      required: [structure, liquidity, wyckoff, risk, confluence]
+    BehavioralMirror:
+      type: object
+      properties:
+        discipline: { type: number, format: float, nullable: true }
+        patience: { type: number, format: float, nullable: true }
+        patience_ratio: { type: number, format: float, nullable: true }
+        conviction: { type: number, format: float, nullable: true }
+        efficiency: { type: number, format: float, nullable: true }
+    MirrorState:
+      type: object
+      additionalProperties: false
+      properties:
+        patience_ratio: { type: number, nullable: true, description: Tempo vs baseline (-0.5..+0.5) }
+        discipline: { type: number, nullable: true, description: 0..100 }
+        efficiency: { type: number, nullable: true, description: 0..100 }
+        conviction_hi_win: { type: number, nullable: true, description: 0..100 }
+        conviction_lo_loss: { type: number, nullable: true, description: 0..100 }
+        pnl_norm: { type: number, nullable: true, description: -1..+1 vs daily target/loss }
+        pnl_today: { type: number, nullable: true }
+        discipline_deltas:
+          type: array
+          items:
+            type: object
+            properties:
+              kind: { type: string }
+              delta: { type: number }
+              ts: { type: string }
+        patience_median_min: { type: number, nullable: true }
+        patience_p25_min: { type: number, nullable: true }
+        patience_p75_min: { type: number, nullable: true }
+
+    DisciplineSummary:
+      type: object
+      properties:
+        today: { type: number, nullable: true }
+        yesterday: { type: number, nullable: true }
+        seven_day:
+          type: array
+          items:
+            type: object
+            required: [date, score]
+            properties:
+              date: { type: string, format: date }
+              score: { type: number }
+        events_today:
+          type: array
+          items:
+            type: object
+            properties:
+              ts: { type: string }
+              type: { type: string }
+              meta: { type: object }
+  securitySchemes:
+    pulseKey:
+      type: apiKey
+      name: X-Pulse-Key
+      in: header
+security: []

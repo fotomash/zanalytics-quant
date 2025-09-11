@@ -7,7 +7,7 @@ The Pulse components currently use placeholder methods. These need to be connect
 ### File: `confluence_scorer.py`
 ```python
 # Update imports at the top
-from components.smc_analyser import SMCAnalyzer
+from utils.smc_analyzer import SMCAnalyzer
 from components.wyckoff_analyzer import WyckoffAnalyzer
 from components.technical_analysis import TechnicalAnalysis
 
@@ -130,7 +130,7 @@ urlpatterns += [
 
 Add Pulse UI components to the existing dashboard:
 
-### File: `dashboard/pages/pulse_dashboard.py` (NEW)
+### File: `dashboard/pulse_dashboard.py` (NEW)
 ```python
 import streamlit as st
 import requests

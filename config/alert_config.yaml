@@ -1,0 +1,50 @@
+# Alert System Configuration
+
+telegram:
+  bot_token: "${TELEGRAM_BOT_TOKEN}"
+  chat_id: "${TELEGRAM_CHAT_ID}"
+
+channels:
+  email:
+    enabled: true
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    username: ""
+    password: ""
+    recipients:
+      - "trader@example.com"
+      - "risk@example.com"
+  slack:
+    enabled: false
+    webhook_url: ""
+
+alert_types:
+  price_alerts:
+    enabled: true
+    threshold_percentage: 0.05
+    symbols: [BTC, ETH, SPX, DXY, GOLD, VIX]
+  correlation_alerts:
+    enabled: true
+    crisis_threshold: 0.75
+    monitored_pairs: [DXY_VIX, BTC_SPX, ETH_BTC, GOLD_DXY]
+  ml_signal_alerts:
+    enabled: true
+    confidence_threshold: 0.7
+    severity_levels:
+      high: 0.8
+      medium: 0.6
+      low: 0.4
+  risk_alerts:
+    enabled: true
+    daily_loss_threshold: 0.02
+    drawdown_threshold: 0.05
+    correlation_exposure_threshold: 0.8
+
+scheduling:
+  market_open_summary: true
+  market_close_summary: true
+  daily_risk_report: true
+  weekly_performance_report: true
+  market_open_time: "14:30"
+  market_close_time: "21:00"
+  daily_report_time: "22:00"

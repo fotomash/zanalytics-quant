@@ -1,0 +1,16 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY services/requirements.bars.txt /app/requirements.txt
+ENV PIP_ROOT_USER_ACTION=ignore
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+COPY services/kafka_tick_to_bar.py /app/
+
+ENV KAFKA_BROKERS=kafka:9092 \
+    TICKS_TOPIC=ticks.BTCUSDT \
+    BARS_TOPIC=bars.BTCUSDT.1m \
+    KAFKA_GROUP=bars-1m-builder
+
+CMD ["python", "-u", "kafka_tick_to_bar.py"]

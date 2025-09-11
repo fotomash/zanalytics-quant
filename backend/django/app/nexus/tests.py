@@ -46,3 +46,22 @@ class TickBarAPITests(APITestCase):
         response = self.client.get("/api/v1/ping/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
+
+
+class AccountProxyTests(APITestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+    @patch('app.nexus.views.requests.get')
+    def test_positions_proxy_bridge_down(self, mock_get):
+        mock_get.side_effect = Exception('boom')
+        resp = self.client.get('/api/v1/account/positions')
+        self.assertEqual(resp.status_code, 503)
+        self.assertIn('error', resp.json())
+
+    @patch('app.nexus.views.requests.get')
+    def test_account_info_bridge_down(self, mock_get):
+        mock_get.side_effect = Exception('boom')
+        resp = self.client.get('/api/v1/account/info')
+        self.assertEqual(resp.status_code, 503)
+        self.assertIn('error', resp.json())

@@ -1,0 +1,6 @@
+fastapi==0.112.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.1
+# If the MT5 Python package is not already in the MT5 container's env:
+MetaTrader5>=5.0
+

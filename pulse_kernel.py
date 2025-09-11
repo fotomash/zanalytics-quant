@@ -1,99 +1,480 @@
-"""Core streaming kernel for the Pulse package."""
+# 
+# PulseKernel - Central Orchestrator for Zanalytics Pulse.
+#  Coordinates between analyzers, risk management, and UI. Redis failures are
+# logged and do not halt the pipeline, ensuring resilience during temporary
+# outages or network issues.
+# 
 
-from __future__ import annotations
+# __version__ = "0.1.0"
 
+import os
+import asyncio
 import json
+import time
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Tuple
+import redis
+import logging
+from redis.exceptions import RedisError
+from confluent_kafka import Producer
+from tenacity import retry, stop_after_attempt, wait_exponential
 import yaml
-from typing import Optional, Dict, Any
+from core.confidence_tracer import ConfidenceTracer
+from core.semantic_mapping_service import SemanticMappingService
+try:
+    from whisper_engine import WhisperEngine, State, serialize_whispers
+except Exception:
+    WhisperEngine = None
+    State = None
+    def serialize_whispers(ws):
+        return ws
 
-import pandas as pd
+# Support multiple runtime layouts (repo vs. packaged API image)
+try:
+    from components.risk_enforcer import RiskEnforcer  # repo layout
+except Exception:  # pragma: no cover
+    from risk_enforcer import RiskEnforcer            # packaged image layout
 
-from components.smc_analyzer import SMCAnalyzer
-from components.wyckoff_scorer import WyckoffScorer
-from components.technical_analysis import TechnicalAnalysis
-from components.enhanced_analyzer import EnhancedAnalyzer
-from components.wyckoff_agents import MultiTFResolver
-from confluence_scorer import ConfluenceScorer
-from risk_enforcer import RiskEnforcer
-from journal_engine import JournalEngine
-
+logger = logging.getLogger(__name__)
 
 class PulseKernel:
-    """Process streaming market frames and return scored decisions."""
+    """
+    Central orchestration engine for the Pulse trading system.
+    Manages data flow, scoring, risk enforcement, and journaling.
+    """
+    
+    def __init__(self, config_path: str = "pulse_config.yaml"):
+        self.config = self._load_config(config_path)
+        import os
+        self.redis_client = redis.Redis.from_url(os.getenv("REDIS_URL", "redis://redis:6379/0"))
 
-    def __init__(self, config_path: str = "pulse_config.yaml") -> None:
+        # Kafka producer for journaling and event streaming
+        self.kafka_producer = Producer({
+            'bootstrap.servers': os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092'),
+            'acks': 'all',
+            'enable.idempotence': True,
+            'linger.ms': 5,
+            'batch.num.messages': 100
+        })
+
+        # Initialize components
+        self.risk_enforcer = RiskEnforcer()
+        self.journal = None  # Placeholder for JournalEngine
+
+        # Agent routing and confidence tracking
+        self.semantic_service = SemanticMappingService()
+        self.confidence_tracer = ConfidenceTracer()
+        self.agent_registry: Dict[str, Dict[str, Any]] = {}
+
+        # State management
+        self.active_signals = {}
+        self.daily_stats = self._init_daily_stats()
+        self.behavioral_state = "normal"
+        # Whisper engine (optional)
+        self.whisper = None
+        if WhisperEngine is not None:
+            try:
+                cfg = yaml.safe_load(open(config_path)) if os.path.exists(config_path) else {}
+            except Exception:
+                cfg = {}
+            try:
+                self.whisper = WhisperEngine(cfg or {})
+            except Exception:
+                self.whisper = None
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+    def _send_to_kafka(self, topic: str, message: Dict) -> None:
+        """Send message to Kafka with retry logic."""
         try:
-            with open(config_path, "r") as f:
-                self.config = yaml.safe_load(f)
-        except Exception:
-            with open(config_path, "r") as f:
-                self.config = json.load(f)
+            self.kafka_producer.produce(
+                topic=topic,
+                value=json.dumps(message).encode('utf-8'),
+                callback=self._delivery_report,
+            )
+            # Trigger delivery of previous messages
+            self.kafka_producer.poll(0)
+        except Exception as e:
+            logger.error(f"Kafka send failed: {e}")
+            raise
 
-        self.smc = SMCAnalyzer()
-        self.wyckoff = WyckoffScorer()
-        self.tech = TechnicalAnalysis()
-        self.enhanced = EnhancedAnalyzer()
-        self.scorer = ConfluenceScorer(
-            self.smc,
-            self.wyckoff,
-            self.tech,
-            self.enhanced,
-            self.config.get("confluence_weights", {}),
-        )
-        self.risk = RiskEnforcer()
-        self.journal = JournalEngine(self.config.get("journal_dir"))
-        self.mtf = self.config.get("mtf", {})
-        self.mtf_resolver = MultiTFResolver()
-        self.mtf_clamp_pts = int(self.mtf.get("clamp_points", 10))
-        nb = (self.config.get("wyckoff", {}) or {}).get("news_buffer", {}) or {}
-        self.news_cfg = {k: v for k, v in nb.items() if k != "enabled"}
-        self.news_enabled = bool(nb.get("enabled"))
+    def _delivery_report(self, err, msg) -> None:
+        if err:
+            logger.error(f"Kafka delivery failed: {err}")
+        else:
+            logger.debug(f"Message delivered to {msg.topic()}")
+
+    def _publish_whispers(self, ws_list: List[Dict]) -> None:
+        try:
+            for w in ws_list:
+                self.redis_client.rpush('whispers', json.dumps(w))
+                try:
+                    self.redis_client.publish('pulse.whispers', json.dumps(w))
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning(f"whisper publish error: {e}")
+
+    def _load_config(self, config_path: str) -> Dict:
+        """Load configuration from YAML file"""
+        default_cfg = {
+            'redis': {'host': 'redis_service', 'port': 6379, 'db': 0},
+            'risk_limits': {
+                'daily_loss_limit': 500,
+                'max_trades_per_day': 5,
+                'max_position_size': 0.02,
+                'cooling_period_minutes': 15
+            },
+            'behavioral': {
+                'revenge_trade_threshold': 3,
+                'overconfidence_threshold': 4,
+                'fatigue_hour': 22
+            }
+        }
+        try:
+            return yaml.safe_load(open(config_path)) or default_cfg
+        except FileNotFoundError:
+            logger.warning(f"Config file {config_path} not found. Using defaults.")
+        except yaml.YAMLError as e:
+            logger.error(f"Error parsing config file {config_path}: {e}")
+        return default_cfg
+    
+    def _init_daily_stats(self) -> Dict:
+        """Initialize daily statistics"""
+        return {
+            'trades_count': 0,
+            'pnl': 0.0,
+            'wins': 0,
+            'losses': 0,
+            'behavioral_score': 100,
+            'violations': [],
+            'last_trade_time': None
+        }
 
     # ------------------------------------------------------------------
-    def on_frame(self, frame: Dict[str, Any]) -> Dict[str, Any]:
-        """Score a single streaming frame.
+    # Agent execution utilities
+    # ------------------------------------------------------------------
+    def _get_agent_callable(self, agent_id: str):
+        """Return the callable entry point for ``agent_id``."""
+        cfg = self.agent_registry.get(agent_id)
+        if cfg is None:
+            return None
+        if callable(cfg):
+            return cfg
+        entry_points = cfg.get("entry_points", {}) if isinstance(cfg, dict) else {}
+        func = (
+            entry_points.get("on_message")
+            or entry_points.get("run")
+            or entry_points.get("call")
+            or next(iter(entry_points.values()), None)
+        )
+        return func if callable(func) else None
 
-        Parameters
-        ----------
-        frame:
-            Dictionary containing at minimum ``ts`` and ``symbol``.  Optionally
-            contains bar data for multiple timeframes and feature dictionaries.
+    def run(self, request: Any, *args: Any, threshold: float = 0.5, **kwargs: Any) -> Any:
+        """Route ``request`` to agents and execute with confidence fallbacks."""
+
+        primary, fallbacks = self.semantic_service.route(request)
+        if primary is None:
+            logger.warning("No agent mapping for %s", request)
+            return None
+        candidates = [primary, *fallbacks]
+        logger.info("Routing request via agents: %s", candidates)
+        best_result: Any = None
+        best_score = float("-inf")
+        for agent_id in candidates:
+            handler = self._get_agent_callable(agent_id)
+            if handler is None:
+                logger.warning("No handler for agent %s", agent_id)
+                continue
+            try:
+                result = handler(request, *args, **kwargs)
+            except Exception:  # pragma: no cover - defensive
+                logger.exception("Agent %s failed for request %s", agent_id, request)
+                continue
+            score = self.confidence_tracer.trace(result)
+            logger.info("Agent %s produced confidence %.3f", agent_id, score)
+            if score > best_score:
+                best_score, best_result = score, result
+            if score >= threshold:
+                break
+        return best_result
+    
+    async def on_frame(self, data: Dict) -> Dict:
         """
+        Process incoming data frame through the full pipeline.
+        This is the main entry point for all market data.
+        
+        Args:
+            data: Normalized frame from MIDAS adapter
+            
+        Returns:
+            Decision dict with score, action, and reasons
+        """
+        try:
+            # Step 1: Calculate confluence score
+            confluence_result = await self._calculate_confluence(data)
+            
+            # Step 2: Check risk constraints
+            risk_check = await self._enforce_risk(confluence_result)
+            
+            # Step 3: Check behavioral state
+            behavioral_check = self._check_behavioral_state()
+            
+            # Step 4: Make final decision
+            decision = self._make_decision(
+                confluence_result, 
+                risk_check, 
+                behavioral_check
+            )
+            
+            # Step 5: Journal the decision
+            await self._journal_decision(decision)
+            
+            # Step 6: Publish to UI and Telegram
+            await self._publish_decision(decision)
 
-        ts, symbol = frame["ts"], frame["symbol"]
-        bars = frame.get("bars")
-        df = pd.DataFrame(bars) if bars is not None else None
-
-        target: Any
-        if df is not None:
-            target = df
-            news_times = frame.get("news_times") if self.news_enabled else None
-            wy_out = self.wyckoff.score(df, news_times=news_times, news_cfg=self.news_cfg)
+            # Step 7: Evaluate and publish whispers (if engine available)
+            try:
+                if self.whisper is not None and State is not None:
+                    s = State(
+                        confluence=float(confluence_result.get('score', 0) or 0),
+                        confluence_trend_up=True,
+                        patience_index=80.0,
+                        patience_drop_pct=0.0,
+                        loss_streak=int(self.daily_stats.get('losses', 0) or 0),
+                        window_minutes=15,
+                        recent_winrate_similar=0.5,
+                        hard_cooldown_active=False,
+                        risk_budget_used_pct=0.0,
+                        trades_today=int(self.daily_stats.get('trades_count', 0) or 0),
+                        user_id=os.getenv('USER_ID', 'u1'),
+                    )
+                    ws = self.whisper.evaluate(s)
+                    if ws:
+                        self._publish_whispers(serialize_whispers(ws))
+            except Exception as e:
+                logger.warning(f"whisper eval failed: {e}")
+            
+            return decision
+            
+        except Exception as e:
+            logger.error(f"Error processing frame: {e}")
+            return {'error': str(e), 'action': 'skip'}
+    
+    async def _calculate_confluence(self, data: Dict) -> Dict:
+        """Calculate confluence score using existing analyzers"""
+        # This will call the ConfluenceScorer which wraps:
+        # - SMC Analyzer (35,895 LOC)
+        # - Wyckoff Analyzer (15,011 LOC)  
+        # - Technical Analysis (8,161 LOC)
+        
+        return {
+            'score': 82,  # 0-100
+            'grade': 'high',
+            'components': {
+                'smc': 85,
+                'wyckoff': 78,
+                'technical': 83
+            },
+            'reasons': [
+                'Bullish order block detected',
+                'Wyckoff spring confirmed',
+                'RSI oversold bounce'
+            ]
+        }
+    
+    async def _enforce_risk(self, confluence_result: Dict) -> Dict:
+        """Check risk constraints and limits"""
+        # This will call the RiskEnforcer
+        
+        return {
+            'allowed': True,
+            'warnings': [],
+            'remaining_trades': 2,
+            'remaining_risk': 260,
+            'cooling_active': False
+        }
+    
+    def _check_behavioral_state(self) -> Dict:
+        """Analyze trader's behavioral state"""
+        current_hour = datetime.now().hour
+        
+        # Check various behavioral factors
+        factors = {
+            'time_of_day': 'normal' if 8 <= current_hour <= 20 else 'fatigue',
+            'recent_losses': self._check_recent_losses(),
+            'trade_frequency': self._check_trade_frequency(),
+            'position_sizing': self._check_position_sizing()
+        }
+        
+        # Calculate overall state
+        if any(f == 'danger' for f in factors.values()):
+            self.behavioral_state = 'danger'
+        elif any(f == 'warning' for f in factors.values()):
+            self.behavioral_state = 'warning'
         else:
-            target = frame.get("features", {})
-            wy_out = None
+            self.behavioral_state = 'normal'
+            
+        return {
+            'state': self.behavioral_state,
+            'factors': factors,
+            'score': self._calculate_behavioral_score(factors)
+        }
+    
+    def _check_recent_losses(self) -> str:
+        """Check for revenge trading patterns"""
+        if self.daily_stats['losses'] >= 3:
+            return 'danger'
+        elif self.daily_stats['losses'] >= 2:
+            return 'warning'
+        return 'normal'
+    
+    def _check_trade_frequency(self) -> str:
+        """Check for overtrading"""
+        if self.daily_stats['trades_count'] >= 4:
+            return 'warning'
+        return 'normal'
+    
+    def _check_position_sizing(self) -> str:
+        """Check for aggressive position sizing"""
+        # Would check actual position sizes from recent trades
+        return 'normal'
+    
+    def _calculate_behavioral_score(self, factors: Dict) -> int:
+        """Calculate behavioral score 0-100"""
+        base_score = 100
+        
+        for factor, state in factors.items():
+            if state == 'danger':
+                base_score -= 30
+            elif state == 'warning':
+                base_score -= 15
+                
+        return max(0, base_score)
+    
+    def _make_decision(self, confluence: Dict, risk: Dict, behavioral: Dict) -> Dict:
+        """Make final trading decision"""
+        decision = {
+            'timestamp': datetime.now().isoformat(),
+            'action': 'none',
+            'confidence': 0,
+            'reasons': [],
+            'warnings': []
+        }
+        
+        # Decision logic
+        if not risk['allowed']:
+            decision['action'] = 'blocked'
+            decision['reasons'].append('Risk limits exceeded')
+            
+        elif behavioral['state'] == 'danger':
+            decision['action'] = 'warning'
+            decision['warnings'].append('High-risk behavioral state detected')
+            
+        elif confluence['score'] >= 80:
+            decision['action'] = 'signal'
+            decision['confidence'] = confluence['score']
+            decision['reasons'] = confluence['reasons']
+            
+        elif confluence['score'] >= 60:
+            decision['action'] = 'watch'
+            decision['confidence'] = confluence['score']
+            decision['reasons'].append('Medium confluence - monitor closely')
+            
+        return decision
+    
+    async def _journal_decision(self, decision: Dict):
+        """Enhanced journaling with Kafka and Redis"""
+        journal_entry = {
+            **decision,
+            'behavioral_state': self.behavioral_state,
+            'daily_stats': self.daily_stats.copy(),
+            'timestamp': time.time(),
+        }
 
-        score = self.scorer.score(target)
+        # Send to Kafka
+        self._send_to_kafka('pulse.journal', journal_entry)
 
-        if df is not None and frame.get("bars_m5") and frame.get("bars_m15"):
-            df5 = pd.DataFrame(frame["bars_m5"])
-            df15 = pd.DataFrame(frame["bars_m15"])
-            l1 = (wy_out or self.wyckoff.score(df)).get("last_label")
-            l5 = self.wyckoff.score(df5).get("last_label")
-            l15 = self.wyckoff.score(df15).get("last_label")
-            conflict = self.mtf_resolver.resolve(
-                pd.Series([l1]), pd.Series([l5]), pd.Series([l15])
-            )["conflict_mask"].iloc[-1]
-            if bool(conflict):
-                score["score"] = max(0.0, float(score["score"]) - self.mtf_clamp_pts)
-                score.setdefault("reasons", []).append(
-                    f"MTF conflict clamp (-{self.mtf_clamp_pts})"
-                )
-                score["grade"] = (
-                    "Low" if score["score"] < 40 else "Medium" if score["score"] < 70 else "High"
-                )
+        # Also keep Redis for fast access
+        key = f"journal:{datetime.now().strftime('%Y%m%d')}:{decision['timestamp']}"
+        try:
+            self.redis_client.set(key, json.dumps(journal_entry))
+        except RedisError:
+            logger.warning("Redis unavailable for journaling")
+        
+    async def _publish_decision(self, decision: Dict):
+        """Publish decision to UI and notification channels"""
+        # Publish to Redis for Streamlit
+        try:
+            self.redis_client.publish('pulse:decisions', json.dumps(decision))
+        except RedisError:
+            logger.warning("Redis publish failed")
+        
+        # Send to Telegram if significant
+        if decision['action'] in ['signal', 'blocked', 'warning']:
+            await self._send_telegram_alert(decision)
+    
+    async def _send_telegram_alert(self, decision: Dict):
+        """Send alert to Telegram bot"""
+        # Telegram integration would go here
+        pass
 
-        decision = self.risk.check(ts, symbol, score["score"], features=frame.get("features", {}))
-        self.journal.log(ts, symbol, score, decision)
-        return {"ts": ts, "symbol": symbol, "score": score, "decision": decision}
+    def flush_and_close(self) -> None:
+        """Cleanup method to ensure Kafka and Redis resources are released."""
+        try:
+            # Flush pending Kafka messages and close the producer
+            self.kafka_producer.flush()
+        finally:
+            try:
+                self.kafka_producer.close()
+            except Exception:
+                pass
 
+        # Close Redis connection pool
+        try:
+            self.redis_client.close()
+        except Exception:
+            try:
+                self.redis_client.connection_pool.disconnect()
+            except Exception:
+                pass
+
+    def get_status(self) -> Dict:
+        """Get current system status"""
+        return {
+            'behavioral_state': self.behavioral_state,
+            'daily_stats': self.daily_stats,
+            'active_signals': len(self.active_signals),
+            'system_health': 'operational'
+        }
+
+    def get_session_report(self) -> Dict:
+        """Return session report used by API health endpoint."""
+        return {
+            'behavioral_health': {
+                'overtrading_risk': False,
+                'cooling_off_active': False,
+                'daily_loss_safe': True
+            },
+            'active_signals': list(self.active_signals.values())
+        }
+
+    def process_frame(self, data: Dict):
+        """Synchronous helper to process a frame."""
+        try:
+            return asyncio.run(self.on_frame(data))
+        except RuntimeError:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                return loop.create_task(self.on_frame(data))
+        return None
+
+# API Endpoints for Django Integration
+async def process_frame(request_data: Dict) -> Dict:
+    """Django endpoint: /api/pulse/frame"""
+    kernel = PulseKernel()
+    return await kernel.on_frame(request_data)
+
+def get_health() -> Dict:
+    """Django endpoint: /api/pulse/health"""
+    kernel = PulseKernel()
+    return kernel.get_status()

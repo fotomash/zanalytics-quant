@@ -1,0 +1,15 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY services/requirements.mirror.txt /app/requirements.txt
+ENV PIP_ROOT_USER_ACTION=ignore
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+COPY services/redis_to_kafka_mirror.py /app/
+
+ENV REDIS_URL=redis://redis:6379/0 \
+    KAFKA_BROKERS=kafka:9092 \
+    TICKS_PATTERN=ticks.*
+
+CMD ["python", "-u", "redis_to_kafka_mirror.py"]

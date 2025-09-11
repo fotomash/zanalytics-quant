@@ -1,0 +1,31 @@
+version: "3.9"
+services:
+  redis:
+    image: redis:7.2
+    ports: ["6379:6379"]
+
+  pulse-api:
+    build:
+      context: .
+      dockerfile: services/pulse_api/Dockerfile
+    environment:
+      PULSE_CONFIG: /app/pulse_config.yaml
+    volumes:
+      - ./pulse_config.yaml:/app/pulse_config.yaml:ro
+      - ./:/app:ro
+    depends_on: [redis]
+    ports: ["8080:8080"]
+    command: uvicorn services.pulse_api.main:app --host 0.0.0.0 --port 8080
+
+  pulse-bot:
+    build:
+      context: .
+      dockerfile: services/pulse_bot/Dockerfile
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_WHITELIST: ${TELEGRAM_CHAT_WHITELIST}
+      PULSE_CONFIG: /app/pulse_config.yaml
+    volumes:
+      - ./pulse_config.yaml:/app/pulse_config.yaml:ro
+      - ./:/app:ro
+    depends_on: [redis]

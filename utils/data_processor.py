@@ -146,3 +146,18 @@ class DataProcessor:
 
         closest_tf = min(timeframe_map.keys(), key=lambda x: abs(x - minutes))
         return timeframe_map[closest_tf]
+def resample_ticks_to_bars(df: pd.DataFrame, freqs: list[str]) -> dict[str, pd.DataFrame]:
+    """Resample tick data into OHLC bars for given frequencies."""
+    if df.empty:
+        return {freq: pd.DataFrame() for freq in freqs}
+    data = df.set_index("timestamp")
+    out: dict[str, pd.DataFrame] = {}
+    for freq in freqs:
+        bars = data.resample(freq).agg({
+            "bid": "ohlc",
+            "ask": "ohlc",
+            "toxicity": "mean",
+            "liq_score": "mean",
+        })
+        out[freq] = bars.dropna()
+    return out

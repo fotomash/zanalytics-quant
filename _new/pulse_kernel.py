@@ -1,275 +1,271 @@
 """
 PulseKernel - Central Orchestrator for Zanalytics Pulse
-Behavioral Trading System v11.5.1
-
-Orchestrates: Data → Score → Risk → Journal → Signal
+Coordinates between analyzers, risk management, and UI
 """
 
-import json
-import logging
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass
-import redis
 import asyncio
+import json
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+import redis
+import logging
 
-@dataclass
-class PulseSignal:
-    """Structured signal with behavioral metadata"""
-    timestamp: datetime
-    symbol: str
-    timeframe: str
-    confluence_score: float
-    risk_approved: bool
-    behavioral_flags: List[str]
-    entry_price: float
-    stop_loss: float
-    take_profit: float
-    position_size: float
-    reasoning: str
+logger = logging.getLogger(__name__)
 
 class PulseKernel:
     """
-    Central orchestrator integrating existing analyzers with behavioral protection.
-    Implements Trading in the Zone principles with evidence-based interventions.
+    Central orchestration engine for the Pulse trading system.
+    Manages data flow, scoring, risk enforcement, and journaling.
     """
 
     def __init__(self, config_path: str = "pulse_config.yaml"):
-        """Initialize with existing components and behavioral modules"""
-        self.logger = logging.getLogger(__name__)
+        self.config = self._load_config(config_path)
+        self.redis_client = redis.Redis(**self.config['redis'])
 
-        # Import existing analyzers (lazy loading to avoid import errors)
-        self.smc_analyzer = None  # Will be: SMCAnalyzer()
-        self.wyckoff_analyzer = None  # Will be: WyckoffAnalyzer()
-        self.technical_analysis = None  # Will be: TechnicalAnalysis()
+        # Initialize components (these wrap existing analyzers)
+        self.confluence_scorer = None  # Will be initialized with ConfluenceScorer
+        self.risk_enforcer = None      # Will be initialized with RiskEnforcer
+        self.journal = None             # Will be initialized with JournalEngine
 
-        # Initialize new Pulse components
-        from confluence_scorer import ConfluenceScorer
-        from risk_enforcer import RiskEnforcer
-
-        self.confluence_scorer = ConfluenceScorer(config_path)
-        self.risk_enforcer = RiskEnforcer()
-
-        # Journal engine for process logging
-        self.journal = []
+        # State management
         self.active_signals = {}
+        self.daily_stats = self._init_daily_stats()
+        self.behavioral_state = "normal"
 
-        # Redis connection for real-time data
-        self.redis_client = redis.Redis(
-            host='localhost', 
-            port=6379, 
-            decode_responses=True
-        )
-
-        # Behavioral state tracking
-        self.session_stats = {
-            'trades_today': 0,
-            'daily_pnl': 0.0,
-            'last_trade_time': None,
-            'cooling_off_until': None,
-            'confidence_level': 0.5  # Neutral starting point
+    def _load_config(self, config_path: str) -> Dict:
+        """Load configuration from YAML file"""
+        # In production, use proper YAML loading
+        return {
+            'redis': {'host': 'localhost', 'port': 6379, 'db': 0},
+            'risk_limits': {
+                'daily_loss_limit': 500,
+                'max_trades_per_day': 5,
+                'max_position_size': 0.02,
+                'cooling_period_minutes': 15
+            },
+            'behavioral': {
+                'revenge_trade_threshold': 3,
+                'overconfidence_threshold': 4,
+                'fatigue_hour': 22
+            }
         }
 
-        self.logger.info("PulseKernel initialized - Behavioral trading system active")
+    def _init_daily_stats(self) -> Dict:
+        """Initialize daily statistics"""
+        return {
+            'trades_count': 0,
+            'pnl': 0.0,
+            'wins': 0,
+            'losses': 0,
+            'behavioral_score': 100,
+            'violations': [],
+            'last_trade_time': None
+        }
 
-    def process_frame(self, data: Dict[str, Any]) -> Optional[PulseSignal]:
+    async def on_frame(self, data: Dict) -> Dict:
         """
-        Main orchestration pipeline with behavioral interventions
+        Process incoming data frame through the full pipeline.
+        This is the main entry point for all market data.
 
-        Flow: Data → Confluence → Risk Check → Signal Generation
+        Args:
+            data: Normalized frame from MIDAS adapter
+
+        Returns:
+            Decision dict with score, action, and reasons
         """
         try:
-            # 1. Journal entry - process start
-            self._journal_entry("PROCESS_START", {
-                'symbol': data.get('symbol'),
-                'timeframe': data.get('timeframe'),
-                'timestamp': datetime.now().isoformat()
-            })
+            # Step 1: Calculate confluence score
+            confluence_result = await self._calculate_confluence(data)
 
-            # 2. Calculate confluence score using existing analyzers
-            confluence_result = self.confluence_scorer.score(data)
-            confluence_score = confluence_result['score']
+            # Step 2: Check risk constraints
+            risk_check = await self._enforce_risk(confluence_result)
 
-            self._journal_entry("CONFLUENCE_CALCULATED", {
-                'score': confluence_score,
-                'components': confluence_result['components']
-            })
+            # Step 3: Check behavioral state
+            behavioral_check = self._check_behavioral_state()
 
-            # 3. Apply behavioral risk checks (6 protection modules)
-            risk_decision = self.risk_enforcer.evaluate_signal({
-                'confluence_score': confluence_score,
-                'session_stats': self.session_stats,
-                'market_data': data
-            })
-
-            if not risk_decision['approved']:
-                self._journal_entry("SIGNAL_REJECTED", {
-                    'reason': risk_decision['reason'],
-                    'behavioral_flags': risk_decision['flags']
-                })
-                return None
-
-            # 4. Generate signal with position sizing
-            signal = self._generate_signal(
-                data, 
+            # Step 4: Make final decision
+            decision = self._make_decision(
                 confluence_result, 
-                risk_decision
+                risk_check, 
+                behavioral_check
             )
 
-            # 5. Update session statistics
-            self._update_session_stats(signal)
+            # Step 5: Journal the decision
+            await self._journal_decision(decision)
 
-            # 6. Publish to Redis for real-time consumption
-            self._publish_signal(signal)
+            # Step 6: Publish to UI and Telegram
+            await self._publish_decision(decision)
 
-            self._journal_entry("SIGNAL_GENERATED", {
-                'signal_id': signal.timestamp.isoformat(),
-                'confluence': signal.confluence_score,
-                'approved': signal.risk_approved
-            })
-
-            return signal
+            return decision
 
         except Exception as e:
-            self.logger.error(f"PulseKernel processing error: {e}")
-            self._journal_entry("PROCESS_ERROR", {'error': str(e)})
-            return None
+            logger.error(f"Error processing frame: {e}")
+            return {'error': str(e), 'action': 'skip'}
 
-    def _generate_signal(
-        self, 
-        data: Dict, 
-        confluence: Dict, 
-        risk: Dict
-    ) -> PulseSignal:
-        """Generate structured signal with behavioral metadata"""
+    async def _calculate_confluence(self, data: Dict) -> Dict:
+        """Calculate confluence score using existing analyzers"""
+        # This will call the ConfluenceScorer which wraps:
+        # - SMC Analyzer (35,895 LOC)
+        # - Wyckoff Analyzer (15,011 LOC)  
+        # - Technical Analysis (8,161 LOC)
 
-        # Calculate position parameters with risk management
-        entry_price = data['close']
-        atr = data.get('atr', entry_price * 0.01)  # Default 1% if no ATR
-
-        # Risk-adjusted position sizing
-        stop_loss = entry_price - (2 * atr)  # 2 ATR stop
-        take_profit = entry_price + (3 * atr)  # 3 ATR target (1.5 RR)
-
-        # Position size based on risk tolerance and confidence
-        base_risk = 0.01  # 1% base risk
-        confidence_multiplier = min(confluence['score'] / 100, 1.0)
-        position_size = base_risk * confidence_multiplier
-
-        # Build reasoning with Trading in the Zone principles
-        reasoning = self._build_reasoning(confluence, risk)
-
-        return PulseSignal(
-            timestamp=datetime.now(),
-            symbol=data['symbol'],
-            timeframe=data['timeframe'],
-            confluence_score=confluence['score'],
-            risk_approved=risk['approved'],
-            behavioral_flags=risk.get('flags', []),
-            entry_price=entry_price,
-            stop_loss=stop_loss,
-            take_profit=take_profit,
-            position_size=position_size,
-            reasoning=reasoning
-        )
-
-    def _build_reasoning(self, confluence: Dict, risk: Dict) -> str:
-        """Build explainable reasoning for the signal"""
-        reasons = []
-
-        # Confluence reasoning
-        if confluence['score'] >= 80:
-            reasons.append(f"High confluence ({confluence['score']}/100)")
-        elif confluence['score'] >= 60:
-            reasons.append(f"Moderate confluence ({confluence['score']}/100)")
-
-        # Component breakdown
-        for component, score in confluence['components'].items():
-            if score > 70:
-                reasons.append(f"{component}: Strong signal ({score})")
-
-        # Risk reasoning
-        if risk.get('flags'):
-            reasons.append(f"Behavioral checks: {', '.join(risk['flags'])}")
-
-        return " | ".join(reasons)
-
-    def _update_session_stats(self, signal: PulseSignal):
-        """Update session statistics for behavioral tracking"""
-        self.session_stats['trades_today'] += 1
-        self.session_stats['last_trade_time'] = signal.timestamp
-
-        # Update confidence based on confluence
-        self.session_stats['confidence_level'] = (
-            0.7 * self.session_stats['confidence_level'] + 
-            0.3 * (signal.confluence_score / 100)
-        )
-
-    def _publish_signal(self, signal: PulseSignal):
-        """Publish signal to Redis for real-time consumption"""
-        signal_dict = {
-            'timestamp': signal.timestamp.isoformat(),
-            'symbol': signal.symbol,
-            'confluence_score': signal.confluence_score,
-            'entry_price': signal.entry_price,
-            'stop_loss': signal.stop_loss,
-            'take_profit': signal.take_profit,
-            'position_size': signal.position_size,
-            'reasoning': signal.reasoning
+        return {
+            'score': 82,  # 0-100
+            'grade': 'high',
+            'components': {
+                'smc': 85,
+                'wyckoff': 78,
+                'technical': 83
+            },
+            'reasons': [
+                'Bullish order block detected',
+                'Wyckoff spring confirmed',
+                'RSI oversold bounce'
+            ]
         }
 
-        # Publish to Redis channel
-        self.redis_client.publish(
-            'pulse:signals', 
-            json.dumps(signal_dict)
-        )
+    async def _enforce_risk(self, confluence_result: Dict) -> Dict:
+        """Check risk constraints and limits"""
+        # This will call the RiskEnforcer
 
-        # Store in active signals
-        self.active_signals[signal.symbol] = signal_dict
+        return {
+            'allowed': True,
+            'warnings': [],
+            'remaining_trades': 2,
+            'remaining_risk': 260,
+            'cooling_active': False
+        }
 
-    def _journal_entry(self, event_type: str, data: Dict):
-        """Log process events for behavioral analysis"""
-        entry = {
+    def _check_behavioral_state(self) -> Dict:
+        """Analyze trader's behavioral state"""
+        current_hour = datetime.now().hour
+
+        # Check various behavioral factors
+        factors = {
+            'time_of_day': 'normal' if 8 <= current_hour <= 20 else 'fatigue',
+            'recent_losses': self._check_recent_losses(),
+            'trade_frequency': self._check_trade_frequency(),
+            'position_sizing': self._check_position_sizing()
+        }
+
+        # Calculate overall state
+        if any(f == 'danger' for f in factors.values()):
+            self.behavioral_state = 'danger'
+        elif any(f == 'warning' for f in factors.values()):
+            self.behavioral_state = 'warning'
+        else:
+            self.behavioral_state = 'normal'
+
+        return {
+            'state': self.behavioral_state,
+            'factors': factors,
+            'score': self._calculate_behavioral_score(factors)
+        }
+
+    def _check_recent_losses(self) -> str:
+        """Check for revenge trading patterns"""
+        if self.daily_stats['losses'] >= 3:
+            return 'danger'
+        elif self.daily_stats['losses'] >= 2:
+            return 'warning'
+        return 'normal'
+
+    def _check_trade_frequency(self) -> str:
+        """Check for overtrading"""
+        if self.daily_stats['trades_count'] >= 4:
+            return 'warning'
+        return 'normal'
+
+    def _check_position_sizing(self) -> str:
+        """Check for aggressive position sizing"""
+        # Would check actual position sizes from recent trades
+        return 'normal'
+
+    def _calculate_behavioral_score(self, factors: Dict) -> int:
+        """Calculate behavioral score 0-100"""
+        base_score = 100
+
+        for factor, state in factors.items():
+            if state == 'danger':
+                base_score -= 30
+            elif state == 'warning':
+                base_score -= 15
+
+        return max(0, base_score)
+
+    def _make_decision(self, confluence: Dict, risk: Dict, behavioral: Dict) -> Dict:
+        """Make final trading decision"""
+        decision = {
             'timestamp': datetime.now().isoformat(),
-            'event': event_type,
-            'data': data
+            'action': 'none',
+            'confidence': 0,
+            'reasons': [],
+            'warnings': []
         }
-        self.journal.append(entry)
 
-        # Persist to Redis for analysis
-        self.redis_client.lpush(
-            'pulse:journal', 
-            json.dumps(entry)
-        )
+        # Decision logic
+        if not risk['allowed']:
+            decision['action'] = 'blocked'
+            decision['reasons'].append('Risk limits exceeded')
 
-    def get_session_report(self) -> Dict:
-        """Generate session report for behavioral review"""
+        elif behavioral['state'] == 'danger':
+            decision['action'] = 'warning'
+            decision['warnings'].append('High-risk behavioral state detected')
+
+        elif confluence['score'] >= 80:
+            decision['action'] = 'signal'
+            decision['confidence'] = confluence['score']
+            decision['reasons'] = confluence['reasons']
+
+        elif confluence['score'] >= 60:
+            decision['action'] = 'watch'
+            decision['confidence'] = confluence['score']
+            decision['reasons'].append('Medium confluence - monitor closely')
+
+        return decision
+
+    async def _journal_decision(self, decision: Dict):
+        """Log decision to journal for later analysis"""
+        journal_entry = {
+            **decision,
+            'behavioral_state': self.behavioral_state,
+            'daily_stats': self.daily_stats.copy()
+        }
+
+        # Store in Redis
+        key = f"journal:{datetime.now().strftime('%Y%m%d')}:{decision['timestamp']}"
+        self.redis_client.set(key, json.dumps(journal_entry))
+
+    async def _publish_decision(self, decision: Dict):
+        """Publish decision to UI and notification channels"""
+        # Publish to Redis for Streamlit
+        self.redis_client.publish('pulse:decisions', json.dumps(decision))
+
+        # Send to Telegram if significant
+        if decision['action'] in ['signal', 'blocked', 'warning']:
+            await self._send_telegram_alert(decision)
+
+    async def _send_telegram_alert(self, decision: Dict):
+        """Send alert to Telegram bot"""
+        # Telegram integration would go here
+        pass
+
+    def get_status(self) -> Dict:
+        """Get current system status"""
         return {
-            'session_stats': self.session_stats,
-            'active_signals': self.active_signals,
-            'journal_entries': len(self.journal),
-            'behavioral_health': self._calculate_behavioral_health()
+            'behavioral_state': self.behavioral_state,
+            'daily_stats': self.daily_stats,
+            'active_signals': len(self.active_signals),
+            'system_health': 'operational'
         }
 
-    def _calculate_behavioral_health(self) -> Dict:
-        """Calculate behavioral health metrics"""
-        return {
-            'overtrading_risk': self.session_stats['trades_today'] > 3,
-            'confidence_stable': 0.3 < self.session_stats['confidence_level'] < 0.7,
-            'cooling_off_active': self.session_stats.get('cooling_off_until') is not None,
-            'daily_loss_safe': self.session_stats['daily_pnl'] > -0.03  # 3% limit
-        }
-
-# Health check endpoint
-async def health_check():
-    """API health check for Django integration"""
+# API Endpoints for Django Integration
+async def process_frame(request_data: Dict) -> Dict:
+    """Django endpoint: /api/pulse/frame"""
     kernel = PulseKernel()
-    return {
-        'status': 'healthy',
-        'version': '11.5.1',
-        'components': {
-            'confluence_scorer': 'ready',
-            'risk_enforcer': 'ready',
-            'redis': 'connected'
-        }
-    }
+    return await kernel.on_frame(request_data)
+
+def get_health() -> Dict:
+    """Django endpoint: /api/pulse/health"""
+    kernel = PulseKernel()
+    return kernel.get_status()

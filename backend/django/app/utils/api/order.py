@@ -28,10 +28,11 @@ def send_market_order(symbol: str, volume: float, order_type: str, sl: float, tp
             logger.error(error_msg)
             return None
 
+        # The MT5 bridge accepts 'type' as BUY/SELL and normalizes it.
         request = {
             "symbol": symbol,
             "volume": float(volume),
-            "order_type": order_type_str,
+            "type": order_type_str,
             "sl": float(sl),
             "deviation": int(deviation),
             "magic": int(magic),
@@ -49,16 +50,16 @@ def send_market_order(symbol: str, volume: float, order_type: str, sl: float, tp
         response.raise_for_status()
 
         response_data = response.json()
-        
-        if not response_data.get('success'):
-            error_msg = response_data.get('error', 'Unknown error')
-            details = response_data.get('details', '')
-            logger.error(f"Order failed: {error_msg} {details}")
-            return None
-            
-        order = response_data['order_result']
-
-        return order
+        # Bridge returns { success: True, order_result: {...}, result: {...} }
+        if response_data.get('success'):
+            return response_data.get('order_result') or response_data.get('result')
+        # Some deployments may return only { result: {...} } on 200
+        if 'result' in response_data:
+            return response_data['result']
+        error_msg = response_data.get('error', 'Unknown error')
+        details = response_data.get('details', '')
+        logger.error(f"Order failed: {error_msg} {details}")
+        return None
         
     except requests.exceptions.HTTPError as e:
         error_msg = f"HTTP error sending market order for {symbol}: {e.response.text}"
@@ -91,20 +92,15 @@ def modify_sl_tp(position, sl: float, tp: float = None) -> Dict:
         response.raise_for_status()
 
         response_data = response.json()
-
-        if not response_data.get('success'):
-            error_msg = response_data.get('error', 'Unknown error')
-            details = response_data.get('details', '')
-            logger.error(f"Modify SL/TP failed: {error_msg} {details}")
-            return None
-
-        result = response_data.get('result')
-        if result:
-            logger.info(f"Modify SL/TP successful: {result}")
-            return result
-        else:
-            logger.error("No result returned from modify_sl_tp endpoint.")
-            return None
+        # Accept either {'ok': True, 'result': {...}} or {'success': True, 'result': {...}}
+        if response_data.get('ok') or response_data.get('success'):
+            res = response_data.get('result') or {}
+            logger.info(f"Modify SL/TP successful: {res}")
+            return res
+        error_msg = response_data.get('error', 'Unknown error')
+        details = response_data.get('details', '')
+        logger.error(f"Modify SL/TP failed: {error_msg} {details}")
+        return None
 
     except requests.exceptions.HTTPError as e:
         error_msg = f"HTTP error sending modify SL/TP for {position.ticket}: {e.response.text}"

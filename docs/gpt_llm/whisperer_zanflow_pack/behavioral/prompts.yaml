@@ -1,0 +1,43 @@
+# Dynamic Prompt Templates with Context Binding
+prompts:
+  memory_summary:
+    template: |
+      Summarize the current memory context from {memory_namespace}.
+      Recent session data: {session_data}
+      Vector similarity matches: {vector_matches}
+
+      Provide a concise summary of what the user has been working on.
+    input_bindings:
+      - memory_namespace: workspace.memory.vector_namespace
+      - session_data: workspace.session.recent_interactions
+      - vector_matches: workspace.memory.similarity_search_results
+
+  task_planning:
+    template: |
+      Plan the next actions based on current context:
+      User Goal: {user_goal}
+      Available Tools: {available_tools}
+      System State: {system_state}
+      Previous Actions: {action_history}
+
+      Create a step-by-step execution plan.
+    input_bindings:
+      - user_goal: workspace.current_session.goal
+      - available_tools: system.tools.available
+      - system_state: system.health.current_status
+      - action_history: workspace.session.action_log
+
+  error_analysis:
+    template: |
+      Analyze the error and suggest recovery:
+      Error: {error_message}
+      Context: {error_context}
+      System State: {system_diagnostics}
+      Recovery Options: {recovery_strategies}
+
+      Provide immediate recovery steps and prevention measures.
+    input_bindings:
+      - error_message: system.last_error.message
+      - error_context: system.last_error.context
+      - system_diagnostics: system.health.diagnostics
+      - recovery_strategies: system.auto_heal.strategies

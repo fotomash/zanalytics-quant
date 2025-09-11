@@ -1,0 +1,93 @@
+# Natural Language DSL for YAML Configuration
+# Human-readable configuration that GPT can understand semantically
+
+intent_map:
+  - say: "upload archive"
+    triggers: [ "extract_archive", "validate_structure" ]
+    description: "When user uploads zip/tar files, automatically extract and validate"
+
+  - say: "start trading analysis"
+    triggers: [ "initialize_agents", "load_xauusd", "check_market_hours" ]
+    description: "Begin forex trading analysis workflow"
+
+  - say: "analyze data"
+    triggers: [ "detect_file_type", "load_data", "generate_summary" ]
+    description: "Automatically analyze uploaded data files"
+
+  - say: "review code"
+    triggers: [ "scan_python_files", "run_linting", "security_check" ]
+    description: "Perform comprehensive code review"
+
+  - say: "optimize system"
+    triggers: [ "memory_cleanup", "consolidate_sessions", "health_check" ]
+    description: "Optimize system performance and clean up resources"
+
+# Workflow definitions in natural language
+workflows:
+  data_processing_pipeline:
+    when: "user uploads CSV or Excel file"
+    then:
+      - "automatically detect data schema"
+      - "generate basic statistics"
+      - "create visualization suggestions"
+      - "offer advanced analysis options"
+
+  trading_setup_workflow:
+    when: "user mentions trading or forex"
+    then:
+      - "check if market data is available"
+      - "initialize trading agents"
+      - "load relevant strategies"
+      - "start real-time monitoring"
+
+  error_recovery_workflow:
+    when: "system error detected"
+    then:
+      - "capture error context"
+      - "attempt automatic recovery"
+      - "notify user if manual intervention needed"
+      - "log incident for analysis"
+
+# Smart defaults that LLM can understand
+smart_defaults:
+  file_handling:
+    archives: "extract and analyze contents"
+    data_files: "load and provide summary"
+    code_files: "review for issues and improvements"
+    documents: "extract text and make searchable"
+
+  user_preferences:
+    verbosity: "concise but informative"
+    automation: "suggest actions, wait for confirmation"
+    notifications: "important events only"
+
+  system_behavior:
+    memory_management: "optimize automatically when usage > 80%"
+    error_handling: "attempt recovery, escalate if needed"
+    performance: "prioritize responsiveness over completeness"
+
+# LLM reasoning helpers
+reasoning_prompts:
+  intent_detection: |
+    Analyze the user's request and determine their likely intent:
+    Request: {user_input}
+    Available intents: {available_intents}
+    Context: {current_context}
+
+    Return the most likely intent with confidence score.
+
+  workflow_selection: |
+    Based on the detected intent, select the appropriate workflow:
+    Intent: {detected_intent}
+    Available workflows: {available_workflows}
+    Current system state: {system_state}
+
+    Choose the workflow that best serves the user's needs.
+
+  action_planning: |
+    Plan the sequence of actions for the selected workflow:
+    Workflow: {selected_workflow}
+    User context: {user_context}
+    Available resources: {available_resources}
+
+    Create a step-by-step execution plan.

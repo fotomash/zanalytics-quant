@@ -5,7 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     DJANGO_SETTINGS_MODULE=app.settings \
     DJANGO_LOG_DIR=/app/backend/django/logs \
-    PYTHONPATH=/app/backend/django:/app:/app/components:/app/utils
+    PYTHONPATH=/app/backend/django:/app:/app/components:/app/utils:/app/backend/django/app
 
 # (Optional) run as non-root
 ARG APP_USER=app
@@ -13,8 +13,15 @@ RUN adduser --disabled-password --gecos "" ${APP_USER}
 
 WORKDIR /app
 
+# Install minimal VCS tool for VCS requirements (e.g., pandas-ta from GitHub)
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git \
+ && rm -rf /var/lib/apt/lists/*
+
 # 1) Install deps
 COPY requirements.txt /app/requirements.txt
+COPY services/mcp2/requirements.txt /app/services/mcp2/requirements.txt
+ENV PIP_ROOT_USER_ACTION=ignore
 RUN pip install --no-cache-dir --upgrade pip \
  && pip install --no-cache-dir -r /app/requirements.txt
 
@@ -24,6 +31,7 @@ COPY backend/django /app/backend/django
 #    Shared modules at repo root (lowercase):
 COPY components /app/components
 COPY utils      /app/utils
+COPY bridge     /app/bridge
 
 # Ensure runtime log directory exists (matches settings.py LOG_DIR)
 RUN mkdir -p /app/backend/django/logs /app/backend/django/staticfiles /app/logs /app/staticfiles \

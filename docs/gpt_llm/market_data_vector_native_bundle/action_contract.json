@@ -1,0 +1,93 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Financial Market Data API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/market/summary": {
+      "get": {
+        "summary": "Market summary with technical indicators and visualizations",
+        "operationId": "getMarketSummary",
+        "parameters": [
+          {
+            "name": "assets",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Comma-separated asset symbols (e.g. BTC,ETH,SP500)",
+            "required": false
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "schema": { "type": "integer" },
+            "description": "Number of days for historical data",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Market summary response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketSummaryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "MarketSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "timestamp": { "type": "string", "format": "date-time" },
+          "summary": { "type": "string" },
+          "data_points": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AssetSummary" }
+          },
+          "visualization": { "$ref": "#/components/schemas/Visualization" },
+          "next_steps": { "$ref": "#/components/schemas/NextSteps" }
+        }
+      },
+      "AssetSummary": {
+        "type": "object",
+        "properties": {
+          "asset": { "type": "string" },
+          "price": { "type": "number" },
+          "change_percent": { "type": "number" },
+          "rsi": { "type": "number" },
+          "macd_signal": { "type": "string" },
+          "recommendation": { "type": "string" },
+          "volatility": { "type": "number" }
+        }
+      },
+      "Visualization": {
+        "type": "object",
+        "properties": {
+          "table_markdown": { "type": "string" },
+          "chart_image_base64": { "type": "string" }
+        }
+      },
+      "NextSteps": {
+        "type": "object",
+        "properties": {
+          "immediate": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "user_options": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "data_refresh": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,90 @@
+## 🧠 LLM Logic Modules – MENTFX Wyckoff Strategy
+
+---
+
+### 🧱 `PhaseMapper` – Wyckoff Cycle Contextualizer
+**Objective:** Identify the current Wyckoff phase (A–E) to frame the macro narrative.
+
+**Logic:**
+- Phase A: PS, SC/BC, AR – Stops prior trend.
+- Phase B: Builds cause, range forms.
+- Phase C: Spring or UTAD signals false breakout.
+- Phase D: SOS/SOW confirms trend direction.
+- Phase E: Markup/Markdown trend continues.
+
+---
+
+### 💧 `LiquidityTrigger` – Inducement & Spring Logic
+**Objective:** Detect engineered liquidity events during Phase C.
+
+**Logic:**
+- Spring: Sweep support, reject back.
+- UTAD: Sweep resistance, fail reversal.
+- Use equal highs/lows, trendlines for inducement.
+- Confirm price rejection + VSA divergence.
+
+---
+
+### 🔀 `StructureValidator` – Confirm Structural Shifts
+**Objective:** Validate CHoCH/BoS confirming direction after liquidity event.
+
+**Logic:**
+- CHoCH = reversal signal.
+- BoS = trend confirmation.
+- Must follow Spring/UTAD + POI.
+- Validate with price action + volume.
+
+---
+
+### 🧠 `EffortResultScanner` – Volume-Price Analysis
+**Objective:** Evaluate VSA for smart money intent.
+
+**Logic:**
+- Confirm SoS = wide range, high vol.
+- Absorption = high vol, small spread.
+- No Demand = weak rally, low vol.
+- No Supply = weak pullback, low vol.
+
+---
+
+### 🧠 `POILocator` – Imbalance Zones & Entry Logic
+**Objective:** Refine POIs for trade entry based on structure and VSA.
+
+**Logic:**
+- Use Spring/UTAD origin, demand/supply zone.
+- Align with FEG (imbalance) or Wick Rejection.
+- Confirm with mitigation + CHoCH.
+
+---
+
+### ⚠️ `RiskController` – SL and TP Logic
+**Objective:** Define logical invalidation and exit criteria.
+
+**Logic:**
+- SL below Spring / above UTAD.
+- TP1 = midrange liquidity.
+- TP2 = end of Phase E trend.
+- Trail using SoS/LPS or SoW/LPSY.
+
+---
+
+### 📊 `TimeSessionFilter` – Optimize by Session Context
+**Objective:** Enhance entries by aligning with high-liquidity timeframes.
+
+**Logic:**
+- Use London/NY open for Spring/UTAD + CHoCH.
+- Judas swing setup = Asia sweep → London reversal.
+- Avoid Asia chop for direct entries.
+
+---
+
+### 🔁 `Master Wyckoff Logic Chain`
+1. `PhaseMapper` → Establish structural context  
+2. `LiquidityTrigger` → Confirm Spring/UTAD event  
+3. `StructureValidator` → Validate CHoCH/BoS  
+4. `EffortResultScanner` → Analyze intent via volume  
+5. `POILocator` → Map precise entry zone  
+6. `RiskController` → Apply structure-based SL/TP  
+7. `TimeSessionFilter` → Align execution with timing  
+
+✅ Emit `wyckoff_trade_ready` tag if all confirm institutional intent.

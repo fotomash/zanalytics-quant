@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "JournalEntry",
+  "type": "object",
+  "required": [
+    "timestamp",
+    "kind",
+    "trade_id",
+    "agent_id",
+    "text"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of action"
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["ENTRY", "CLOSE", "PARTIAL_CLOSE", "HEDGE", "ORDER_MODIFY"],
+      "description": "Type of journaled action"
+    },
+    "trade_id": {
+      "type": "integer",
+      "description": "Trade ticket ID"
+    },
+    "agent_id": {
+      "type": "string",
+      "description": "Which agent/system logged the entry (e.g., zanflow_v17)"
+    },
+    "text": {
+      "type": "string",
+      "description": "Human-readable description of the action"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Lightweight labels for filtering (e.g., risk_action, partial, hedge)"
+    },
+    "meta": {
+      "type": "object",
+      "description": "Structured details",
+      "properties": {
+        "ticket": { "type": "integer" },
+        "symbol": { "type": "string" },
+        "side": { "type": "string", "enum": ["BUY", "SELL"] },
+        "volume_before": { "type": "number" },
+        "volume_action": { "type": "number", "description": "Volume affected by this action" },
+        "volume_remaining": { "type": "number" },
+        "entry_price": { "type": "number" },
+        "action_price": { "type": "number", "description": "Price at which the action occurred" },
+        "pnl_action": { "type": "number", "description": "Realized PnL from this action" },
+        "sl": { "type": "number" },
+        "tp": { "type": "number" },
+        "reason": { "type": "string", "description": "Trigger reason (manual_request, strategy_signal, risk_cut, etc.)" },
+        "session": { "type": "string", "description": "Trading session (Asia, London, NY)" },
+        "htf_bias": { "type": "string", "enum": ["bullish", "bearish", "neutral"] },
+        "confluence": {
+          "type": "object",
+          "properties": {
+            "liquidity_sweep": { "type": "boolean" },
+            "choch_bos": { "type": "boolean" },
+            "wyckoff_phase": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

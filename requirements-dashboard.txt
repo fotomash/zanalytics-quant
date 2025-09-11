@@ -1,0 +1,10 @@
+# Dependencies for running Streamlit dashboards
+streamlit>=1.32
+plotly>=5.22.0
+pandas
+numpy
+pytz
+MetaTrader5
+redis
+pyyaml>=6.0
+requests>=2.31

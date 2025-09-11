@@ -1,13 +1,16 @@
+    
 import os
 import json
 import time
 import redis
 from datetime import datetime
 
-r = redis.StrictRedis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
+# Define Redis client for tick_to_bar
+r = redis.Redis(host=os.getenv("REDIS_HOST", "localhost"), port=6379, db=0)
 
 
 def _minute_floor(ts: float) -> float:
+    """Return the minute floor for a UNIX timestamp."""
     return (int(ts) // 60) * 60
 
 

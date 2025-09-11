@@ -10,15 +10,25 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import os
+import sys
 from pathlib import Path
-import os  # Added for environment variables
-from dotenv import load_dotenv  # Optional: If using a .env file
+from dotenv import load_dotenv
 
 # Load environment variables from .env file if present
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent  # backend/django
+
+# Add repository root to Python path so top-level packages (e.g., 'bridge') resolve in Django app
+# Repo root is two levels up from BASE_DIR (…/repo)
+REPO_ROOT = BASE_DIR.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+# Ensure log directory exists
+os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
 
 
 # Quick-start development settings - unsuitable for production
@@ -27,22 +37,22 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 if not SECRET_KEY:
-    raise RuntimeError('DJANGO_SECRET_KEY environment variable not set')
+    raise RuntimeError("Missing DJANGO_SECRET_KEY. Set it in your environment or docker-compose.")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = [os.getenv('DJANGO_DOMAIN'), 'localhost', '127.0.0.1', 'example.com', 'django']
+DJANGO_DOMAIN = os.getenv('DJANGO_DOMAIN')
 
-CSRF_TRUSTED_ORIGINS = [
-    f"https://{os.getenv('DJANGO_DOMAIN')}",
-    f"http://{os.getenv('DJANGO_DOMAIN')}",
-]
+ALLOWED_HOSTS = [h for h in [DJANGO_DOMAIN, 'localhost', '127.0.0.1', 'django'] if h]
 
-# If you need to debug CSRF issues, you can temporarily add:
-CSRF_COOKIE_SECURE = True
-CSRF_COOKIE_DOMAIN = os.getenv('DJANGO_DOMAIN')
-SESSION_COOKIE_SECURE = True
+CSRF_TRUSTED_ORIGINS = []
+
+# Secure cookies in prod; relaxed in dev for convenience
+CSRF_COOKIE_SECURE = False
+SESSION_COOKIE_SECURE = False
+# if DJANGO_DOMAIN:
+#     CSRF_COOKIE_DOMAIN = DJANGO_DOMAIN
 
 LOGGING = {
     'version': 1,
@@ -88,6 +98,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework.authtoken',
+    'pulse_api',
     'django_filters',
     'corsheaders',
     'celery',
@@ -109,7 +120,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
+    # 'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -206,6 +217,9 @@ CELERY_BROKER_CONNECTION_RETRY = True
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True  # To retain existing behavior
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://redis:6379/0')
 CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://redis:6379/0')
+CELERY_TIMEZONE = os.getenv('CELERY_TZ', TIME_ZONE)
+from celery.schedules import crontab
+
 CELERY_BEAT_SCHEDULE = {
     'run-quant-entry-algorithm': {
         'task': 'quant.tasks.run_quant_entry_algorithm',  # This should match the @shared_task name
@@ -229,5 +243,14 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': 300.0,
         'args': ('EURUSD', 'M1', 100),
     },
+    'flush-ticks-hourly': {
+        'task': 'utils.accumulator.flush_and_aggregate',
+        'schedule': 3600.0,
+        'args': ('EURUSD',),
+    },
+    # Snapshot equity daily at 23:00 for next-day SoD equity
+    'snapshot-sod-equity-2300': {
+        'task': 'nexus.tasks.snapshot_sod_equity',
+        'schedule': crontab(minute=0, hour=23),
+    },
 }
-

@@ -1,0 +1,20 @@
+{
+  "schema": {
+    "timestamp": "int64",
+    "symbol": "string",
+    "bid": "float64",
+    "ask": "float64",
+    "bid_volume": "float64",
+    "ask_volume": "float64",
+    "flags": "uint8"
+  },
+  "example": {
+    "timestamp": 1718103000000000,
+    "symbol": "EURUSD",
+    "bid": 1.08452,
+    "ask": 1.08454,
+    "bid_volume": 1000000.0,
+    "ask_volume": 1500000.0,
+    "flags": 0
+  }
+}

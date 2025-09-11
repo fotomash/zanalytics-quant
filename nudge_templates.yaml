@@ -1,0 +1,23 @@
+discipline:
+  slip.small:
+    text: "Discipline {discipline}% — red is showing. Keep it covered."
+    tone: soft
+
+patience:
+  fast.tilt:
+    text: "Tempo ↑. Your spacing between trades is shrinking."
+    tone: suggest
+
+risk:
+  budget.high:
+    text: "Risk budget {used:.0%}. Progress to target {to_target:.0%}. Consider pausing."
+    tone: warn
+  block.cooldown:
+    text: "Cooling off for {mins}m after sequence risk."
+    tone: block
+
+profit:
+  protect.goal:
+    text: "Risk budget {used:.0%}. Consider trailing 50% or move SL to BE."
+    tone: suggest
+

@@ -1,0 +1,6 @@
+confluence_weights:
+  smc: 0.4
+  wyckoff: 0.3
+  technical: 0.3
+risk: 0.1
+score_threshold: 55

@@ -1,0 +1,53 @@
+# Context-Aware System Suggestions
+suggestions:
+  - if: file_uploaded and file_type in ["zip", "tar", "gz"]
+    then: "Would you like to extract the uploaded archive?"
+    action: "trigger_agent:ArchiveAgent"
+    priority: high
+
+  - if: no_mounts_detected and workspace_empty
+    then: "You can mount your Google Drive to access more data."
+    action: "show_mount_options"
+    priority: medium
+
+  - if: trading_data_detected and market_hours
+    then: "Market is open. Would you like to start live analysis?"
+    action: "trigger_agent:FinanceAgent"
+    priority: critical
+
+  - if: memory_usage > 80
+    then: "Memory usage is high. Consider consolidating session data."
+    action: "trigger_memory_optimization"
+    priority: high
+
+  - if: error_count > 3 and time_window < 300
+    then: "Multiple errors detected. Run system diagnostics?"
+    action: "trigger_auto_heal"
+    priority: critical
+
+  - if: session_idle > 1800
+    then: "Session has been idle. Save current state?"
+    action: "save_session_state"
+    priority: low
+
+  - if: code_files_detected and no_recent_review
+    then: "New code detected. Would you like a code review?"
+    action: "trigger_agent:CodeReviewer"
+    priority: medium
+
+# Suggestion evaluation logic
+evaluation:
+  check_interval: 30  # seconds
+  max_suggestions: 3
+  suppress_duration: 300  # don't repeat same suggestion for 5 minutes
+
+# LLM integration for smart suggestions
+llm_suggestions:
+  enabled: true
+  prompt: |
+    Based on current workspace state, suggest the most helpful next action:
+    Context: {workspace_context}
+    Recent Activity: {recent_activity}
+    Available Actions: {available_actions}
+
+    Provide 1-2 actionable suggestions that would be most valuable to the user.

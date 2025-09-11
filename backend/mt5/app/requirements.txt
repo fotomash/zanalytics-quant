@@ -5,7 +5,11 @@ python-dotenv
 flasgger
 python-json-logger
 flask
+# Metrics
+prometheus_client
 # MetaTrader5
+MetaTrader5
 uvicorn
 fastapi
 load_dotenv
+

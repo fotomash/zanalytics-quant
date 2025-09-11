@@ -1,0 +1,56 @@
+agent:
+  id: "personal_assistant"
+  name: "Personal AI Assistant"
+  version: "1.0.0"
+  type: "personal_assistant"
+
+  capabilities:
+    - task_management
+    - scheduling
+    - reminders
+    - information_retrieval
+    - natural_conversation
+
+  domain:
+    primary: "productivity"
+    secondary: [ "communication", "organization" ]
+
+  llm_config:
+    model_preference: "gpt-4"
+    temperature: 0.7
+    max_tokens: 2000
+    system_prompt: |
+      You are a helpful personal AI assistant focused on productivity and organization.
+      You help users manage their tasks, schedule, and daily activities.
+      You maintain context across conversations and remember user preferences.
+      Always be proactive in offering assistance and suggestions.
+
+  memory_settings:
+    max_history_length: 200
+    delta_compression: true
+    retention_policy: "rolling_window"
+    shared_memory_access:
+      read: [ "user_preferences", "calendar", "tasks" ]
+      write: [ "assistant_notes", "task_updates" ]
+
+  logic_blocks:
+    - id: "greeting"
+      trigger: "conversation_start"
+      flow:
+        - check_time_of_day
+        - check_pending_tasks
+        - generate_contextual_greeting
+
+    - id: "task_management"
+      trigger: "task_mentioned"
+      flow:
+        - parse_task_details
+        - check_calendar_conflicts
+        - create_or_update_task
+        - set_reminders
+        - confirm_with_user
+
+  entry_points:
+    on_init: "agents.personal_assistant.PersonalAssistant.initialize"
+    on_message: "agents.personal_assistant.PersonalAssistant.process_message"
+    on_shutdown: "agents.personal_assistant.PersonalAssistant.cleanup"

@@ -1,0 +1,223 @@
+schema_version: 1
+actions:
+  - name_for_model: actions_query
+    name_for_human: "Query Action"
+    description_for_model: "Query or execute an action via the Actions Bus"
+    action_url: https://mcp1.zanalytics.app/api/v1/actions/query
+    method: POST
+    parameters:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - position_open
+            - position_close
+            - position_modify
+            - position_hedge
+            - session_boot
+            - state_snapshot
+            - trades_recent
+            - trades_history_mt5
+            - account_info
+            - account_positions
+            - account_risk
+            - equity_today
+            - pulse_status
+            - market_mini
+            - market_snapshot
+            - market_symbols
+            - market_calendar_next
+            - market_regime
+            - liquidity_map
+            - opportunity_priority_items
+            - journal_recent
+            - journal_append
+            - behavior_events
+            - whisper_suggest
+        payload:
+          type: object
+          additionalProperties: true
+      required:
+        - type
+        - payload
+    action_status: enabled
+  - name_for_model: position_close
+    name_for_human: "Close Position"
+    description_for_model: "Close full or partial position"
+    action_url: https://mcp1.zanalytics.app/api/v1/positions/close
+    method: POST
+    parameters:
+      type: object
+      properties:
+        ticket:
+          type: integer
+          description: Trade ticket ID to close
+        fraction:
+          type: number
+          minimum: 0.01
+          maximum: 1.0
+          description: Optional fraction of position volume to close (default full close)
+        volume:
+          type: number
+          description: Optional absolute lots to close (overrides fraction if provided)
+      required:
+        - ticket
+    action_status: enabled
+  - name_for_model: position_modify
+    name_for_human: "Modify Position"
+    description_for_model: "Modify SL/TP for an existing position"
+    action_url: https://mcp1.zanalytics.app/api/v1/positions/modify
+    method: POST
+    parameters:
+      type: object
+      properties:
+        ticket:
+          type: integer
+          description: Trade ticket ID
+        sl:
+          type: number
+          description: New stop-loss price
+        tp:
+          type: number
+          description: New take-profit price
+      required:
+        - ticket
+    action_status: enabled
+  - name_for_model: position_modify_by_ticket
+    name_for_human: "Modify Position By Ticket"
+    description_for_model: "Modify SL/TP for an existing position by ticket path"
+    action_url: https://mcp1.zanalytics.app/api/v1/positions/{ticket}/modify
+    method: POST
+    parameters:
+      type: object
+      properties:
+        ticket:
+          type: integer
+          description: Trade ticket ID (path parameter)
+        sl:
+          type: number
+          description: New stop-loss price
+        tp:
+          type: number
+          description: New take-profit price
+      required:
+        - ticket
+    action_status: enabled
+  - name_for_model: position_hedge
+    name_for_human: "Hedge Position"
+    description_for_model: "Open an opposite-side hedge order for a position"
+    action_url: https://mcp1.zanalytics.app/api/v1/positions/hedge
+    method: POST
+    parameters:
+      type: object
+      properties:
+        ticket:
+          type: integer
+          description: Trade ticket ID to hedge
+        volume:
+          type: number
+          description: Optional hedge volume (defaults to full position volume)
+      required:
+        - ticket
+    action_status: enabled
+  - name_for_model: trade_open
+    name_for_human: "Open Trade"
+    description_for_model: "Open a new trading position"
+    action_url: https://mcp1.zanalytics.app/trade/open
+    method: POST
+    parameters:
+      type: object
+      properties:
+        symbol:
+          type: string
+        side:
+          type: string
+          enum:
+            - buy
+            - sell
+        volume:
+          type: number
+          description: Trade volume in lots
+        type:
+          type: string
+          enum:
+            - market
+            - limit
+            - stop
+          nullable: true
+        price:
+          type: number
+          nullable: true
+        sl:
+          type: number
+          nullable: true
+        tp:
+          type: number
+          nullable: true
+        deviation:
+          type: integer
+          nullable: true
+        client_order_id:
+          type: string
+          nullable: true
+      required:
+        - symbol
+        - side
+        - volume
+    action_status: enabled
+  - name_for_model: trade_close
+    name_for_human: "Close Trade"
+    description_for_model: "Close an existing trading position"
+    action_url: https://mcp1.zanalytics.app/trade/close
+    method: POST
+    parameters:
+      type: object
+      properties:
+        ticket:
+          type: integer
+          description: Trade ticket ID to close
+        volume:
+          type: number
+          nullable: true
+          description: Optional volume to close
+        deviation:
+          type: integer
+          nullable: true
+      required:
+        - ticket
+    action_status: enabled
+  - name_for_model: trade_modify
+    name_for_human: "Modify Trade"
+    description_for_model: "Modify stop-loss or take-profit for a position"
+    action_url: https://mcp1.zanalytics.app/trade/modify
+    method: POST
+    parameters:
+      type: object
+      properties:
+        ticket:
+          type: integer
+          description: Trade ticket ID
+        sl:
+          type: number
+          nullable: true
+        tp:
+          type: number
+          nullable: true
+      required:
+        - ticket
+    action_status: enabled
+  - name_for_model: mcp1_authenticate
+    name_for_human: "Authenticate Session"
+    description_for_model: "Validate MCP1 auth token"
+    action_url: https://mcp1.zanalytics.app/api/v1/mcp1/authenticate
+    method: POST
+    parameters:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Session token to validate
+      required:
+        - token
+    action_status: enabled
