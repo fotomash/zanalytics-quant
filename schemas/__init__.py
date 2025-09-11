@@ -6,7 +6,13 @@ from .payloads import (
     SMCAnalysis,
     WyckoffAnalysis,
     MicrostructureAnalysis,
+    PredictiveAnalysisResult,
     UnifiedAnalysisPayloadV1,
+)
+from .predictive_schemas import (
+    ConflictDetectionResult,
+    PredictiveGrade,
+    PredictiveScorerResult,
 )
 
 __all__ = [
@@ -15,5 +21,9 @@ __all__ = [
     "SMCAnalysis",
     "WyckoffAnalysis",
     "MicrostructureAnalysis",
+    "PredictiveScorerResult",
+    "PredictiveGrade",
+    "ConflictDetectionResult",
+    "PredictiveAnalysisResult",
     "UnifiedAnalysisPayloadV1",
 ]
