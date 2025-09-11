@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Pydantic models describing session manifests and pipeline stages."""
+
 from typing import List
 
 from pydantic import BaseModel, Field
