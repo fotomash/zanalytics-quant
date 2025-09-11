@@ -28,12 +28,22 @@ from utils.session_mindset import (
 from api_integration.mt5_api_client import Mt5APIClient
 from dashboard.styles.main_st_style import apply_main_styling
 import os
+import yaml
+from typing import Dict
+from dashboard.components import create_metric_donut
+from dashboard.components.confluence_display import render_confluence_gates
 
 load_dotenv(dotenv_path=Path(__file__).parents[2] / ".env")
 
+# --- Confluence weights loader ---
+def load_confluence_weights() -> Dict[str, float]:
+    try:
+        with open(project_root / "pulse_dashboard_config.yaml") as f:
+            return yaml.safe_load(f).get("confluence_weights", {}) or {}
+    except Exception:
+        return {}
 
-load_dotenv(dotenv_path=Path(__file__).parents[2] / '.env')
-from dashboard.components import create_metric_donut
+CONFLUENCE_WEIGHTS = load_confluence_weights()
 
 # --- Config utility: get_config_var ---
 def get_config_var(name, default=None):
@@ -67,7 +77,7 @@ import glob
 from datetime import datetime
 import warnings
 import re
-from typing import Dict, Optional
+from typing import Optional
 import base64
 import yfinance as yf
 from fredapi import Fred
@@ -154,6 +164,14 @@ def render_pulse_snapshot() -> None:
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
             st.markdown('</div>', unsafe_allow_html=True)
     st.page_link("pages/03_ 📰 MACRO & NEWS.py", label="Open Macro & News", icon="📰")
+
+    try:
+        render_confluence_gates(
+            score.get("component_scores", {}),
+            CONFLUENCE_WEIGHTS,
+        )
+    except Exception:
+        pass
 
 
 render_pulse_snapshot()
