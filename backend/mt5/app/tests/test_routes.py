@@ -6,6 +6,9 @@ class DummyMT5(types.ModuleType):
     def initialize(self):
         return 1
 
+    def terminal_info(self):
+        return types.SimpleNamespace()
+
     def __getattr__(self, name):
         return 0
 
@@ -70,12 +73,12 @@ def test_health_and_metrics(client):
     data_resp = resp.get_json()
     assert data_resp['status'] == 'healthy'
     assert 'mt5_connected' in data_resp
-    assert 'mt5_initialized' in data_resp
+    assert 'mt5_alive' in data_resp
 
     resp = client.get('/metrics')
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
     assert 'mt5_connection_status' in body
-    assert 'mt5_initialization_result' in body
+    assert 'mt5_terminal_info_result' in body
     assert 'mt5_health_request_latency_seconds' in body
 
