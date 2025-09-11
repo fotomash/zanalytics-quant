@@ -51,6 +51,8 @@ dashboard/.DS_Store
 utils/.DS_Store
 backend/mt5/.env
 backend/mcp/.env
+redis_architecture/.env
+services/.env
 *.zip*
 /dashboard/.cache
 /config/.dbus/session-bus
