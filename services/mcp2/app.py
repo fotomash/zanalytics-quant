@@ -13,6 +13,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, generate_latest
 
 from .routers.tools import router as tools_router
 from .routers.llm import router as llm_router
+
 from .routers.streams import router as streams_router
 from prometheus_client import (
     Counter,
@@ -94,5 +95,6 @@ def metrics():
 
 
 app.include_router(tools_router)
+app.include_router(llm_router)
 app.include_router(llm_router)  # /llm/whisperer and /llm/simple
 app.include_router(streams_router)
