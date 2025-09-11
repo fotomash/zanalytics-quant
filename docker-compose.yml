@@ -891,6 +891,7 @@ networks:
     driver: bridge
   data-pipeline:
     driver: bridge
+    internal: true
   traefik-public:
     external: true
     name: traefik-public
