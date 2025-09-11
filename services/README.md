@@ -27,15 +27,15 @@ Status
 MCP2
 ----
 
-FastAPI service that logs `StrategyPayloadV1` trade payloads to Redis and supports document search in Postgres.
+FastAPI service for capturing `StrategyPayloadV1` trade payloads in Redis and searching indexed documents stored in Postgres.
 
 Key endpoints:
 
 - `GET /health` — service health check
-- `POST /log_enriched_trade` — store a `StrategyPayloadV1` trade payload
+- `POST /log_enriched_trade` — persist a `StrategyPayloadV1` payload and enqueue its ID
 - `GET /search_docs?query=<text>` — search indexed docs
 - `GET /fetch_payload?id=<id>` — retrieve a stored payload by ID
 - `GET /trades/recent?limit=<n>` — list recent trade payloads
 
-For operational details, see [docs/runbooks/mcp2.md](../docs/runbooks/mcp2.md).
+For operational details, see the [mcp2 runbook](../docs/runbooks/mcp2.md).
 
