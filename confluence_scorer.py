@@ -10,7 +10,7 @@ import yaml
 import pandas as pd
 
 # Import existing analyzers (these already exist in the codebase)
-from components.smc_analyser import SMCAnalyzer
+from utils.smc_analyzer import SMCAnalyzer
 from components.wyckoff_analyzer import WyckoffAnalyzer
 from components.technical_analysis import TechnicalAnalysis
 
