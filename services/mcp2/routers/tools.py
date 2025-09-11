@@ -1,4 +1,6 @@
+import os
 import uuid
+import asyncio
 from fastapi import APIRouter, HTTPException, Query, Depends
 from backend.mcp.schemas import StrategyPayloadV1
 from ..schemas import DocRecord
@@ -8,6 +10,33 @@ from ..auth import verify_api_key
 
 router = APIRouter(dependencies=[Depends(verify_api_key)])
 
+# Optional Kafka producer controlled by MCP2_ENABLE_KAFKA env flag
+KAFKA_ENABLED = os.getenv("MCP2_ENABLE_KAFKA", "").lower() in {"1", "true", "yes"}
+if KAFKA_ENABLED:
+    try:
+        from aiokafka import AIOKafkaProducer
+
+        _producer: AIOKafkaProducer | None = None
+        _producer_lock = asyncio.Lock()
+
+        async def get_producer() -> AIOKafkaProducer:
+            global _producer
+            if _producer is None:
+                async with _producer_lock:
+                    if _producer is None:
+                        bootstrap = os.getenv("MCP2_KAFKA_BOOTSTRAP", "localhost:9092")
+                        _producer = AIOKafkaProducer(bootstrap_servers=bootstrap)
+                        await _producer.start()
+            return _producer
+
+        @router.on_event("shutdown")
+        async def _shutdown_producer() -> None:
+            if _producer is not None:
+                await _producer.stop()
+
+    except Exception:  # pragma: no cover - aiokafka optional
+        KAFKA_ENABLED = False
+
 
 @router.post('/log_enriched_trade')
 async def log_enriched_trade(payload: StrategyPayloadV1):
@@ -15,6 +44,9 @@ async def log_enriched_trade(payload: StrategyPayloadV1):
     data = payload.model_dump_json()
     await redis_client.redis.set(redis_client.ns(f'payload:{trade_id}'), data)
     await redis_client.redis.lpush(redis_client.ns('trades'), trade_id)
+    if KAFKA_ENABLED:
+        producer = await get_producer()
+        await producer.send_and_wait("mcp2.enriched_trades", data.encode())
     return {'id': trade_id}
 
 

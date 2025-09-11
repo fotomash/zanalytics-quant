@@ -53,3 +53,10 @@ curl -s "$MCP_HOST/fetch_payload?id=<id>"
 # recent trades
 curl -s "$MCP_HOST/trades/recent?limit=5"
 ```
+
+## Kafka Integration
+
+Setting the environment variable `MCP2_ENABLE_KAFKA=true` enables an optional Kafka producer.
+When enabled, every payload sent to `POST /log_enriched_trade` is also produced to the `mcp2.enriched_trades` topic.
+The producer connects to the broker configured by `MCP2_KAFKA_BOOTSTRAP` (default `localhost:9092`).
+
