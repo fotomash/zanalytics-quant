@@ -151,6 +151,24 @@ For the complete list of variables, see [docs/env-reference.md](docs/env-referen
 
 ---
 
+### Execution Validation Settings
+
+The engine reads optional execution safeguards from
+`config/execution_validation.yaml`:
+
+```yaml
+# Execution validation configuration
+confidence_threshold: 0.8
+fallback_limits:
+  max_retries: 3
+```
+
+`confidence_threshold` defines the minimum confidence required before an
+execution proceeds. Values below this threshold can trigger logic defined in
+`fallback_limits`, such as retry limits or alternative handlers.
+
+---
+
 ## MT5 service vs. Django API
 
 The MT5 bridge hosts its own REST interface. Django exposes proxies for the MT5 history endpoints, but they simply forward to the MT5 service. To avoid confusion, always point history requests to `MT5_API_URL`.
