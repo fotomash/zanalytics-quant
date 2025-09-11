@@ -7,6 +7,7 @@ The `dashboard/` directory hosts the primary Streamlit application for Zanalytic
 - `pulse_dashboard.py` and `pulse_kernel_dashboard.py` – focused dashboards for pulse analytics.
 - `wiki_dashboard.py` – streamlit wrapper around internal wiki data.
 - `pages/system_diagnostics.py` – aggregates health checks for Redis, Kafka, MT5 and the Django API.
+- `stream.py` – minimal WebSocket stream viewer for MCP2.
 
 Launch the default app with:
 

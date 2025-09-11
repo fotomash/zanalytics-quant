@@ -1,42 +1,57 @@
-import logging
-import json
-from pathlib import Path
+from __future__ import annotations
 
-import yaml
+import logging
+from typing import List, Optional
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+
+from backend.mcp.schemas import StrategyPayloadV1
+from .routers.llm import WhisperRequest, WhisperResponse, _suggest
+from .storage import redis_client
 
 logger = logging.getLogger(__name__)
 
+app = FastAPI()
 
-def load_session_manifest(path: str | Path = "session_manifest.yaml"):
-    path = Path(path)
+
+class StreamRequest(BaseModel):
+    """Request model for analyzing the latest payload from a Redis stream."""
+
+    stream: str
+    last_id: str = "-"
+    questions: Optional[List[str]] = None
+    notes: Optional[str] = None
+
+
+@app.post("/llm/{model}/analyze", response_model=WhisperResponse)
+async def analyze(model: str, body: StreamRequest) -> WhisperResponse:
+    """Read the most recent payload from ``body.stream`` and analyze it.
+
+    The endpoint looks up the latest entry in the named Redis stream, parses the
+    ``StrategyPayloadV1`` payload, and passes it to the existing LLM suggestion
+    helper. The response includes the prompt version metadata from the helper.
+    """
+
+    key = redis_client.ns(body.stream)
     try:
-        with path.open("r", encoding="utf-8") as fh:
-            return yaml.safe_load(fh) or {}
-    except FileNotFoundError as exc:
-        logger.error("session manifest not found at %s", path)
-        raise
-    except yaml.YAMLError as exc:
-        logger.error("failed to parse session manifest %s: %s", path, exc)
-        raise
+        entries = await redis_client.redis_streams.xrevrange(key, count=1)
+    except Exception as exc:  # pragma: no cover - redis failure
+        logger.error("redis stream read failed: %s", exc)
+        raise HTTPException(status_code=500, detail="redis error") from exc
+
+    if not entries:
+        raise HTTPException(status_code=404, detail="stream empty")
+
+    _, fields = entries[0]
+    payload_json = fields.get("payload")
+    if not payload_json:
+        raise HTTPException(status_code=400, detail="missing payload field")
+
+    payload = StrategyPayloadV1.model_validate_json(payload_json)
+    req = WhisperRequest(payload=payload, questions=body.questions, notes=body.notes)
+    nudges = model.lower() != "simple"
+    return await _suggest(req, endpoint=f"{model}/analyze", nudges=nudges)
 
 
-def load_confidence_trace_matrix(path: str | Path = "confidence_trace_matrix.json"):
-    path = Path(path)
-    try:
-        with path.open("r", encoding="utf-8") as fh:
-            return json.load(fh)
-    except FileNotFoundError as exc:
-        logger.error("confidence trace matrix not found at %s", path)
-        raise
-    except json.JSONDecodeError as exc:
-        logger.error("failed to parse confidence trace matrix %s: %s", path, exc)
-        raise
-
-
-def main() -> None:
-    load_session_manifest()
-    load_confidence_trace_matrix()
-
-
-if __name__ == "__main__":
-    main()
+__all__ = ["app"]
