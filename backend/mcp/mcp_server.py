@@ -9,7 +9,7 @@ import os
 import time
 import logging
 from pathlib import Path
-from .auth import verify_api_key
+from auth import verify_api_key
 
 try:  # pragma: no cover - optional dependency
     import pandas as pd
