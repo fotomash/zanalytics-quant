@@ -17,12 +17,19 @@ def test_load_manifest_and_matrix():
 
 
 def test_trade_id_generation():
-    enriched = enrich_ticks({}, manifest_path=MANIFEST_PATH, matrix_path=MATRIX_PATH)
+    enriched = enrich_ticks([{}], manifest_path=MANIFEST_PATH, matrix_path=MATRIX_PATH)[0]
     assert "trade_id" in enriched
     # ensure UUID hex format by attempting to parse
     uuid.UUID(enriched["trade_id"])
 
 
 def test_embedding_vector_length():
-    enriched = enrich_ticks({}, manifest_path=MANIFEST_PATH, matrix_path=MATRIX_PATH)
+    enriched = enrich_ticks([{}], manifest_path=MANIFEST_PATH, matrix_path=MATRIX_PATH)[0]
     assert len(enriched["embedding"]) == 384
+
+
+def test_llm_routing_local_echo_vs_whisperer():
+    ticks = [{"phase": "spring"}, {"phase": "markup"}]
+    enriched = enrich_ticks(ticks, manifest_path=MANIFEST_PATH, matrix_path=MATRIX_PATH)
+    assert "llm_verdict" in enriched[0]
+    assert "llm_verdict" not in enriched[1]
