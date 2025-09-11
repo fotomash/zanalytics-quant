@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import asyncio
 import uvicorn
 import logging
 from datetime import datetime
@@ -237,10 +238,42 @@ async def top_signals(symbols: Optional[str] = Query(default=None), rt: PulseRun
     return TopSignalsResponse(items=scored[: min(10, len(scored))])
 
 
-if __name__ == "__main__":
-    uvicorn.run(
+async def run_loop() -> None:
+    """Run the Pulse kernel loop in the background."""
+    rt = PulseRuntime.instance()
+    run_fn = getattr(rt.kernel, "run", None)
+    if run_fn is None:
+        return
+    if asyncio.iscoroutinefunction(run_fn):
+        await run_fn()
+    else:
+        await asyncio.to_thread(run_fn)
+
+
+async def _main() -> None:
+    config = uvicorn.Config(
         "main:app",
         host=os.getenv("HOST", "0.0.0.0"),
         port=int(os.getenv("PORT", "8000")),
-        reload=bool(int(os.getenv("RELOAD", "0")))
+        reload=bool(int(os.getenv("RELOAD", "0"))),
     )
+    server = uvicorn.Server(config)
+    server_task = asyncio.create_task(server.serve())
+    loop_task = asyncio.create_task(run_loop())
+    done, pending = await asyncio.wait(
+        {server_task, loop_task}, return_when=asyncio.FIRST_EXCEPTION
+    )
+    for task in pending:
+        task.cancel()
+    await asyncio.gather(*pending, return_exceptions=True)
+    for task in done:
+        exc = task.exception()
+        if exc:
+            raise exc
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(_main())
+    except Exception:
+        logger.exception("Application terminated")
