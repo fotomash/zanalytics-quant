@@ -65,7 +65,7 @@ tenacity==8.2.3
 # Embeddings and vector search
 sentence-transformers==5.1.0
 pinecone-client==6.0.0
-faiss-cpu==1.12.0  # For GPU acceleration, use faiss-gpu
+qdrant-client  # Vector DB client
 # metrics
 prometheus_client==0.22.1
 # MCP2 service dependencies
