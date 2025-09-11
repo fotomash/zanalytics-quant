@@ -783,6 +783,27 @@ services:
     networks:
       - data-pipeline
 
+  persistence:
+    image: python:3.11-slim
+    container_name: persistence
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      - KAFKA_BROKERS=${KAFKA_BROKERS:-kafka:9092}
+      - TOPIC=enriched-analysis-payloads
+      - PG_DSN=postgresql://postgres:timescale@timescaledb:5432/postgres
+    command: >
+      sh -lc "pip install --no-cache-dir psycopg2-binary confluent-kafka &&
+      python services/persistence/consumer.py"
+    depends_on:
+      kafka:
+        condition: service_started
+      timescaledb:
+        condition: service_started
+    networks:
+      - data-pipeline
+
 volumes:
   grafana-data: {}
   prometheus-data: {}
