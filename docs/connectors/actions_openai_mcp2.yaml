@@ -9,10 +9,6 @@ functions:
         query:
           type: string
           description: Free-form search query text.
-        limit:
-          type: integer
-          description: Maximum number of results to return.
-          default: 5
       required:
         - query
   - name: fetch_payload
@@ -20,42 +16,37 @@ functions:
     parameters:
       type: object
       properties:
-        payload_id:
+        id:
           type: string
           description: Unique identifier of the payload to fetch.
       required:
-        - payload_id
+        - id
   - name: log_enriched_trade
-    description: Log a trade event with additional metadata for analytics.
+    description: Persist a strategy payload for later retrieval.
     parameters:
       type: object
       properties:
-        ticket:
-          type: integer
-          description: Trade ticket ID.
+        strategy:
+          type: string
+          description: Strategy name associated with the payload.
         symbol:
           type: string
-          description: Symbol traded.
-        side:
+          description: Market symbol.
+        timeframe:
           type: string
-          description: Trade direction.
-          enum: [buy, sell]
-        volume:
-          type: number
-          description: Size of the trade.
-        price:
-          type: number
-          description: Execution price.
-        metadata:
-          type: object
-          description: Optional additional metadata.
-          additionalProperties: true
+          description: Chart timeframe (e.g. "1D").
+        date:
+          type: string
+          format: date-time
+          description: ISO8601 timestamp for the payload.
+        notes:
+          type: string
+          description: Optional free-form notes.
       required:
-        - ticket
+        - strategy
         - symbol
-        - side
-        - volume
-        - price
+        - timeframe
+        - date
   - name: get_recent_trades
     description: Retrieve a list of recent trades.
     parameters:
@@ -65,7 +56,4 @@ functions:
           type: integer
           description: Maximum number of trades to return.
           default: 10
-        symbol:
-          type: string
-          description: Optional symbol filter.
       required: []
