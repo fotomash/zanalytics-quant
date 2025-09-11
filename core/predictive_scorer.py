@@ -24,13 +24,25 @@ logger = logging.getLogger(__name__)
 class PredictiveScorer:
     """Combine signals from multiple analysis methods into a single score."""
 
-    def __init__(self, config_path: str = "pulse_config.yaml"):
-        # Load optional config
-        try:
-            with open(config_path, "r") as f:
-                config = yaml.safe_load(f) or {}
-        except Exception:
-            config = {}
+    def __init__(self, config: Dict | str | None = None):
+        """Initialize the scorer.
+
+        Parameters
+        ----------
+        config:
+            Optional configuration dictionary or path to a YAML file. If a
+            string is provided, the file will be loaded.  Missing files or
+            invalid YAML result in an empty configuration.
+        """
+
+        if isinstance(config, str):
+            try:
+                with open(config, "r") as f:
+                    config = yaml.safe_load(f) or {}
+            except Exception:
+                config = {}
+        else:
+            config = config or {}
 
         # Initialize existing analyzers
         self.smc = SMCAnalyzer()
