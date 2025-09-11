@@ -1,35 +1,52 @@
 """Utilities for producing text embeddings.
 
-This module wraps the `sentence-transformers` library and exposes a single
-``embed`` function.  The transformer model is loaded once at import time so
-that subsequent calls do not trigger additional downloads or initialisation
-overhead.
+This module lazily loads a `SentenceTransformer` model on first use.  When the
+dependency or model weights are unavailable, a deterministic mock model is used
+to provide a stable zero vector so callers can continue operating.
 """
 
-from typing import List
+from __future__ import annotations
 
-from sentence_transformers import SentenceTransformer
+from typing import List, TYPE_CHECKING
 
-# Load the model at module import so it is cached for all subsequent calls.  The
-# ``all-MiniLM-L6-v2`` model provides a good balance between quality and size
-# (384‑dimensional embeddings).
-_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+if TYPE_CHECKING:  # pragma: no cover - for type checkers only
+    from sentence_transformers import SentenceTransformer
+
+
+class _MockSentenceTransformer:
+    """Fallback embedding model returning a zero vector."""
+
+    def __init__(self, dim: int = 384) -> None:
+        self.dim = dim
+
+    def encode(self, text: str) -> List[float]:  # pragma: no cover - trivial
+        return [0.0] * self.dim
+
+
+_MODEL: "SentenceTransformer | _MockSentenceTransformer | None" = None
+
+
+def _get_model() -> "SentenceTransformer | _MockSentenceTransformer":
+    """Return a cached embedding model, initialising on first use."""
+
+    global _MODEL
+    if _MODEL is None:
+        try:  # pragma: no cover - exercised via monkeypatching in tests
+            from sentence_transformers import SentenceTransformer
+            _MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+        except Exception:  # pragma: no cover - fallback path
+            _MODEL = _MockSentenceTransformer()
+    return _MODEL
 
 
 def embed(text: str) -> List[float]:
-    """Return an embedding vector for the given text.
+    """Return an embedding vector for the given text."""
 
-    Parameters
-    ----------
-    text:
-        The string to embed.
+    embedding = _get_model().encode(text)
+    if hasattr(embedding, "tolist"):
+        return embedding.tolist()
+    return list(embedding)
 
-    Returns
-    -------
-    List[float]
-        A dense embedding vector represented as a list of floats.
-    """
 
-    embedding = _MODEL.encode(text)
-    # ``encode`` returns a numpy array; convert to a plain list for consumers.
-    return embedding.tolist()
+__all__ = ["embed"]
+
