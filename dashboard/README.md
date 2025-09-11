@@ -19,7 +19,7 @@ streamlit run dashboard/Home.py
    ```bash
    pip install -r requirements-dashboard.txt  # or dashboard/requirements.txt
    ```
-2. **Environment** – ensure Redis and the Django API are reachable; most pages expect live data.
+2. **Environment** – ensure Redis and the Django API are reachable; most pages expect live data. Set `HEALTH_AGGREGATOR_URL` to the base URL of your health aggregator service.
 
 ## Customization
 - Add or modify Streamlit pages inside `pages/`.

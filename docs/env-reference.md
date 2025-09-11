@@ -54,6 +54,7 @@ Values defined in `.env` or in the shell environment override the defaults shown
 | `PULSE_PLAYBOOK_PATH` | _(empty)_ | Provide a path to use a custom Pulse playbook file. | Overrides the default Pulse playbook location. |
 | `ZAN_CACHE_DIR` | _(empty)_ | Set to force dashboards to use a specific cache directory. | Directory for caching dashboard data. |
 | `PULSE_CONF_WEIGHTS` | _(empty)_ | Supply JSON to customize Pulse confluence weights. | Overrides internal default weighting for Pulse signals. |
+| `HEALTH_AGGREGATOR_URL` | `http://localhost:8000/health` | Set to the URL of the health aggregator service. | Base URL the diagnostics panel queries for system health. |
 
 ## Traefik & SSL Settings
 | Variable | Default | Override Behavior | Purpose |
