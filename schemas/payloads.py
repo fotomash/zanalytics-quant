@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from .predictive_schemas import ConflictDetectionResult, PredictiveScorerResult
+
 
 class MarketContext(BaseModel):
     """High level market information"""
@@ -86,6 +88,20 @@ class MicrostructureAnalysis(BaseModel):
         None, description="Order flow toxicity score"
     )
 
+class PredictiveAnalysisResult(BaseModel):
+    """Aggregated predictive scoring and conflict detection."""
+
+    scorer: PredictiveScorerResult = Field(
+        ..., description="Predictive maturity scoring output"
+    )
+    conflict_detection: ConflictDetectionResult = Field(
+        ..., description="Directional conflict detection results"
+    )
+    extras: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional predictive analysis fields",
+    )
+
 
 class ISPTSPipelineResult(BaseModel):
     """Outputs from each stage of the ISPTS pipeline."""
@@ -133,6 +149,8 @@ class UnifiedAnalysisPayloadV1(BaseModel):
     microstructure: MicrostructureAnalysis = Field(
         ..., description="Order flow and microstructure metrics"
     )
+    predictive_analysis: PredictiveAnalysisResult = Field(
+        ..., description="Predictive scoring and conflict detection results"
     ispts_pipeline: ISPTSPipelineResult = Field(
         ..., description="Outputs from the ISPTS pipeline stages"
     )
