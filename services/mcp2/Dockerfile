@@ -1,7 +1,9 @@
 FROM python:3.12-slim
 WORKDIR /app
-COPY requirements.txt ./
+# Use repo-root context; copy service-specific requirements explicitly
+COPY services/mcp2/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
+# Copy entire repo so imports like backend.mcp.schemas resolve
 COPY . .
 ENV PYTHONPATH=/app
 RUN useradd -m appuser

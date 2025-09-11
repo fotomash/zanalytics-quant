@@ -730,7 +730,8 @@ services:
 
   mcp2:
     build:
-      context: services/mcp2
+      context: .
+      dockerfile: services/mcp2/Dockerfile
     container_name: mcp2
     environment:
       - REDIS_URL=redis://mcp2-redis:6379/0
@@ -741,6 +742,12 @@ services:
         condition: service_started
       mcp2-pg:
         condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8002/health', timeout=3).getcode()==200 else sys.exit(1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
     networks:
       - traefik-public
