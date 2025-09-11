@@ -1,0 +1,80 @@
+{
+  "tick_data_schema": {
+    "required_columns": [
+      "<DATE>",
+      "<TIME>",
+      "<BID>",
+      "<ASK>",
+      "<FLAGS>"
+    ],
+    "optional_columns": [
+      "<LAST>",
+      "<VOLUME>"
+    ],
+    "validations": {
+      "FLAGS": {
+        "valid_values": [
+          2,
+          4,
+          6
+        ]
+      },
+      "TIME": {
+        "format": "HH:MM:SS.mmm"
+      },
+      "prices": {
+        "at_least_one_not_null": [
+          "<BID>",
+          "<ASK>"
+        ]
+      }
+    }
+  },
+  "candlestick_schema": {
+    "required_columns": [
+      "<DATE>",
+      "<TIME>",
+      "<OPEN>",
+      "<HIGH>",
+      "<LOW>",
+      "<CLOSE>",
+      "<TICKVOL>"
+    ],
+    "optional_columns": [
+      "<VOL>",
+      "<SPREAD>"
+    ],
+    "validations": {
+      "OHLC": {
+        "HIGH_GTE_LOW": "<HIGH> >= <LOW>",
+        "HIGH_GTE_OPEN": "<HIGH> >= <OPEN>",
+        "HIGH_GTE_CLOSE": "<HIGH> >= <CLOSE>",
+        "LOW_LTE_OPEN": "<LOW> <= <OPEN>",
+        "LOW_LTE_CLOSE": "<LOW> <= <CLOSE>"
+      },
+      "TICKVOL": {
+        "greater_than": 0
+      },
+      "TIME": {
+        "format": "HH:MM:SS"
+      }
+    }
+  },
+  "volume_strategy": {
+    "forex_pairs": {
+      "primary": "TICKVOL",
+      "fallback": "none",
+      "reason": "Forex typically has no real volume data"
+    },
+    "stocks": {
+      "primary": "VOL",
+      "fallback": "TICKVOL",
+      "reason": "Stocks have real volume, use tick count as fallback"
+    },
+    "tick_data": {
+      "primary": "VOLUME",
+      "fallback": "none",
+      "reason": "VOLUME represents actual trade size"
+    }
+  }
+}
