@@ -1,6 +1,6 @@
 import traceback
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from time import sleep
 
 import pandas as pd
@@ -52,7 +52,8 @@ def close_algorithm():
             try:
                 # Retrieve the closed order and deal details
                 closed_order = get_order_from_ticket(ticket)
-                closed_deal = get_deal_from_ticket(ticket)
+                from_date = current_time - timedelta(minutes=15)
+                closed_deal = get_deal_from_ticket(ticket, from_date, current_time)
 
                 if closed_order is None or closed_deal is None:
                     error_msg = f"Failed to retrieve order or deal for closed ticket {ticket}."

@@ -30,6 +30,12 @@ Values defined in `.env` or in the shell environment override the defaults shown
 | `TRADES_RECENT_TTL` | `15` | Change to tune how long recent trades stay cached. | Cache TTL for recent trades in seconds. |
 | `RISK_STATUS_TTL` | `20` | Adjust to control risk status cache duration. | Cache TTL for risk status values in seconds. |
 
+## Kafka Settings
+| Variable | Default | Override Behavior | Purpose |
+| --- | --- | --- | --- |
+| `KAFKA_BOOTSTRAP_SERVERS` | `kafka:9092` | Change to point at a different Kafka broker. | Bootstrap servers for Kafka producers and consumers. |
+| `KAFKA_GROUP_ID` | `zanalyzer` | Set to run consumers under a different group. | Default consumer group id used by Kafka utilities. |
+
 ## Django Settings
 | Variable | Default | Override Behavior | Purpose |
 | --- | --- | --- | --- |

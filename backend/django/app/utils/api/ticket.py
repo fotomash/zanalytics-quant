@@ -2,11 +2,10 @@ import os
 import requests
 from typing import Dict
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 from dotenv import load_dotenv
 import logging
 import traceback
-from app.utils.constants import MT5Timeframe
 from app.utils.constants import TIMEZONE
 
 load_dotenv()
@@ -49,13 +48,11 @@ def history_orders_get(ticket: int) -> Dict:
         return None
 
 def get_deal_from_ticket(ticket: int, from_date: datetime, to_date: datetime) -> Dict:
-    # Convert datetime to MT5 time (integer)
-    from_timestamp = int(from_date.timestamp())
-    to_timestamp = int(to_date.timestamp())
-
     # Retrieve deals using the specified date range and position
     deals = history_deals_get(from_timestamp, to_timestamp, position=ticket)
     if deals is None or len(deals) == 0:
+    deals = history_deals_get(from_date, to_date, position=ticket)
+    if not deals:
         error_msg = f"No deal history found for position ticket {ticket} between {from_date} and {to_date}."
         logger.error(error_msg)
         return None
@@ -100,4 +97,5 @@ def get_order_from_ticket(ticket: int) -> Dict:
 
     # Directly use the dictionary without calling _asdict()
     order_dict = orders[0]
+
     return order_dict
