@@ -21,6 +21,7 @@ class TickItem(BaseModel):
     id: str
     ts_ms: int = Field(..., description="Timestamp (ms) from stream ID")
     ts_iso: str = Field(..., description="UTC ISO timestamp")
+    symbol: str = Field(..., description="Instrument symbol")
     bid: float | None = None
     ask: float | None = None
     last: float | None = None
@@ -31,6 +32,8 @@ class BarItem(BaseModel):
     id: str
     ts_ms: int
     ts_iso: str
+    symbol: str = Field(..., description="Instrument symbol")
+    timeframe: str = Field(..., description="Bar timeframe (e.g., 1m, 1h)")
     o: float | None = None
     h: float | None = None
     l: float | None = None
@@ -59,7 +62,7 @@ def _float_or_none(val: Any) -> float | None:
         return None
 
 
-def _normalize_ticks(entries: list[tuple[str, dict[str, Any]]]) -> list[TickItem]:
+def _normalize_ticks(entries: list[tuple[str, dict[str, Any]]], symbol: str) -> list[TickItem]:
     items: list[TickItem] = []
     for entry_id, data in entries:
         ts_ms, ts_iso = _parse_ms_and_iso(entry_id)
@@ -72,6 +75,7 @@ def _normalize_ticks(entries: list[tuple[str, dict[str, Any]]]) -> list[TickItem
                 id=entry_id,
                 ts_ms=ts_ms,
                 ts_iso=ts_iso,
+                symbol=symbol,
                 bid=bid,
                 ask=ask,
                 last=last,
@@ -81,7 +85,7 @@ def _normalize_ticks(entries: list[tuple[str, dict[str, Any]]]) -> list[TickItem
     return items
 
 
-def _normalize_bars(entries: list[tuple[str, dict[str, Any]]]) -> list[BarItem]:
+def _normalize_bars(entries: list[tuple[str, dict[str, Any]]], symbol: str, timeframe: str) -> list[BarItem]:
     items: list[BarItem] = []
     for entry_id, data in entries:
         ts_ms, ts_iso = _parse_ms_and_iso(entry_id)
@@ -91,7 +95,20 @@ def _normalize_bars(entries: list[tuple[str, dict[str, Any]]]) -> list[BarItem]:
         l = _float_or_none(data.get("low") or data.get("l"))
         c = _float_or_none(data.get("close") or data.get("c"))
         v = _float_or_none(data.get("volume") or data.get("v"))
-        items.append(BarItem(id=entry_id, ts_ms=ts_ms, ts_iso=ts_iso, o=o, h=h, l=l, c=c, v=v))
+        items.append(
+            BarItem(
+                id=entry_id,
+                ts_ms=ts_ms,
+                ts_iso=ts_iso,
+                symbol=symbol,
+                timeframe=timeframe,
+                o=o,
+                h=h,
+                l=l,
+                c=c,
+                v=v,
+            )
+        )
     return items
 
 
@@ -118,7 +135,7 @@ async def stream_ticks(
             entries = await r.xrange(key, min=start or "-", max=end or "+", count=count)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"redis error: {exc}") from exc
-    return _normalize_ticks(entries)
+    return _normalize_ticks(entries, symbol)
 
 
 @router.get("/bar/{timeframe}/{symbol}", response_model=list[BarItem])
@@ -142,4 +159,4 @@ async def stream_bars(
             entries = await r.xrevrange(fallback if reverse else fallback, max="+", min="-", count=count) if reverse else await r.xrange(fallback, min="-", max="+", count=count)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"redis error: {exc}") from exc
-    return _normalize_bars(entries)
+    return _normalize_bars(entries, symbol, timeframe)

@@ -94,5 +94,5 @@ def metrics():
 
 
 app.include_router(tools_router)
-app.include_router(llm_router)
+app.include_router(llm_router)  # /llm/whisperer and /llm/simple
 app.include_router(streams_router)

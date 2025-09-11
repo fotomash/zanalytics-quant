@@ -46,3 +46,13 @@ from the sidebar. Failed checks include links to relevant Docker logs and the
 remediation script for quick troubleshooting.
 
 For more information see the [project docs](../docs/README.md).
+
+## Deployment Notes
+- Live metrics now stream over a WebSocket connection.
+- When deploying behind a reverse proxy (e.g., Nginx or Traefik), be sure to enable WebSocket upgrades. For Nginx:
+  ```nginx
+  proxy_http_version 1.1;
+  proxy_set_header Upgrade $http_upgrade;
+  proxy_set_header Connection "upgrade";
+  ```
+- Configure the WebSocket endpoint via the `LIVE_DATA_WS_URL` environment variable.

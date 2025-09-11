@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, List
+from typing import Any, List, Sequence
 
 from services.mcp2.vector.embeddings import embed
 from services.mcp2.vector import FaissStore
@@ -27,5 +27,8 @@ async def get_agent_context(
     """
     query_embedding = embed(query)
     response = await store.query(embedding=query_embedding, top_k=top_k)
+    # Ensure the embedding is a simple list of floats for downstream clients.
+    query_embedding: Sequence[float] = list(embed(query))
+    response = await vector_client.query(embedding=query_embedding, top_k=top_k)
     matches = response.get("matches", [])
     return [m.get("payload") for m in matches]
