@@ -31,6 +31,7 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 
 - [License](#license)
 - [Advanced Usage](#advanced-usage)
+- [Kafka Replay Consumer](#kafka-replay-consumer)
 
 - [Full API Documentation](#full-api-documentation)
 - [FAQ](#faq)
@@ -350,6 +351,58 @@ This project is proprietary and provided under a strict, non-transferable licens
 ## Advanced Usage
 
 Add new Streamlit dashboards following [docs/advanced_dashboard.md](docs/advanced_dashboard.md).
+
+---
+
+## Kafka Replay Consumer
+
+Replay historical ticks or bars from Kafka into a datastore for analysis.
+
+### Basic usage
+
+```bash
+export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+export KAFKA_TOPIC=ticks.BTCUSDT
+python ops/kafka/replay_consumer.py --start-offset 0 --batch-size 100
+```
+
+Arguments may be set via environment variables (`KAFKA_TOPIC`,
+`KAFKA_START_OFFSET`, `KAFKA_BATCH_SIZE`) or passed on the command line.
+
+### Replay into Redis
+
+Customize the ``process_messages`` function in
+``ops/kafka/replay_consumer.py`` to push payloads into Redis:
+
+```python
+import redis
+
+r = redis.Redis.from_url("redis://localhost:6379/0")
+
+def process_messages(messages):
+    for msg in messages:
+        if not msg.error():
+            r.lpush("ticks", msg.value())
+```
+
+### Replay into Postgres
+
+Use ``psycopg2`` or similar to insert records:
+
+```python
+import psycopg2
+
+def process_messages(messages):
+    with psycopg2.connect("postgresql://user:pass@localhost/db") as conn:
+        with conn.cursor() as cur:
+            for msg in messages:
+                if not msg.error():
+                    cur.execute("INSERT INTO ticks(raw) VALUES (%s)", (msg.value(),))
+        conn.commit()
+```
+
+These examples write raw messages; adapt the logic for your schema and
+types when storing bars or ticks for downstream analysis.
 
 ---
 
