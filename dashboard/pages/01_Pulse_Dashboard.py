@@ -14,8 +14,6 @@ import yaml
 import streamlit as st
 from dashboard.utils.plotly_donuts import oneway_donut
 from dashboard.components import chip
-from dashboard.components.ui_chip import chip
-from dashboard.components.ui_concentric import concentric_ring
 
 
 # ---------------- Config ----------------
@@ -434,14 +432,6 @@ if sm.get('daily_risk_allowance_percent', False) or sm.get('current_risk_used_pe
         # ↪ Replace with live risk_enforcer metrics
         risk_allow = 2.0  # %
         risk_used = 0.8  # %
-        frac = risk_used / risk_allow if risk_allow else 0.0
-        fig = oneway_donut(
-            title="Risk Used",
-            frac=frac,
-            start_anchor="bottom",
-            center_title=f"{risk_used:.1f}%",
-        risk_used  = 0.8  # %
-
         st.plotly_chart(
             oneway_donut(
                 title="Risk Used",
@@ -452,19 +442,6 @@ if sm.get('daily_risk_allowance_percent', False) or sm.get('current_risk_used_pe
             ),
             use_container_width=True,
         )
-
-        fig = concentric_ring(
-            center_title="Risk Used",
-            center_value=f"{risk_used:.1f}%",
-            outer_bipolar=0.0,
-            outer_cap=1.0,
-            middle_val=risk_used / risk_allow if risk_allow else 0.0,
-            middle_cap=1.0,
-            inner_unipolar=0.0,
-            inner_cap=1.0,
-            size=(180, 180),
-        )
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 
 if sm.get('session_time_remaining', False):
@@ -500,12 +477,6 @@ if tm.get('time_in_trade', False):
 if tm.get('exposure_percent', False):
     with tcols[2]:
         exp = exposure_percent_stub(positions, account)
-        fig = oneway_donut(
-            title="Exposure",
-            frac=exp / 100.0,
-            start_anchor="bottom",
-            center_title=f"{exp:.0f}%",
-
         st.plotly_chart(
             oneway_donut(
                 title="Exposure",
@@ -515,19 +486,6 @@ if tm.get('exposure_percent', False):
             ),
             use_container_width=True,
         )
-
-        fig = concentric_ring(
-            center_title="Exposure",
-            center_value=f"{exp:.0f}%",
-            outer_bipolar=0.0,
-            outer_cap=1.0,
-            middle_val=0.0,
-            middle_cap=1.0,
-            inner_unipolar=exp / 100.0,
-            inner_cap=1.0,
-            size=(180, 180),
-        )
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 
 if tm.get('max_adverse_excursion', False):
