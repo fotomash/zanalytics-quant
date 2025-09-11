@@ -395,6 +395,8 @@ if _img_base64:
     .main .block-container {{
         background-color: rgba(0,0,0,0.025) !important;
     }}
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
     </style>
     """
     st.markdown(_background_style, unsafe_allow_html=True)
