@@ -735,6 +735,40 @@ services:
     networks:
       - default
 
+  mcp2-redis:
+    image: redis:7-alpine
+    container_name: mcp2-redis
+    restart: unless-stopped
+    networks:
+      - default
+
+  mcp2-pg:
+    image: postgres:15-alpine
+    container_name: mcp2-pg
+    environment:
+      POSTGRES_PASSWORD: postgres
+    restart: unless-stopped
+    networks:
+      - default
+
+  mcp2:
+    build:
+      context: services/mcp2
+    container_name: mcp2
+    ports:
+      - "8002:8002"
+    environment:
+      - REDIS_URL=redis://mcp2-redis:6379/0
+      - DATABASE_URL=postgresql://postgres:postgres@mcp2-pg:5432/postgres
+    depends_on:
+      mcp2-redis:
+        condition: service_started
+      mcp2-pg:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - default
+
 volumes:
   grafana-data: {}
   prometheus-data: {}
