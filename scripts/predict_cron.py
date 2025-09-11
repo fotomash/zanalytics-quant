@@ -157,7 +157,7 @@ def process_tick(redis_client: redis.Redis, tick: Dict) -> None:
         publish_alert(redis_client, tick)
         enqueue_for_simulation(redis_client, tick)
 
-def cli_main(argv: Optional[List[str]] = None) -> None:
+def main(argv: Optional[List[str]] = None) -> None:
     parser = argparse.ArgumentParser(description="Prediction cron")
     parser.add_argument(
         "--history",
@@ -201,9 +201,4 @@ def cli_main(argv: Optional[List[str]] = None) -> None:
 
 
 if __name__ == "__main__":  # pragma: no cover - manual execution
-    # Optional: run doctest examples for risk parsing
-    if os.getenv("RUN_RISK_PARSER_DEMO") == "1":
-        import doctest
-
-        doctest.testmod(verbose=True)
-    cli_main()
+    main()
