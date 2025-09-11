@@ -136,6 +136,7 @@ async def _maybe_publish(diff: dict[str, Any], prompt: str, en: dict[str, Any], 
             "whisper": wh,
         }
         await redis_client.redis.publish("telegram-alerts", json.dumps(payload))
+        AB_PUBLISHED.inc()
         return True
     except Exception:
         return False
@@ -146,6 +147,7 @@ async def ab_echonudge_whisperer(body: ABRequest) -> ABResponse:
     prompt = body.prompt or _compose_prompt(body.scenario or "", body.features)
 
     # EchoNudge via Ollama
+    AB_RUNS.labels("echonudge").inc()
     en_raw = await _call_ollama(prompt)
     try:
         en = json.loads(en_raw)
@@ -155,6 +157,7 @@ async def ab_echonudge_whisperer(body: ABRequest) -> ABResponse:
         raise HTTPException(status_code=502, detail="invalid EchoNudge JSON")
 
     # Whisperer via OpenAI (same contract/system prompt)
+    AB_RUNS.labels("whisperer").inc()
     wh_raw = await _call_openai(prompt)
     try:
         wh = json.loads(wh_raw)
@@ -170,3 +173,13 @@ async def ab_echonudge_whisperer(body: ABRequest) -> ABResponse:
 
     return ABResponse(prompt=prompt, echonudge=en, whisperer=wh, conflict=conflict, diff=d, published=published)
 
+
+# Metrics
+from prometheus_client import Counter, REGISTRY
+
+AB_RUNS = Counter(
+    "mcp2_ab_runs_total", "A/B runs per engine", ["engine"], registry=REGISTRY
+)
+AB_PUBLISHED = Counter(
+    "mcp2_ab_conflicts_published_total", "Conflicts published to Redis", registry=REGISTRY
+)

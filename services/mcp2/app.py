@@ -15,6 +15,7 @@ from .auth import verify_api_key
 from .routers.llm import router as llm_router
 from .routers.echonudge import router as echonudge_router
 from .routers.ab import router as ab_router
+from .routers.manifest import router as manifest_router
 from .routers.streams import router as streams_router
 from .routers.tools import router as tools_router
 
@@ -66,3 +67,4 @@ app.include_router(llm_router)
 app.include_router(streams_router)
 app.include_router(echonudge_router)
 app.include_router(ab_router)
+app.include_router(manifest_router)
