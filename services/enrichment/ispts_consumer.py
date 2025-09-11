@@ -30,6 +30,9 @@ from prometheus_client import (
     Histogram,
     generate_latest,
 )
+from confluent_kafka import Consumer, Producer, KafkaError
+from pydantic import ValidationError
+from schemas.behavioral import AnalysisPayload
 
 from core.predictive_scorer import PredictiveScorer
 from core.session_journal import SessionJournal
@@ -191,6 +194,16 @@ def main() -> None:
 
             start_time = time.perf_counter()
             tick = json.loads(msg.value().decode("utf-8"))
+            try:
+                incoming = AnalysisPayload.model_validate_json(
+                    msg.value().decode("utf-8")
+                )
+            except ValidationError as exc:
+                print(f"payload validation error: {exc}")
+                consumer.commit(msg)
+                continue
+
+            tick = incoming.model_dump()
             state: Dict[str, Any] = {"tick": tick}
             success = True
             for stage_name in stages:

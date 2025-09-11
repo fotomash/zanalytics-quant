@@ -1,4 +1,8 @@
-"""Enrichment module leveraging :class:`core.wyckoff_analyzer.WyckoffAnalyzer`."""
+"""Enrichment module leveraging :class:`core.wyckoff_analyzer.WyckoffAnalyzer`.
+
+The ``run`` function executes a full Wyckoff analysis on the provided
+DataFrame and merges a few key results into the shared ``state`` dictionary.
+"""
 
 from __future__ import annotations
 
@@ -15,10 +19,13 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     analyzer = WyckoffAnalyzer(config)
     results = analyzer.analyze(df)
 
+    # Store selected analysis outputs under descriptive keys
     state["wyckoff_current_phase"] = results.get("current_phase")
     state["wyckoff_events"] = results.get("events")
     state["wyckoff_volume_analysis"] = results.get("volume_analysis")
+    state["wyckoff_analysis"] = results
 
+    # Update overall status based on detected phase, if any
     phase = results.get("current_phase")
     state["status"] = phase if phase else state.get("status")
 

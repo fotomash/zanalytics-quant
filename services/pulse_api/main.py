@@ -1,9 +1,16 @@
 import os
 import logging
+import time
 from typing import Any, Dict, Optional
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 from datetime import datetime
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    Counter,
+    Histogram,
+    generate_latest,
+)
 
 # import your existing kernel/risk/journal
 from pulse_kernel import PulseKernel  # your orchestrator
@@ -13,6 +20,41 @@ app = FastAPI(title="Zanalytics Pulse API", version="1.0.0")
 
 
 logger = logging.getLogger(__name__)
+
+# Prometheus metrics
+REQUEST_LATENCY = Histogram(
+    "pulse_request_latency_seconds", "Request latency", ["endpoint", "method"]
+)
+REQUEST_ERRORS = Counter(
+    "pulse_request_errors_total", "Total request errors", ["endpoint", "exception"]
+)
+SCORE_EVALS = Counter(
+    "pulse_score_evaluations_total", "Total score evaluations"
+)
+RISK_EVALS = Counter(
+    "pulse_risk_evaluations_total", "Total risk evaluations"
+)
+
+
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    endpoint = request.url.path
+    method = request.method
+    start = time.perf_counter()
+    try:
+        response = await call_next(request)
+        return response
+    except Exception as exc:
+        REQUEST_ERRORS.labels(endpoint=endpoint, exception=exc.__class__.__name__).inc()
+        raise
+    finally:
+        duration = time.perf_counter() - start
+        REQUEST_LATENCY.labels(endpoint=endpoint, method=method).observe(duration)
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 # Simple API key authentication
 API_KEY_HEADER = "X-API-Key"
@@ -91,6 +133,7 @@ async def score(req: ScoreRequest, api_key: str = Depends(require_api_key)):
     k = PulseRuntime.kernel()
     payload = {"symbol": req.symbol, "tf": req.tf, "df": req.df or {}}
     result = await k.on_frame(payload)
+    SCORE_EVALS.inc()
     return {
         "symbol": req.symbol,
         "tf": req.tf,
@@ -107,6 +150,7 @@ async def risk(req: RiskRequest, api_key: str = Depends(require_api_key)):
     k = PulseRuntime.kernel()
     signal = {"score": req.score, "size": req.size, "meta": req.meta or {}}
     allowed, warnings, details = k.risk_enforcer.allow(signal)  # type: ignore
+    RISK_EVALS.inc()
     return {"allowed": allowed, "warnings": warnings, "details": details}
 
 
