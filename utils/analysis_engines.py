@@ -706,7 +706,7 @@ class WyckoffAnalyzer:
 
 
 def build_unified_analysis(tick: dict) -> "UnifiedAnalysisPayloadV1":
-    """Run core analyzers and validate against UnifiedAnalysisPayloadV1."""
+    """Run core analyzers and validate against the v1 unified analysis payload."""
 
     from datetime import datetime
     from components import confluence_engine, advanced_stoploss_lots_engine
