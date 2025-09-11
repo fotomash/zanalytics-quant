@@ -1607,6 +1607,9 @@ These documents expand on engineered-liquidity traps, Wyckoff sweeps, and the VP
                 [{'time': e['timestamp'], 'type': e['type'], 'conf': e['confidence']} for e in self.session_state['spoofing_events']] +
                 [{'time': e['start_time'], 'type': e['type'], 'conf': e['confidence']} for e in self.session_state['iceberg_events']] +
                 [{'time': e['timestamp'], 'type': e['type'], 'conf': e['confidence']} for e in self.session_state.get('layering_events', [])]
+
+                [{'time': e['timestamp'], 'type': e['type'], 'conf': e['confidence']} for e in self.session_state.get('layering_events', [])] +
+                [{'time': e['start_time'], 'type': e['type'], 'conf': e['confidence']} for e in self.session_state['iceberg_events']]
             )
             if all_events:
                 event_df = pd.DataFrame(all_events)
@@ -1625,6 +1628,9 @@ These documents expand on engineered-liquidity traps, Wyckoff sweeps, and the VP
                 st.caption("Manipulation Timeline: Plots the timing and confidence of detected spoofing, iceberg, and layering events. Each marker represents a detected event, with its confidence score.")
                 # Dynamic commentary
                 st.markdown(f"**Summary:** {len(self.session_state['spoofing_events'])} spoofing, {len(self.session_state['iceberg_events'])} iceberg, and {len(self.session_state.get('layering_events', []))} layering events recorded in view.")
+                st.caption("Manipulation Timeline: Plots the timing and confidence of detected spoofing, layering, and iceberg events. Each marker represents a detected event, with its confidence score.")
+                # Dynamic commentary
+                st.markdown(f"**Summary:** {len(self.session_state['spoofing_events'])} spoofing, {len(self.session_state['iceberg_events'])} iceberg, {len(self.session_state.get('layering_events', []))} layering events recorded in view.")
         except Exception:
             pass
 
@@ -2040,19 +2046,27 @@ if __name__ == "__main__":
 
         # Uptick / Downtick and Cumulative Delta quick viz
         try:
-            if 'price_mid' not in df.columns:
-                df['price_mid'] = (df['bid'] + df['ask']) / 2
+            df['price_mid'] = (df['bid'] + df['ask']) / 2
             df['tick_dir'] = np.sign(df['price_mid'].diff()).fillna(0).astype(int)
             vol_col = 'inferred_volume' if 'inferred_volume' in df.columns else ('volume' if 'volume' in df.columns else None)
-            if vol_col:
-                df['delta'] = df['tick_dir'] * df[vol_col].fillna(0)
-            else:
-                df['delta'] = df['tick_dir']
+            df['delta'] = df['tick_dir'] * (df[vol_col].fillna(0) if vol_col else 1)
             df['cum_delta'] = df['delta'].cumsum()
             df['uptick_ratio_100'] = (df['tick_dir'] > 0).rolling(100, min_periods=10).mean()
+        # --- Upticks & Cumulative Delta -------------------------------------------------
+        # Compute mid price and order‑flow derived features
+        df['price_mid'] = (df['bid'] + df['ask']) / 2
+        df['tick_dir'] = np.sign(df['price_mid'].diff()).fillna(0).astype(int)
+        vol_col = (
+            'inferred_volume'
+            if 'inferred_volume' in df.columns
+            else ('volume' if 'volume' in df.columns else None)
+        )
+        df['delta'] = df['tick_dir'] * df[vol_col].fillna(0) if vol_col else df['tick_dir']
+        df['cum_delta'] = df['delta'].cumsum()
+        df['uptick_ratio_100'] = (df['tick_dir'] > 0).rolling(100).mean()
 
-            import plotly.graph_objects as go
-            from plotly.subplots import make_subplots
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
 
             fig_ud = make_subplots(specs=[[{"secondary_y": True}]])
             fig_ud.add_trace(
@@ -2070,11 +2084,29 @@ if __name__ == "__main__":
             fig_ud.update_layout(height=320, template='plotly_dark', margin=dict(l=10, r=10, t=30, b=10))
             fig_ud.update_yaxes(title_text="Price", secondary_y=False)
             fig_ud.update_yaxes(title_text="Δ / Ratio", secondary_y=True)
-
             with st.expander("🔼 Upticks & Cumulative Delta", expanded=False):
                 st.plotly_chart(fig_ud, use_container_width=True)
-        except Exception as _e:
+        except Exception:
             st.info("Uptick/Delta visualization unavailable (data missing)")
+        fig_ud = make_subplots(specs=[[{"secondary_y": True}]])
+        fig_ud.add_trace(
+            go.Scatter(x=df.index, y=df['price_mid'], name='Mid Price', line=dict(color='white', width=1)),
+            secondary_y=False,
+        )
+        fig_ud.add_trace(
+            go.Scatter(x=df.index, y=df['cum_delta'], name='Cumulative Delta', line=dict(color='deepskyblue', width=1)),
+            secondary_y=True,
+        )
+        fig_ud.add_trace(
+            go.Scatter(x=df.index, y=df['uptick_ratio_100'], name='Uptick Ratio (100)', line=dict(color='orange', width=1, dash='dot')),
+            secondary_y=True,
+        )
+        fig_ud.update_layout(height=320, template='plotly_dark', margin=dict(l=10, r=10, t=30, b=10))
+        fig_ud.update_yaxes(title_text="Price", secondary_y=False)
+        fig_ud.update_yaxes(title_text="Δ / Ratio", secondary_y=True)
+
+        with st.expander("🔼 Upticks & Cumulative Delta", expanded=False):
+            st.plotly_chart(fig_ud, use_container_width=True)
 
         # Heuristic sanity‑check: does this look like real tick data?
         is_mock, diag = analyzer.detect_mock_data(df)
@@ -2101,6 +2133,7 @@ if __name__ == "__main__":
         total_events = (len(analyzer.session_state['iceberg_events']) +
                        len(analyzer.session_state['spoofing_events']) +
                        len(analyzer.session_state['quote_stuffing_events']) +
+                       len(quote_stuffing) +
                        len(analyzer.session_state['layering_events']))
         analyzer.session_state['manipulation_score'] = min(total_events / 10, 10)
 
