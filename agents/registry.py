@@ -44,6 +44,15 @@ AGENT_REGISTRY: Dict[str, AgentSpec] = {
         tags=["risk"],
         capabilities=["risk_evaluation"],
     ),
+    "overseer_agent_v1": AgentSpec(
+        path=Path(__file__).with_name("overseer_agent.yaml"),
+        tags=["monitoring", "diagnostics"],
+        capabilities=[
+            "system_monitoring",
+            "issue_diagnostics",
+            "ticket_prioritization",
+        ],
+    ),
 }
 
 
