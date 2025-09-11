@@ -92,17 +92,9 @@ async def _call_openai(prompt: str) -> str:
         # Offline stub mirrors the contract
         return json.dumps({"label": "skip", "priority": "low", "action": "wait", "reason": "openai off"})
     client = OpenAI(api_key=api_key)
-    try:
-        msg = await redis_client.redis.execute_command(  # small trick to avoid blocking event loop
-            "EVAL",
-            "return 1",
-            0,
-        )
-        # Run blocking OpenAI call in a thread
-    except Exception:
-        pass
     from asyncio import to_thread
 
+    # Run blocking OpenAI call in a thread
     resp = await to_thread(
         client.chat.completions.create,
         model=model,
