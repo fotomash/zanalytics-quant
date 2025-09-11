@@ -1,3 +1,65 @@
+from pathlib import Path
+
+import pytest
+import yaml
+
+from core.semantic_mapping_service import SemanticMappingService
+
+
+def _write_mapping_file(tmp_path):
+    data = {
+        "mappings": [
+            {
+                "triggers": {"keywords": ["balance"], "regex": ["account\\s+info"]},
+                "primary": "BalanceAgent",
+                "fallback": ["GeneralAgent"],
+            },
+            {
+                "triggers": {"keywords": ["trade"]},
+                "primary": "TradeAgent",
+                "fallback": [],
+            },
+        ]
+    }
+    file_path = tmp_path / "mapping_interface_v2_final.yaml"
+    with open(file_path, "w", encoding="utf-8") as fh:
+        yaml.safe_dump(data, fh)
+    return str(file_path)
+
+
+def test_route_keyword_match(tmp_path):
+    mapping_file = _write_mapping_file(tmp_path)
+    service = SemanticMappingService(mapping_file)
+    primary, fallback = service.route("What is my balance today?")
+    assert primary == "BalanceAgent"
+    assert fallback == ["GeneralAgent"]
+
+
+def test_route_regex_match(tmp_path):
+    mapping_file = _write_mapping_file(tmp_path)
+    service = SemanticMappingService(mapping_file)
+    primary, _ = service.route("Please give me my account info now")
+    assert primary == "BalanceAgent"
+
+
+def test_route_no_match(tmp_path):
+    mapping_file = _write_mapping_file(tmp_path)
+    service = SemanticMappingService(mapping_file)
+    primary, fallback = service.route("Hello world")
+
+@pytest.fixture
+def service(tmp_path: Path) -> SemanticMappingService:
+    data = {
+        "mappings": [
+            {
+                "primary": "agent_greeting",
+                "fallback": ["agent_default"],
+                "triggers": {"keywords": ["hello", "hi"]},
+            },
+            {
+                "primary": "agent_numbers",
+                "fallback": ["agent_backup"],
+                "triggers": {"regex": [r"\d+"]},
 import yaml
 from core.semantic_mapping_service import SemanticMappingService
 
@@ -22,6 +84,24 @@ def _create_mapping_file(tmp_path):
         ]
     }
     mapping_file = tmp_path / "mapping_interface_v2_final.yaml"
+    mapping_file.write_text(yaml.safe_dump(data))
+    return SemanticMappingService(mapping_file)
+
+
+def test_keyword_routing(service: SemanticMappingService) -> None:
+    primary, fallback = service.route("hello there")
+    assert primary == "agent_greeting"
+    assert fallback == ["agent_default"]
+
+
+def test_regex_routing(service: SemanticMappingService) -> None:
+    primary, fallback = service.route("value 123")
+    assert primary == "agent_numbers"
+    assert fallback == ["agent_backup"]
+
+
+def test_no_match(service: SemanticMappingService) -> None:
+    assert service.route("nothing to see") == (None, [])
     with mapping_file.open("w", encoding="utf-8") as fh:
         yaml.safe_dump(data, fh)
     return mapping_file
