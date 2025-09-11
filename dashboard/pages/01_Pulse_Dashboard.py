@@ -12,7 +12,8 @@ import base64
 import requests
 import yaml
 import streamlit as st
-from dashboard.components.ui_concentric import concentric_ring
+from dashboard.utils.plotly_donuts import oneway_donut
+from dashboard.components import chip
 
 # ---------------- Config ----------------
 # Resolve paths relative to this file so the dashboard can be launched from any
@@ -227,28 +228,6 @@ def apply_advanced_styling() -> str:
     """
 
 
-def chip(text: str, kind: str = 'neutral'):
-    """Render a colored pill with ``text``.
-
-    Parameters
-    ----------
-    text: str
-        Content of the pill.
-    kind: str
-        One of ``good``, ``warn``, ``bad`` or ``neutral`` to select colours.
-    
-    Returns
-    -------
-    None
-        The pill is written to the page via ``st.markdown``.
-    """
-
-    bg = {'good': '#dcfce7', 'warn': '#fef9c3', 'bad': '#fee2e2', 'neutral': '#f3f4f6'}.get(kind, '#f3f4f6')
-    color = {'good': '#166534', 'warn': '#854d0e', 'bad': '#991b1b', 'neutral': '#374151'}.get(kind, '#374151')
-    st.markdown(
-        f"<span style='background:{bg}; color:{color}; padding:6px 10px; border-radius:999px; font-size:12px; margin-right:6px; display:inline-block;'>{text}</span>",
-        unsafe_allow_html=True,
-    )
 
 def dim_block(start: bool = True):
     """Context manager helper to dim or restore a UI block.
@@ -442,17 +421,13 @@ if sm.get('daily_risk_allowance_percent', False) or sm.get('current_risk_used_pe
     with sess_cols[2]:
         # ↪ Replace with live risk_enforcer metrics
         risk_allow = 2.0  # %
-        risk_used  = 0.8  # %
-        fig = concentric_ring(
-            center_title="Risk Used",
-            center_value=f"{risk_used:.1f}%",
-            outer_bipolar=0.0,
-            outer_cap=1.0,
-            middle_val=risk_used / risk_allow if risk_allow else 0.0,
-            middle_cap=1.0,
-            inner_unipolar=0.0,
-            inner_cap=1.0,
-            size=(180, 180),
+        risk_used = 0.8  # %
+        frac = risk_used / risk_allow if risk_allow else 0.0
+        fig = oneway_donut(
+            title="Risk Used",
+            frac=frac,
+            start_anchor="bottom",
+            center_title=f"{risk_used:.1f}%",
         )
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
@@ -489,16 +464,11 @@ if tm.get('time_in_trade', False):
 if tm.get('exposure_percent', False):
     with tcols[2]:
         exp = exposure_percent_stub(positions, account)
-        fig = concentric_ring(
-            center_title="Exposure",
-            center_value=f"{exp:.0f}%",
-            outer_bipolar=0.0,
-            outer_cap=1.0,
-            middle_val=0.0,
-            middle_cap=1.0,
-            inner_unipolar=exp / 100.0,
-            inner_cap=1.0,
-            size=(180, 180),
+        fig = oneway_donut(
+            title="Exposure",
+            frac=exp / 100.0,
+            start_anchor="bottom",
+            center_title=f"{exp:.0f}%",
         )
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 

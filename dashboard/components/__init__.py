@@ -1,4 +1,6 @@
 """UI components for the dashboard."""
 
-__all__ = []
+from .chip import chip
+
+__all__ = ["chip"]
 
