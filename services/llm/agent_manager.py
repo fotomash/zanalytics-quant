@@ -1,8 +1,13 @@
 import os
 import asyncio
+import json
+import logging
 from typing import Iterable, Optional, Protocol, Tuple
 
 from redis.asyncio import Redis
+
+
+logger = logging.getLogger(__name__)
 
 
 class AgentMemoryInterface(Protocol):
@@ -39,26 +44,36 @@ class LLMAgentManager:
         self._stopping = False
 
     async def _run_cycle(self) -> None:
-        memories = await self.memory.get_agent_context(self.query)
-        formatted_memory = "\n".join(f"- {m}" for m in memories)
-        prompt = (
-            "You are a Market Narrative Analyzer.\n\n"
-            "**Relevant Historical Context (from memory):**\n"
-            f"{formatted_memory}\n\n"
-            "**Current Deterministic Analysis:**\n"
-            "- [Contents of the latest UnifiedAnalysisPayload]\n\n"
-            "**User Query:**\n"
-            f"- \"{self.query}\"\n\n"
-            "Please provide your analysis."
-        )
-        is_significant, summary = await self.analyzer.analyze(prompt, self.threshold)
-        if is_significant and summary:
-            await self.redis.publish("telegram-alerts", summary)
+        try:
+            memories = await self.memory.get_agent_context(self.query)
+            formatted_memory = "\n".join(f"- {m}" for m in memories)
+            prompt = (
+                "You are a Market Narrative Analyzer.\n\n"
+                "**Relevant Historical Context (from memory):**\n"
+                f"{formatted_memory}\n\n"
+                "**Current Deterministic Analysis:**\n"
+                "- [Contents of the latest UnifiedAnalysisPayload]\n\n"
+                "**User Query:**\n"
+                f"- \"{self.query}\"\n\n"
+                "Please provide your analysis."
+            )
+            is_significant, summary = await self.analyzer.analyze(
+                prompt, self.threshold
+            )
+            if is_significant and summary:
+                await self.redis.publish("telegram-alerts", summary)
+        except json.JSONDecodeError:
+            logger.exception("JSON decoding error during agent cycle")
+        except Exception:
+            logger.exception("Unexpected error during agent cycle")
 
     async def _run(self) -> None:
         try:
             while not self._stopping:
-                await self._run_cycle()
+                try:
+                    await self._run_cycle()
+                except Exception:
+                    logger.exception("Agent cycle failed")
                 await asyncio.sleep(self.interval)
         except asyncio.CancelledError:
             pass

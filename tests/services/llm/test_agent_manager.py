@@ -39,3 +39,29 @@ def test_publish_on_significant_shift():
         assert "risk query" in analyzer.last_prompt
 
     asyncio.run(run())
+
+
+class FlakyAnalyzer:
+    def __init__(self):
+        self.calls = 0
+
+    async def analyze(self, prompt: str, threshold: float):
+        self.calls += 1
+        if self.calls == 1:
+            raise RuntimeError("boom")
+        return True, "market shift"
+
+
+def test_analyzer_exception_does_not_stop_loop():
+    async def run():
+        redis = FakeRedis()
+        analyzer = FlakyAnalyzer()
+        memory = FakeMemory()
+        manager = LLMAgentManager(redis, analyzer, memory, "risk query", interval=0.01)
+        manager.start()
+        await asyncio.sleep(0.05)
+        await manager.stop()
+        assert analyzer.calls >= 2
+        assert ("telegram-alerts", "market shift") in redis.published
+
+    asyncio.run(run())
