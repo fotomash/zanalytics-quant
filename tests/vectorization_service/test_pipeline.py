@@ -24,3 +24,16 @@ def test_process_payload_missing_text_raises(sample_payload):
     with pytest.raises(ValueError):
         process_payload(sample_payload)
 
+def test_process_payload_returns_vector():
+    payload = {"text": "hello"}
+    result = process_payload(payload)
+    assert isinstance(result, np.ndarray)
+    assert result.shape == (1,)
+    assert result[0] == len("hello")
+
+
+def test_process_payload_validation_errors():
+    with pytest.raises(ValueError):
+        process_payload({"text": ""})
+    with pytest.raises(ValueError):
+        process_payload("not a dict")
