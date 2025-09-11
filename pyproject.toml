@@ -25,5 +25,5 @@ lint = [
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["pulse*"]
+include = ["pulse*", "api_integration*"]
 
