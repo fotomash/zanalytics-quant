@@ -610,6 +610,27 @@ services:
     restart: unless-stopped
     logging: *default-logging
 
+  vectorization-service:
+    build:
+      context: .
+      dockerfile: services/vectorization_service/Dockerfile
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      - KAFKA_GROUP_ID=${KAFKA_GROUP_ID:-vectorization-service}
+      - KAFKA_ANALYSIS_TOPIC=${KAFKA_ANALYSIS_TOPIC:-final-analysis-payloads}
+      - VECTOR_DB_URL=${VECTOR_DB_URL}
+      - VECTOR_DB_API_KEY=${VECTOR_DB_API_KEY}
+    depends_on:
+      - kafka
+    healthcheck:
+      test: ["CMD", "python", "healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    logging: *default-logging
+
 volumes:
   traefik-public-certificates: # Persistent volume for certificates
   grafana-data: {}
