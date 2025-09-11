@@ -13,11 +13,11 @@ import pandas as pd
 import requests
 import streamlit as st
 
-from dashboard.utils.streamlit_api import api_url, get_api_base, inject_glass_css, fetch_symbols
+from dashboard.utils.streamlit_api import api_url, get_api_base, apply_custom_styling, fetch_symbols
 
 
 st.set_page_config(page_title="Trade History", page_icon="🧪", layout="wide")
-inject_glass_css()
+apply_custom_styling()
 
 st.markdown("### 🧪 Trade History")
 st.caption("Explore MT5 trade history with symbol and date filters.")

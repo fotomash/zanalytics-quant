@@ -2,7 +2,7 @@ import os
 import streamlit as st
 from typing import Tuple
 
-from dashboard.utils.streamlit_api import fetch_symbols, inject_glass_css, stop_whisper_sse
+from dashboard.utils.streamlit_api import fetch_symbols, apply_custom_styling, stop_whisper_sse
 
 
 def init_page(title: str, icon: str = "📊", layout: str = "wide", sidebar_state: str = "expanded") -> None:
@@ -17,7 +17,7 @@ def init_page(title: str, icon: str = "📊", layout: str = "wide", sidebar_stat
         # set_page_config may raise if called after other Streamlit calls
         pass
     try:
-        inject_glass_css()
+        apply_custom_styling()
     except Exception:
         pass
 
