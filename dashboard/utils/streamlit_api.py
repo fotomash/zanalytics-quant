@@ -9,6 +9,20 @@ import redis
 import requests
 import streamlit as st
 
+# Thread coordination for server‑sent events
+sse_stop_event = threading.Event()
+
+
+_session = requests.Session()
+
+
+def _session_request(method: str, url: str, payload: Dict | None, timeout: float) -> requests.Response:
+    method = method.upper()
+    kwargs = {"timeout": timeout}
+    if method != "GET":
+        kwargs["json"] = payload or {}
+    return _session.request(method, url, **kwargs)
+
 
 def get_api_base() -> str:
     """Resolve Django API base at runtime from session override or env."""
@@ -59,6 +73,10 @@ def safe_api_call(
             r = requests.get(url, timeout=timeout)
         else:
             r = requests.post(url, json=payload or {}, timeout=timeout)
+def safe_api_call(method: str, path: str, payload: Dict | None = None, timeout: float = 1.2) -> Dict:
+    url = api_url(path)
+    try:
+        r = _session_request(method, url, payload, timeout)
         if r.status_code == 200:
             data = r.json()
             try:
@@ -68,14 +86,51 @@ def safe_api_call(
             return data
         return {"error": f"HTTP {r.status_code}", "url": url}
     except requests.exceptions.Timeout:
-        return {"error": "API timeout", "url": api_url(path)}
+        return {"error": "API timeout", "url": url}
     except requests.exceptions.ConnectionError:
-        return {"error": "API connection failed", "url": api_url(path)}
+        return {"error": "API connection failed", "url": url}
     except Exception as e:
-        return {"error": str(e), "url": api_url(path)}
+        return {"error": str(e), "url": url}
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_resource
+def get_redis_client() -> redis.Redis:
+    """Return a Redis client configured via env variables."""
+    url = os.getenv("STREAMLIT_REDIS_URL") or os.getenv("REDIS_URL")
+    if url:
+        return redis.from_url(url, decode_responses=True)
+    return redis.Redis(
+        host=os.getenv("STREAMLIT_REDIS_HOST", os.getenv("REDIS_HOST", "redis")),
+        port=int(os.getenv("STREAMLIT_REDIS_PORT", os.getenv("REDIS_PORT", "6379"))),
+        db=int(os.getenv("STREAMLIT_REDIS_DB", os.getenv("REDIS_DB", "0"))),
+        password=os.getenv("STREAMLIT_REDIS_PASSWORD", os.getenv("REDIS_PASSWORD")),
+        decode_responses=True,
+    )
+
+
+def redis_get_json(key: str) -> Any | None:
+    """Fetch a JSON payload from Redis and decode it."""
+    try:
+        r = get_redis_client()
+        raw = r.get(key)
+        return json.loads(raw) if raw else None
+    except Exception:
+        return None
+
+
+def fetch_latest_payload(symbol: str, timeframe: str) -> Dict[str, Any] | None:
+    """Fetch latest payload for a symbol/timeframe, using Redis then API."""
+    key = f"latest_payload:{symbol}:{timeframe}"
+    data = redis_get_json(key)
+    if data is not None:
+        return data
+    resp = safe_api_call(
+        "GET", f"api/pulse/latest_payload?symbol={symbol}&timeframe={timeframe}"
+    )
+    return resp if isinstance(resp, dict) else None
+
+
+@st.cache_data(show_spinner=False, ttl=60)
 def get_trading_menu_options(yaml_path: str = "trading_menu_v2.yaml") -> List[str]:
     try:
         import yaml  # lazy import for speed
@@ -117,7 +172,21 @@ def _fallback_menu() -> List[str]:
     ]
 
 
-def fetch_whispers() -> List[Dict[str, Any]]:
+def fetch_whispers(limit: int = 50) -> List[Dict[str, Any]]:
+    """Fetch whispers from Redis, falling back to the API."""
+    try:
+        r = get_redis_client()
+        items = r.lrange("whispers", -limit, -1) or []
+        out: List[Dict[str, Any]] = []
+        for b in items:
+            try:
+                out.append(json.loads(b))
+            except Exception:
+                continue
+        if out:
+            return out
+    except Exception:
+        pass
     data = safe_api_call("GET", "api/pulse/whispers") or {}
     arr = data.get("whispers") if isinstance(data, dict) else []
     return arr if isinstance(arr, list) else []
@@ -282,11 +351,15 @@ def _ensure_sse_state() -> None:
     # thread handle optional, we only track started flag
     if 'sse_thread_started' not in st.session_state:
         st.session_state['sse_thread_started'] = False
+    if 'sse_thread' not in st.session_state:
+        st.session_state['sse_thread'] = None
 
 
 def _sse_loop() -> None:
     q: queue.Queue = st.session_state['sse_whisper_queue']
     while True:
+        if sse_stop_event.is_set():
+            break
         url = api_url('api/v1/feeds/stream?topics=whispers')
         try:
             with requests.get(url, stream=True, timeout=30) as resp:
@@ -297,6 +370,8 @@ def _sse_loop() -> None:
                 st.session_state['sse_status'] = 'connected'
                 current_event = None
                 for raw in resp.iter_lines():
+                    if sse_stop_event.is_set():
+                        break
                     if raw is None:
                         continue
                     if not raw:
@@ -325,9 +400,23 @@ def start_whisper_sse() -> None:
     """Start SSE listener thread if not already running."""
     _ensure_sse_state()
     if not st.session_state['sse_thread_started']:
-        st.session_state['sse_thread_started'] = True
+        sse_stop_event.clear()
         t = threading.Thread(target=_sse_loop, daemon=True)
+        st.session_state['sse_thread'] = t
+        st.session_state['sse_thread_started'] = True
         t.start()
+
+
+def stop_whisper_sse() -> None:
+    """Stop SSE listener thread if running."""
+    if st.session_state.get('sse_thread_started'):
+        sse_stop_event.set()
+        t = st.session_state.get('sse_thread')
+        if isinstance(t, threading.Thread) and t.is_alive():
+            t.join(timeout=1.0)
+        st.session_state['sse_thread_started'] = False
+        st.session_state['sse_thread'] = None
+        st.session_state['sse_status'] = 'stopped'
 
 
 def drain_whisper_sse(max_items: int = 50) -> List[Dict[str, Any]]:
