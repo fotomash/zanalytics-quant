@@ -29,6 +29,10 @@ POSTGRES_DB=zanalytics
 REDIS_HOST=redis
 REDIS_PORT=6379
 
+# Vector store config
+PINECONE_URL=https://controller.your-pinecone.io
+PINECONE_API_KEY=
+
 # Traefik/SSL/Domains
 VNC_DOMAIN=your-vnc-domain.com
 TRAEFIK_DOMAIN=your-traefik-domain.com
