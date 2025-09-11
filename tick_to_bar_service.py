@@ -6,8 +6,6 @@ Converts tick data from Redis streams into OHLCV bars
 
 import redis
 import json
-import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
 import time
 import os
@@ -29,19 +27,22 @@ class TickToBarService:
             decode_responses=True
         )
 
-        # Bar configurations (in seconds)
-        self.timeframes = {
+        # All available timeframe configurations (in seconds)
+        self.available_timeframes = {
             '1m': 60,
             '5m': 300,
             '15m': 900,
             '30m': 1800,
             '1h': 3600,
             '4h': 14400,
-            '1d': 86400
+            '1d': 86400,
         }
 
-        # Storage for accumulating ticks
-        self.tick_buffers = {}
+        # Active timeframes - can be overridden in run()
+        self.timeframes = dict(self.available_timeframes)
+
+        # In-memory bar states {(timeframe, symbol): bar_dict}
+        self.bar_states = {}
 
     def connect(self):
         """Test Redis connection"""
@@ -101,7 +102,8 @@ class TickToBarService:
 
     def _update_bar(self, symbol, timeframe, seconds, dt, price, volume):
         """Update or create a bar for the given timeframe"""
-        # Calculate bar timestamp (floor to timeframe)
+
+        # Determine the start time for the bar by flooring the timestamp
         bar_timestamp = dt.replace(second=0, microsecond=0)
         if timeframe in ['5m', '15m', '30m']:
             minutes = (bar_timestamp.minute // (seconds // 60)) * (seconds // 60)
@@ -112,14 +114,11 @@ class TickToBarService:
         elif timeframe == '1d':
             bar_timestamp = bar_timestamp.replace(hour=0, minute=0)
 
-        # Create bar key
-        bar_key = f"bar:{timeframe}:{symbol}:{bar_timestamp.isoformat()}"
+        state_key = (timeframe, symbol)
+        bar = self.bar_states.get(state_key)
 
-        # Get or create bar
-        bar = self.redis_client.hgetall(bar_key)
-
-        if not bar:
-            # Create new bar
+        if not bar or bar['timestamp'] != bar_timestamp:
+            # Start a new bar
             bar = {
                 'open': price,
                 'high': price,
@@ -127,25 +126,43 @@ class TickToBarService:
                 'close': price,
                 'volume': volume,
                 'tick_count': 1,
-                'timestamp': bar_timestamp.isoformat()
+                'timestamp': bar_timestamp,
             }
         else:
             # Update existing bar
-            bar['high'] = max(float(bar['high']), price)
-            bar['low'] = min(float(bar['low']), price)
+            bar['high'] = max(bar['high'], price)
+            bar['low'] = min(bar['low'], price)
             bar['close'] = price
-            bar['volume'] = float(bar.get('volume', 0)) + volume
-            bar['tick_count'] = int(bar.get('tick_count', 0)) + 1
+            bar['volume'] += volume
+            bar['tick_count'] += 1
 
-        # Save bar to Redis
-        self.redis_client.hset(bar_key, mapping=bar)
-        self.redis_client.expire(bar_key, 86400 * 7)  # Keep for 7 days
+        # Persist bar state
+        self.bar_states[state_key] = bar
+        self._persist_bar(symbol, timeframe, bar)
 
-        # Add to stream for real-time updates
+        logger.debug(
+            f"Updated bar {timeframe}:{symbol}:{bar_timestamp.isoformat()}: "
+            f"O={bar['open']:.5f} H={bar['high']:.5f} L={bar['low']:.5f} C={bar['close']:.5f} V={bar['volume']}"
+        )
+
+    def _persist_bar(self, symbol, timeframe, bar):
+        """Persist the bar to Redis hash and stream"""
+        bar_data = {
+            'open': bar['open'],
+            'high': bar['high'],
+            'low': bar['low'],
+            'close': bar['close'],
+            'volume': bar['volume'],
+            'tick_count': bar['tick_count'],
+            'timestamp': bar['timestamp'].isoformat(),
+        }
+
+        bar_key = f"bar:{timeframe}:{symbol}:{bar_data['timestamp']}"
+        self.redis_client.hset(bar_key, mapping=bar_data)
+        self.redis_client.expire(bar_key, 86400 * 7)
+
         stream_key = f"stream:bar:{timeframe}:{symbol}"
-        self.redis_client.xadd(stream_key, bar, maxlen=1000)
-
-        logger.debug(f"Updated bar {bar_key}: O={bar['open']:.5f} H={bar['high']:.5f} L={bar['low']:.5f} C={bar['close']:.5f} V={bar['volume']}")
+        self.redis_client.xadd(stream_key, bar_data, maxlen=1000)
 
     def _publish_to_pulse(self, symbol, tick_data):
         """Publish tick to Pulse system for analysis"""
@@ -234,16 +251,34 @@ class TickToBarService:
         finally:
             consumer.close()
 
-    def run(self):
-        """Main service loop"""
+    def run(self, symbols=None, timeframes=None):
+        """Main service loop.
+
+        Parameters
+        ----------
+        symbols : Optional[List[str]]
+            Symbols to subscribe to. Defaults to environment variable ``SYMBOLS``.
+        timeframes : Optional[List[str]]
+            List of timeframe names (e.g., ["1m", "5m"]) to aggregate.
+            If omitted, all available timeframes are used.
+        """
+
         logger.info("Starting Tick-to-Bar Service...")
+
+        if timeframes:
+            self.timeframes = {
+                tf: self.available_timeframes[tf]
+                for tf in timeframes
+                if tf in self.available_timeframes
+            }
+            logger.info(f"Configured timeframes: {list(self.timeframes.keys())}")
 
         if not self.connect():
             logger.error("Cannot start service without Redis connection")
             return
 
-        # Get symbols from environment or use defaults
-        symbols = os.getenv('SYMBOLS', 'EURUSD,GBPUSD,XAUUSD').split(',')
+        if symbols is None:
+            symbols = os.getenv('SYMBOLS', 'EURUSD,GBPUSD,XAUUSD').split(',')
 
         # Start listening via Kafka
         self.listen_for_ticks_kafka(symbols)
