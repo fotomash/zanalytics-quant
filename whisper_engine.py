@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, asdict
 from typing import List, Dict, Any, Optional
+import hashlib
+import os
 import time
+
+DEDUPE_TTL_SECONDS = int(os.getenv("WHISPER_DEDUPE_TTL", "300"))
 
 
 @dataclass
@@ -91,6 +95,8 @@ def _mk_id(prefix: str = "w") -> str:
 
 
 class WhisperEngine:
+    _local_seen: Dict[str, float] = {}
+
     def __init__(self, cfg: Dict[str, Any]):
         self.cfg = cfg or {}
 
@@ -255,16 +261,33 @@ class WhisperEngine:
 
     # --- utilities -----------------------------------------------------
     def _dedupe_and_arm_cooldowns(self, ws: List[Whisper], user_id: str) -> List[Whisper]:
-        seen = set()
+        r = Cooldowns._redis()
+        now = time.time()
         out: List[Whisper] = []
         for w in ws:
-            key = (w.category, w.message)
-            if key in seen:
+            raw = f"{user_id}:{w.category}:{w.message}"
+            key = f"whisper:dedupe:{hashlib.sha1(raw.encode()).hexdigest()}"
+            skip = False
+            if r is not None:
+                try:
+                    if not r.set(key, "1", ex=DEDUPE_TTL_SECONDS, nx=True):
+                        skip = True
+                except Exception:
+                    pass
+            else:
+                exp = self._local_seen.get(key, 0)
+                if now < exp:
+                    skip = True
+                else:
+                    self._local_seen[key] = now + DEDUPE_TTL_SECONDS
+            if skip:
                 continue
-            seen.add(key)
-            # Scope cooldown keys by user
             Cooldowns.set(f"{user_id}:{w.cooldown_key}", w.cooldown_seconds)
             out.append(w)
+        if r is None:
+            for k, exp in list(self._local_seen.items()):
+                if exp < now:
+                    del self._local_seen[k]
         return out
 
 
