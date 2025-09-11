@@ -9,7 +9,11 @@ from schemas.behavioral import AnalysisPayload
 
 
 def on_message(ctx: Dict[str, Any], msg: Message) -> None:
-    """Process a single Kafka message and produce enriched payload."""
+    """Process a single Kafka message and produce a full analysis payload.
+
+    The enriched payload conforms to :class:`~schemas.payloads.UnifiedAnalysisPayloadV1`
+    and includes both ``predictive_analysis`` and ``ispts_pipeline`` details.
+    """
     try:
         incoming = AnalysisPayload.model_validate_json(
             msg.value().decode("utf-8")
@@ -22,7 +26,9 @@ def on_message(ctx: Dict[str, Any], msg: Message) -> None:
     tick = incoming.model_dump()
     try:
         payload = build_unified_analysis(tick)
-        ctx["producer"].produce(ctx["enriched_topic"], value=payload.model_dump_json())
+        ctx["producer"].produce(
+            ctx["enriched_topic"], value=payload.model_dump_json().encode("utf-8")
+        )
         decision = "produced_payload"
     except Exception as e:  # pragma: no cover - log and continue
         print(f"analysis error: {e}")
