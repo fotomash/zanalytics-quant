@@ -176,6 +176,12 @@ Key variables to configure before launching:
 - `LOCAL_THRESHOLD` – confidence cutoff for using the local echo model. Ticks
   below this or in spring/distribution phases get a quick `llm_verdict`; others
   queue for Whisperer.
+- `RISK_THRESHOLD` – minimum risk score that triggers high-risk handling in the
+  `predict-cron` demo.
+- `PREDICT_CRON_INTERVAL`, `PREDICT_CRON_SYMBOL`, `PREDICT_CRON_PRICE`,
+  `PREDICT_CRON_RISK`, `PREDICT_CRON_CONFIG` – configure the `predict-cron`
+  demo job (interval in seconds, default tick symbol/price/risk, and YAML
+  config path).
 - `HEALTH_AGGREGATOR_URL` – base URL for the health aggregator queried by the
   dashboard's diagnostics panel.
 
