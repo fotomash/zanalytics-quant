@@ -1,11 +1,12 @@
 import uuid
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from backend.mcp.schemas import StrategyPayloadV1
 from ..schemas import DocRecord
 from ..storage import redis_client
 from ..storage.pg import get_pool
+from ..auth import verify_api_key
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(verify_api_key)])
 
 
 @router.post('/log_enriched_trade')
