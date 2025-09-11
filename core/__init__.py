@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from .bootstrap_engine import BootstrapEngine
+from .health import HealthStatus
+from .smc_analyzer import SMCAnalyzer
+
 from .wyckoff_analyzer import WyckoffAnalyzer
 from .smc_analyzer import SMCAnalyzer
 
@@ -24,6 +27,7 @@ __all__ = [
     "journal_sync",
     "BootstrapEngine",
     "WyckoffAnalyzer",
+    "HealthStatus",
 ]
 
 if SMCAnalyzer is not None:
