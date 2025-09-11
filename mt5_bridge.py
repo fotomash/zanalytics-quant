@@ -44,11 +44,12 @@ class MT5Bridge:
         if not mt5.initialize():
             logger.error("MT5 initialization failed")
             raise RuntimeError("MT5 initialization failed")
-
+n
 
         if self.account:
             authorized = mt5.login(self.account, password=self.password, server=self.server)
             if not authorized:
+
                 logger.error(f"Failed to connect to account {self.account}")
                 mt5.shutdown()
                 raise RuntimeError(f"Failed to connect to account {self.account}")
@@ -264,7 +265,11 @@ class MT5Bridge:
         return len(journal)
 
     def sync_to_pulse_journal_api(self, base_url: str, token: str) -> int:
-        """Sync trade history to Pulse journal via REST API."""
+        """Sync trade history to Pulse journal via REST API.
+
+        Raises:
+            RuntimeError: If the API request fails.
+        """
         df = self.get_real_trade_history()
         if df.empty:
             return 0
@@ -296,8 +301,9 @@ class MT5Bridge:
             response = requests.post(url, json=payload, headers=headers, timeout=10)
             response.raise_for_status()
         except requests.RequestException as e:
-            logger.warning(f"Failed to sync journal to API: {e}")
-            return 0
+            logger.error("Failed to sync journal to API: %s", e)
+            raise RuntimeError(f"Failed to sync journal to API: {e}")
+
 
         return len(payload)
 
