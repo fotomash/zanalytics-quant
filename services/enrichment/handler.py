@@ -9,7 +9,11 @@ from schemas import UnifiedAnalysisPayloadV1
 
 
 def on_message(ctx: Dict[str, Any], msg: Message) -> None:
-    """Process a single Kafka message and produce enriched payload."""
+    """Process a single Kafka message and produce a full analysis payload.
+
+    The enriched payload conforms to :class:`~schemas.payloads.UnifiedAnalysisPayloadV1`
+    and includes both ``predictive_analysis`` and ``ispts_pipeline`` details.
+    """
     try:
         incoming = AnalysisPayload.model_validate_json(
             msg.value().decode("utf-8")

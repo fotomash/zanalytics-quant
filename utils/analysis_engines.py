@@ -57,7 +57,14 @@ def build_unified_analysis(tick: dict) -> "UnifiedAnalysisPayloadV1":
         conflict_detection=ConflictDetectionResult(is_conflict=False),
     )
 
-    pipeline = ISPTSPipelineResult()
+    pipeline = ISPTSPipelineResult(
+        context_analyzer={},
+        liquidity_engine={},
+        structure_validator={},
+        fvg_locator={},
+        risk_manager={},
+        confluence_stacker={},
+    )
 
     symbol = tick.get("symbol", "UNKNOWN")
     timeframe = tick.get("timeframe", "1m")
