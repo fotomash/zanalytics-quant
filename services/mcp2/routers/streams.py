@@ -29,7 +29,7 @@ async def stream_ticks(
     reverse: bool = Query(True, description="Return latest first using XREVRANGE"),
 ):
     key = f"tick:{symbol}"
-    r = redis_client.redis
+    r = redis_client.redis_streams
     try:
         if reverse:
             entries = await r.xrevrange(key, max="+", min="-", count=count)
@@ -48,7 +48,7 @@ async def stream_bars(
     reverse: bool = Query(True),
 ):
     key = f"bar:{timeframe}:{symbol}"
-    r = redis_client.redis
+    r = redis_client.redis_streams
     try:
         entries = (
             await r.xrevrange(key, max="+", min="-", count=count)
@@ -58,4 +58,3 @@ async def stream_bars(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"redis error: {exc}") from exc
     return {"key": key, "items": _normalize(entries)}
-
