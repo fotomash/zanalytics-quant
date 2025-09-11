@@ -1,0 +1,29 @@
+agent:
+  id: "enrichment_agent"
+  name: "Enrichment Agent"
+  version: "1.0.0"
+  type: "data_enrichment"
+
+  capabilities:
+    - dataframe_enrichment
+    - analyzer_execution
+    - payload_validation
+
+  domain:
+    primary: "data_processing"
+    secondary: [ "analytics" ]
+
+  logic_blocks:
+    - id: "enrichment_flow"
+      trigger: "message_received"
+      flow:
+        - load_dataframe_from_message
+        - run_all_analyzers
+        - assemble_unified_payload
+        - validate_payload_schema
+        - generate_unique_id
+        - produce_to_enriched_topic
+
+  entry_points:
+    on_init: "services.enrichment.initialize"
+    on_message: "services.enrichment.handler"
