@@ -1,89 +1,14 @@
-"""Streamlit dashboard with live data retrieval and caching."""
+"""Enhanced Pulse dashboard that consumes live updates via WebSocket."""
 
 from __future__ import annotations
 
-import json
-import os
+from pathlib import Path
 from typing import Any, Dict
 
-import streamlit as st
-
-try:  # Optional imports; modules may not be installed in all environments
-    import redis  # type: ignore
-except Exception:  # pragma: no cover - missing dependency
-    redis = None
-
-try:
-    import psycopg2  # type: ignore
-except Exception:  # pragma: no cover - missing dependency
-    psycopg2 = None
-
-
-@st.cache_data(ttl=30)
-def get_live_data(symbol: str = "EURUSD") -> Dict[str, Any]:
-    """Fetch the latest market data for ``symbol``.
-
-    The backend is chosen via the ``LIVE_DATA_BACKEND`` environment variable
-    (``redis`` or ``postgres``). The function gracefully falls back to a
-    placeholder payload if anything goes wrong.
-    """
-
-    fallback = {"symbol": symbol, "bid": None, "ask": None}
-    backend = os.getenv("LIVE_DATA_BACKEND", "redis").lower()
-
-    try:
-        if backend == "postgres":
-            if psycopg2 is None:
-                raise RuntimeError("psycopg2 not installed")
-            conn = psycopg2.connect(os.getenv("DATABASE_URL"))
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT bid, ask FROM live_quotes WHERE symbol = %s ORDER BY ts DESC LIMIT 1",
-                    (symbol,),
-                )
-                row = cur.fetchone()
-            conn.close()
-            if not row:
-                return fallback
-            bid, ask = row
-            return {"symbol": symbol, "bid": bid, "ask": ask}
-
-        # Default to Redis
-        if redis is None:
-            raise RuntimeError("redis not installed")
-        client = redis.Redis(
-            host=os.getenv("REDIS_HOST", "localhost"),
-            port=int(os.getenv("REDIS_PORT", 6379)),
-            password=os.getenv("REDIS_PASSWORD"),
-            decode_responses=True,
-        )
-        raw = client.get(f"live:{symbol}")
-        if raw:
-            data = json.loads(raw)
-            data.setdefault("symbol", symbol)
-            return data
-        return fallback
-
-    except Exception as exc:  # pragma: no cover - defensive
-        st.warning(f"Live data unavailable: {exc}")
-        return fallback
-
-
-def main() -> None:
-    """Simple demo page showing live data."""
-
-    st.title("Enhanced Pulse Dashboard")
-    symbol = st.text_input("Symbol", value="EURUSD")
-    st.json(get_live_data(symbol))
-
-
-if __name__ == "__main__":  # pragma: no cover
-
-import streamlit as st
 import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
-from pathlib import Path
+import streamlit as st
+
+from .utils.ws import subscribe
 
 st.set_page_config(layout="wide", page_title="Zan.Pulse", page_icon="⚡")
 
@@ -98,6 +23,7 @@ def load_css() -> None:
 
 
 load_css()
+
 
 def metric_card(title, value, unit, color, trend, description):
     st.markdown(f"""
@@ -115,6 +41,7 @@ def metric_card(title, value, unit, color, trend, description):
         <p class="metric-description">{description}</p>
     </div>
     """, unsafe_allow_html=True)
+
 
 def home_page():
     st.markdown("<h1 class='page-header'>Pulse Command Center</h1>", unsafe_allow_html=True)
@@ -149,19 +76,22 @@ def home_page():
     # Other components... (as before)
     # For brevity, the rest of the home page components are added in the main function flow below
 
+
 def intelligence_page():
     st.markdown("<h1 class='page-header'>Market Intelligence Hub</h1>", unsafe_allow_html=True)
     st.markdown("<p class='page-subheader'>See what others miss - market structure decoded</p>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
-    
+
     st.info("This page is a representation of the Market Intelligence Hub.")
+
 
 def risk_page():
     st.markdown("<h1 class='page-header'>Risk & Performance Guardian</h1>", unsafe_allow_html=True)
     st.markdown("<p class='page-subheader'>Trade with discipline, sleep with confidence</p>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
-    
+
     st.info("This page is a representation of the Risk & Performance Guardian.")
+
 
 def whisperer_page():
     st.markdown("<h1 class='page-header'>The Whisperer Interface</h1>", unsafe_allow_html=True)
@@ -170,6 +100,7 @@ def whisperer_page():
 
     st.info("This page is a representation of The Whisperer Interface.")
 
+
 def journal_page():
     st.markdown("<h1 class='page-header'>Decision Journal & Analytics</h1>", unsafe_allow_html=True)
     st.markdown("<p class='page-subheader'>Learn from every decision - your path to consistent profitability</p>", unsafe_allow_html=True)
@@ -177,7 +108,20 @@ def journal_page():
 
     st.info("This page is a representation of the Decision Journal & Analytics.")
 
-def main():
+
+def _start_stream() -> None:
+    if "ws_started" in st.session_state:
+        return
+
+    def _update(data: Dict[str, Any]) -> None:
+        st.session_state.update(data)
+        st.experimental_rerun()
+
+    subscribe("pulse", _update)
+    st.session_state.ws_started = True
+
+
+def main() -> None:
     st.sidebar.title("Zan.Pulse ⚡")
     # P&L in sidebar
     pnl_placeholder = st.sidebar.empty()
@@ -187,17 +131,13 @@ def main():
         "Intelligence": "Market Intelligence Hub",
         "Risk": "Risk & Performance Guardian",
         "Whisperer": "The Whisperer Interface",
-        "Journal": "Decision Journal & Analytics"
+        "Journal": "Decision Journal & Analytics",
     }
 
     selection_key = st.sidebar.radio("Navigation", list(pages.keys()), format_func=lambda page: pages[page])
 
-    refresh_seconds = st.sidebar.slider(
-        "Refresh interval (seconds)", min_value=1, max_value=60, value=3, step=1
-    )
-
     # Initialize state
-    if 'discipline_score' not in st.session_state:
+    if "discipline_score" not in st.session_state:
         st.session_state.discipline_score = 87
         st.session_state.patience_index = 142
         st.session_state.conviction_rate = 73
@@ -205,14 +145,7 @@ def main():
         st.session_state.current_pnl = 2847
         st.session_state.daily_target = 4000
 
-    # Update metrics
-    st.session_state.current_pnl += (np.random.random() - 0.5) * 50
-    st.session_state.discipline_score = max(
-        60, min(100, st.session_state.discipline_score + (np.random.random() - 0.5) * 2)
-    )
-    st.session_state.patience_index = max(
-        30, min(300, st.session_state.patience_index + (np.random.random() - 0.5) * 10)
-    )
+    _start_stream()
 
     pnl_color = "green" if st.session_state.current_pnl >= 0 else "red"
     pnl_placeholder.markdown(
@@ -231,8 +164,6 @@ def main():
         whisperer_page()
     elif selection_key == "Journal":
         journal_page()
-
-    st.autorefresh(interval=refresh_seconds * 1000, key="pulse_dashboard_refresh")
 
 
 if __name__ == "__main__":
