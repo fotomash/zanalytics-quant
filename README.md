@@ -150,6 +150,8 @@ Key variables to configure before launching:
 - `DJANGO_SECRET_KEY` – secret key for Django.
 - `MCP2_API_KEY` – secret used by the `mcp` service. Add it to `.env` and Compose
   or CI will inject it; use a 32‑hex‑character value.
+- `HEALTH_AGGREGATOR_URL` – base URL for the health aggregator queried by the
+  dashboard's diagnostics panel.
 
 For the complete list of variables, see [docs/env-reference.md](docs/env-reference.md).
 
