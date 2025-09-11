@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, List
+from typing import Any, List, Sequence
 
 from services.mcp2.vector.embeddings import embed
 
@@ -21,7 +21,8 @@ async def get_agent_context(
     top_k:
         Number of nearest matches to retrieve.
     """
-    query_embedding = embed(query)
+    # Ensure the embedding is a simple list of floats for downstream clients.
+    query_embedding: Sequence[float] = list(embed(query))
     response = await vector_client.query(embedding=query_embedding, top_k=top_k)
     matches = response.get("matches", [])
     return [m.get("payload") for m in matches]

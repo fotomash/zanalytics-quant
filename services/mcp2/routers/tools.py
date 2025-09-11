@@ -1,11 +1,13 @@
 import uuid
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from backend.mcp.schemas import StrategyPayloadV1
 from ..schemas import DocRecord
 from ..storage import redis_client
 from ..storage.pg import get_pool
+from ..auth import verify_api_key
+from ..kafka_producer import send_trade
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(verify_api_key)])
 
 
 @router.post('/log_enriched_trade')
@@ -14,6 +16,11 @@ async def log_enriched_trade(payload: StrategyPayloadV1):
     data = payload.model_dump_json()
     await redis_client.redis.set(redis_client.ns(f'payload:{trade_id}'), data)
     await redis_client.redis.lpush(redis_client.ns('trades'), trade_id)
+    try:
+        await send_trade(trade_id, payload.model_dump())
+    except Exception:
+        # Kafka is best-effort; ignore failures
+        pass
     return {'id': trade_id}
 
 

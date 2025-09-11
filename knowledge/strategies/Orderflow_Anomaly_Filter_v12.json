@@ -1,0 +1,47 @@
+{
+  "strategy_name": "Orderflow_Anomaly_Filter_v12",
+  "aliases": [
+    "Spoofing & Iceberg Activity Detector",
+    "MarketManipulation_Detector_v12"
+  ],
+  "entry_pattern": "Analytical/Filter Layer: Flags potential order flow manipulation (spoofing, icebergs) using LOB and tick data. Output used as filter/confidence modifier by other strategies/modules.",
+  "entry_conditions": [
+    "N/A - Analytical/Filter Layer. Flags based on:"
+  ],
+  "timeframe_mapping": {
+    "primary_analysis_tf": [
+      "Tick",
+      "OrderBook"
+    ]
+  },
+  "confluence_conditions_indicators": [
+    "Spoofing Risk: Large LOB orders appearing/pulled quickly near key levels; sudden unbacked LOB imbalance.",
+    "Iceberg Order Activity: Repeated small visible fills at static LOB price despite significant incoming volume."
+  ],
+  "risk_model": {
+    "type": "N/A (Analytical/Filter Layer)"
+  },
+  "execution_flow_ispts": [
+    "Runs as an analytical service, providing flags (e.g., 'spoofing_risk_high_at_level_X', 'iceberg_support_at_level_Y') to other ZANFLOW components like ConflictFilter.py or PredictiveScorer.py."
+  ],
+  "scoring": {
+    "enabled": true,
+    "type": "Anomaly Likelihood Score",
+    "description": "Assigns a confidence score/likelihood to detected spoofing or iceberg activity."
+  },
+  "fallback_logic": {
+    "enabled": false,
+    "description": "N/A directly."
+  },
+  "modules_involved": [
+    "OrderbookAnalyticsEngine.py (specialized, conceptual)",
+    "Tick_Processor.py",
+    "PredictiveScorer.py (can consume flags)",
+    "ConflictFilter.py (can consume flags)",
+    "JournalLogger.py"
+  ],
+  "agent_profiles_conceptual": [
+    "Specialized analytical agent profile or part of 'tick_enrichment' configurations. Enabled by 'system_mission.tick_enrichment.spoofing_detection: true' and 'classify_icebergs: true'."
+  ],
+  "memory_merge_flag": true
+}

@@ -1,8 +1,19 @@
 import runpy
+import requests
 
 
-def test_env_fallback(monkeypatch):
-    """When HEALTH_AGGREGATOR_URL is unset the default URL is used."""
-    monkeypatch.delenv("HEALTH_AGGREGATOR_URL", raising=False)
-    module_globals = runpy.run_path("dashboard/components/diagnostics_panel.py")
-    assert module_globals["AGGREGATOR_URL"] == module_globals["default_url"]
+def test_get_system_health_fallback(monkeypatch):
+    """When the aggregator is unreachable the mock data is returned."""
+
+    module = runpy.run_path("dashboard/components/diagnostics_panel.py")
+    get_system_health = module["get_system_health"]
+
+    def fake_get(*args, **kwargs):
+        raise requests.exceptions.RequestException()
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    data = get_system_health()
+    assert data["status"] == "degraded"
+    assert "services" in data
+

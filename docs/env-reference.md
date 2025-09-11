@@ -80,6 +80,8 @@ Values defined in `.env` or in the shell environment override the defaults shown
 | `MT5_API_BASE` | `http://mt5:5001` | Adjust when the base URL differs from the API URL. | Root URL for MT5 API endpoints. |
 | `CUSTOM_USER` | `your_mt5_username` | Set to your MT5 account username. | Username for authenticating with MT5. |
 | `PASSWORD` | `your_mt5_password` | Replace with the MT5 account password. | Password for the MT5 account. |
+| `MT5_HEARTBEAT_INTERVAL` | `30` | Change to control heartbeat frequency in seconds. | Interval between MT5 gateway heartbeat messages. |
+| `MT5_HEARTBEAT_ALERT_THRESHOLD` | `90` | Adjust to tune downtime alerts in seconds. | Time without heartbeat before an alert is triggered. |
 
 ## Pulse Kernel Settings
 | Variable | Default | Override Behavior | Purpose |
