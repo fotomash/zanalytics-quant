@@ -94,6 +94,13 @@ class BootstrapEngine:
         self._setup_environment()
         self._configure_logging()
         self._load_session_manifest()
+        self.start_ingestion_service(
+            self.session_manifest.get("ingestion_service")
+        )
+        self.start_enrichment_service(
+            self.session_manifest.get("enrichment_service")
+        )
+
         self._build_configs()
         self._load_agents()
 
@@ -110,6 +117,20 @@ class BootstrapEngine:
         level = getattr(logging, level_name, logging.INFO)
         logging.basicConfig(
             level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+        )
+
+    def start_ingestion_service(self, config: Optional[Dict[str, Any]]) -> None:
+        """Placeholder hook for starting the ingestion service."""
+
+        logging.getLogger(__name__).info(
+            "start_ingestion_service called with config: %s", config
+        )
+
+    def start_enrichment_service(self, config: Optional[Dict[str, Any]]) -> None:
+        """Placeholder hook for starting the enrichment service."""
+
+        logging.getLogger(__name__).info(
+            "start_enrichment_service called with config: %s", config
         )
 
     def _load_session_manifest(self) -> None:
