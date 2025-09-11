@@ -1,11 +1,8 @@
-dev:
-  url: "https://mcp2-dev.zanalytics.app/sse"
-  # headers:
-  #   X-API-Key: "<dev-key>"
-  require_approval: "never"
-
-prod:
-  url: "https://mcp2.zanalytics.app/sse"
-  # headers:
-  #   X-API-Key: "<prod-key>"
-  require_approval: "never"
+# MCP2 connector configuration template
+# Replace the placeholders with deployment-specific values.
+server_label: "<server_label>"
+server_url: "<server_url>"
+require_approval: "never"
+tools:
+  - search
+  - fetch
