@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from typing import List
 
-from fastapi import FastAPI, Depends, Header, HTTPException, status
+from fastapi import FastAPI, Depends, Header, HTTPException
 from pydantic import BaseModel
 import asyncpg
 import redis.asyncio as redis
@@ -92,10 +92,12 @@ API_KEY_HEADER = "X-API-Key"
 EXPECTED_API_KEY = os.getenv("MCP2_API_KEY", os.getenv("MCP_API_KEY"))
 
 
-async def require_api_key(api_key: str = Header(..., alias=API_KEY_HEADER)) -> str:
-    if not EXPECTED_API_KEY or api_key != EXPECTED_API_KEY:
+async def require_api_key(
+    api_key: str | None = Header(None, alias=API_KEY_HEADER),
+) -> str:
+    if not api_key or api_key != EXPECTED_API_KEY:
         logger.warning("auth_failed")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+        raise HTTPException(status_code=401)
     logger.info("auth_ok")
     return api_key
 
