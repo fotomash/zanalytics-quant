@@ -3,6 +3,7 @@ import time
 import json
 import logging
 import datetime
+import MetaTrader5 as mt5
 from utils.mt5_kafka_producer import MT5KafkaProducer
 
 log = logging.getLogger(__name__)
@@ -33,6 +34,25 @@ def stream_ticks():
         # Optional back-pressure: sleep a tiny bit if queue is large
         if producer.producer.len() > 5000:
             time.sleep(0.01)
+
+
+def pull_and_stream(symbol: str, from_time: datetime.datetime, to_time: datetime.datetime):
+    """Pull historical MT5 ticks for ``symbol`` and forward them to Kafka."""
+    if not mt5.initialize():
+        raise RuntimeError("MT5 initialization failed")
+    try:
+        # MetaTrader5 requires time values as integer milliseconds since the epoch
+        from_ms = int(from_time.timestamp() * 1000)
+        to_ms = int(to_time.timestamp() * 1000)
+        ticks = mt5.copy_ticks_range(symbol, from_ms, to_ms, mt5.COPY_TICKS_ALL)
+    finally:
+        mt5.shutdown()
+
+    for t in ticks or []:
+        tick = t._asdict()
+        ts = tick.get("time_msc", tick.get("time", 0) * 1000)
+        tick["timestamp"] = datetime.datetime.utcfromtimestamp(ts / 1000).isoformat()
+        producer.send_tick(tick)
 
 
 def graceful_shutdown():
