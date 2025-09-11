@@ -875,8 +875,8 @@ services:
 
   vectorization-service:
     build:
-      context: services/vectorization_service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/vectorization_service/Dockerfile
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
       - KAFKA_GROUP_ID=${KAFKA_GROUP_ID:-vectorization-service}

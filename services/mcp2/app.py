@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, generate_latest
 
 from .routers.tools import router as tools_router
+from .routers.llm import router as llm_router
 from prometheus_client import (
     Counter,
     Gauge,
@@ -52,3 +53,4 @@ def metrics() -> Response:
 
 
 app.include_router(tools_router)
+app.include_router(llm_router)
