@@ -10,10 +10,10 @@ NC='\033[0m' # No Color
 echo "Checking docs vs code..."
 
 # 1. Auth key: should match what's in code or .env
-CODE_LINE=$(grep -E "API_KEY[[:space:]]*=" backend/mcp/mcp_server.py 2>/dev/null | head -n 1)
-ENV_KEY=$(grep -E '^MCP_API_KEY=' .env 2>/dev/null | cut -d= -f2-)
+CODE_LINE=$(grep -E "MCP2_API_KEY" services/mcp2/mcp2_server.py 2>/dev/null | head -n 1)
+ENV_KEY=$(grep -E '^MCP2_API_KEY=' .env 2>/dev/null | cut -d= -f2-)
 if [[ -z "$ENV_KEY" ]]; then
-  ENV_KEY=$(grep -E '^MCP_API_KEY=' .env.template 2>/dev/null | cut -d= -f2-)
+  ENV_KEY=$(grep -E '^MCP2_API_KEY=' .env.template 2>/dev/null | cut -d= -f2-)
 fi
 
 if echo "$CODE_LINE" | grep -q "dev-key-123"; then

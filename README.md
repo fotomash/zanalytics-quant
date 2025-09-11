@@ -144,7 +144,7 @@ Key variables to configure before launching:
 - `BRIDGE_TOKEN` – optional token sent as `X-Bridge-Token` header.
 - `VNC_DOMAIN`, `TRAEFIK_DOMAIN`, `TRAEFIK_USERNAME`, `ACME_EMAIL` – domains and Traefik settings.
 - `DJANGO_SECRET_KEY` – secret key for Django.
-- `MCP_API_KEY` – secret used by the `mcp` service. Add it to `.env` and Compose
+- `MCP2_API_KEY` – secret used by the `mcp` service. Add it to `.env` and Compose
   or CI will inject it; use a 32‑hex‑character value.
 
 For the complete list of variables, see [docs/env-reference.md](docs/env-reference.md).
@@ -428,7 +428,7 @@ See [docs/mcp_troubleshooting.md](docs/mcp_troubleshooting.md) for Traefik label
 
 1. First sign of death: Whisperer says stopped talking to connector. Curl to /mcp gives heartbeat → MCP alive. Curl to /exec gives 404. → Traefik not routing. Added traefik.http.routers.mcp.rule=Host(mcp1.zanalytics.app) and port 8001:8001 → still 404.
 2. Localhost test: curl http://localhost:8001/exec → connection refused. → Port not exposed. Added ports: - 8001:8001 in compose → now connects, but still 404.
-3. Auth 401: curl -H "Authorization: Bearer your-dev-secret-123" -H "X-API-Key: your-dev-secret-123" → Unauthorized. → Env var wrong name. Code uses MCP_API_KEY, not API_KEY. Fixed .env → restart mcp → still 401. → Restart doesn't reload env in FastAPI. Had to --build the container to pick up MCP_API_KEY=your-dev-secret-123.
+3. Auth 401: curl -H "Authorization: Bearer your-dev-secret-123" -H "X-API-Key: your-dev-secret-123" → Unauthorized. → Env var wrong name. Code uses MCP2_API_KEY, not API_KEY. Fixed .env → restart mcp → still 401. → Restart doesn't reload env in FastAPI. Had to --build the container to pick up MCP2_API_KEY=your-dev-secret-123.
 4. Still 404 after auth works: Endpoint name wrong. Code has @app.post(/exec) but Whisperer hits /api/v1/actions/query. → Not our fault-Whisperer's connector config was hardcoded to old path. Updated connector to match real route: /exec.
 5. Pop-up hell: Whisperer says requires approval. → MCP middleware blocks unless approve:true sent. Added flag, updated curl, merged PR 241. Now auto-approves boot & equity.
 6. Wine/MetaTrader feed dead: Whisperer shows yesterday's trades. → MT5 popped resolution dialog, never clicked. Had to manually OK after reboot → feed starts. Documented in FAQ as manual step.

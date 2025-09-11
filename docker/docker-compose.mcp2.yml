@@ -9,12 +9,8 @@ services:
     env_file:
       - ../.env
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_HOST: ${POSTGRES_HOST}
-      POSTGRES_PORT: ${POSTGRES_PORT}
-      MCP_API_KEY: ${MCP_API_KEY}
+      MCP2_API_KEY: ${MCP2_API_KEY}
+      DATABASE_URL: ${DATABASE_URL}
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-public"
