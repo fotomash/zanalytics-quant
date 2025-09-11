@@ -219,6 +219,7 @@ def test_stage_order_and_success_publishes_output(monkeypatch):
     assert topic == "output"
     data = json.loads(payload.decode("utf-8"))
     assert data["symbol"] == "EURUSD"
+    assert ic.consumer.committed is True
 
 
 def test_stage_failure_stops_processing_and_journals(monkeypatch):
@@ -264,3 +265,4 @@ def test_stage_failure_stops_processing_and_journals(monkeypatch):
     assert journal.entries
     entry = journal.entries[0]
     assert entry["decision"] == "StageTwo_failed"
+    assert ic.consumer.committed is True

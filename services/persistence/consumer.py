@@ -21,6 +21,8 @@ except Exception:  # pragma: no cover
 BROKERS = os.getenv("KAFKA_BROKERS", "kafka:9092")
 TOPIC = os.getenv("TOPIC", "enriched-analysis-payloads")
 GROUP = os.getenv("KAFKA_GROUP", "enriched-persistence")
+AUTO_OFFSET_RESET = os.getenv("KAFKA_AUTO_OFFSET_RESET", "earliest")
+BATCH_SIZE = int(os.getenv("KAFKA_BATCH_SIZE", "100"))
 PG_DSN = os.getenv(
     "PG_DSN", "postgresql://postgres:timescale@timescaledb:5432/postgres"
 )
@@ -89,6 +91,45 @@ def run_http_server() -> None:
     server.serve_forever()
 
 
+def process_batch(consumer: Consumer, cur, conn, batch_size: int = BATCH_SIZE) -> None:
+    """Consume a batch of messages and persist them to Postgres."""
+    messages = consumer.consume(batch_size, timeout=1.0)
+    if not messages:
+        return
+
+    records = []
+    last_msg = None
+    for msg in messages:
+        if msg is None or msg.error():
+            continue
+        last_msg = msg
+        try:
+            payload = json.loads(msg.value())
+        except Exception:
+            continue
+        ts_raw = payload.get("timestamp") or payload.get("ts")
+        ts = parse_ts(ts_raw)
+        symbol = payload.get("symbol")
+        json_payload = Json(payload) if Json else payload
+        records.append((ts, symbol, json_payload))
+
+    if not records:
+        if last_msg is not None:
+            consumer.commit(last_msg)
+        return
+
+    try:
+        cur.executemany(
+            "INSERT INTO enriched_data (ts, symbol, payload) VALUES (%s, %s, %s)",
+            records,
+        )
+        conn.commit()
+        payloads_written_to_db_total.inc(len(records))
+        if last_msg is not None:
+            consumer.commit(last_msg)
+    except Exception:
+        conn.rollback()
+
 def _write_batch(cur, batch: list[dict]) -> None:
     """Insert a batch of payloads using the given cursor."""
     params = []
@@ -145,7 +186,8 @@ def main() -> None:
         {
             "bootstrap.servers": BROKERS,
             "group.id": GROUP,
-            "auto.offset.reset": "latest",
+            "auto.offset.reset": AUTO_OFFSET_RESET,
+            "enable.auto.commit": False,
         }
     )
     kafka_consumer.subscribe([TOPIC])
@@ -156,26 +198,7 @@ def main() -> None:
     threading.Thread(target=run_http_server, daemon=True).start()
     try:
         while True:
-            msg = kafka_consumer.poll(1.0)
-            if msg is None or msg.error():
-                continue
-            try:
-                payload = json.loads(msg.value())
-            except Exception:
-                continue
-            ts_raw = payload.get("timestamp") or payload.get("ts")
-            ts = parse_ts(ts_raw)
-            symbol = payload.get("symbol")
-            try:
-                cur.execute(
-                    "INSERT INTO enriched_data (ts, symbol, payload) VALUES (%s, %s, %s)",
-                    (ts, symbol, Json(payload)),
-                )
-                pg_conn.commit()
-                payloads_written_to_db_total.inc()
-            except Exception:
-                pg_conn.rollback()
-                continue
+            process_batch(kafka_consumer, cur, pg_conn, BATCH_SIZE)
     finally:
         try:
             kafka_consumer.close()
