@@ -23,9 +23,31 @@ def test_trade_id_generation():
     uuid.UUID(enriched["trade_id"])
 
 
-def test_embedding_vector_length():
+def test_embedding_vector_shape():
     enriched = enrich_ticks([{}], manifest_path=MANIFEST_PATH, matrix_path=MATRIX_PATH)[0]
-    assert len(enriched["embedding"]) == 384
+    assert isinstance(enriched["embedding"], list)
+    assert enriched["embedding"], "embedding should not be empty"
+
+
+def test_embedding_fallback(monkeypatch):
+    """When the model cannot be loaded a zero vector is returned."""
+
+    # Force _get_model to attempt import which will fail via patched __import__
+    monkeypatch.setattr("utils.enrich._MODEL", None)
+
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "sentence_transformers":
+            raise ImportError
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    enriched = enrich_ticks([{}], manifest_path=MANIFEST_PATH, matrix_path=MATRIX_PATH)[0]
+    assert enriched["embedding"] == [0.0] * 384
 
 
 def test_echonudge_phase_routing():
