@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
-import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import yaml
@@ -13,6 +12,7 @@ import yaml
 from backend.mcp.schemas import StrategyPayloadV1
 from .routers.llm import WhisperRequest, WhisperResponse, _suggest
 from .storage import redis_client
+from .llm_calls import call_local_echo, call_whisperer
 
 logger = logging.getLogger(__name__)
 
@@ -73,38 +73,6 @@ class AnalyzeQuery(BaseModel):
     """Query for direct analysis selecting the appropriate LLM agent."""
 
     symbol: str
-
-
-async def call_local_echo(prompt: str) -> str:
-    """Send the prompt to the local Ollama instance."""
-
-    url = os.getenv("LOCAL_ECHO_URL")
-    if url:
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(url, json={"prompt": prompt}, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
-            return data.get("verdict") or data.get("response") or str(data)
-        except Exception as exc:  # pragma: no cover - network failure
-            logger.error("local echo request failed: %s", exc)
-    return f"Local echo unavailable for: {prompt}"
-
-
-async def call_whisperer(prompt: str) -> str:
-    """Send the prompt to the cloud Whisperer service."""
-
-    url = os.getenv("WHISPERER_URL")
-    if url:
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(url, json={"prompt": prompt}, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
-            return data.get("verdict") or data.get("response") or str(data)
-        except Exception as exc:  # pragma: no cover - network failure
-            logger.error("whisperer request failed: %s", exc)
-    return f"Whisperer unavailable for: {prompt}"
 
 
 def format_whisperer_prompt(**runtime_values: object) -> str:
