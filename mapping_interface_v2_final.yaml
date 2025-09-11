@@ -1,0 +1,6 @@
+semantic_bindings:
+  - trigger: ["liquidity", "order block"]
+    primary: ncos_liquidity_agent
+    fallbacks:
+      - macro_analyst
+      - wyckoff_specialist
