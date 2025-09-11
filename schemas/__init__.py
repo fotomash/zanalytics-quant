@@ -1,12 +1,10 @@
 """Pydantic schemas for cross-service payloads."""
 
 from .payloads import (
-    ISPTSPipelineResult,
+    ISPTSPipelineResult,  # ISPTS pipeline stage outputs
     MarketContext,
     MicrostructureAnalysis,
     PredictiveAnalysisResult,
-    ISPTSPipelineResult,  # ISPTS pipeline stage outputs
-
     SMCAnalysis,
     TechnicalIndicators,
     UnifiedAnalysisPayloadV1,
