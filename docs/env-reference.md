@@ -26,6 +26,7 @@ Values defined in `.env` or in the shell environment override the defaults shown
 | `REDIS_URL` | `redis://redis:6379/0` | Modify to point at a different Redis instance/DB. | Connection URL used by services that expect a Redis URI. |
 | `REDIS_HOST` | `redis` | Change when Redis runs on another host. | Hostname of the Redis server. |
 | `REDIS_PORT` | `6379` | Adjust if Redis listens on a different port. | TCP port for the Redis server. |
+| `STREAM_VERSION_PREFIX` | `v2` | Change to adjust Redis stream namespace. | Version prefix for Redis stream keys (e.g., `v2:ticks:*`). |
 | `SESSION_BOOT_TTL` | `30` | Set to control session bootstrap cache lifetime in seconds. | Time‑to‑live for session bootstrap cache entries. |
 | `TRADES_RECENT_TTL` | `15` | Change to tune how long recent trades stay cached. | Cache TTL for recent trades in seconds. |
 | `RISK_STATUS_TTL` | `20` | Adjust to control risk status cache duration. | Cache TTL for risk status values in seconds. |
