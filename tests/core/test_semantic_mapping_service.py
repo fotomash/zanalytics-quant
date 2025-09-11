@@ -1,3 +1,5 @@
+"""Tests for the :class:`~core.semantic_mapping_service.SemanticMappingService`."""
+
 from pathlib import Path
 
 import pytest

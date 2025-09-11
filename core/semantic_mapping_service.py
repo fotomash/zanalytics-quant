@@ -1,3 +1,12 @@
+"""Semantic request routing utilities.
+
+This module exposes :class:`SemanticMappingService` which loads a YAML
+configuration describing keyword and regular-expression triggers for a set of
+agents.  Incoming text requests can then be routed to the appropriate primary
+agent with a list of fallbacks.
+"""
+
+
 import os
 import re
 from typing import List, Optional, Tuple
@@ -104,6 +113,7 @@ class SemanticMappingService:
         ----------
         request_text:
             User supplied text.
+
 @dataclass
 class MappingEntry:
     """Represents a single mapping rule."""
@@ -187,6 +197,44 @@ class SemanticMappingService:
 
     def __init__(self, registry: Optional[Dict[str, Any]] = None) -> None:
         self.keyword_map: Dict[str, Tuple[str, List[str]]] = {}
+        self.regex_map: List[Tuple[re.Pattern[str], str, List[str]]] = []
+        self._load_mappings()
+
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+    def _load_mappings(self) -> None:
+        """Load and parse the YAML mapping file."""
+
+        if not self.mapping_path.exists():
+            raise FileNotFoundError(f"Mapping file not found: {self.mapping_path}")
+
+        with self.mapping_path.open("r", encoding="utf-8") as fh:
+            config = yaml.safe_load(fh) or {}
+
+        for entry in config.get("mappings", []):
+            primary = entry.get("primary")
+            fallback = entry.get("fallback", []) or []
+            triggers = entry.get("triggers", {})
+
+            for keyword in triggers.get("keywords", []) or []:
+                # Store keywords in lowercase for case-insensitive matching
+                self.keyword_map[keyword.lower()] = (primary, list(fallback))
+
+            for pattern in triggers.get("regex", []) or []:
+                self.regex_map.append(
+                    (re.compile(pattern, re.IGNORECASE), primary, list(fallback))
+                )
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+    def route(self, request_text: str) -> Tuple[Optional[str], List[str]]:
+        """Route a request to the appropriate agents.
+
+        The method first attempts keyword based matching. If no keyword matches,
+        regular expression rules are evaluated. If no rules match,
+        ``(None, [])`` is returned.
         if registry:
             self._load_registry(registry)
 
