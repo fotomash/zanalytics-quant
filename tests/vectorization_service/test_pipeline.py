@@ -16,7 +16,7 @@ def test_process_payload_returns_numpy_array(payload_with_text):
     """The pipeline should return a numpy array with expected shape."""
     result = process_payload(payload_with_text)
     assert isinstance(result, np.ndarray)
-    assert result.shape == (8,)
+    assert result.shape == (384,)
 
 
 def test_process_payload_missing_text_raises(sample_payload):
@@ -24,12 +24,19 @@ def test_process_payload_missing_text_raises(sample_payload):
     with pytest.raises(ValueError):
         process_payload(sample_payload)
 
-def test_process_payload_returns_vector():
+
+def test_process_payload_uses_embed(monkeypatch):
     payload = {"text": "hello"}
+
+    def fake_embed(text: str):
+        assert text == "hello"
+        return [0.1, 0.2, 0.3]
+
+    monkeypatch.setattr(
+        "services.vectorization_service.pipeline.embed", fake_embed
+    )
     result = process_payload(payload)
-    assert isinstance(result, np.ndarray)
-    assert result.shape == (1,)
-    assert result[0] == len("hello")
+    np.testing.assert_allclose(result, np.array([0.1, 0.2, 0.3]))
 
 
 def test_process_payload_validation_errors():
@@ -37,3 +44,4 @@ def test_process_payload_validation_errors():
         process_payload({"text": ""})
     with pytest.raises(ValueError):
         process_payload("not a dict")
+

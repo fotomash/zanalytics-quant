@@ -64,5 +64,9 @@ confluent-kafka==2.3.0
 tenacity==8.2.3
 # metrics
 prometheus_client==0.22.1
-# MCP2 service dependencies
--r services/mcp2/requirements.txt
+
+# MCP2 service dependencies inlined for isolated build context
+fastapi
+uvicorn
+redis
+sqlalchemy

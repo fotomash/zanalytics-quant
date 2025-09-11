@@ -5,7 +5,8 @@ import os
 from utils.analysis_engines import build_unified_analysis
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-STREAM_KEY = os.getenv("TICK_STREAM", "ticks:l1")
+VERSION_PREFIX = os.getenv("STREAM_VERSION_PREFIX", "v2")
+STREAM_KEY = os.getenv("TICK_STREAM", f"{VERSION_PREFIX}:ticks:l1")
 GROUP = "enrichers"
 CONSUMER = os.getenv("CONSUMER", "enr-1")
 PG_DSN = os.getenv("PG_DSN", "postgresql://pulse:pulse@localhost:5432/pulse")

@@ -48,7 +48,7 @@ class TopicConfig(BaseModel):
 
 class SessionManifest(BaseModel):
     """Session manifest describing instrument and runtime details."""
-
+    prompt_version: str = Field("v1", description="Prompt version identifier")
     instrument_pair: str = Field(..., description="Instrument pair to analyse")
     timeframe: str = Field(..., description="Timeframe identifier, e.g., M15")
     topics: TopicConfig = Field(

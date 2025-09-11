@@ -1,13 +1,15 @@
 import os
 import json
+import time
 import uvicorn
 import logging
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 
-from fastapi import FastAPI, Depends, HTTPException, Body, Query
+from fastapi import FastAPI, Depends, HTTPException, Body, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, conlist, confloat
+from prometheus_client import Counter, Histogram, CONTENT_TYPE_LATEST, generate_latest
 from api.trade import router as trade_router
 
 try:
@@ -19,6 +21,18 @@ logger = logging.getLogger("pulse-api")
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
     format='%(asctime)s | %(levelname)s | %(name)s | %(message)s'
+)
+
+# Prometheus metrics
+REQUEST_COUNT = Counter(
+    "pulse_api_requests_total",
+    "Total HTTP requests",
+    ["method", "endpoint", "http_status"],
+)
+REQUEST_LATENCY = Histogram(
+    "pulse_api_request_latency_seconds",
+    "HTTP request latency in seconds",
+    ["method", "endpoint"],
 )
 
 
@@ -117,6 +131,23 @@ app.add_middleware(
 )
 
 app.include_router(trade_router)
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    """Expose Prometheus metrics."""
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.middleware("http")
+async def observe_requests(request: Request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    latency = time.time() - start
+    path = request.url.path
+    REQUEST_COUNT.labels(request.method, path, str(response.status_code)).inc()
+    REQUEST_LATENCY.labels(request.method, path).observe(latency)
+    return response
 
 
 @app.get("/pulse/health")
