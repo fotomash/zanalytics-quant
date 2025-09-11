@@ -2,8 +2,7 @@ import asyncio
 import json
 import os
 
-
-from components import confluence_engine, advanced_stoploss_lots_engine
+from utils.analysis_engines import build_unified_analysis
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 STREAM_KEY = os.getenv("TICK_STREAM", "ticks:l1")
@@ -40,16 +39,11 @@ async def main() -> None:
             for _, entries in msgs:
                 for msg_id, fields in entries:
                     tick = json.loads(fields["j"])
-                    enriched = {}
                     try:
-                        enriched["confluence"] = (
-                            confluence_engine.compute_confluence_indicators_df(tick)
-                        )
-                        enriched["risk"] = (
-                            advanced_stoploss_lots_engine.compute_risk_snapshot(tick)
-                        )
+                        payload = build_unified_analysis(tick)
+                        enriched_json = payload.model_dump()
                     except Exception as e:  # pragma: no cover - defensive
-                        enriched["error"] = str(e)
+                        enriched_json = {"error": str(e)}
 
                     await con.execute(
                         """
@@ -58,7 +52,7 @@ async def main() -> None:
                         """,
                         tick["symbol"],
                         tick["ts"],
-                        json.dumps(enriched),
+                        json.dumps(enriched_json),
                     )
                     await r.xack(STREAM_KEY, GROUP, msg_id)
 
