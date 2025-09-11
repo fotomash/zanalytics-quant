@@ -73,10 +73,10 @@ class MicrostructureAnalyzer:
         Aggregates tick data metrics onto the M1 bar timeframe.
         """
         # Normalize tick index using timestamp-like columns if available
-        for col in ("timestamp", "datetime", "ts"):
-            if col in ticks_df.columns:
-                ticks_df.index = pd.to_datetime(ticks_df[col])
-                break
+        dt_col = next((col for col in ("timestamp", "datetime", "ts") if col in ticks_df.columns), None)
+        if dt_col:
+            ticks_df.index = pd.to_datetime(ticks_df[dt_col])
+            ticks_df.drop(columns=[dt_col], inplace=True)
         else:
             ticks_df.index = pd.to_datetime(ticks_df.index)
 
