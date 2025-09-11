@@ -13,3 +13,5 @@ uvicorn
 fastapi
 load_dotenv
 
+arrow
+redis
