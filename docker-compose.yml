@@ -671,8 +671,8 @@ services:
       <<: *default-labels
       traefik.enable: true
       traefik.docker.network: traefik-public
-      traefik.http.routers.mcp.rule: Host(`mcp2.zanalytics.app`)
-      traefik.http.routers.mcp.entrypoints: websecure  
+      traefik.http.routers.mcp.rule: Host(`mcp.zanalytics.app`)
+      traefik.http.routers.mcp.entrypoints: websecure
       traefik.http.routers.mcp.tls.certresolver: letsencrypt
       traefik.http.routers.mcp.tls: true
       traefik.http.routers.mcp.service: mcp-service
@@ -729,8 +729,6 @@ services:
     build:
       context: services/mcp2
     container_name: mcp2
-    ports:
-      - "8002:8002"
     environment:
       - REDIS_URL=redis://mcp2-redis:6379/0
       - DATABASE_URL=postgresql://postgres:postgres@mcp2-pg:5432/postgres
@@ -741,7 +739,20 @@ services:
         condition: service_started
     restart: unless-stopped
     networks:
+      - traefik-public
       - default
+    labels:
+      <<: *default-labels
+      traefik.enable: true
+      traefik.docker.network: traefik-public
+      traefik.http.routers.mcp2.rule: Host(`mcp2.zanalytics.app`)
+      traefik.http.routers.mcp2.entrypoints: websecure
+      traefik.http.routers.mcp2.tls.certresolver: letsencrypt
+      traefik.http.routers.mcp2.tls: true
+      traefik.http.routers.mcp2.service: mcp2-service
+      traefik.http.services.mcp2-service.loadbalancer.server.port: 8002
+      traefik.http.middlewares.mcp2-strip: null
+      traefik.http.routers.mcp2.middlewares: null
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
