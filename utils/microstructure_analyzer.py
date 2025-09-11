@@ -72,6 +72,23 @@ class MicrostructureAnalyzer:
         """
         Aggregates tick data metrics onto the M1 bar timeframe.
         """
+        # Ensure m1_df index is datetime
+        if not isinstance(m1_df.index, pd.DatetimeIndex):
+            m1_df.index = pd.to_datetime(m1_df.index)
+            
+        # Create a new DataFrame to store results, aligned with m1_df
+        aggregated_data = pd.DataFrame(index=m1_df.index)
+        
+        # Ensure ticks_df index is datetime for resample
+        if not isinstance(ticks_df.index, pd.DatetimeIndex):
+            # Prefer an existing datetime-like column if present
+            for col in ("timestamp", "datetime", "ts"):
+                if col in ticks_df.columns:
+                    ticks_df = ticks_df.set_index(pd.to_datetime(ticks_df[col]))
+                    break
+            else:
+                # As a last resort, attempt to convert the existing index
+                ticks_df.index = pd.to_datetime(ticks_df.index)
         # Normalize tick index using timestamp-like columns if available
         for col in ("timestamp", "datetime", "ts"):
             if col in ticks_df.columns:
