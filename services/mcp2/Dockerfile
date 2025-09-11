@@ -1,12 +1,19 @@
 FROM python:3.12-slim
+
 WORKDIR /app
-# Use repo-root context; copy service-specific requirements explicitly
-COPY services/mcp2/requirements.txt ./requirements.txt
+
+# Copy only the requirements file first to leverage Docker cache
+COPY services/mcp2/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-# Copy entire repo so imports like backend.mcp.schemas resolve
-COPY . .
+
+# Copy the application code (adjust path if needed)
+COPY services/mcp2/ /app/
+
+# Set environment variables (optional, can also be in compose)
 ENV PYTHONPATH=/app
-RUN useradd -m appuser
-USER appuser
+
+# Expose the port used by the healthcheck and Uvicorn
 EXPOSE 8002
-ENTRYPOINT ["uvicorn", "services.mcp2.app:app", "--host", "0.0.0.0", "--port", "8002"]
+
+# Run the application
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8002"]
