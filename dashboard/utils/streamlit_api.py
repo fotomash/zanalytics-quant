@@ -272,6 +272,9 @@ def inject_glass_css() -> None:
     """Inject subtle gradient + glass card utility for a React‑like feel.
 
     Usage: call once near the top of the page.
+
+    Theme developers can override the defaults by defining CSS variables:
+    ``--glass-color`` (RGB), ``--glass-bg-opacity`` and ``--glass-border-opacity``.
     """
     st.markdown(
         """
@@ -281,11 +284,13 @@ def inject_glass_css() -> None:
                         radial-gradient(800px 400px at 90% 0%, rgba(6,182,212,0.08) 0%, rgba(15,23,42,0.0) 60%),
                         linear-gradient(135deg, #0B1220 0%, #111827 100%);
         }
-        .glass { 
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 14px; 
-            padding: 10px 14px; 
+        .glass {
+            background: rgba(var(--glass-color, 255,255,255), var(--glass-bg-opacity, 0.04));
+            border: 1px solid rgba(var(--glass-color, 255,255,255), var(--glass-border-opacity, 0.08));
+            border-radius: 14px;
+            padding: 10px 14px;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
         }
         .section-title { color: #9CA3AF; font-size: 0.9rem; margin-bottom: 6px; }
         </style>
