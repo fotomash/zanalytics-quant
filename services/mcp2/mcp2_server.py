@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+from datetime import datetime
 from typing import List
 
 from fastapi import FastAPI, Depends, Header, HTTPException, status
@@ -43,16 +44,39 @@ class ToolFetchResponse(BaseModel):
 
 
 class JsonFormatter(logging.Formatter):
-    """Minimal JSON log formatter."""
+    """Minimal JSON log formatter with timestamp and extra fields."""
 
     def format(self, record: logging.LogRecord) -> str:  # pragma: no cover - trivial
         log_record = {
+            "timestamp": datetime.utcnow().isoformat(),
             "level": record.levelname,
-            "msg": record.getMessage(),
             "name": record.name,
+            "message": record.getMessage(),
         }
-        if record.__dict__.get("extra"):
-            log_record.update(record.__dict__["extra"])
+        for key, value in record.__dict__.items():
+            if key not in {
+                "name",
+                "msg",
+                "args",
+                "levelname",
+                "levelno",
+                "pathname",
+                "filename",
+                "module",
+                "exc_info",
+                "exc_text",
+                "stack_info",
+                "lineno",
+                "funcName",
+                "created",
+                "msecs",
+                "relativeCreated",
+                "thread",
+                "threadName",
+                "processName",
+                "process",
+            }:
+                log_record[key] = value
         return json.dumps(log_record)
 
 
@@ -70,7 +94,9 @@ EXPECTED_API_KEY = os.getenv("MCP2_API_KEY")
 
 async def require_api_key(api_key: str = Header(..., alias=API_KEY_HEADER)) -> str:
     if not EXPECTED_API_KEY or api_key != EXPECTED_API_KEY:
+        logger.warning("auth_failed")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+    logger.info("auth_ok")
     return api_key
 
 
@@ -84,15 +110,18 @@ pg_pool: asyncpg.Pool | None = None
 @app.on_event("startup")
 async def startup_event() -> None:
     global pg_pool
+    logger.info("startup")
     try:
         pg_pool = await asyncpg.create_pool(PG_DSN)
+        logger.info("pg_connected")
     except Exception as exc:  # pragma: no cover - connection optional
-        logger.warning(json.dumps({"event": "pg_connect_failed", "error": str(exc)}))
+        logger.warning("pg_connect_failed", extra={"error": str(exc)})
         pg_pool = None
 
 
 @app.on_event("shutdown")
 async def shutdown_event() -> None:
+    logger.info("shutdown")
     if pg_pool:
         await pg_pool.close()
     await redis_client.close()
@@ -100,6 +129,7 @@ async def shutdown_event() -> None:
 
 @app.get("/health")
 async def health() -> dict:
+    logger.info("health", extra={"status": "ok"})
     return {"status": "ok"}
 
 
@@ -136,6 +166,7 @@ async def tools_fetch(payload: ToolFetchRequest) -> ToolFetchResponse:
     for tid in payload.ids:
         cached = await redis_client.get(f"tool:{tid}")
         if cached:
+            logger.info("cache_hit", extra={"id": tid})
             tools.append(ToolInfo.model_validate_json(cached))
         else:
             missing.append(tid)
