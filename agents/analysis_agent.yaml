@@ -1,0 +1,25 @@
+agent:
+  id: "analysis_agent"
+  name: "Analysis Agent"
+  version: "1.0.0"
+  type: "analysis"
+
+  capabilities:
+    - statistical_analysis
+
+  domain:
+    primary: "analytics"
+    secondary: []
+
+  entry_points:
+    on_message: "services.analysis.handler"
+
+  routing:
+    primary: true
+    fallback:
+      - risk_agent
+    hints:
+      keywords:
+        - analysis
+        - stats
+
