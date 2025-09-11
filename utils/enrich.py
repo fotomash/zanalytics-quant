@@ -19,17 +19,40 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import uuid
-from typing import Any, Dict, List
+from typing import Any, Dict, List, TYPE_CHECKING
 
-from services.mcp2.llm_config import call_local_echo, LOCAL_THRESHOLD
+from services.mcp2.llm_config import call_local_echo
+from services.mcp2 import llm_config
 
-from sentence_transformers import SentenceTransformer
+if TYPE_CHECKING:  # pragma: no cover - for type checkers only
+    from sentence_transformers import SentenceTransformer
 
-# Load a small transformer model once at import time.  The
-# ``paraphrase-MiniLM-L3-v2`` model is only ~70MB and produces 384‑dimensional
-# embeddings which are sufficient for unit tests and lightweight feature
-# computation.
-_MODEL = SentenceTransformer("paraphrase-MiniLM-L3-v2")
+_MODEL: "SentenceTransformer" | None = None
+
+
+def _get_model() -> "SentenceTransformer":
+    """Return a cached SentenceTransformer model instance.
+
+    The model is loaded lazily on first use to avoid import‑time side effects
+    and to provide a clearer error message if the dependency or model weights
+    are unavailable.
+    """
+
+    global _MODEL
+    if _MODEL is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+        except Exception as exc:  # pragma: no cover - import failure path
+            raise RuntimeError(
+                "sentence-transformers is required for embedding generation."
+            ) from exc
+        try:
+            _MODEL = SentenceTransformer("paraphrase-MiniLM-L3-v2")
+        except Exception as exc:  # pragma: no cover - model load path
+            raise RuntimeError(
+                "Unable to load SentenceTransformer model 'paraphrase-MiniLM-L3-v2'."
+            ) from exc
+    return _MODEL
 
 
 def load_manifest(path: str | Path) -> Dict[str, Any]:
@@ -94,6 +117,7 @@ def enrich_ticks(
     confidence = sum(v.get("weight", 0) for v in matrix.values() if isinstance(v, dict))
 
     model_name = manifest.get("name_for_model", "model")
+    model = _get_model()
 
     enriched: List[dict] = []
     whisper_queue: List[dict] = []
@@ -108,7 +132,7 @@ def enrich_ticks(
         nudge = f"{model_name} sees {phase} phase with confidence {confidence:.2f}"
 
         # Embedding vector for the nudge text
-        embedding = _MODEL.encode(nudge).tolist()
+        embedding = model.encode(nudge).tolist()
 
         data.update(
             {
@@ -121,7 +145,7 @@ def enrich_ticks(
             }
         )
 
-        if data["confidence"] < LOCAL_THRESHOLD or data["phase"] in {
+        if data["confidence"] < llm_config.LOCAL_THRESHOLD or data["phase"] in {
             "spring",
             "distribution",
         }:

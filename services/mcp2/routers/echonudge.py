@@ -4,6 +4,8 @@ import json
 import os
 from typing import Any, Optional
 
+from functools import lru_cache
+
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -37,14 +39,17 @@ SYSTEM_PROMPT = (
 )
 
 
+@lru_cache(maxsize=None)
 def _ollama_url() -> str:
     return os.getenv("OLLAMA_URL", "http://ollama:11434")
 
 
+@lru_cache(maxsize=None)
 def _ollama_model() -> str:
     return os.getenv("OLLAMA_MODEL", "llama3:8b-instruct-q4")
 
 
+@lru_cache(maxsize=None)
 def _ollama_options() -> dict[str, Any]:
     # CPU-friendly defaults
     return {
