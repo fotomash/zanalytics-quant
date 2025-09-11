@@ -5,7 +5,7 @@
 Run the service locally with:
 
 ```bash
-uvicorn services.mcp2.app:app --host 0.0.0.0 --port 8002
+uvicorn services.mcp2.main:app --host 0.0.0.0 --port 8002
 ```
 
 ## Curl Tests
