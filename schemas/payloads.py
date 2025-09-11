@@ -106,22 +106,22 @@ class PredictiveAnalysisResult(BaseModel):
 class ISPTSPipelineResult(BaseModel):
     """Outputs from each stage of the ISPTS pipeline."""
 
-    context_analyzer: Any = Field(
+    context_analyzer: Optional[Any] = Field(
         None, description="Context analyzer stage output"
     )
-    liquidity_engine: Any = Field(
+    liquidity_engine: Optional[Any] = Field(
         None, description="Liquidity engine stage output"
     )
-    structure_validator: Any = Field(
+    structure_validator: Optional[Any] = Field(
         None, description="Structure validator stage output"
     )
-    fvg_locator: Any = Field(
+    fvg_locator: Optional[Any] = Field(
         None, description="FVG locator stage output"
     )
-    risk_manager: Any = Field(
+    risk_manager: Optional[Any] = Field(
         None, description="Risk manager stage output"
     )
-    confluence_stacker: Any = Field(
+    confluence_stacker: Optional[Any] = Field(
         None, description="Confluence stacker stage output"
     )
 
