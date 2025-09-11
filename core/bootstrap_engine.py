@@ -163,6 +163,10 @@ class BootstrapEngine:
                     self.session_manifest = yaml.safe_load(fh) or {}
                 else:
                     self.session_manifest = json.load(fh)
+            logging.getLogger(__name__).info(
+                "session version=%s",
+                self.session_manifest.get("version", "unknown"),
+            )
             return self.session_manifest
         return self.session_manifest
 

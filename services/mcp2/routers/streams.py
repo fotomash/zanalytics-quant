@@ -13,6 +13,24 @@ from ..storage import redis_client
 
 router = APIRouter(prefix="/streams", dependencies=[Depends(verify_api_key)])
 
+
+@router.get("/{stream}")
+async def read_stream(stream: str, limit: int = Query(10, ge=1, le=100)):
+    """Return recent entries from a Redis stream.
+
+    Parameters
+    ----------
+    stream: str
+        Name of the stream without namespace prefix.
+    limit: int
+        Maximum number of entries to return.
+    """
+
+    entries = await redis_client.xrange(stream)
+    recent = entries[-limit:]
+    return [{"id": entry_id, "fields": fields} for entry_id, fields in recent]
+
+
 ALLOWED_TFS = {"1m", "5m", "15m", "1h", "4h", "1d"}
 SYMBOL_RE = re.compile(r"^[A-Za-z0-9._:-]{3,24}$")
 

@@ -4,7 +4,12 @@ pydantic>=2
 redis
 sqlalchemy
 asyncpg
+aiokafka
+
+httpx
 prometheus-client
 prometheus_client==0.22.1
 aiokafka==0.8.1
 openai>=1.30.0
+faiss-cpu==1.7.4
+sentence-transformers

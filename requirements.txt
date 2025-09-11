@@ -29,6 +29,7 @@ pandas==2.2.2
 # pandas-ta temporarily removed from server build to avoid py311/numpy resolver conflicts.
 # If needed for local analytics, install in the dashboard image or a dev venv.
 scipy==1.13.1
+scikit-learn==1.5.1
 prompt-toolkit==3.0.48
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1

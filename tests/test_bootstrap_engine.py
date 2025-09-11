@@ -33,6 +33,7 @@ def test_bootstrap_engine_loads_agents_and_manifest(tmp_path: Path):
     sessions_dir = base_dir / "sessions"
     sessions_dir.mkdir()
     manifest_data = {
+        "version": "1.0",
         "instrument_pair": "EURUSD",
         "ingestion_service": {"source": "test"},
         "enrichment_service": {"level": "basic"},
@@ -77,6 +78,7 @@ def test_execution_validation_config(tmp_path: Path):
     sessions_dir = base_dir / "sessions"
     sessions_dir.mkdir()
     manifest_data = {
+        "version": "1.0",
         "instrument_pair": "EURUSD",
         "timeframe": "M15",
         "topics": {"consume": ["raw"], "produce": "out"},
@@ -100,6 +102,7 @@ def test_sessions_manifest_precedence(tmp_path: Path):
     base_dir = tmp_path
 
     base_manifest = {
+        "version": "1.0",
         "instrument_pair": "BASE",
         "timeframe": "M1",
         "topics": {"consume": ["base"], "produce": "base_out"},
@@ -109,6 +112,7 @@ def test_sessions_manifest_precedence(tmp_path: Path):
     sessions_dir = base_dir / "sessions"
     sessions_dir.mkdir()
     session_manifest = {
+        "version": "1.0",
         "instrument_pair": "SESSION",
         "timeframe": "M5",
         "topics": {"consume": ["session"], "produce": "session_out"},

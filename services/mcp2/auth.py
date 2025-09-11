@@ -6,7 +6,8 @@ security = HTTPBearer(auto_error=False)
 
 
 def _get_expected_key() -> str:
-    return os.environ.get("MCP2_API_KEY", "")
+    """Return expected API key from the environment."""
+    return os.getenv("MCP2_API_KEY", "")
 
 
 async def verify_api_key(

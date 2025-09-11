@@ -8,8 +8,9 @@ import redis
 # Environment configuration
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
-ML_SIGNAL_STREAM = os.getenv("ML_SIGNAL_STREAM", "ml:signals")
-ML_RISK_STREAM = os.getenv("ML_RISK_STREAM", "ml:risk")
+STREAM_VERSION = os.getenv("STREAM_VERSION", "1")
+ML_SIGNAL_STREAM = os.getenv("ML_SIGNAL_STREAM", f"ml:signals:v{STREAM_VERSION}")
+ML_RISK_STREAM = os.getenv("ML_RISK_STREAM", f"ml:risk:v{STREAM_VERSION}")
 
 
 class RedisMLBridge:

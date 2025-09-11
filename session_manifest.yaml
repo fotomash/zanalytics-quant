@@ -1,6 +1,5 @@
-instrument_pair: EURUSD
-timeframe: M15
-topics:
-  consume:
-    - raw-market-data
-  produce: enriched-analysis-payloads  # emits UnifiedAnalysisPayloadV1
+version: "1.0"
+nudges:
+  spring: "Watch for spring setups; patience prevents false breakouts."
+  accumulation: "Accumulation detected; consider scaling in cautiously."
+  default: "Stay disciplined and follow your plan."

@@ -105,7 +105,9 @@ def _camel_to_snake(name: str) -> str:
 def _load_manifest() -> SessionManifest:
     try:
         data = yaml.safe_load(SESSION_MANIFEST.read_text(encoding="utf-8"))
-        return SessionManifest.model_validate(data)
+        manifest = SessionManifest.model_validate(data)
+        logger.info("session version=%s", manifest.version)
+        return manifest
     except (OSError, yaml.YAMLError, ValidationError) as exc:
         logger.error("manifest validation error: %s", exc)
         raise ValueError("invalid session manifest") from exc

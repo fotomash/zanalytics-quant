@@ -84,6 +84,108 @@ services:
     depends_on:
       - traefik
 
+  mt5-raw:
+    build:
+      context: ./backend/mt5
+      dockerfile: Dockerfile
+    container_name: mt5-raw
+    volumes:
+      - ./config:/config
+      - ./mt5_gateway:/opt/mt5_gateway:ro
+    networks:
+      - traefik-public
+      - default
+    env_file:
+      - .env
+    environment:
+      - DNS_PREFIX=mcp1
+    restart: unless-stopped
+    labels:
+      <<: *default-labels
+      # Enable Traefik for this service
+      traefik.enable: true
+      traefik.docker.network: traefik-public
+
+      # Router for vnc.mt5.${domain} (Port 3000)
+      traefik.http.routers.vnc-mt5-http.rule: Host(`${VNC_DOMAIN}`)
+      traefik.http.routers.vnc-mt5-http.entrypoints: http
+      traefik.http.routers.vnc-mt5-http.middlewares: https-redirect
+      traefik.http.routers.vnc-mt5-http.service: vnc-mt5-service
+
+      traefik.http.routers.vnc-mt5-https.rule: Host(`${VNC_DOMAIN}`)
+      traefik.http.routers.vnc-mt5-https.entrypoints: https
+      traefik.http.routers.vnc-mt5-https.tls: true
+      traefik.http.routers.vnc-mt5-https.tls.certresolver: le
+      traefik.http.routers.vnc-mt5-https.service: vnc-mt5-service
+
+      traefik.http.services.vnc-mt5-service.loadbalancer.server.port: 3000
+
+      # API routing moved to dedicated mt5-api service (to avoid conflicts)
+      x-traefik.disabled.api-mt5-http.rule: Host(`${API_DOMAIN}`)
+      x-traefik.disabled.api-mt5-http.entrypoints: http
+      x-traefik.disabled.api-mt5-http.middlewares: https-redirect
+      x-traefik.disabled.api-mt5-http.service: api-mt5-service
+
+      x-traefik.disabled.api-mt5-https.rule: Host(`${API_DOMAIN}`)
+      x-traefik.disabled.api-mt5-https.entrypoints: https
+      x-traefik.disabled.api-mt5-https.tls: true
+      x-traefik.disabled.api-mt5-https.tls.certresolver: le
+      x-traefik.disabled.api-mt5-https.service: api-mt5-service
+    logging: *default-logging
+    depends_on:
+      - traefik
+
+  mt5-managed:
+    build:
+      context: ./backend/mt5
+      dockerfile: Dockerfile
+    container_name: mt5-managed
+    volumes:
+      - ./config:/config
+      - ./mt5_gateway:/opt/mt5_gateway:ro
+    networks:
+      - traefik-public
+      - default
+    env_file:
+      - .env
+    environment:
+      - DNS_PREFIX=mcp2
+    restart: unless-stopped
+    labels:
+      <<: *default-labels
+      # Enable Traefik for this service
+      traefik.enable: true
+      traefik.docker.network: traefik-public
+
+      # Router for vnc.mt5.${domain} (Port 3000)
+      traefik.http.routers.vnc-mt5-http.rule: Host(`${VNC_DOMAIN}`)
+      traefik.http.routers.vnc-mt5-http.entrypoints: http
+      traefik.http.routers.vnc-mt5-http.middlewares: https-redirect
+      traefik.http.routers.vnc-mt5-http.service: vnc-mt5-service
+
+      traefik.http.routers.vnc-mt5-https.rule: Host(`${VNC_DOMAIN}`)
+      traefik.http.routers.vnc-mt5-https.entrypoints: https
+      traefik.http.routers.vnc-mt5-https.tls: true
+      traefik.http.routers.vnc-mt5-https.tls.certresolver: le
+      traefik.http.routers.vnc-mt5-https.service: vnc-mt5-service
+
+      traefik.http.services.vnc-mt5-service.loadbalancer.server.port: 3000
+
+      # API routing moved to dedicated mt5-api service (to avoid conflicts)
+      x-traefik.disabled.api-mt5-http.rule: Host(`${API_DOMAIN}`)
+      x-traefik.disabled.api-mt5-http.entrypoints: http
+      x-traefik.disabled.api-mt5-http.middlewares: https-redirect
+      x-traefik.disabled.api-mt5-http.service: api-mt5-service
+
+      x-traefik.disabled.api-mt5-https.rule: Host(`${API_DOMAIN}`)
+      x-traefik.disabled.api-mt5-https.entrypoints: https
+      x-traefik.disabled.api-mt5-https.tls: true
+      x-traefik.disabled.api-mt5-https.tls.certresolver: le
+      x-traefik.disabled.api-mt5-https.service: api-mt5-service
+    logging: *default-logging
+    depends_on:
+      - traefik
+
   mt5-api:
     image: python:3.11-slim
     container_name: mt5-api
@@ -708,8 +810,9 @@ services:
     environment:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
-      - ML_SIGNAL_STREAM=${ML_SIGNAL_STREAM:-ml:signals}
-      - ML_RISK_STREAM=${ML_RISK_STREAM:-ml:risk}
+      - STREAM_VERSION=${STREAM_VERSION:-1}
+      - ML_SIGNAL_STREAM
+      - ML_RISK_STREAM
     command: sh -lc "pip install --no-cache-dir redis && python services/redis_ml_bridge.py"
     depends_on:
       redis:
@@ -731,7 +834,7 @@ services:
     environment:
       POSTGRES_PASSWORD: postgres
     volumes:
-      - ./services/mcp2/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./services/mcp2/init.sql:/docker-entrypoint-initdb.d/init.sql:ro # initialize docs table
     restart: unless-stopped
     networks:
       - default
