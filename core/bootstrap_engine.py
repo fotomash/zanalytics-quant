@@ -159,13 +159,11 @@ class BootstrapEngine:
         manifest_file = candidate if candidate is not None else self.manifest_path
         if manifest_file.exists():  # pragma: no branch
             with manifest_file.open("r", encoding="utf-8") as fh:
-                self.session_manifest = yaml.safe_load(fh) or {}
-        if self.manifest_path.exists():  # pragma: no branch
-            with self.manifest_path.open("r", encoding="utf-8") as fh:
-                if self.manifest_path.suffix in {".yaml", ".yml"}:
+                if manifest_file.suffix in {".yaml", ".yml"}:
                     self.session_manifest = yaml.safe_load(fh) or {}
                 else:
                     self.session_manifest = json.load(fh)
+            return self.session_manifest
         return self.session_manifest
 
     def _build_configs(self) -> None:
