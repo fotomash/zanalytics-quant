@@ -27,7 +27,7 @@ from dashboard.pages.components.whisper_panel import render_whisper_panel
 from dashboard.pages.components.whisper_timeline import render_whisper_timeline
 from dashboard.pages.components.discipline_posture_panel import render_discipline_posture_panel
 from dashboard.pages.components.market_header import render_market_header
-from dashboard.utils.streamlit_api import inject_glass_css, render_analytics_filters
+from dashboard.utils.streamlit_api import apply_custom_styling, render_analytics_filters
 from datetime import timedelta as _td
 from dashboard.components.behavioral_mirror import make_behavioral_mirror
 from dashboard.pages.components.whisper_panel import render_whisper_panel
@@ -62,7 +62,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-inject_glass_css()
+apply_custom_styling()
 # --- IMAGE BACKGROUND & STYLING (match Home/Macro pages) ---
 import base64
 
