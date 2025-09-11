@@ -1,4 +1,6 @@
 from typing import Any, Dict
+import json
+import uuid
 
 from confluent_kafka import Message
 from pydantic import ValidationError
@@ -26,6 +28,17 @@ def on_message(ctx: Dict[str, Any], msg: Message) -> None:
     tick = incoming.model_dump()
     try:
         payload: UnifiedAnalysisPayloadV1 = build_unified_analysis(tick)
+        score = payload.predictive_analysis.scorer.maturity_score
+        if score >= 0.85:
+            data = tick.get("data", {})
+            alert = {
+                "strategy_name": data.get("strategy_name"),
+                "symbol": payload.symbol,
+                "direction": data.get("direction"),
+                "entry_price": data.get("entry_price"),
+                "payload_id": str(uuid.uuid4()),
+            }
+            ctx["redis"].publish("telegram-alerts", json.dumps(alert))
         serialized = payload.model_dump_json().encode("utf-8")
         ctx["producer"].produce("enriched-analysis-payloads", value=serialized)
         decision = "produced_payload"
