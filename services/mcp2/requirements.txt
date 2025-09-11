@@ -5,3 +5,4 @@ redis
 sqlalchemy
 asyncpg
 prometheus_client==0.22.1
+aiokafka==0.8.1
