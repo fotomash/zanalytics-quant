@@ -1,4 +1,6 @@
 import json
+from unittest.mock import MagicMock
+
 import fakeredis
 
 from risk_management.behavioral_risk_enforcer import BehavioralRiskEnforcer
@@ -15,8 +17,10 @@ POLICIES = {
 
 def test_discipline_reduces_lot(tmp_path):
     (tmp_path / "policies.yaml").write_text(json.dumps(POLICIES))
+    redis_client = fakeredis.FakeStrictRedis(decode_responses=True)
+    redis_client.publish = MagicMock()
     enforcer = BehavioralRiskEnforcer(
-        redis_client=fakeredis.FakeStrictRedis(decode_responses=True),
+        redis_client=redis_client,
         policies_path=str(tmp_path / "policies.yaml"),
     )
     enforcer.redis.set("behavioral_metrics", json.dumps({"discipline_score": 0.3}))
@@ -25,17 +29,35 @@ def test_discipline_reduces_lot(tmp_path):
     assert order["quantity"] == 50
     assert any("discipline" in m.lower() for m in messages)
 
+    redis_client.publish.assert_called_once()
+    channel, payload = redis_client.publish.call_args[0]
+    assert channel == "telegram-alerts"
+    alert = json.loads(payload)
+    assert alert["event"] == "behavioral_risk"
+    assert "discipline" in alert["message"].lower()
+    assert alert["order"]["quantity"] == 50
+
 
 def test_patience_triggers_cooldown(tmp_path):
     (tmp_path / "policies.yaml").write_text(json.dumps(POLICIES))
+    redis_client = fakeredis.FakeStrictRedis(decode_responses=True)
+    redis_client.publish = MagicMock()
     enforcer = BehavioralRiskEnforcer(
-        redis_client=fakeredis.FakeStrictRedis(decode_responses=True),
+        redis_client=redis_client,
         policies_path=str(tmp_path / "policies.yaml"),
     )
     enforcer.redis.set("behavioral_metrics", json.dumps({"patience_index": 0.1}))
-    allowed, _, messages = enforcer.enforce({"quantity": 100})
+    allowed, order, messages = enforcer.enforce({"quantity": 100})
     assert not allowed
     assert any("cooling-off period" in m.lower() for m in messages)
+
+    redis_client.publish.assert_called_once()
+    channel, payload = redis_client.publish.call_args[0]
+    assert channel == "telegram-alerts"
+    alert = json.loads(payload)
+    assert alert["event"] == "behavioral_risk"
+    assert "cooling-off" in alert["message"].lower()
+    assert alert["order"]["quantity"] == 100
 
 
 def test_drawdown_blocks(tmp_path):
