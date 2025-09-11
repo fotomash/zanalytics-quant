@@ -18,13 +18,16 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     unless critical input data is missing.
     """
 
-    df: pd.DataFrame | None = state.get("dataframe")  # type: ignore[assignment]
-    if df is None:
+    df = state.get("dataframe")
+    required_cols = {"open", "high", "low", "close"}
+    if not isinstance(df, pd.DataFrame) or not required_cols.issubset(df.columns):
         state["status"] = "FAIL"
         return state
 
     analyzer = SMCAnalyzer(config)
     results = analyzer.analyze(df)
-    state.update(results)
+    for key, value in results.items():
+        state[key] = value
+
     state["status"] = "PASS"
     return state
