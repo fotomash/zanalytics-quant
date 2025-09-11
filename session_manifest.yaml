@@ -36,3 +36,18 @@ prompt_sources:
   sentiment_pulse: []
   macro_alignment: []
   threshold_sweep: []
+
+  spring: "Explore whether spring setups are emerging and how patience might prevent false breakouts."
+  accumulation: "If accumulation is detected, how might you scale in cautiously?"
+  default: "How might you stay disciplined and follow your plan?"
+whisperer_prompts:
+  wyckoff_simulation: "How might we run a Wyckoff simulation for {ticker}?"
+  risk_ensemble: "How might we generate a risk ensemble for {portfolio}?"
+  behavioral_trace: "How might we analyze the behavioral trace for {entity}?"
+  liquidity_probe: "How might we perform a liquidity probe near {price_level}?"
+  volatility_snapshot: "How might we capture a volatility snapshot for {asset}?"
+  mean_reversion_insight: "Explore whether there is a mean reversion insight for {series}."
+  order_flow_map: "How might we render an order flow map for {market}?"
+  sentiment_pulse: "Explore whether the sentiment pulse in {sector} offers insight."
+  macro_alignment: "How might we evaluate macro alignment with {indicator}?"
+  threshold_sweep: "Explore whether to execute a threshold sweep for {parameter}."
