@@ -1,3 +1,5 @@
+"""Tests for the :class:`~core.semantic_mapping_service.SemanticMappingService`."""
+
 import yaml
 from core.semantic_mapping_service import SemanticMappingService
 
