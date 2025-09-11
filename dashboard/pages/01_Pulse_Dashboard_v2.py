@@ -288,6 +288,24 @@ def apply_advanced_styling() -> str:
         padding: 1.5rem;
         margin: 1rem 0;
     }
+    /* Metric cards */
+    .metric-card {
+        background-color: #1F2937;
+        border: 1px solid #374151;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+    .metric-card:hover {
+        border-color: #4B5563;
+    }
+    /* Whisperer box */
+    .ask-whisperer {
+        background-color: #1F2937;
+        padding: 1rem;
+        border-radius: 0.5rem;
+    }
     </style>
     """
 
