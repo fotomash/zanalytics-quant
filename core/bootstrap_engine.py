@@ -47,6 +47,14 @@ class RiskConfig:
     timeframe: str
 
 
+@dataclass
+class ExecutionValidationConfig:
+    """Configuration for execution confidence checks."""
+
+    confidence_threshold: float = 0.0
+    fallback_limits: Dict[str, Any] | None = None
+
+
 class BootstrapEngine:
     """Bootstraps environment, loads agents, and runs message loops."""
 
@@ -83,6 +91,7 @@ class BootstrapEngine:
         self.session_manifest: Dict[str, Any] = {}
         self.kafka_config: Optional[KafkaConfig] = None
         self.risk_config: Optional[RiskConfig] = None
+        self.execution_validation_config: Optional[ExecutionValidationConfig] = None
         self.config_registry: Dict[str, Any] = {}
 
     # ------------------------------------------------------------------
@@ -190,6 +199,22 @@ class BootstrapEngine:
         self.config_registry["kafka"] = self.kafka_config
         self.config_registry["risk"] = self.risk_config
 
+        self._load_execution_validation()
+
+    def _load_execution_validation(self) -> None:
+        """Load execution validation settings from config file."""
+
+        path = self.base_dir / "config" / "execution_validation.yaml"
+        if not path.exists():
+            return
+        with path.open("r", encoding="utf-8") as fh:
+            data = yaml.safe_load(fh) or {}
+        self.execution_validation_config = ExecutionValidationConfig(
+            confidence_threshold=float(data.get("confidence_threshold", 0.0)),
+            fallback_limits=data.get("fallback_limits", {}),
+        )
+        self.config_registry["execution_validation"] = self.execution_validation_config
+
     def _load_agents(self) -> None:
         """Populate ``agent_registry`` from the provided registry mapping."""
 
@@ -218,6 +243,14 @@ class BootstrapEngine:
         if not self.agent_registry:
             self._load_agents()
         return self.agent_registry[agent_name]
+
+    @property
+    def execution_confidence_threshold(self) -> float | None:
+        """Expose configured execution confidence threshold."""
+
+        if self.execution_validation_config is None:
+            return None
+        return self.execution_validation_config.confidence_threshold
 
     def run(
         self,
@@ -249,5 +282,10 @@ class BootstrapEngine:
                 producer.flush()
 
 
-__all__ = ["BootstrapEngine", "KafkaConfig", "RiskConfig"]
+__all__ = [
+    "BootstrapEngine",
+    "KafkaConfig",
+    "RiskConfig",
+    "ExecutionValidationConfig",
+]
 
