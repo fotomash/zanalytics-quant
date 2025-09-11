@@ -8,6 +8,8 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [What's Inside](#whats-inside)
 - [Architecture](#architecture)
 - [System Overview](#system-overview)
+- [pulse-api](#pulse-api)
+- [tick-to-bar](#tick-to-bar)
 - [Quick Start: MCP2 Metrics & Streams](#quick-start-mcp2-metrics--streams)
 - [Getting Started – Quick Launch](#getting-started-quick-launch)
 - [Environment Variables](#environment-variables)
@@ -80,6 +82,43 @@ The Zanalytics Quant platform is architected to meet the rigorous demands of pro
 
 This modular design facilitates secure separation of concerns, easy extensibility for new features or data sources, and robust performance for professional quant workflows.
 
+## pulse-api
+
+**Purpose**: Exposes the Pulse runtime over HTTP so other services can request confluence scores, perform risk checks, and append journal entries.
+
+**Build & Run**
+
+```bash
+docker compose -f docker-compose.pulse.yml up --build pulse-api
+```
+
+**Required Environment Variables**
+
+- `PULSE_CONFIG` – path to the Pulse YAML configuration.
+- `PULSE_API_KEY` – API key expected in the `X-API-Key` request header.
+
+See [docker-compose.pulse.yml](docker-compose.pulse.yml) for a full example stack.
+
+## tick-to-bar
+
+**Purpose**: Aggregates raw tick streams into OHLCV bars and publishes them to Redis or downstream consumers.
+
+**Build & Run**
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.override.yml up --build tick-to-bar
+```
+
+**Required Environment Variables**
+
+- `REDIS_HOST` – Redis hostname.
+- `REDIS_PORT` – Redis port.
+- `SYMBOLS` – comma-separated instruments to process.
+- `KAFKA_BOOTSTRAP_SERVERS` – Kafka broker addresses.
+- `KAFKA_TICKS_TOPIC` – source topic for tick data.
+- `KAFKA_GROUP_ID` – consumer group identifier.
+
+See [docker-compose.override.yml](docker-compose.override.yml) (extends [docker-compose.yml](docker-compose.yml)) for configuration details.
 
 ## Quick Start: MCP2 Metrics & Streams
 
