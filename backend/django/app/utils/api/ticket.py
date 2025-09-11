@@ -24,29 +24,33 @@ def history_deals_get(from_date: datetime, to_date: datetime, position: int = No
             params['position'] = position
             
         url = f"{BASE_URL}/history_deals_get"
-        response = requests.get(url, params=params)
+        response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
         
         return response.json()
     except Exception as e:
         error_msg = f"Exception fetching history deals: {e}\n{traceback.format_exc()}"
         logger.error(error_msg)
+        return None
 
 def history_orders_get(ticket: int) -> Dict:
     try:
         params = {'ticket': ticket}
             
         url = f"{BASE_URL}/history_orders_get"
-        response = requests.get(url, params=params)
+        response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
         
         return response.json()
     except Exception as e:
         error_msg = f"Exception fetching history orders for ticket {ticket}: {e}\n{traceback.format_exc()}"
         logger.error(error_msg)
+        return None
 
 def get_deal_from_ticket(ticket: int, from_date: datetime, to_date: datetime) -> Dict:
     # Retrieve deals using the specified date range and position
+    deals = history_deals_get(from_timestamp, to_timestamp, position=ticket)
+    if deals is None or len(deals) == 0:
     deals = history_deals_get(from_date, to_date, position=ticket)
     if not deals:
         error_msg = f"No deal history found for position ticket {ticket} between {from_date} and {to_date}."
