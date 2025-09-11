@@ -50,29 +50,88 @@ payload for API communication.
 ## Submodels
 
 ### MarketContext
-- `symbol`: instrument identifier
-- `timeframe`: timeframe for the context (e.g. `1m`, `1h`)
-- `session`: optional session label
-- `trend`: optional textual trend description (`bullish`, `bearish`)
-- `volatility`: optional volatility measure such as ATR
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `symbol` | `str` | Instrument identifier |
+| `timeframe` | `str` | Timeframe for the context (e.g. `1m`, `1h`) |
+| `session` | `Optional[str]` | Trading session label |
+| `trend` | `Optional[str]` | Textual trend description (e.g. `bullish`) |
+| `volatility` | `Optional[float]` | Volatility measure such as ATR |
 
 ### TechnicalIndicators
-- `rsi`, `macd`, `vwap`: common indicator values
-- `moving_averages`: mapping of moving average names to values
-- `extras`: additional indicator values keyed by name
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `rsi` | `Optional[float]` | Relative Strength Index value |
+| `macd` | `Optional[float]` | Moving Average Convergence Divergence value |
+| `vwap` | `Optional[float]` | Volume Weighted Average Price |
+| `moving_averages` | `Dict[str, float]` | Mapping of moving average names to values |
+| `extras` | `Dict[str, Any]` | Additional indicator values keyed by name |
 
 ### SMCAnalysis
-- `market_structure`: textual market structure label
-- `poi`: list of points of interest
-- `liquidity_pools`: list of liquidity pool identifiers
-- `notes`: optional free-form notes
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `market_structure` | `Optional[str]` | Textual market structure label |
+| `poi` | `List[str]` | Points of interest |
+| `liquidity_pools` | `List[str]` | Identifiers of liquidity pools |
+| `notes` | `Optional[str]` | Free-form notes |
 
 ### WyckoffAnalysis
-- `phase`: current Wyckoff phase
-- `events`: list of Wyckoff events
-- `notes`: optional notes
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `phase` | `Optional[str]` | Current Wyckoff phase |
+| `events` | `List[str]` | Wyckoff events observed |
+| `notes` | `Optional[str]` | Additional notes |
 
 ### MicrostructureAnalysis
-- `effective_spread`, `realized_spread`, `price_impact`: trade microstructure metrics
-- `liquidity_score`, `toxicity_score`: derived scores
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `effective_spread` | `Optional[float]` | Effective spread metric |
+| `realized_spread` | `Optional[float]` | Realized spread metric |
+| `price_impact` | `Optional[float]` | Estimated price impact |
+| `liquidity_score` | `Optional[float]` | Derived liquidity score |
+| `toxicity_score` | `Optional[float]` | Derived toxicity score |
+
+## Example JSON
+
+Below is the JSON payload produced by `payload.model_dump()` using the example
+creation snippet above:
+
+```json
+{
+  "symbol": "BTCUSD",
+  "timeframe": "1m",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "market_context": {
+    "symbol": "BTCUSD",
+    "timeframe": "1m"
+  },
+  "technical_indicators": {
+    "rsi": 55.2,
+    "moving_averages": {},
+    "extras": {}
+  },
+  "smc": {
+    "poi": [],
+    "liquidity_pools": []
+  },
+  "wyckoff": {
+    "events": []
+  },
+  "microstructure": {},
+  "extras": {}
+}
+```
+
+## Usage Guidelines
+
+- All timestamps should be UTC and ISO 8601 formatted when serialized.
+- Optional fields may be omitted; consumers should handle their absence.
+- Use the `extras` dictionaries for experimental or forward-compatible keys.
+- When extending the schema, prefer adding to submodels rather than top-level
+  fields to keep the payload organized.
 
