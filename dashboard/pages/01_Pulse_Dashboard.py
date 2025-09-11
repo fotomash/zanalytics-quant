@@ -379,7 +379,12 @@ def secs_to_hms(seconds: int) -> str:
     return f"{h:d}:{m:02d}:{s:02d}"
 
 # ---------------- UI ----------------
-st.set_page_config(page_title='Pulse – Intraday', layout='wide')
+st.set_page_config(
+    page_title='Pulse – Intraday',
+    page_icon='🫀',
+    layout='wide',
+    initial_sidebar_state='expanded'
+)
 
 _img_base64 = get_image_as_base64("image_af247b.jpg")
 if _img_base64:
