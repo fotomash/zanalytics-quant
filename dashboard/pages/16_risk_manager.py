@@ -19,6 +19,9 @@ from dashboard.utils.user_prefs import render_favorite_selector
 from dashboard.utils.streamlit_api import safe_api_call
 from dashboard.utils.streamlit_api import render_analytics_filters
 import base64
+from pathlib import Path
+import yaml
+from dashboard.components.confluence_display import render_confluence_gates
 
 # Safe MT5 import
 try:
@@ -31,6 +34,12 @@ except ImportError:
 # Load environment variables
 
 load_dotenv()
+
+try:
+    with open(Path(__file__).resolve().parents[2] / "pulse_dashboard_config.yaml") as f:
+        CONFLUENCE_WEIGHTS = yaml.safe_load(f).get("confluence_weights", {}) or {}
+except Exception:
+    CONFLUENCE_WEIGHTS = {}
 
 # Optional baseline equity override (defaults to 200,000 if not provided)
 # You can override via MT5_BASELINE_EQUITY or PULSE_BASELINE_EQUITY in .env
@@ -1098,15 +1107,13 @@ def render_pulse_tiles(pulse_manager: PulseRiskManager):
             confluence_data = {}
         score = confluence_data.get("score", 0)
         grade = confluence_data.get("grade", "Unknown")
-        
-        st.markdown(f"""
-        <div class="pulse-tile">
-            <h4>Confluence Score</h4>
-            <h2>{score}/100</h2>
-            <p>Grade: {grade}</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
+
+        render_confluence_gates(
+            confluence_data.get("component_scores", {}),
+            CONFLUENCE_WEIGHTS,
+        )
+        st.caption(f"Grade: {grade}")
+
         if st.button("🔍 Explain Score", key="explain_confluence"):
             with st.expander("Score Breakdown", expanded=True):
                 reasons = confluence_data.get("reasons", [])
