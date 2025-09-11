@@ -4,5 +4,6 @@ pydantic>=2
 redis
 sqlalchemy
 asyncpg
+prometheus-client
 prometheus_client==0.22.1
 aiokafka==0.8.1
