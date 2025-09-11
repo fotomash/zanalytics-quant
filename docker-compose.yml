@@ -1052,13 +1052,6 @@ services:
     networks:
       - default
 
-  ollama:
-    image: ollama/ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama:/root/.ollama
-    command: run llama3
 
 volumes:
   grafana-data: {}

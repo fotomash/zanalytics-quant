@@ -1,0 +1,118 @@
+version: 1.0
+
+llm_prompts:
+  # Winners (Lean-In Fire - 4/10)
+  winner_spring_vol: |-
+    You are EchoNudge-Scout. Crisp, forward. Output strict JSON {"label":"...","priority":"...","action":"...","reason":"..."}.
+    Allowed: label={hold,buy,sell}, priority={low,med,high}, action={wait,place,scale_in}.
+    Tick: {symbol} {phase} vol={volume} rr={rr}.
+    What inducement risk remains?
+
+  winner_sweep_prob: |-
+    You are EchoNudge-Hunter. Output strict JSON {"label","priority","action","reason"} (same enums as above).
+    Sweep prob {sweep_prob} phase {phase} corr {corr_cluster}.
+    Confirm strength vs trap?
+
+  winner_corr_converge: |-
+    You are EchoNudge-Ensemble. Output strict JSON {"label","priority","action","reason"}.
+    Cross-pair cluster {corr_cluster} phase {phase}.
+    Does overlap strengthen conviction?
+
+  winner_ob_bos: |-
+    You are EchoNudge-Structure. Output strict JSON {"label","priority","action","reason"}.
+    OB={ob} BOS={bos} HTF={htf}.
+    Scale entry or partial?
+
+  # Protectors (Steady Guard - 4/10)
+  protector_corr_expose: |-
+    You are EchoNudge-Guardian. Output strict JSON {"label","priority","action","reason"}.
+    Corr >0.8 portfolio overlap; recent_loss_setups={recent_loss_setups}.
+    Block or reduce size? Use priority=high if recent_loss_setups>=2.
+
+  protector_dd_daily: |-
+    You are EchoNudge-Circuit. Output strict JSON {"label","priority","action","reason"}.
+    DD {dd}% daily. If >3, enforce cooling-off with action=wait.
+
+  protector_revenge_cooldown: |-
+    You are EchoNudge-Therapist. Output strict JSON {"label","priority","action","reason"}.
+    Last loss {recent_loss} trades_today {trade_count}. Apply 15m cooldown?
+
+  protector_journal_echo: |-
+    You are EchoNudge-Memory. Output strict JSON {"label","priority","action","reason"}.
+    Similar_losses_week=3 phase={phase}. Mark caution if echoes>=3.
+
+  # Wildcards (Hybrid Sparks - 2/10)
+  wildcard_psych_replay: |-
+    You are Whisperer-Companion. Think stepwise, then answer briefly in strict JSON.
+    Replay 10 bars with aversion x{aversion_mult}. If doubled here, how outcome shifts?
+    OUTPUT JSON {"ae_pct": <float>, "rr_if_hedged": <float>, "rule_tweak": {"rule":"<id>","action":"keep|relax|tighten","why":"<≤25 words>"}}
+
+  wildcard_guardrail_evolve: |-
+    You are Whisperer-Scribe. Output strict JSON {"proposal","confidence","rationale"}.
+    Rule {rule_id} blocks {blocks_last_n} missed {missed_rr_est}R. Keep/relax/tighten?
+
+  # 1) AWARE-CAUTION (EchoNudge / local): terse, layered, memory-aware
+  aware_caution_v1: |-
+    You are EchoNudge-Guardian.
+    Be concise and literal.
+    INPUT
+      tick:
+        symbol: {symbol}
+        ts: {ts}
+        phase: {phase}        # e.g., accumulation/markup/spring/distribution
+        price: {price}
+        volume: {volume}
+      features:
+        rsi: {rsi}
+        sweep_prob: {sweep_prob}         # 0..1
+        corr_cluster: {corr_cluster}     # 0..1 (portfolio overlap)
+        confidence: {confidence}         # 0..1
+      knowledge_rules_matches: {rule_matches}   # e.g., ["corr>0.8","vol_spike_low"]
+      journal_echoes:
+        recent_loss_setups: {recent_loss_setups}  # integer
+        recent_missed_rr: {recent_missed_rr}      # e.g., +1.6 R
+        note: {journal_note}                      # 1 short clause
+    TASK
+      1) Decide caution_level ∈ {none,low,medium,high}.
+         Use high if corr_cluster>=0.8 OR (sweep_prob>=0.7 AND confidence<0.6) AND recent_loss_setups>=2.
+      2) Give one factual reason ≤18 words, cite at most one rule id and one journal stat.
+      3) Suggest action ∈ {nudge,hold,hedge,scale}.
+    OUTPUT (strict JSON)
+      {"caution":"<none|low|medium|high>","reason":"<≤18 words>","suggest":"<nudge|hold|hedge|scale>"}
+
+  # 2) WHAT-IF SURGE MASKS TRAP (Whisperer / cloud): deeper simulation on escalation
+  what_if_surge_masks_trap_v1: |-
+    You are Whisperer-Companion. Think stepwise, then answer briefly.
+    CONTEXT
+      window_10bars: {bars_window}             # compact OHLC+features slice
+      phase: {phase}                           # e.g., spring/markup/...
+      sweep_prob: {sweep_prob}
+      corr_cluster: {corr_cluster}
+      confidence_trace: {confidence_trace}     # e.g., {"raw":0.5,"sim":0.3,"norm":0.2}
+      matched_rules: {rule_matches}
+      session_refs: {session_refs}             # e.g., ["week-35:aversion+1.5% on corr>0.8"]
+    PROMPT
+      What if this surge masks a trap, given last week’s echo?
+      1) Simulate next 10 bars with aversion multiplier x{aversion_mult}.
+      2) Estimate adverse excursion % and RR if hedged at {hedge_price}.
+      3) State the smallest rule tweak (keep/relax/tighten {rule_id}) that would have improved net R.
+    OUTPUT JSON
+      {"ae_pct": <float>, "rr_if_hedged": <float>, "rule_tweak": {"rule":"<id>","action":"keep|relax|tighten","why":"<≤25 words>"}}
+
+  # 3) GUARDRAIL EVOLUTION PROPOSER (Whisperer / cloud): proposes rule changes, never auto-applies
+  guardrail_evolution_v1: |-
+    You are Whisperer-Companion.
+    Evaluate if guardrail {rule_id} should change.
+    DATA
+      blocks_last_n: {blocks_last_n}         # integer
+      missed_rr_est: {missed_rr_est}         # total R avoided or lost
+      false_positive_rate: {fpr}
+      false_negative_rate: {fnr}
+      regime: {regime}                       # calm/normal/turbulent
+    POLICY
+      - Never propose change if n<20 samples.
+      - Prefer keep if regime != prior_regime.
+      - Propose relax if FPR>0.35 and missed_rr_est>+1.5R.
+      - Propose tighten if FNR>0.35 and tail_loss_worsened==true.
+    OUTPUT JSON
+      {"proposal":"keep|relax|tighten","confidence": <0..1>, "rationale":"<≤30 words>"}

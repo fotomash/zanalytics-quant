@@ -275,6 +275,14 @@ Examples of real-time viewing, enrichment jobs, and troubleshooting. [docs/user_
 
 Extend scripts in `utils/` to build custom features and dashboards. [Workflow](docs/data_enrichment_customization.md).
 
+## Session Manifest Prompts
+
+The session manifest bundles reusable Whisperer prompts:
+
+- `aware_caution_v1` — Reinforces situational awareness and caution during volatile phases.
+- `what_if_surge_masks_trap_v1` — Considers whether a rapid surge might conceal a trap.
+- `guardrail_evolution_v1` — Guides adjustments to risk guardrails as market conditions change.
+
 ## Confidence Trace Matrix
 
 `confidence_trace_matrix.json` at the repository root configures staged confidence scoring. Each stage includes a numeric `weight` and a `bounds` object with `min` and `max` values:

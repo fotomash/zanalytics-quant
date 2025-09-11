@@ -76,6 +76,7 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List, Tuple, Optional
 # ... other imports
+import requests
 
 # --- Ensure project root and /core directory are on PYTHONPATH ---
 import sys, os
@@ -1926,43 +1927,75 @@ These documents expand on engineered-liquidity traps, Wyckoff sweeps, and the VP
 if __name__ == "__main__":
     st.sidebar.title("🧬 Quantum Configuration")
 
-    # --- Resolve data folder from Streamlit secrets first, then fallback to .streamlit/secrets.toml ---
-    try:
-        # Primary: Streamlit-cloud style secrets
-        tick_files_directory = st.secrets["raw_data_directory"]
-        st.sidebar.success(f"Data Source:\n{tick_files_directory}")
-    except Exception:
-        # Local fallback: .streamlit/secrets.toml at project root
-        script_dir = os.path.dirname(__file__)
-        project_root = os.path.abspath(os.path.join(script_dir, os.pardir))
-        secrets_path = os.path.join(project_root, ".streamlit", "secrets.toml")
+    # Data source selector
+    source = st.sidebar.selectbox("Data Source", ["MT5 API", "CSV/TSV"], index=0)
 
-        if os.path.exists(secrets_path):
-            import toml  # local import only if needed
-
-            secrets = toml.load(secrets_path)
-            tick_files_directory = secrets.get("raw_data_directory", "")
-            if tick_files_directory:
-                st.sidebar.success(f"Data Source:\n{tick_files_directory}")
-            else:
-                st.sidebar.error("`raw_data_directory` not found in .streamlit/secrets.toml")
+    df: Optional[pd.DataFrame] = None
+    selected_file: str = ""
+    if source == "MT5 API":
+        MT5_API_URL = st.secrets.get("MT5_API_URL", os.getenv("MT5_API_URL", "http://localhost:5001"))
+        symbol = st.sidebar.text_input("Symbol", value="EURUSD")
+        limit = st.sidebar.slider("Tick Limit", min_value=100, max_value=10000, value=2000, step=100)
+        st.sidebar.info(f"MT5 API: {MT5_API_URL}")
+        with st.spinner("🧬 Fetching ticks from MT5 API..."):
+            try:
+                resp = requests.get(f"{MT5_API_URL.rstrip('/')}/ticks", params={"symbol": symbol, "limit": limit}, timeout=5)
+                resp.raise_for_status()
+                data = resp.json()
+                if isinstance(data, dict) and "ticks" in data:
+                    ticks = data["ticks"]
+                else:
+                    ticks = data
+                df = pd.DataFrame(ticks)
+                # Normalize columns
+                if "time" in df.columns:
+                    df["timestamp"] = pd.to_datetime(df["time"], unit="s", utc=True)
+                elif "ts" in df.columns:
+                    df["timestamp"] = pd.to_datetime(df["ts"], unit="s", utc=True)
+                else:
+                    if "timestamp" in df.columns:
+                        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+                if "bid" not in df.columns or "ask" not in df.columns:
+                    st.error("MT5 ticks missing bid/ask fields")
+                    st.stop()
+                if "spread" not in df.columns:
+                    df["spread"] = (df["ask"] - df["bid"]).abs()
+                df = df.sort_values("timestamp").reset_index(drop=True)
+                selected_file = f"MT5:{symbol}"
+            except Exception as e:
+                st.error(f"MT5 /ticks error: {e}")
                 st.stop()
-        else:
-            st.sidebar.error("No Streamlit secrets available and fallback .streamlit/secrets.toml not found.")
+
+    if source == "CSV/TSV":
+        # --- Resolve data folder from Streamlit secrets first, then fallback to .streamlit/secrets.toml ---
+        try:
+            tick_files_directory = st.secrets["raw_data_directory"]
+            st.sidebar.success(f"Data Source:\n{tick_files_directory}")
+        except Exception:
+            script_dir = os.path.dirname(__file__)
+            project_root = os.path.abspath(os.path.join(script_dir, os.pardir))
+            secrets_path = os.path.join(project_root, ".streamlit", "secrets.toml")
+            if os.path.exists(secrets_path):
+                import toml  # local import only if needed
+                secrets = toml.load(secrets_path)
+                tick_files_directory = secrets.get("raw_data_directory", "")
+                if tick_files_directory:
+                    st.sidebar.success(f"Data Source:\n{tick_files_directory}")
+                else:
+                    st.sidebar.error("`raw_data_directory` not found in .streamlit/secrets.toml")
+                    st.stop()
+            else:
+                st.sidebar.error("No Streamlit secrets and no .streamlit/secrets.toml found.")
+                st.stop()
+
+        valid_files = [f for f in os.listdir(tick_files_directory)
+                       if 'ticks' in f.lower() and f.endswith(('.csv', '.txt')) and not f.startswith('._')]
+        if not valid_files:
+            st.sidebar.error("No tick files found")
             st.stop()
-
-    # FIXED: Only show files with "ticks" in the name
-    valid_files = [f for f in os.listdir(tick_files_directory)
-                   if 'ticks' in f.lower() and f.endswith(('.csv', '.txt')) and not f.startswith('._')]
-
-    if not valid_files:
-        st.sidebar.error("No tick files found")
-        st.stop()
-
-    selected_file = st.sidebar.selectbox("Select Tick Data", sorted(valid_files))
-    file_path = os.path.join(tick_files_directory, selected_file)
-    # DEBUG: show the resolved file path so we know exactly which file is being ingested
-    st.sidebar.info(f"📂 Reading tick file: {file_path}")
+        selected_file = st.sidebar.selectbox("Select Tick Data", sorted(valid_files))
+        file_path = os.path.join(tick_files_directory, selected_file)
+        st.sidebar.info(f"📂 Reading tick file: {file_path}")
 
     # Advanced options
     st.sidebar.markdown("### Advanced Settings")
@@ -1978,9 +2011,10 @@ if __name__ == "__main__":
 
     # Load and analyze data
     with st.spinner("🧬 Running quantum analysis..."):
-        # Now ingesting standard comma‑separated CSV files
-        df = pd.read_csv(file_path, encoding_errors='ignore')  # default sep=','
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        # Load CSV if not preloaded from MT5 API
+        if df is None:
+            df = pd.read_csv(file_path, encoding_errors='ignore')  # default sep=','
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
         # Ensure data is in chronological order (oldest → newest) so all rolling/diff
         # calculations operate on the most‑recent bars instead of the earliest ones.
         df = df.sort_values('timestamp').reset_index(drop=True)
@@ -1997,6 +2031,44 @@ if __name__ == "__main__":
 
         # FIXED: Preprocess data to ensure all columns exist
         df = analyzer.preprocess_data(df)
+
+        # Uptick / Downtick and Cumulative Delta quick viz
+        try:
+            if 'price_mid' not in df.columns:
+                df['price_mid'] = (df['bid'] + df['ask']) / 2
+            df['tick_dir'] = np.sign(df['price_mid'].diff()).fillna(0).astype(int)
+            vol_col = 'inferred_volume' if 'inferred_volume' in df.columns else ('volume' if 'volume' in df.columns else None)
+            if vol_col:
+                df['delta'] = df['tick_dir'] * df[vol_col].fillna(0)
+            else:
+                df['delta'] = df['tick_dir']
+            df['cum_delta'] = df['delta'].cumsum()
+            df['uptick_ratio_100'] = (df['tick_dir'] > 0).rolling(100, min_periods=10).mean()
+
+            import plotly.graph_objects as go
+            from plotly.subplots import make_subplots
+
+            fig_ud = make_subplots(specs=[[{"secondary_y": True}]])
+            fig_ud.add_trace(
+                go.Scatter(x=df.index, y=df['price_mid'], name='Mid Price', line=dict(color='white', width=1)),
+                secondary_y=False,
+            )
+            fig_ud.add_trace(
+                go.Scatter(x=df.index, y=df['cum_delta'], name='Cumulative Delta', line=dict(color='deepskyblue', width=1)),
+                secondary_y=True,
+            )
+            fig_ud.add_trace(
+                go.Scatter(x=df.index, y=df['uptick_ratio_100'], name='Uptick Ratio (100)', line=dict(color='orange', width=1, dash='dot')),
+                secondary_y=True,
+            )
+            fig_ud.update_layout(height=320, template='plotly_dark', margin=dict(l=10, r=10, t=30, b=10))
+            fig_ud.update_yaxes(title_text="Price", secondary_y=False)
+            fig_ud.update_yaxes(title_text="Δ / Ratio", secondary_y=True)
+
+            with st.expander("🔼 Upticks & Cumulative Delta", expanded=False):
+                st.plotly_chart(fig_ud, use_container_width=True)
+        except Exception as _e:
+            st.info("Uptick/Delta visualization unavailable (data missing)")
 
         # Heuristic sanity‑check: does this look like real tick data?
         is_mock, diag = analyzer.detect_mock_data(df)
