@@ -1,6 +1,10 @@
 import os
 import json
 from datetime import datetime, timezone
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+from prometheus_client import Counter, CONTENT_TYPE_LATEST, generate_latest
 
 try:
     from confluent_kafka import Consumer  # type: ignore
@@ -21,6 +25,14 @@ PG_DSN = os.getenv(
     "PG_DSN", "postgresql://postgres:timescale@timescaledb:5432/postgres"
 )
 
+payloads_written_to_db_total = Counter(
+    "payloads_written_to_db_total", "Total payloads written to DB"
+)
+
+# global references used by the health endpoint
+kafka_consumer = None
+pg_conn = None
+
 
 def parse_ts(value: object) -> datetime:
     """Convert various timestamp representations to datetime."""
@@ -34,25 +46,72 @@ def parse_ts(value: object) -> datetime:
     return datetime.now(timezone.utc)
 
 
+def check_kafka() -> bool:
+    if kafka_consumer is None:
+        return False
+    try:
+        kafka_consumer.list_topics(timeout=5)
+        return True
+    except Exception:  # pragma: no cover - best effort
+        return False
+
+
+def check_pg() -> bool:
+    if pg_conn is None:
+        return False
+    try:
+        with pg_conn.cursor() as cur:  # type: ignore[arg-type]
+            cur.execute("SELECT 1")
+        return True
+    except Exception:  # pragma: no cover - best effort
+        return False
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:  # pragma: no cover - simple I/O
+        if self.path == "/health":
+            status = 200 if check_kafka() and check_pg() else 500
+            self.send_response(status)
+            self.end_headers()
+            self.wfile.write(b"ok" if status == 200 else b"unhealthy")
+        elif self.path == "/metrics":
+            self.send_response(200)
+            self.send_header("Content-Type", CONTENT_TYPE_LATEST)
+            self.end_headers()
+            self.wfile.write(generate_latest())
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+
+def run_http_server() -> None:
+    server = HTTPServer(("0.0.0.0", 8000), Handler)
+    server.serve_forever()
+
+
 def main() -> None:
     if Consumer is None or psycopg2 is None:
         print("Missing dependencies for consumer; exiting")
         return
 
-    c = Consumer(
+    global kafka_consumer, pg_conn
+
+    kafka_consumer = Consumer(
         {
             "bootstrap.servers": BROKERS,
             "group.id": GROUP,
             "auto.offset.reset": "latest",
         }
     )
-    c.subscribe([TOPIC])
+    kafka_consumer.subscribe([TOPIC])
 
-    conn = psycopg2.connect(PG_DSN)
-    cur = conn.cursor()
+    pg_conn = psycopg2.connect(PG_DSN)
+    cur = pg_conn.cursor()
+
+    threading.Thread(target=run_http_server, daemon=True).start()
     try:
         while True:
-            msg = c.poll(1.0)
+            msg = kafka_consumer.poll(1.0)
             if msg is None or msg.error():
                 continue
             try:
@@ -67,17 +126,18 @@ def main() -> None:
                     "INSERT INTO enriched_data (ts, symbol, payload) VALUES (%s, %s, %s)",
                     (ts, symbol, Json(payload)),
                 )
-                conn.commit()
+                pg_conn.commit()
+                payloads_written_to_db_total.inc()
             except Exception:
-                conn.rollback()
+                pg_conn.rollback()
                 continue
     finally:
         try:
-            c.close()
+            kafka_consumer.close()
         except Exception:
             pass
         try:
-            conn.close()
+            pg_conn.close()
         except Exception:
             pass
 
