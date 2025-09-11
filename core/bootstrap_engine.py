@@ -164,8 +164,8 @@ class BootstrapEngine:
                 else:
                     self.session_manifest = json.load(fh)
             logging.getLogger(__name__).info(
-                "session prompt_version=%s",
-                self.session_manifest.get("prompt_version", "unknown"),
+                "session version=%s",
+                self.session_manifest.get("version", "unknown"),
             )
             return self.session_manifest
         return self.session_manifest

@@ -57,7 +57,7 @@ except Exception:  # pragma: no cover
 
 router = APIRouter(prefix="/llm", dependencies=[Depends(verify_api_key)], tags=["llm"])
 
-PROMPT_VERSION = "1"
+VERSION = "1.0"
 
 
 class WhisperRequest(BaseModel):
@@ -68,7 +68,7 @@ class WhisperRequest(BaseModel):
 
 class ResponseMeta(BaseModel):
     endpoint: str
-    prompt_version: str
+    version: str
 
 
 class WhisperResponse(BaseModel):
@@ -116,7 +116,7 @@ async def _suggest(body: WhisperRequest, endpoint: str, nudges: bool) -> Whisper
             risk="Respect cooldown; size <= max_risk; avoid news whips.",
             action="No trade yet; set alerts at key levels; review after next bar.",
             journal="Context logged; hypothesis: momentum fragile; watch liquidity sweeps.",
-            meta=ResponseMeta(endpoint=endpoint, prompt_version=PROMPT_VERSION),
+            meta=ResponseMeta(endpoint=endpoint, version=VERSION),
         )
 
     try:
@@ -148,7 +148,7 @@ async def _suggest(body: WhisperRequest, endpoint: str, nudges: bool) -> Whisper
         risk=extract("risk"),
         action=extract("action"),
         journal=extract("journal"),
-        meta=ResponseMeta(endpoint=endpoint, prompt_version=PROMPT_VERSION),
+        meta=ResponseMeta(endpoint=endpoint, version=VERSION),
     )
 
 
