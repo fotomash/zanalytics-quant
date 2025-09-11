@@ -1,6 +1,14 @@
 import requests
 import json
 from datetime import datetime
+from typing import List
+
+from services.mcp2.vector.embeddings import embed
+
+
+def embed_query(query: str) -> List[float]:
+    """Return an embedding vector for the provided query."""
+    return embed(query)
 
 class MicrostructureLLMConnector:
     """Connect dashboard to LLM for analysis"""
