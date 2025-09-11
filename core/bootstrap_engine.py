@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 from agents.registry import AGENT_REGISTRY
+from core.semantic_mapping_service import SemanticMappingService
 from utils.import_utils import get_function_from_string
 
 try:  # pragma: no cover - optional dependency
@@ -54,6 +55,7 @@ class BootstrapEngine:
         env_file: Optional[Path | str] = None,
         manifest_path: Optional[Path | str] = None,
         base_dir: Optional[Path | str] = None,
+        semantic_service: Optional[SemanticMappingService] = None,
     ) -> None:
         """Create the engine.
 
@@ -67,6 +69,9 @@ class BootstrapEngine:
             Location of the session manifest (JSON or YAML).
         base_dir:
             Base directory used for default paths.
+        semantic_service:
+            Optional :class:`SemanticMappingService` used for resolving
+            tasks to agent handlers.
         """
 
         self.base_dir = Path(base_dir) if base_dir else Path(__file__).resolve().parent.parent
@@ -83,6 +88,7 @@ class BootstrapEngine:
         self.risk_config: Optional[RiskConfig] = None
         self.execution_validation_config: Optional[ExecutionValidationConfig] = None
         self.config_registry: Dict[str, Any] = {}
+        self.semantic_service = semantic_service or SemanticMappingService()
 
     # ------------------------------------------------------------------
     # Bootstrapping helpers
@@ -234,6 +240,43 @@ class BootstrapEngine:
             self._load_agents()
         return self.agent_registry[agent_name]
 
+    def run(self, tasks: List[Dict[str, Any]]) -> None:
+        """Execute tasks routed through the semantic mapping service.
+
+        For each task the mapping service is consulted to determine the
+        primary agent and any fallbacks.  The corresponding ``on_message``
+        entry point is executed.  If the primary handler raises an
+        exception the fallbacks are tried in order.
+        """
+
+        for task in tasks:
+            primary, fallbacks = self.semantic_service.route(task)
+            if primary is None:
+                logging.getLogger(__name__).warning(
+                    "No agent mapping for task %s", task
+                )
+                continue
+            candidates = [primary, *fallbacks]
+            handled = False
+            for agent_name in candidates:
+                agent_cfg = self.agent_registry.get(agent_name)
+                if not agent_cfg:
+                    continue
+                handler = agent_cfg.get("entry_points", {}).get("on_message")
+                if not callable(handler):
+                    continue
+                try:
+                    handler(task)
+                    handled = True
+                    break
+                except Exception:  # pragma: no cover - log and try fallback
+                    logging.getLogger(__name__).exception(
+                        "Agent %s failed for task %s", agent_name, task
+                    )
+            if not handled:
+                logging.getLogger(__name__).warning(
+                    "No handler succeeded for task %s", task
+                )
     @property
     def execution_confidence_threshold(self) -> float | None:
         """Expose configured execution confidence threshold."""
