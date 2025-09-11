@@ -163,11 +163,21 @@ async def analyze_query(query: AnalyzeQuery) -> Dict[str, str]:
     if confidence < LOCAL_THRESHOLD:
         verdict = await call_local_echo(prompt)
         agent = "LocalEcho"
+        handover = False
     else:
         verdict = await call_whisperer(whisper_prompt)
         agent = "Whisperer"
+        handover = True
 
-    logger.info("llm.analyze agent=%s symbol=%s confidence=%s", agent, query.symbol, confidence)
+    logger.info(
+        "llm.analyze",
+        extra={
+            "agent": agent,
+            "handover": handover,
+            "symbol": query.symbol,
+            "confidence": confidence,
+        },
+    )
     return {"verdict": verdict, "agent": agent}
 
 
