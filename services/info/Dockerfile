@@ -2,8 +2,8 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY docs/wiki /app/wiki
-COPY dashboards/info /app/dashboards/info
+# COPY docs/wiki /app/wiki
+# COPY dashboards/info /app/dashboards/info
 
 ENV PIP_ROOT_USER_ACTION=ignore
 RUN pip install --no-cache-dir streamlit==1.37.1 markdown==3.6
