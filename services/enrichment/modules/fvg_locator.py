@@ -1,4 +1,4 @@
-"""Locate fair value gaps using :class:`~utils.smc_analyzer.SMCAnalyzer`."""
+"""Locate fair value gaps using :class:`~core.smc_analyzer.SMCAnalyzer`."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 
 import pandas as pd
 
-from utils.smc_analyzer import SMCAnalyzer
+from core.smc_analyzer import SMCAnalyzer
 
 
 @dataclass
@@ -32,12 +32,14 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         Configuration dictionary (currently unused).
     """
 
-    dataframe: pd.DataFrame = state.get("dataframe")  # type: ignore[assignment]
+    df: pd.DataFrame | None = state.get("dataframe")  # type: ignore[assignment]
+    if df is None:
+        state["status"] = "FAIL"
+        return state
+
     detector = FVGDetector()
-    gaps = detector.find(dataframe)
+    gaps = detector.find(df)
 
-    existing = state.setdefault("fair_value_gaps", [])
-    existing.extend(gaps)
-
+    state.setdefault("fair_value_gaps", []).extend(gaps)
     state["status"] = "PASS" if gaps else "FAIL"
     return state
