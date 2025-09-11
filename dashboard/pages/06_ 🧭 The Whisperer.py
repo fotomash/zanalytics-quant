@@ -9,7 +9,7 @@ from dashboard.utils.plotly_donuts import bipolar_donut, oneway_donut, behaviora
 from dashboard.utils.streamlit_api import (
     safe_api_call,
     render_status_row,
-    inject_glass_css,
+    apply_custom_styling,
     fetch_whispers,
     post_whisper_ack,
     post_whisper_act,
@@ -24,7 +24,7 @@ from dashboard.utils.streamlit_api import (
 stop_whisper_sse()
 st.set_page_config(page_title="🧭 Whisperer Cockpit — Unified", page_icon="🧭", layout="wide")
 
-inject_glass_css()
+apply_custom_styling()
 st.markdown("# 🧭 Whisperer Cockpit — Unified")
 st.caption("Behavioral compass • Session vitals • Trajectory • Pattern watch • Discipline posture • Whisper actions")
 render_status_row()

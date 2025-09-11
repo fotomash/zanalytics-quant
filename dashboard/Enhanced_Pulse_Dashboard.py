@@ -1,8 +1,87 @@
+"""Streamlit dashboard with live data retrieval and caching."""
+
+from __future__ import annotations
+
+import json
+import os
+from typing import Any, Dict
+
+import streamlit as st
+
+try:  # Optional imports; modules may not be installed in all environments
+    import redis  # type: ignore
+except Exception:  # pragma: no cover - missing dependency
+    redis = None
+
+try:
+    import psycopg2  # type: ignore
+except Exception:  # pragma: no cover - missing dependency
+    psycopg2 = None
+
+
+@st.cache_data(ttl=30)
+def get_live_data(symbol: str = "EURUSD") -> Dict[str, Any]:
+    """Fetch the latest market data for ``symbol``.
+
+    The backend is chosen via the ``LIVE_DATA_BACKEND`` environment variable
+    (``redis`` or ``postgres``). The function gracefully falls back to a
+    placeholder payload if anything goes wrong.
+    """
+
+    fallback = {"symbol": symbol, "bid": None, "ask": None}
+    backend = os.getenv("LIVE_DATA_BACKEND", "redis").lower()
+
+    try:
+        if backend == "postgres":
+            if psycopg2 is None:
+                raise RuntimeError("psycopg2 not installed")
+            conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT bid, ask FROM live_quotes WHERE symbol = %s ORDER BY ts DESC LIMIT 1",
+                    (symbol,),
+                )
+                row = cur.fetchone()
+            conn.close()
+            if not row:
+                return fallback
+            bid, ask = row
+            return {"symbol": symbol, "bid": bid, "ask": ask}
+
+        # Default to Redis
+        if redis is None:
+            raise RuntimeError("redis not installed")
+        client = redis.Redis(
+            host=os.getenv("REDIS_HOST", "localhost"),
+            port=int(os.getenv("REDIS_PORT", 6379)),
+            password=os.getenv("REDIS_PASSWORD"),
+            decode_responses=True,
+        )
+        raw = client.get(f"live:{symbol}")
+        if raw:
+            data = json.loads(raw)
+            data.setdefault("symbol", symbol)
+            return data
+        return fallback
+
+    except Exception as exc:  # pragma: no cover - defensive
+        st.warning(f"Live data unavailable: {exc}")
+        return fallback
+
+
+def main() -> None:
+    """Simple demo page showing live data."""
+
+    st.title("Enhanced Pulse Dashboard")
+    symbol = st.text_input("Symbol", value="EURUSD")
+    st.json(get_live_data(symbol))
+
+
+if __name__ == "__main__":  # pragma: no cover
 
 import streamlit as st
 import pandas as pd
 import numpy as np
-import time
 import plotly.graph_objects as go
 
 st.set_page_config(layout="wide", page_title="Zan.Pulse", page_icon="⚡")
@@ -104,6 +183,18 @@ def home_page():
             metric_card("Conviction Rate", f"{st.session_state.conviction_rate:.0f}", "%", "#A78BFA", "up", "Win rate of high-confidence setups")
         with cols[3]:
             metric_card("Profit Efficiency", f"{st.session_state.profit_efficiency:.0f}", "%", "#FBBF24", "down", "Profit captured vs. peak potential")
+    st.subheader("Open Positions")
+    positions = st.session_state.get("positions", [])
+    if positions:
+        positions_df = pd.DataFrame(positions)
+        display_cols = [
+            c
+            for c in ["ticket", "symbol", "type", "volume", "price_open", "sl", "tp", "profit"]
+            if c in positions_df.columns
+        ]
+        st.dataframe(positions_df[display_cols], use_container_width=True)
+    else:
+        st.caption("No open positions.")
 
     # Other components... (as before)
     # For brevity, the rest of the home page components are added in the main function flow below
@@ -138,10 +229,9 @@ def journal_page():
 
 def main():
     st.sidebar.title("Zan.Pulse ⚡")
-    
     # P&L in sidebar
     pnl_placeholder = st.sidebar.empty()
-    
+
     pages = {
         "Home": "Pulse Command Center",
         "Intelligence": "Market Intelligence Hub",
@@ -149,8 +239,12 @@ def main():
         "Whisperer": "The Whisperer Interface",
         "Journal": "Decision Journal & Analytics"
     }
-    
+
     selection_key = st.sidebar.radio("Navigation", list(pages.keys()), format_func=lambda page: pages[page])
+
+    refresh_seconds = st.sidebar.slider(
+        "Refresh interval (seconds)", min_value=1, max_value=60, value=3, step=1
+    )
 
     # Initialize state
     if 'discipline_score' not in st.session_state:
@@ -160,6 +254,21 @@ def main():
         st.session_state.profit_efficiency = 68
         st.session_state.current_pnl = 2847
         st.session_state.daily_target = 4000
+
+    # Update metrics
+    st.session_state.current_pnl += (np.random.random() - 0.5) * 50
+    st.session_state.discipline_score = max(
+        60, min(100, st.session_state.discipline_score + (np.random.random() - 0.5) * 2)
+    )
+    st.session_state.patience_index = max(
+        30, min(300, st.session_state.patience_index + (np.random.random() - 0.5) * 10)
+    )
+
+    pnl_color = "green" if st.session_state.current_pnl >= 0 else "red"
+    pnl_placeholder.markdown(
+        f"### P&L: <span style='color:{pnl_color};'>${st.session_state.current_pnl:,.0f}</span>",
+        unsafe_allow_html=True,
+    )
 
     # Page rendering
     if selection_key == "Home":
@@ -173,19 +282,7 @@ def main():
     elif selection_key == "Journal":
         journal_page()
 
-    # Simulate real-time updates
-    while True:
-        st.session_state.current_pnl += (np.random.random() - 0.5) * 50
-        st.session_state.discipline_score = max(60, min(100, st.session_state.discipline_score + (np.random.random() - 0.5) * 2))
-        st.session_state.patience_index = max(30, min(300, st.session_state.patience_index + (np.random.random() - 0.5) * 10))
-
-        pnl_color = "green" if st.session_state.current_pnl >= 0 else "red"
-        pnl_placeholder.markdown(f"### P&L: <span style='color:{pnl_color};'>${st.session_state.current_pnl:,.0f}</span>", unsafe_allow_html=True)
-        
-        if selection_key == "Home":
-            st.rerun()
-        
-        time.sleep(3)
+    st.autorefresh(interval=refresh_seconds * 1000, key="pulse_dashboard_refresh")
 
 
 if __name__ == "__main__":

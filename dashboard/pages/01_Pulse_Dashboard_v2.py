@@ -1,3 +1,29 @@
+
+"""Pulse dashboard Streamlit page v2."""
+
+import streamlit as st
+
+
+def render_pnl_metric(live_data: dict) -> None:
+    """Render today's P&L metric using Streamlit.
+
+    Parameters
+    ----------
+    live_data: dict
+        Dictionary containing ``pnl_today`` and ``pnl_change`` keys.
+    """
+    st.metric(
+        label="Today's P&L",
+        value=f"${live_data['pnl_today']:,.2f}",
+        delta=live_data['pnl_change'],
+        delta_color="normal",
+    )
+
+
+if __name__ == "__main__":
+    sample = {"pnl_today": 1250.75, "pnl_change": -50.25}
+    render_pnl_metric(sample)
+ main
 """Streamlit page for the intraday Pulse dashboard.
 
 Configuration and prompt text are loaded from YAML and flat files. The page
@@ -157,6 +183,42 @@ def post_actions(body: Dict[str, Any], idempotency_key: str | None = None, timeo
 
 
 
+def close_position(ticket: int):
+    """Request a full close for ``ticket`` via the Django gateway."""
+    if not st.session_state.get('enable_actions'):
+        return
+    with st.spinner('Closing...'):
+        ok, data = post_actions(
+            {'type': 'position_close', 'payload': {'ticket': ticket}},
+            idempotency_key=f"close-{ticket}-{uuid.uuid4().hex[:8]}",
+        )
+    st.session_state['last_action'] = (
+        ('success', 'Close requested')
+        if ok
+        else ('error', f"Close failed: {data}")
+    )
+
+
+def partial_close(ticket: int, fraction: float):
+    """Request a partial close of ``fraction`` for ``ticket``."""
+    if not st.session_state.get('enable_actions'):
+        return
+    with st.spinner(f"Partial closing {fraction * 100:.0f}%..."):
+        ok, data = post_actions(
+            {
+                'type': 'position_close',
+                'payload': {'ticket': ticket, 'fraction': fraction},
+            },
+            idempotency_key=f"p{int(fraction * 100)}-{ticket}-{uuid.uuid4().hex[:8]}",
+        )
+    st.session_state['last_action'] = (
+        ('success', 'Partial requested')
+        if ok
+        else ('error', f"Partial failed: {data}")
+    )
+
+
+
 @st.cache_data(ttl=3600)
 def get_image_as_base64(path: str) -> str | None:
     """Return a base64 encoded string for the image at ``path``."""
@@ -225,6 +287,24 @@ def apply_advanced_styling() -> str:
         border-radius: 15px;
         padding: 1.5rem;
         margin: 1rem 0;
+    }
+    /* Metric cards */
+    .metric-card {
+        background-color: #1F2937;
+        border: 1px solid #374151;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+    .metric-card:hover {
+        border-color: #4B5563;
+    }
+    /* Whisperer box */
+    .ask-whisperer {
+        background-color: #1F2937;
+        padding: 1rem;
+        border-radius: 0.5rem;
     }
     </style>
     """
@@ -324,29 +404,21 @@ def exposure_percent_stub(positions: list, account: dict) -> float:
     # ↪ Replace with live risk_enforcer metric when available
     return min(100.0, max(0.0, 10.0 * len(positions)))
 
-def type_to_text(t: int | str) -> str:
+def type_to_text(t: int) -> str:
     """Convert MT5 position type ``t`` to a human readable string.
-
-    Accepts either legacy numeric codes (``0``/``1``) or textual values
-    (``"BUY"``/``"SELL"``). Any unrecognised value is returned as-is.
 
     Parameters
     ----------
-    t: int | str
-        Position type code or text.
+    t: int
+        ``0`` for buy, ``1`` for sell; other values are returned as-is.
 
     Returns
     -------
     str
-        Normalised human readable position type.
+        Human readable text representing the position type.
     """
 
-    t_str = str(t).upper()
-    if t_str in {"0", "BUY"}:
-        return "BUY"
-    if t_str in {"1", "SELL"}:
-        return "SELL"
-    return t_str
+    return 'BUY' if int(t) == 0 else 'SELL' if int(t) == 1 else str(t)
 
 def secs_to_hms(seconds: int) -> str:
     """Convert seconds to ``H:MM:SS``; ``'—'`` if ``seconds`` <= 0.
@@ -552,11 +624,20 @@ if not positions:
     st.info('No open positions.')
 else:
     st.checkbox('Enable trade actions', key='enable_actions', value=False, help='Guardrail to prevent accidental clicks')
+    if 'last_action' in st.session_state:
+        status, msg = st.session_state.pop('last_action')
+        getattr(st, status)(msg)
     for i, p in enumerate(positions):
         with st.container():
             cols = st.columns([2, 1, 1, 1, 1, 2])
             cols[0].markdown(f"**{p.get('symbol','')}**")
             cols[1].markdown(type_to_text(p.get('type', -1)))
+            type_text = p.get('type', 'BUY').upper()
+            type_color = 'green' if type_text == 'BUY' else 'red'
+            cols[1].markdown(
+                f"<span style='color:{type_color}'>{type_text}</span>",
+                unsafe_allow_html=True,
+
             cols[2].markdown(f"Vol: {float(p.get('volume',0.0)):.2f}")
             cols[3].markdown(f"Open: {float(p.get('price_open',0.0)):.5f}")
             cols[4].markdown(f"P/L: {float(p.get('profit',0.0)):.2f}")
@@ -569,11 +650,35 @@ else:
                             {'type': 'position_close', 'payload': {'ticket': ticket}},
                             idempotency_key=f"close-{ticket}-{uuid.uuid4().hex[:8]}",
                         )
-                    st.success('Close requested') if ok else st.error(f"Close failed: {data}")
+                    if ok:
+                        st.success(f"Close requested for ticket {ticket}")
+                    else:
+                        st.error(f"Close failed for ticket {ticket}: {data}")
                 if c2.button('Partial 50%', key=f"p50_{ticket}", use_container_width=True, disabled=not st.session_state.enable_actions):
                     with st.spinner('Partial closing 50%...'):
                         ok, data = post_actions(
                             {'type': 'position_close', 'payload': {'ticket': ticket, 'fraction': 0.5}},
                             idempotency_key=f"p50-{ticket}-{uuid.uuid4().hex[:8]}",
                         )
-                    st.success('Partial requested') if ok else st.error(f"Partial failed: {data}")
+                    if ok:
+                        st.success(f"Partial close requested for ticket {ticket}")
+                    else:
+                        st.error(f"Partial close failed for ticket {ticket}: {data}")
+                btn_c1, btn_c2 = st.columns(2)
+                btn_c1.button(
+                    'Partial 50%',
+                    key=f"p50_{ticket}",
+                    use_container_width=True,
+                    disabled=not st.session_state.enable_actions,
+                    on_click=partial_close,
+                    args=(ticket, 0.5),
+                )
+                btn_c2.button(
+                    'Close',
+                    key=f"close_{ticket}",
+                    use_container_width=True,
+                    disabled=not st.session_state.enable_actions,
+                    on_click=close_position,
+                    args=(ticket,),
+                )
+
