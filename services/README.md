@@ -54,3 +54,19 @@ Ensure the following environment variables are set before starting:
 - `TELEGRAM_BOT_TOKEN` – token for your Telegram bot
 - `TELEGRAM_CHAT_ID` – destination chat ID for messages
 
+Overseer
+--------
+
+Simple consumer that logs messages from a Kafka topic.
+
+Start the service:
+
+```
+docker compose -f services/docker-compose.yml up overseer
+```
+
+Required environment variables:
+
+- `KAFKA_BOOTSTRAP_SERVERS` – address of the Kafka broker (default `kafka:9092`)
+- `OVERSEER_TOPIC` – Kafka topic to consume (default `overseer-events`)
+
