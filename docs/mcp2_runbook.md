@@ -11,6 +11,15 @@ An OpenAI tools manifest at [`docs/connectors/actions_openai_mcp2.yaml`](connect
 | `log_enriched_trade` | `POST /log_enriched_trade` |
 | `get_recent_trades` | `GET /trades/recent` |
 
+## Startup
+Build and run the service locally:
+
+```bash
+docker build -t mcp2-service -f services/mcp2/Dockerfile .
+docker run --rm -p 8002:8002 mcp2-service \
+  uvicorn services.mcp2.app:app --host 0.0.0.0 --port 8002
+```
+
 ## Health
 Verify the service is up:
 
