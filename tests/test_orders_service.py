@@ -5,6 +5,7 @@ import sys
 import types
 from pathlib import Path
 from unittest.mock import patch
+import logging
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend" / "django"))
@@ -52,3 +53,11 @@ def test_normalize_volume_step_05():
         assert orders_service._normalize_volume("XAUUSD", 4.0) == 2.5
         assert mock_get.call_count == 1
 
+
+def test_fetch_symbol_meta_logs_on_failure(caplog):
+    clear_cache()
+    with patch("app.nexus.orders_service.requests.get", side_effect=Exception("boom")):
+        with caplog.at_level(logging.WARNING):
+            meta = orders_service._fetch_symbol_meta("EURUSD")
+    assert meta == orders_service._DEFAULT_META
+    assert any("EURUSD" in rec.getMessage() for rec in caplog.records)
