@@ -73,3 +73,6 @@ class BrownVectorPipeline:
         url = f"{self._db_url.rstrip('/')}/upsert"
         response = self._session.post(url, json=payload, timeout=30)
         response.raise_for_status()
+
+
+__all__ = ["BrownVectorPipeline"]
