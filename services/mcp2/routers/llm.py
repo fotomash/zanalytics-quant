@@ -1,4 +1,5 @@
 import os
+import asyncio
 import httpx
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
@@ -120,7 +121,8 @@ async def _suggest(body: WhisperRequest, endpoint: str, nudges: bool) -> Whisper
 
     try:
         client = OpenAI(api_key=api_key)
-        msg = client.chat.completions.create(
+        msg = await asyncio.to_thread(
+            client.chat.completions.create,
             model=model,
             messages=[
                 {"role": "system", "content": "You are Whisperer, a concise trading copilot."},
@@ -129,11 +131,8 @@ async def _suggest(body: WhisperRequest, endpoint: str, nudges: bool) -> Whisper
             temperature=0.2,
         )
         content = (msg.choices[0].message.content or "").strip()
-    except Exception:
-        content = (
-            "Signal: steady. Risk: moderate. Action: wait for structure. "
-            "Journal: payload recorded."
-        )
+    except Exception as e:
+        raise HTTPException(status_code=503, detail="LLM service unavailable") from e
 
     # Basic parsing into four parts; tolerant to formatting
     parts = [s.strip() for s in content.replace("•", ":").splitlines() if s.strip()]
