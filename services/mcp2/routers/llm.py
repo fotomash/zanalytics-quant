@@ -4,10 +4,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-
-import httpx
-from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
+
 from ..auth import verify_api_key
 import yaml
 
@@ -60,6 +58,7 @@ try:  # optional dependency; service works without it
     from openai import OpenAI  # type: ignore
 except Exception:  # pragma: no cover
     OpenAI = None  # type: ignore
+
 
 router = APIRouter(prefix="/llm", dependencies=[Depends(verify_api_key)], tags=["llm"])
 
