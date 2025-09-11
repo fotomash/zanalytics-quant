@@ -1,0 +1,38 @@
+agent:
+  id: "overseer_agent"
+  name: "Overseer Agent"
+  version: "1.0.0"
+  type: "oversight"
+  model: "gpt-4.1"
+  description: "Monitors system health and diagnoses anomalies."
+
+  capabilities:
+    - system_monitoring
+    - diagnostics
+    - ticket_prioritization
+
+  tools:
+    - log_inspector
+    - metrics_collector
+
+  ticket_priority_rules:
+    critical: 1
+    high: 2
+    normal: 3
+    low: 4
+
+  domain:
+    primary: "operations"
+    secondary: []
+
+  entry_points:
+    on_message: "services.overseer.handler"
+
+  routing:
+    primary: false
+    fallback: []
+    hints:
+      keywords:
+        - monitor
+        - diagnostics
+        - oversight
