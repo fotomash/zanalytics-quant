@@ -14,8 +14,8 @@ import yaml
 import pandas as pd
 
 # Import existing analyzers (these already exist in the codebase)
-from utils.smc_analyzer import SMCAnalyzer
-from components.wyckoff_analyzer import WyckoffAnalyzer
+from .smc_analyzer import SMCAnalyzer
+from .wyckoff_analyzer import WyckoffAnalyzer
 from components.technical_analysis import TechnicalAnalysis
 
 logger = logging.getLogger(__name__)
@@ -64,17 +64,28 @@ class PredictiveScorer:
         }
         
     def score(self, state: Dict) -> Dict:
-        """Calculate maturity score from market data.
+        """Calculate maturity score using pre-populated ``state`` data.
 
-        Args:
-            state: Normalized market data frame
+        The enrichment pipeline fills ``state`` with intermediate analysis
+        results (e.g. liquidity zones, Wyckoff phase, technical indicators).
+        This method consumes those values directly and only falls back to
+        running the heavier analyzers when specific keys are missing.
 
-        Returns:
-            Dict containing ``maturity_score`` and ``grade`` keys along with
-            additional diagnostic information.
+        Parameters
+        ----------
+        state:
+            Dictionary containing analysis data and optionally the price
+            DataFrame under ``df`` or ``dataframe``.
+
+        Returns
+        -------
+        Dict
+            ``maturity_score`` and ``grade`` along with diagnostic details.
         """
         try:
-            # Get individual scores
+            # Each scoring component pulls the necessary information from the
+            # provided ``state`` and performs its own fallback calculation if
+            # required.
             smc_result = self._score_smc(state)
             wyckoff_result = self._score_wyckoff(state)
             technical_result = self._score_technical(state)
@@ -124,124 +135,159 @@ class PredictiveScorer:
                 'reasoning': [f'Error: {str(e)}'],
             }
     
-    def _score_smc(self, data: Dict) -> Dict:
-        """Calculate SMC-based score"""
-        # Call existing SMC analyzer
-        smc_analysis = self.smc.analyze(self._get_df(data))
-        
+    def _score_smc(self, state: Dict) -> Dict:
+        """Calculate SMC-based score.
+
+        The enrichment modules may have already populated ``state`` with SMC
+        analysis fields.  When they are missing we fall back to running the
+        :class:`SMCAnalyzer` directly.
+        """
+        needed = ['order_blocks', 'fair_value_gaps', 'liquidity_sweeps',
+                  'displacement', 'liquidity_zones']
+        missing = [k for k in needed if k not in state]
+        if missing:
+            analysis = self.smc.analyze(self._get_df(state))
+            for k in needed:
+                if k in analysis and k not in state:
+                    state[k] = analysis[k]
+
         score = 0
         details = []
-        
-        # Score based on SMC concepts
-        if smc_analysis.get('order_blocks'):
+
+        if state.get('order_blocks'):
             score += 30
             details.append('Order block detected')
-            
-        if smc_analysis.get('fair_value_gaps'):
+
+        if state.get('fair_value_gaps'):
             score += 25
             details.append('Fair value gap present')
-            
-        if smc_analysis.get('liquidity_sweeps'):
+
+        if state.get('liquidity_sweeps'):
             score += 25
             details.append('Liquidity sweep confirmed')
-            
-        if smc_analysis.get('displacement'):
+
+        if state.get('displacement'):
             score += 20
             details.append('Strong displacement')
-            
+
         return {
             'score': min(100, score),
             'details': details
         }
     
-    def _score_wyckoff(self, data: Dict) -> Dict:
-        """Calculate Wyckoff-based score"""
-        # Call existing Wyckoff analyzer
-        wyckoff_analysis = self.wyckoff.analyze(self._get_df(data))
-        
+    def _score_wyckoff(self, state: Dict) -> Dict:
+        """Calculate Wyckoff-based score using precomputed data."""
+        needed = ['current_phase', 'spring_upthrust', 'sos_sow']
+        missing = [k for k in needed if k not in state]
+        if missing:
+            analysis = self.wyckoff.analyze(self._get_df(state))
+            for k in needed:
+                if k in analysis and k not in state:
+                    state[k] = analysis[k]
+
         score = 0
         details = []
-        
-        # Score based on Wyckoff phases
-        phase = wyckoff_analysis.get('current_phase', '')
-        
+
+        phase = state.get('current_phase', '')
         if phase == 'Accumulation':
             score += 40
             details.append('Accumulation phase')
-            
-        if 'spring' in str(wyckoff_analysis.get('spring_upthrust', {})):
+
+        if 'spring' in str(state.get('spring_upthrust', {})):
             score += 35
             details.append('Wyckoff spring detected')
-            
-        if wyckoff_analysis.get('sos_sow'):
+
+        if state.get('sos_sow'):
             score += 25
             details.append('Sign of strength')
-            
+
         return {
             'score': min(100, score),
             'details': details
         }
     
-    def _score_technical(self, data: Dict) -> Dict:
-        """Calculate technical indicator score"""
-        # Call existing technical analysis
-        ta_analysis = self.technical.calculate_all(self._get_df(data))
-        
+    def _score_technical(self, state: Dict) -> Dict:
+        """Calculate technical indicator score using cached data."""
+        needed = ['rsi', 'macd_diff', 'support_resistance', 'volume_sma']
+        missing = [k for k in needed if k not in state]
+        if missing:
+            analysis = self.technical.calculate_all(self._get_df(state))
+            for k in needed:
+                if k in analysis and k not in state:
+                    state[k] = analysis[k]
+
         score = 0
         details = []
-        
-        # RSI conditions
-        rsi = ta_analysis.get('rsi', {})
+
+        rsi = state.get('rsi', {})
         if isinstance(rsi, dict):
             rsi_value = rsi.get('value', 50)
+        elif hasattr(rsi, 'iloc'):
+            try:
+                rsi_value = float(rsi.iloc[-1])
+            except Exception:  # pragma: no cover - defensive
+                rsi_value = 50
         else:
-            rsi_value = 50
-            
+            try:
+                rsi_value = float(rsi)
+            except Exception:
+                rsi_value = 50
+
         if rsi_value < 30:
             score += 25
             details.append('RSI oversold')
         elif rsi_value > 70:
             score += 25
             details.append('RSI overbought')
-            
-        # MACD conditions
-        macd_diff = ta_analysis.get('macd_diff', 0)
+
+        macd_diff = state.get('macd_diff', 0)
+        if hasattr(macd_diff, 'iloc'):
+            try:
+                macd_diff = float(macd_diff.iloc[-1])
+            except Exception:
+                macd_diff = 0
+
         if macd_diff > 0:
             score += 25
             details.append('MACD bullish')
-            
-        # Support/Resistance
-        if ta_analysis.get('support_resistance'):
+
+        if state.get('support_resistance'):
             score += 25
             details.append('Near key level')
-            
-        # Volume confirmation
-        if self._check_volume_confirmation(ta_analysis):
+
+        if self._check_volume_confirmation(state):
             score += 25
             details.append('Volume confirms')
-            
+
         return {
             'score': min(100, score),
             'details': details
         }
 
     def _get_df(self, data: Dict) -> pd.DataFrame:
-        """Ensure analyzers receive a DataFrame."""
-        df = data.get('df')
-        if df is not None:
+        """Ensure analyzers receive a :class:`pandas.DataFrame`."""
+        df = data.get('df') or data.get('dataframe')
+        if isinstance(df, pd.DataFrame):
             return df
-        return pd.DataFrame([{
-            'open': data.get('open', 0),
-            'high': data.get('high', 0),
-            'low': data.get('low', 0),
-            'close': data.get('close', 0),
-            'volume': data.get('volume', 0)
-        }])
+        return pd.DataFrame([
+            {
+                'open': data.get('open', 0),
+                'high': data.get('high', 0),
+                'low': data.get('low', 0),
+                'close': data.get('close', 0),
+                'volume': data.get('volume', 0),
+            }
+        ])
     
     def _check_volume_confirmation(self, ta_analysis: Dict) -> bool:
-        """Check if volume confirms the move"""
-        # Simplified volume check
-        return ta_analysis.get('volume_sma', 0) > 0
+        """Check if volume confirms the move."""
+        volume = ta_analysis.get('volume_sma', 0)
+        if hasattr(volume, 'iloc'):
+            try:
+                volume = float(volume.iloc[-1])
+            except Exception:
+                volume = 0
+        return volume > 0
     
     def _calculate_grade(self, score: float) -> str:
         """Convert numeric score to grade"""

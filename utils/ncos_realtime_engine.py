@@ -9,6 +9,8 @@ import threading
 from queue import Queue
 import logging
 
+from risk_management.behavioral_risk_enforcer import BehavioralRiskEnforcer
+
 class RealTimeTradingEngine:
     """Real-time implementation of the theory engine"""
     
@@ -19,10 +21,13 @@ class RealTimeTradingEngine:
         self.pending_signals = Queue()
         self.market_data = {}
         self.running = False
-        
+
         # Setup logging
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
+
+        # Behavioral risk enforcement
+        self.behavioral_enforcer = BehavioralRiskEnforcer()
         
     async def start(self):
         """Start the real-time trading engine"""
@@ -167,7 +172,11 @@ class RealTimeTradingEngine:
             }
             
             # Send order to broker (mock for now)
-            order_id = await self.send_order(order)
+            try:
+                order_id = await self.send_order(order)
+            except RuntimeError as exc:
+                self.logger.info(str(exc))
+                return
             
             # Track position
             position = {
@@ -305,9 +314,15 @@ class RealTimeTradingEngine:
         
     async def send_order(self, order: Dict) -> str:
         """Send order to broker (mock implementation)"""
+        allowed, adjusted, messages = self.behavioral_enforcer.enforce(order)
+        if not allowed:
+            msg = messages[0] if messages else "Action blocked by BehavioralRiskEnforcer"
+            self.logger.warning(msg)
+            raise RuntimeError(msg)
+
         # In real implementation, this would connect to broker API
         order_id = f"ORD_{datetime.now().timestamp()}"
-        self.logger.info(f"Order sent: {order}")
+        self.logger.info(f"Order sent: {adjusted}")
         return order_id
         
     async def send_close_order(self, order_id: str, price: float):
