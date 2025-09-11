@@ -725,7 +725,7 @@ services:
     environment:
       POSTGRES_PASSWORD: postgres
     volumes:
-      - ./services/mcp2/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./services/mcp2/init.sql:/docker-entrypoint-initdb.d/init.sql:ro # initialize docs table
     restart: unless-stopped
     networks:
       - default
