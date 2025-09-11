@@ -1,4 +1,9 @@
 # Alert System Configuration
+
+telegram:
+  bot_token: "${TELEGRAM_BOT_TOKEN}"
+  chat_id: "${TELEGRAM_CHAT_ID}"
+
 channels:
   email:
     enabled: true
@@ -9,10 +14,6 @@ channels:
     recipients:
       - "trader@example.com"
       - "risk@example.com"
-  telegram:
-    enabled: true
-    bot_token: ""
-    chat_id: ""
   slack:
     enabled: false
     webhook_url: ""
