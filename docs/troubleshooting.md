@@ -59,7 +59,7 @@ For MCP-specific routing and container issues, see [mcp_troubleshooting.md](mcp_
 - Protected endpoints require both `Authorization: Bearer <key>` and `X-API-Key: <key>` headers.
 - Example:
   ```bash
-  curl -H "Authorization: Bearer $MCP_API_KEY" \
-       -H "X-API-Key: $MCP_API_KEY" http://localhost:8001/api/...
+  curl -H "Authorization: Bearer $MCP2_API_KEY" \
+       -H "X-API-Key: $MCP2_API_KEY" http://localhost:8001/api/...
   ```
 - See [api-security.md](api-security.md) for rotation and storage details.

@@ -2,8 +2,8 @@
 
 ## Setting and rotating the API key
 
-- Set the API key value in an environment variable named `MCP_API_KEY`. Avoid hard-coding it in source code or configuration files.
-- Rotate the key on a regular schedule and update `MCP_API_KEY` accordingly.
+- Set the API key value in an environment variable named `MCP2_API_KEY`. Avoid hard-coding it in source code or configuration files.
+- Rotate the key on a regular schedule and update `MCP2_API_KEY` accordingly.
 - For local development you can use a test value such as `dev-key-123`.
 
 ## Public vs. protected endpoints

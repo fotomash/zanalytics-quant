@@ -32,9 +32,9 @@ The `Content-Type: application/json` header is required when sending JSON to the
 
 ## Rotating the key
 
-The server reads the key from the `MCP_API_KEY` environment variable. To rotate it:
+The server reads the key from the `MCP2_API_KEY` environment variable. To rotate it:
 
-1. Set a new value in your environment or `.env` file: `MCP_API_KEY=new-key`.
+1. Set a new value in your environment or `.env` file: `MCP2_API_KEY=new-key`.
 2. Restart the service so it picks up the new key, e.g. `docker compose up --build mcp`.
 3. Update clients to send the new `Authorization` and `X-API-Key` headers.
 

@@ -687,7 +687,8 @@ services:
     - 8001:8001
     environment:
       - INTERNAL_API_BASE=http://django:8000
-      - MCP_API_KEY=${MCP_API_KEY:-}
+      - MCP2_API_KEY=${MCP2_API_KEY:-}
+      - DATABASE_URL=${DATABASE_URL:-}
     depends_on:
       - django
     networks:

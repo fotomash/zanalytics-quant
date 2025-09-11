@@ -10,7 +10,10 @@ TEST_KEY = "test-key"
 
 @pytest.fixture
 def app_client(monkeypatch):
-    monkeypatch.setenv("MCP_API_KEY", TEST_KEY)
+
+    monkeypatch.setenv("MCP2_API_KEY", TEST_KEY)
+    monkeypatch.setenv(
+        "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/postgres"
     import services.mcp2.mcp2_server as mcp2_server
     importlib.reload(mcp2_server)
 

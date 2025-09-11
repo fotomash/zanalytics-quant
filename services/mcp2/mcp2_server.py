@@ -89,7 +89,7 @@ logger.setLevel(logging.INFO)
 app = FastAPI(title="Zanalytics MCP v2")
 
 API_KEY_HEADER = "X-API-Key"
-EXPECTED_API_KEY = os.getenv("MCP_API_KEY")
+EXPECTED_API_KEY = os.getenv("MCP2_API_KEY", os.getenv("MCP_API_KEY"))
 
 
 async def require_api_key(
@@ -103,7 +103,12 @@ async def require_api_key(
 
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-PG_DSN = os.getenv("PG_DSN", "postgresql://postgres:postgres@localhost:5432/postgres")
+PG_DSN = os.getenv(
+    "DATABASE_URL",
+    os.getenv(
+        "PG_DSN", "postgresql://postgres:postgres@localhost:5432/postgres"
+    ),
+)
 
 redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 pg_pool: asyncpg.Pool | None = None

@@ -59,7 +59,7 @@ Inspect logs to diagnose routing and service errors:
 ```bash
 docker compose logs mcp_server
 ```
-Common messages include `KeyError: 'MCP_API_KEY'` or `Address already in use`.
+Common messages include `KeyError: 'MCP2_API_KEY'` or `Address already in use`.
 
 ```bash
 docker compose logs traefik
