@@ -14,8 +14,8 @@ import yaml
 import pandas as pd
 
 # Import existing analyzers (these already exist in the codebase)
-from utils.smc_analyzer import SMCAnalyzer
-from components.wyckoff_analyzer import WyckoffAnalyzer
+from .smc_analyzer import SMCAnalyzer
+from .wyckoff_analyzer import WyckoffAnalyzer
 from components.technical_analysis import TechnicalAnalysis
 
 logger = logging.getLogger(__name__)
