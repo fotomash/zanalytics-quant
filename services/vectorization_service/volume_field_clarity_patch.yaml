@@ -1,0 +1,14 @@
+normalization:
+  lowercase: true
+  strip: true
+  replace:
+    " ": "_"
+    "-": "_"
+
+field_mappings:
+  volume:
+    - volume
+    - true_volume
+  tick_volume:
+    - tick_volume
+    - inferred_volume
