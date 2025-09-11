@@ -36,6 +36,18 @@ def test_connect_initialization_failure_logs_error(monkeypatch, caplog):
     assert "MT5 initialization failed" in caplog.text
 
 
+def test_connect_login_failure_logs_error(monkeypatch, caplog):
+    bridge = MT5Bridge(account=1)
+    monkeypatch.setattr("mt5_bridge.mt5.initialize", lambda: True)
+    monkeypatch.setattr("mt5_bridge.mt5.login", lambda *a, **k: False)
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(RuntimeError, match="Failed to connect to account 1"):
+            bridge.connect()
+
+    assert "Failed to connect to account 1" in caplog.text
+
+
 def test_sync_to_pulse_journal_api_logs_error(monkeypatch, caplog):
     bridge = MT5Bridge()
     monkeypatch.setattr(MT5Bridge, "get_real_trade_history", lambda self: _sample_history_df())
