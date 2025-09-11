@@ -1,0 +1,75 @@
+{
+  "node_id": "srb_system_v1",
+  "node_type": "system_design",
+  "metadata": {
+    "created": "2025-06-11T22:48:24.667925",
+    "version": "1.0",
+    "author": "ncOSCore Team",
+    "domain": "financial_research"
+  },
+  "specifications": {
+    "complexity": 8,
+    "reusability": 0.9,
+    "performance_prediction": 0.95,
+    "tags": [
+      "srb",
+      "ncoscore",
+      "strategy_simulation",
+      "session_memory",
+      "vector_store"
+    ]
+  },
+  "components": {
+    "core_engine": {
+      "class": "SRBEngine",
+      "dependencies": [
+        "BrownVectorStore",
+        "SnapshotManager",
+        "SessionManager",
+        "VirtualFileMapper"
+      ],
+      "methods": {
+        "create_exportable_snapshot": {
+          "input": "Dict[str, pd.DataFrame]",
+          "output": "str",
+          "performance": "O(n)"
+        },
+        "restore_session_from_delta": {
+          "input": "str",
+          "output": "Dict",
+          "performance": "O(1)"
+        }
+      }
+    },
+    "vector_store": {
+      "class": "BrownVectorStore",
+      "features": [
+        "in_memory",
+        "faiss_backend",
+        "persistence"
+      ],
+      "performance": {
+        "add_vectors": "O(n)",
+        "search": "O(log n)",
+        "memory": "O(n*d)"
+      }
+    }
+  },
+  "performance_metrics": {
+    "data_ingestion": {
+      "throughput": "100K ticks/sec",
+      "latency": "<10ms",
+      "compression_ratio": "10:1"
+    },
+    "snapshot_export": {
+      "creation_time": "<5s for 1GB",
+      "merge_time": "<2s incremental",
+      "storage_efficiency": "95%"
+    },
+    "session_restoration": {
+      "delta_application": "<100ms",
+      "full_restore": "<5s",
+      "memory_overhead": "<50MB"
+    }
+  }
+}
