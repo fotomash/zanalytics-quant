@@ -21,8 +21,8 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     """
 
     engine = SwingEngine(config)
-    dataframe: pd.DataFrame = state.get("dataframe")  # type: ignore[assignment]
-    breaks = engine.analyze(dataframe)
-    state["structure_breaks"] = breaks
-    state["status"] = "FAIL" if breaks else "PASS"
+    dataframe: pd.DataFrame = state["dataframe"]  # type: ignore[assignment]
+    structure_breaks = engine.analyze(dataframe)
+    state["structure_breaks"] = structure_breaks
+    state["status"] = "FAIL" if structure_breaks else "PASS"
     return state
