@@ -36,18 +36,54 @@ prompt_sources:
   sentiment_pulse: []
   macro_alignment: []
   threshold_sweep: []
-
-  spring: "Explore whether spring setups are emerging and how patience might prevent false breakouts."
-  accumulation: "If accumulation is detected, how might you scale in cautiously?"
-  default: "How might you stay disciplined and follow your plan?"
-whisperer_prompts:
-  wyckoff_simulation: "How might we run a Wyckoff simulation for {ticker}?"
-  risk_ensemble: "How might we generate a risk ensemble for {portfolio}?"
-  behavioral_trace: "How might we analyze the behavioral trace for {entity}?"
-  liquidity_probe: "How might we perform a liquidity probe near {price_level}?"
-  volatility_snapshot: "How might we capture a volatility snapshot for {asset}?"
-  mean_reversion_insight: "Explore whether there is a mean reversion insight for {series}."
-  order_flow_map: "How might we render an order flow map for {market}?"
-  sentiment_pulse: "Explore whether the sentiment pulse in {sector} offers insight."
-  macro_alignment: "How might we evaluate macro alignment with {indicator}?"
-  threshold_sweep: "Explore whether to execute a threshold sweep for {parameter}."
+enrichment_constellation:
+  winner_spring_vol:
+    label: "spring_vol"
+    priority: "high"
+    action: "scale_entry"
+    reason: "Spring with rising volatility; confirm strength vs trap."
+  winner_sweep_prob:
+    label: "sweep_prob"
+    priority: "high"
+    action: "monitor"
+    reason: "High sweep probability; watch inducement risk."
+  winner_corr_conv:
+    label: "corr_conv"
+    priority: "medium"
+    action: "boost_conviction"
+    reason: "Correlation convergence supports bias alignment."
+  winner_ob_bos:
+    label: "ob_bos"
+    priority: "medium"
+    action: "scale_in"
+    reason: "Order block with break of structure; consider scaling entry."
+  protector_dd:
+    label: "dd_day"
+    priority: "high"
+    action: "block_signals"
+    reason: "Daily drawdown limit reached; cool down."
+  protector_trade_count:
+    label: "overtrade"
+    priority: "medium"
+    action: "cooldown"
+    reason: "Trade count elevated; risk of overtrading."
+  protector_silent:
+    label: "silent_tick"
+    priority: "low"
+    action: "alert"
+    reason: "Market silence detected; raise caution."
+  wildcard_ab_compare:
+    label: "ab_compare"
+    priority: "low"
+    action: "analyze"
+    reason: "Compare Echo and Whisper signals for disagreement."
+  wildcard_phase_shift:
+    label: "phase_shift"
+    priority: "medium"
+    action: "review"
+    reason: "Phase mismatch may signal regime change."
+  wildcard_vol_spike:
+    label: "vol_spike"
+    priority: "medium"
+    action: "assess"
+    reason: "Sudden volatility spike requires assessment."
