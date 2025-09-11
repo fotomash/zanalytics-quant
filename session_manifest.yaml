@@ -1,5 +1,42 @@
-version: "1.0"
+version: '1.0'
 nudges:
+  spring: Watch for spring setups; patience prevents false breakouts.
+  accumulation: Accumulation detected; consider scaling in cautiously.
+  default: Stay disciplined and follow your plan.
+whisperer_prompts:
+  wyckoff_simulation: 'From session manifest ''risk_bias_q2'': Run Wyckoff simulation
+    for {ticker}.'
+  risk_ensemble: 'From session manifest ''risk_bias_q2'': Generate risk ensemble for
+    {portfolio}.'
+  behavioral_trace: 'From session manifest ''risk_bias_q2'': Analyze behavioral trace
+    for {entity}.'
+  liquidity_probe: 'From session manifest ''risk_bias_q2'': Perform liquidity probe
+    near {price_level}.'
+  volatility_snapshot: 'From session manifest ''risk_bias_q2'': Capture volatility
+    snapshot for {asset}.'
+  mean_reversion_insight: 'From session manifest ''risk_bias_q2'': Suggest mean reversion
+    insight for {series}.'
+  order_flow_map: 'From session manifest ''risk_bias_q2'': Render order flow map for
+    {market}.'
+  sentiment_pulse: 'From session manifest ''risk_bias_q2'': Assess sentiment pulse
+    in {sector}.'
+  macro_alignment: 'From session manifest ''risk_bias_q2'': Evaluate macro alignment
+    with {indicator}.'
+  threshold_sweep: 'From session manifest ''risk_bias_q2'': Execute threshold sweep
+    for {parameter}.'
+prompt_sources:
+  wyckoff_simulation:
+  - services/mcp2/main.py
+  risk_ensemble: []
+  behavioral_trace: []
+  liquidity_probe: []
+  volatility_snapshot: []
+  mean_reversion_insight: []
+  order_flow_map: []
+  sentiment_pulse: []
+  macro_alignment: []
+  threshold_sweep: []
+
   spring: "Explore whether spring setups are emerging and how patience might prevent false breakouts."
   accumulation: "If accumulation is detected, how might you scale in cautiously?"
   default: "How might you stay disciplined and follow your plan?"

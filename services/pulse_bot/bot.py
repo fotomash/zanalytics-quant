@@ -229,40 +229,65 @@ def _build_inline_kb(actions):
         return None
 
 
-def _redis_alert_loop(bot: Bot):
+def _redis_alert_loop(
+    bot: Bot, loop: asyncio.AbstractEventLoop, stop_event: threading.Event
+):
     """Background loop to forward 'telegram-alerts' to whitelisted chats."""
     if redis is None:
         return
+    rcli = None
+    pubsub = None
     try:
         rurl = os.getenv("REDIS_URL")
         if rurl:
             rcli = redis.from_url(rurl)
         else:
-            rcli = redis.Redis(host=os.getenv("REDIS_HOST", "redis"), port=int(os.getenv("REDIS_PORT", 6379)))
+            rcli = redis.Redis(
+                host=os.getenv("REDIS_HOST", "redis"),
+                port=int(os.getenv("REDIS_PORT", 6379)),
+            )
         pubsub = rcli.pubsub()
         pubsub.subscribe("telegram-alerts")
-        while True:
-            msg = pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-            if msg and msg.get("type") == "message":
-                try:
-                    data = json.loads(msg.get("data") or b"{}")
-                except Exception:
-                    data = {}
-                text = data.get("text") or ""
-                if not text:
-                    continue
-                # Build keyboard if actions provided
-                kb = _build_inline_kb(data.get('actions'))
-                # Broadcast to whitelisted chats or skip if none
-                chats = CHAT_WHITELIST or set()
-                for chat_id in chats:
+        while not stop_event.is_set():
+            try:
+                msg = pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                if msg and msg.get("type") == "message":
                     try:
-                        asyncio.run(bot.send_message(chat_id=chat_id, text=text, reply_markup=kb))
+                        data = json.loads(msg.get("data") or b"{}")
                     except Exception:
+                        data = {}
+                    text = data.get("text") or ""
+                    if not text:
                         continue
+                    # Build keyboard if actions provided
+                    kb = _build_inline_kb(data.get("actions"))
+                    # Broadcast to whitelisted chats or skip if none
+                    chats = CHAT_WHITELIST or set()
+                    for chat_id in chats:
+                        fut = asyncio.run_coroutine_threadsafe(
+                            bot.send_message(chat_id=chat_id, text=text, reply_markup=kb),
+                            loop,
+                        )
+                        try:
+                            fut.result()
+                        except Exception:
+                            logger.exception("Failed to send message to %s", chat_id)
+            except Exception:
+                logger.exception("Redis alert loop iteration failed")
             time.sleep(0.1)
     except Exception:
-        return
+        logger.exception("Redis alert loop failed to start")
+    finally:
+        if pubsub is not None:
+            try:
+                pubsub.close()
+            except Exception:
+                pass
+        if rcli is not None:
+            try:
+                rcli.close()
+            except Exception:
+                pass
 
 
 async def main():
@@ -290,10 +315,20 @@ async def main():
     dp.callback_query.register(cb_handler)
 
     # Start Redis alert forwarder in background
+    stop_event = threading.Event()
+    t: Optional[threading.Thread] = None
     if redis is not None and CHAT_WHITELIST:
-        t = threading.Thread(target=_redis_alert_loop, args=(bot,), daemon=True)
+        loop = asyncio.get_running_loop()
+        t = threading.Thread(
+            target=_redis_alert_loop, args=(bot, loop, stop_event), daemon=True
+        )
         t.start()
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        stop_event.set()
+        if t is not None:
+            await asyncio.get_running_loop().run_in_executor(None, t.join)
 
 
 if __name__ == "__main__":
