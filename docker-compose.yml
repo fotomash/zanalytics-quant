@@ -877,7 +877,7 @@ services:
   mcp2:
     build:
       context: ./services/mcp2
-      dockerfile: /Dockerfile
+      dockerfile: Dockerfile
     container_name: mcp2
     environment:
       - REDIS_URL=redis://mcp2-redis:6379/0
