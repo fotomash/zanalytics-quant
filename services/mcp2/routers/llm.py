@@ -2,7 +2,7 @@ import os
 import asyncio
 import httpx
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from ..auth import verify_api_key
 
 router = APIRouter(dependencies=[Depends(verify_api_key)])
@@ -69,6 +69,7 @@ class WhisperRequest(BaseModel):
 class ResponseMeta(BaseModel):
     endpoint: str
     version: str
+    stub: bool = Field(False, description="True when response is a stub due to missing OpenAI")
 
 
 class WhisperResponse(BaseModel):
@@ -112,11 +113,11 @@ async def _suggest(body: WhisperRequest, endpoint: str, nudges: bool) -> Whisper
     if not api_key or OpenAI is None:
         # Deterministic stub for offline/dev
         return WhisperResponse(
-            signal="Bias modest; await higher confluence and clean structure.",
+            signal="[stub] Bias modest; await higher confluence and clean structure.",
             risk="Respect cooldown; size <= max_risk; avoid news whips.",
             action="No trade yet; set alerts at key levels; review after next bar.",
             journal="Context logged; hypothesis: momentum fragile; watch liquidity sweeps.",
-            meta=ResponseMeta(endpoint=endpoint, version=VERSION),
+            meta=ResponseMeta(endpoint=endpoint, version=VERSION, stub=True),
         )
 
     try:
