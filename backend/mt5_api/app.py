@@ -29,6 +29,20 @@ def _stub_account_info():
     }
 
 
+def _stub_ticks(symbol: str | None = None, limit: int | None = None):
+    limit = limit or 1
+    return [
+        {
+            "symbol": symbol or "placeholder",
+            "time": 0,
+            "bid": 0.0,
+            "ask": 0.0,
+            "source": "stub",
+        }
+        for _ in range(limit)
+    ]
+
+
 @app.get("/health")
 def health():
     # Report proxy health and underlying bridge reachability
@@ -72,3 +86,24 @@ def positions_get():
         if _stub_enabled():
             return JSONResponse([])
         return JSONResponse([], status_code=502)
+
+
+@app.get("/ticks")
+def ticks(symbol: str | None = None, limit: int | None = None):
+    base = _base_url().rstrip("/")
+    params = {}
+    if symbol is not None:
+        params["symbol"] = symbol
+    if limit is not None:
+        params["limit"] = limit
+    try:
+        r = requests.get(f"{base}/ticks", params=params, timeout=2.5)
+        if r.ok:
+            return JSONResponse(r.json())
+        if _stub_enabled():
+            return JSONResponse(_stub_ticks(symbol, limit))
+        return JSONResponse({"error": f"bridge_http_{r.status_code}"}, status_code=r.status_code)
+    except Exception as e:
+        if _stub_enabled():
+            return JSONResponse(_stub_ticks(symbol, limit))
+        return JSONResponse({"error": str(e)}, status_code=502)
