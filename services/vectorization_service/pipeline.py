@@ -1,4 +1,12 @@
-"""Simple vectorization pipeline."""
+"""Simple vectorization pipeline.
+
+
+This module exposes a single :func:`process_payload` function that converts the
+``"text"`` field of an input mapping into an embedding vector using the
+``embed`` helper from :mod:`services.mcp2.vector.embeddings`.
+"""
+
+from __future__ import annotations
 
 from typing import Any, Dict
 
@@ -14,6 +22,8 @@ def process_payload(payload: Dict[str, Any]) -> np.ndarray:
     ----------
     payload:
         Mapping that must contain a ``"text"`` field.
+
+        Mapping that **must** contain a non-empty ``"text"`` field.
 
     Returns
     -------
@@ -37,6 +47,22 @@ def process_payload(payload: Dict[str, Any]) -> np.ndarray:
 
     embedding = embed(text)
     return np.asarray(embedding, dtype=float)
+    ValueError
+        If ``payload`` is not a dictionary or does not contain a valid
+        ``"text"`` entry.
+    """
+
+    if not isinstance(payload, dict):
+        raise ValueError("Payload must be a dictionary containing a 'text' key.")
+
+    text = payload.get("text")
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("Payload must include a non-empty 'text' key.")
+
+    return np.asarray(embed(text), dtype=float)
+
+
+__all__ = ["process_payload"]
 
 
 __all__ = ["process_payload"]

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import logging
 from typing import Any, Optional
 
 from functools import lru_cache
@@ -9,12 +10,21 @@ from functools import lru_cache
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from prometheus_client import Counter
 
 from ..auth import verify_api_key
 from ..storage import redis_client
 
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/llm", dependencies=[Depends(verify_api_key)], tags=["llm"])
+
+logger = logging.getLogger(__name__)
+
+ECHONUDGE_PUBLISH_FAILURES = Counter(
+    "echonudge_alert_publish_failures_total",
+    "Total number of EchoNudge alert publish failures",
+)
 
 
 class EchoNudgeRequest(BaseModel):
@@ -81,6 +91,7 @@ async def _call_ollama(prompt: str) -> str:
     except HTTPException:
         raise
     except Exception as exc:  # pragma: no cover - offline fallback
+        logger.warning("Ollama call failed: %s", exc)
         # Fallback deterministic stub
         return json.dumps(
             {
@@ -110,6 +121,8 @@ async def _maybe_publish_alert(result: dict[str, Any], prompt: str, meta: Option
             await redis_client.redis.publish("telegram-alerts", json.dumps(payload))
             return True
     except Exception:
+        logger.exception("EchoNudge alert publish failed")
+        ECHONUDGE_PUBLISH_FAILURES.inc()
         return False
     return False
 

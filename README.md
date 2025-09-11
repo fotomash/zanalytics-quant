@@ -173,6 +173,9 @@ Key variables to configure before launching:
 - `DJANGO_SECRET_KEY` – secret key for Django.
 - `MCP2_API_KEY` – secret used by the `mcp` service. Add it to `.env` and Compose
   or CI will inject it; use a 32‑hex‑character value.
+- `PINECONE_URL` and `PINECONE_API_KEY` – connection details for the Pinecone
+  vector store. Set these to point at your Pinecone deployment or leave the URL
+  as `https://localhost:443` to use the local fallback.
 - `LOCAL_THRESHOLD` – confidence cutoff for using the local echo model. Ticks
   below this or in spring/distribution phases get a quick `llm_verdict`; others
   queue for Whisperer.
@@ -274,6 +277,14 @@ Examples of real-time viewing, enrichment jobs, and troubleshooting. [docs/user_
 ## Data Enrichment & Customization
 
 Extend scripts in `utils/` to build custom features and dashboards. [Workflow](docs/data_enrichment_customization.md).
+
+## Session Manifest Prompts
+
+The session manifest bundles reusable Whisperer prompts:
+
+- `aware_caution_v1` — Reinforces situational awareness and caution during volatile phases.
+- `what_if_surge_masks_trap_v1` — Considers whether a rapid surge might conceal a trap.
+- `guardrail_evolution_v1` — Guides adjustments to risk guardrails as market conditions change.
 
 ## Confidence Trace Matrix
 
