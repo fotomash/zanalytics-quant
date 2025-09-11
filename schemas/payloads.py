@@ -87,6 +87,29 @@ class MicrostructureAnalysis(BaseModel):
     )
 
 
+class ISPTSPipelineResult(BaseModel):
+    """Outputs from each stage of the ISPTS pipeline."""
+
+    context_analyzer: Dict[str, Any] = Field(
+        default_factory=dict, description="Context analyzer stage output"
+    )
+    liquidity_engine: Dict[str, Any] = Field(
+        default_factory=dict, description="Liquidity engine stage output"
+    )
+    structure_validator: Dict[str, Any] = Field(
+        default_factory=dict, description="Structure validator stage output"
+    )
+    fvg_locator: Dict[str, Any] = Field(
+        default_factory=dict, description="FVG locator stage output"
+    )
+    risk_manager: Dict[str, Any] = Field(
+        default_factory=dict, description="Risk manager stage output"
+    )
+    confluence_stacker: Dict[str, Any] = Field(
+        default_factory=dict, description="Confluence stacker stage output"
+    )
+
+
 class UnifiedAnalysisPayloadV1(BaseModel):
     """Version 1 unified analysis payload combining all analysis dimensions."""
 
@@ -109,6 +132,9 @@ class UnifiedAnalysisPayloadV1(BaseModel):
     )
     microstructure: MicrostructureAnalysis = Field(
         ..., description="Order flow and microstructure metrics"
+    )
+    ispts_pipeline: ISPTSPipelineResult = Field(
+        ..., description="Outputs from the ISPTS pipeline stages"
     )
     extras: Dict[str, Any] = Field(
         default_factory=dict,
