@@ -1,0 +1,89 @@
+{
+  "strategy_name": "SMC_EngineeredLiquidity_TrapReversal_TickValidated_v12",
+  "aliases": [
+    "Inducement Sweep POI Reversal",
+    "Advanced Wyckoff Spring/UTAD Trap Play",
+    "EngineeredLiquidity_TrapReversal_v12",
+    "SMC_LiquiditySweep_StructureShift_POI_v12",
+    "AlphaRipper Style"
+  ],
+  "entry_pattern": "Engineered liquidity sweep (e.g., Wyckoff Spring/UTAD) into an HTF POI, validated by a sharp price rejection with tick volume spike, followed by a Market Structure Shift (CHoCH/BoS), and entry on retracement to a refined FVG/OB from the MSS impulse leg with LTF confirmation.",
+  "entry_conditions": [
+    "Aligned HTF bias (Wyckoff phase, SMC structure)",
+    "Valid HTF POI mitigation by sweep",
+    "Clear inducement pattern swept (EQH/EQL, session H/L, trendline liquidity)",
+    "Strong sweep rejection ('snapback') with confirming tick volume spike & favorable tick density",
+    "Valid CHoCH (LTF) or BoS (Setup TF) showing displacement post-sweep",
+    "Entry at fresh, unmitigated refined FVG/OB in premium/discount of shift leg",
+    "Active London/NY Killzone session timing preferred",
+    "No major conflicting news events",
+    "R:R >= 2.0 to TP1 (deterministic filter)"
+  ],
+  "timeframe_mapping": {
+    "htf_context_bias_poi": [
+      "Daily",
+      "H4",
+      "H1"
+    ],
+    "setup_tf_inducement_sweep_mss_poi": [
+      "M15",
+      "M5"
+    ],
+    "entry_tf_ltf_confirmation_precision": [
+      "M1",
+      "Tick"
+    ]
+  },
+  "confluence_conditions_indicators": [
+    "Tick Volume Spike (must)",
+    "Favorable Tick Density (enhances confirmation)",
+    "CHoCH (M1/M5) or BoS (M15)",
+    "Fresh Unmitigated FVG/OB for entry",
+    "Killzone Timing (London/NY)",
+    "Optional: Volume Profile POC/HVN at POI, Fib levels, RSI/MACD divergence on LTF for entry"
+  ],
+  "risk_model": {
+    "type": "Adaptive, Structure-Based",
+    "sl_description": "Anchored at sweep extreme or CHoCH origin + adaptive buffer (ATR, tick volatility, spread)",
+    "tp_description": "Multi-level targeting Internal Range Liquidity (IRL), then External Range Liquidity (ERL) or opposing HTF POIs",
+    "min_rr": 2.0,
+    "module": "RiskManager.py"
+  },
+  "execution_flow_ispts": [
+    "Context (ContextAnalyzer.py)",
+    "Catalyst (LiquidityEngine.py + Tick_Processor.py)",
+    "Confirmation (StructureValidator.py)",
+    "Entry (FvgLocator.py/PoiIdentifier.py -> EntryExecutorSMC.py)",
+    "Risk (RiskManager.py)",
+    "Confluence (ConfluenceStacker.py -> PredictiveScorer.py - Observational)"
+  ],
+  "scoring": {
+    "enabled": true,
+    "type": "Observational Maturity Score",
+    "module": "PredictiveScorer.py",
+    "description": "Calculates 'maturity_score' based on YAML weights for sweep quality, CHoCH clarity, POI freshness, volume, session, HTF alignment, tick confirmation strength. Does not override deterministic ISPTS pipeline. Signal freshness can decay."
+  },
+  "fallback_logic": {
+    "enabled": true,
+    "description": "If any ISPTS stage fails, setup is rejected and logged. Advanced fallbacks (managed by orchestrators) can assess 'agent_state' (including 'maturity_score') for monitoring, re-routing, or discarding."
+  },
+  "modules_involved": [
+    "ContextAnalyzer.py",
+    "LiquidityEngine.py",
+    "Tick_Processor.py",
+    "StructureValidator.py",
+    "FvgLocator.py",
+    "PoiIdentifier.py",
+    "EntryExecutorSMC.py",
+    "RiskManager.py",
+    "PredictiveScorer.py",
+    "ConflictFilter.py",
+    "JournalLogger.py",
+    "VolumeProfileEngine.py (Conceptual Utility)"
+  ],
+  "agent_profiles_conceptual": [
+    "StrategyPassV3_Tier3.zip profiles",
+    "new.zip asset-specific YAMLs (e.g., XAUUSD_SMC_SweepShiftPOI.yaml)"
+  ],
+  "memory_merge_flag": true
+}

@@ -1,0 +1,69 @@
+{
+  "strategy_name": "Protection_Reentry_v12",
+  "aliases": [
+    "Failed Setup Reclaim Entry",
+    "Second Chance Logic"
+  ],
+  "entry_pattern": "Fallback Strategy: Activated after a primary setup's SL is hit. If price reclaims a key structural level from the invalidated setup (with volume) AND forms a new LTF confirmation aligned with the original HTF bias, a reentry is considered.",
+  "entry_conditions": [
+    "Prior failed setup (SL hit, 'original_failed_trade_zbar_trace_id' referenced).",
+    "Original HTF bias still assessed as valid.",
+    "Price reclaims key structural level from failed setup (e.g., CHoCH level, POI).",
+    "New LTF confirmation (M1/M5 CHoCH, FVG mitigation) post-reclaim, aligned with original bias.",
+    "Volume supporting the reclaim and new confirmation."
+  ],
+  "timeframe_mapping": {
+    "context_setup_tf": [
+      "Inherits from original failed setup (e.g., M15, M5, H1)"
+    ],
+    "reentry_confirmation_tf": [
+      "M1",
+      "M5"
+    ]
+  },
+  "confluence_conditions_indicators": [
+    "Valid ZBAR record of prior failed trade.",
+    "Reclaim of significant prior structural level.",
+    "New LTF confirmation (CHoCH, FVG).",
+    "Volume supporting reclaim."
+  ],
+  "risk_model": {
+    "type": "Adjusted from Primary Strategy",
+    "sl_description": "Similar to primary strategy SL but potentially adjusted based on new structural information post-reclaim and context of prior loss.",
+    "tp_description": "Similar to primary strategy TP, potentially adjusted.",
+    "min_rr": 2.0,
+    "module": "RiskManager.py"
+  },
+  "execution_flow_ispts": [
+    "Invoked by orchestrator as part of fallback logic. Then follows a condensed ISPTS:",
+    "Context (Re-validate HTF, reference failed trade)",
+    "Catalyst/Confirmation (Validate reclaim and new LTF confirmation)",
+    "Entry (At new LTF POI)",
+    "Risk (Recalculate with reentry context)"
+  ],
+  "scoring": {
+    "enabled": true,
+    "type": "Observational Reentry Maturity Score",
+    "module": "PredictiveScorer.py",
+    "description": "Assesses strength of reclaim, new LTF setup quality, and remaining HTF bias validity. May have adjusted thresholds."
+  },
+  "fallback_logic": {
+    "enabled": true,
+    "description": "This IS a fallback strategy. Further fallback would likely be to abandon attempts for that cycle/instrument."
+  },
+  "modules_involved": [
+    "ContextAnalyzer.py",
+    "LiquidityEngine.py (for reclaim validation)",
+    "StructureValidator.py",
+    "FvgLocator.py",
+    "EntryExecutorSMC.py",
+    "RiskManager.py",
+    "PredictiveScorer.py",
+    "JournalLogger.py",
+    "Orchestrator/FallbackManager (conceptual, from orchestrators.zip)"
+  ],
+  "agent_profiles_conceptual": [
+    "Specialized fallback agent profiles (conceptually from 5.1.9_blocks.zip) or configured within a primary agent's 'fallback_behavior' YAML section."
+  ],
+  "memory_merge_flag": true
+}
