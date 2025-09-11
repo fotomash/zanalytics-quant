@@ -2034,14 +2034,10 @@ if __name__ == "__main__":
 
         # Uptick / Downtick and Cumulative Delta quick viz
         try:
-            if 'price_mid' not in df.columns:
-                df['price_mid'] = (df['bid'] + df['ask']) / 2
+            df['price_mid'] = (df['bid'] + df['ask']) / 2
             df['tick_dir'] = np.sign(df['price_mid'].diff()).fillna(0).astype(int)
             vol_col = 'inferred_volume' if 'inferred_volume' in df.columns else ('volume' if 'volume' in df.columns else None)
-            if vol_col:
-                df['delta'] = df['tick_dir'] * df[vol_col].fillna(0)
-            else:
-                df['delta'] = df['tick_dir']
+            df['delta'] = df['tick_dir'] * (df[vol_col].fillna(0) if vol_col else 1)
             df['cum_delta'] = df['delta'].cumsum()
             df['uptick_ratio_100'] = (df['tick_dir'] > 0).rolling(100, min_periods=10).mean()
 
@@ -2064,10 +2060,9 @@ if __name__ == "__main__":
             fig_ud.update_layout(height=320, template='plotly_dark', margin=dict(l=10, r=10, t=30, b=10))
             fig_ud.update_yaxes(title_text="Price", secondary_y=False)
             fig_ud.update_yaxes(title_text="Δ / Ratio", secondary_y=True)
-
             with st.expander("🔼 Upticks & Cumulative Delta", expanded=False):
                 st.plotly_chart(fig_ud, use_container_width=True)
-        except Exception as _e:
+        except Exception:
             st.info("Uptick/Delta visualization unavailable (data missing)")
 
         # Heuristic sanity‑check: does this look like real tick data?
