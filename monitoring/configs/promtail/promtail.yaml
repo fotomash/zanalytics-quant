@@ -44,4 +44,6 @@ scrape_configs:
           expressions:
             #message: message
             level: level
+            agent: agent
+            handover: handover
             #output: 'message'
