@@ -1,6 +1,7 @@
-
 import pandas as pd
-import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 class TimeframeConverter:
     def __init__(self):
@@ -33,7 +34,8 @@ class TimeframeConverter:
                     tf_data = self.resample_to_timeframe(df_m1, tf_name)
                     if len(tf_data) >= 100:
                         timeframes[tf_name] = tf_data
-                except:
+                except Exception as e:
+                    logger.error(f"Error generating timeframe {tf_name}: {e}")
                     continue
         
         return timeframes
