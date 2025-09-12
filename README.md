@@ -661,7 +661,7 @@ curl -k https://mcp2.zanalytics.app/mcp | head -3
 You should see `{"event": "open", ...}`.
 
 **Q: Install or build fails due to missing packages or version conflicts?**
-A: Ensure you're using the supported Python version, then install dependencies with `poetry install` or `pip install -r requirements.txt`. If issues persist, clear cached wheels (e.g., `pip cache purge`) and try again.
+A: Ensure you're using the supported Python version, then install dependencies with `pip install -r requirements.txt`. If issues persist, clear cached wheels (e.g., `pip cache purge`) and try again.
 
 **Q: The web UI won't compile or `npm start` fails.**
 A: Remove the `web/node_modules` directory and reinstall dependencies with `npm install` (or `npm ci`). Ensure you're using the project's required Node.js version.
