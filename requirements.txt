@@ -15,7 +15,6 @@ plotly==5.22.0
 ta>=0.11.0
 
 slowapi==0.1.8
-redis==6.4.0        # Official Redis client with sync & asyncio (redis.asyncio)
 asyncpg==0.30.0
 
 tenacity==8.2.3
