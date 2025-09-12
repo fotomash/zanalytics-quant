@@ -42,6 +42,16 @@ def init_redis():
 redis_client = init_redis()
 redis_stream = redis.Redis(host='localhost', port=6379, db=0)
 
+
+@st.cache_data
+def load_indicator_metadata() -> dict:
+    """Fetch indicator metadata from Redis once and cache it."""
+    raw = redis_client.hgetall("indicator_registry")
+    return {k: json.loads(v) for k, v in raw.items()}
+
+
+indicator_metadata = load_indicator_metadata()
+
 st.sidebar.title("🎛️ Dashboard Controls")
 auto_refresh = st.sidebar.checkbox("Auto Refresh", value=True)
 refresh_interval = st.sidebar.slider("Refresh Interval (seconds)", 1, 30, 5)
@@ -133,9 +143,10 @@ if show_market:
                     if indicators_data:
                         indicators = json.loads(indicators_data)
                         st.subheader("Technical Indicators")
-                        for key, value in indicators.items():
-                            if key.startswith('SMA') or key.startswith('RSI'):
-                                st.metric(key, f"{value:.5f}")
+                        for ind_id, value in indicators.get('indicators', {}).items():
+                            meta = indicator_metadata.get(str(ind_id))
+                            name = meta.get('name', ind_id) if meta else ind_id
+                            st.metric(name, f"{value:.5f}")
                     agg_key = f"aggregate:{symbol}:{timeframe}"
                     latest_agg = redis_client.hgetall(agg_key)
                     if latest_agg:
