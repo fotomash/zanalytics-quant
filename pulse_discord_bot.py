@@ -1,3 +1,7 @@
+import sys
+from services.pulse_discord_bot import pulse_discord_bot as _impl
+sys.modules[__name__] = _impl
+
 import asyncio
 import os
 from typing import Any, Dict, Optional
@@ -86,13 +90,37 @@ async def pulse(ctx, *, query: str | None = None):
     ``services/pulse_bot/bot.py``.
     """
     pass
+This lightweight bot demonstrates basic Discord integration for the Pulse
+stack.  For production deployments with full command support, use
+``services/pulse_bot/bot.py``.
+
+The bot expects a ``DISCORD_BOT_TOKEN`` environment variable for authentication.
+"""
+
+
+from __future__ import annotations
 
 import asyncio
 import logging
 import os
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import httpx
+from aiohttp import web
+
+try:  # pragma: no cover - redis optional
+    import redis.asyncio as redis
+except Exception:  # pragma: no cover
+    redis = None  # type: ignore
+
+try:  # pragma: no cover - discord optional
+    import discord
+    from discord.ext import commands
+except Exception:  # pragma: no cover
+    discord = None  # type: ignore
+    commands = None  # type: ignore
+
+
 import discord
 from discord.ext import commands
 
@@ -101,11 +129,12 @@ try:
 except Exception:  # pragma: no cover - redis optional
     aioredis = None  # type: ignore
 
+
 # ---------------------------------------------------------------------------
 # Environment variables
 # ---------------------------------------------------------------------------
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-MCP_MEMORY_API_URL = os.getenv("MCP_MEMORY_API_URL")
+MCP_MEMORY_API_URL = os.getenv("MCP_MEMORY_API_URL", "http://memory.api")
 MCP_MEMORY_API_KEY = os.getenv("MCP_MEMORY_API_KEY")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 CACHE_TTL = int(os.getenv("PULSE_CACHE_TTL", "60"))
@@ -123,23 +152,42 @@ if missing:
     raise RuntimeError(
         "Missing required environment variables: " + ", ".join(missing)
     )
+# ---------------------------------------------------------------------------
+# Environment variables
+# ---------------------------------------------------------------------------
+DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "")
+MCP_MEMORY_API_URL = os.getenv("MCP_MEMORY_API_URL", "http://memory.api")
+MCP_MEMORY_API_KEY = os.getenv("MCP_MEMORY_API_KEY", "")
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+CACHE_TTL = int(os.getenv("PULSE_CACHE_TTL", "600"))
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("pulse_discord_bot")
 
-intents = discord.Intents.default()
-intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents)
-
-_redis: Optional[aioredis.Redis] = None
+_redis: Optional["redis.Redis"] = None
 
 
+_redis: Optional[aioredis.Redis] = None  # type: ignore[name-defined]
+async def get_redis() -> Optional["redis.Redis"]:
+    """Lazily initialize Redis connection if possible."""
+
+    global _redis
+    if _redis is None and redis is not None:
+        _redis = await redis.from_url(
+            REDIS_URL, encoding="utf-8", decode_responses=True
+        )
+    return _redis
+
+
+
+async def record_interaction(payload: Dict[str, Any]) -> None:
+    """Persist the interaction to the memory API."""
 async def get_redis() -> Optional[aioredis.Redis]:
     """Lazily create a Redis connection."""
     global _redis
     if _redis is None and aioredis:
         try:
-            _redis = await aioredis.from_url(
+            _redis = await aioredis.from_url(  # type: ignore[attr-defined]
                 REDIS_URL, encoding="utf-8", decode_responses=True
             )
         except Exception:  # pragma: no cover - best effort only
@@ -161,6 +209,7 @@ async def record_interaction(payload: dict) -> None:
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code in {401, 403}:
             logger.error(
+                "Authentication failed persisting interaction - check MCP_MEMORY_API_KEY"
                 "Memory API authentication failed; check MCP_MEMORY_API_KEY"
             )
         else:
@@ -182,21 +231,75 @@ async def fetch_pulse(query: str) -> str:
             logger.exception("Redis get failed for %s", cache_key)
 
     async with httpx.AsyncClient() as client:
+        await client.post(
+            f"{MCP_MEMORY_API_URL}/memory",
+            json=payload,
+            headers={"Authorization": f"Bearer {MCP_MEMORY_API_KEY}"},
+        )
+
+
+async def fetch_pulse(query: str) -> str:
+    """Fetch answer from memory service with Redis caching."""
+
+    r = _redis or await get_redis()
+    key = f"pulse:{query}"
+    if r is not None:
+        cached = await r.get(key)
+        if cached:
+            return cached
+
+    async with httpx.AsyncClient() as client:
         resp = await client.post(
-            f"{MCP_MEMORY_API_URL}/recall",
+            f"{MCP_MEMORY_API_URL}/query",
             json={"query": query},
             headers={"Authorization": f"Bearer {MCP_MEMORY_API_KEY}"},
-            timeout=10,
         )
+        resp.raise_for_status()
+        answer = resp.json().get("response", "")
+
+    if r is not None:
+        await r.set(key, answer, ex=CACHE_TTL)
+
+    asyncio.create_task(record_interaction({"query": query, "response": answer}))
+    return answer
+
+
+# ---------------------------------------------------------------------------
+# Discord bot setup
+# ---------------------------------------------------------------------------
+if commands is not None:  # pragma: no branch - allows import without discord
+    intents = getattr(discord, "Intents", object)()
+    bot = commands.Bot(command_prefix="!", intents=intents)
+
+    @bot.command(name="pulse")
+    async def pulse(ctx, *, query: str | None = None) -> None:
+        if not query:
+            await ctx.send("Usage: !pulse <query>")
+            return
+        try:
+            result = await fetch_pulse(query)
+            await ctx.send(result)
+        except Exception as exc:  # pragma: no cover - runtime safety
+            logger.exception("!pulse failed")
+            await ctx.send(f"Error: {exc}")
+else:  # fallback for tests where discord is stubbed
+    bot = None  # type: ignore
         try:
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code in {401, 403}:
+                logger.error(
+                    "Authentication failed querying memory API - check MCP_MEMORY_API_KEY"
+                )
+                raise RuntimeError(
+                    "Authentication with memory API failed: invalid or missing MCP_MEMORY_API_KEY"
+                ) from exc
                 msg = "Memory API authentication failed; check MCP_MEMORY_API_KEY"
                 logger.error(msg)
                 raise RuntimeError(msg) from exc
             raise
         data = resp.json()
+
     text = data.get("response") or data.get("result") or str(data)
 
     if r:
@@ -222,7 +325,8 @@ async def on_command_error(ctx: commands.Context, error: Exception) -> None:
 
 @bot.command(name="pulse")
 async def pulse(ctx: commands.Context, *, query: str = "") -> None:
-    """Respond to !pulse commands by querying the memory API."""
+    """Handle the !pulse command by querying the memory API."""
+
     if not query:
         await ctx.send("Usage: !pulse <query>")
         return
@@ -250,6 +354,19 @@ def setup_logging() -> None:
 setup_logging()
 
 
+
+async def health(_: web.Request) -> web.Response:
+    return web.json_response({"status": "ok"})
+
+
+async def start_health_server() -> None:  # pragma: no cover - runtime helper
+    app = web.Application()
+    app.router.add_get("/healthz", health)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", "8080")))
+    await site.start()
+
 async def main() -> None:  # pragma: no cover - manual invocation
     if _bot is not None:
         token = os.getenv("DISCORD_BOT_TOKEN", "")
@@ -257,11 +374,15 @@ async def main() -> None:  # pragma: no cover - manual invocation
     await bot.start(DISCORD_BOT_TOKEN)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - CLI entry point
     try:
         asyncio.run(main())
-    except KeyboardInterrupt:
+    except KeyboardInterrupt:  # pragma: no cover - shutdown path
+if __name__ == "__main__":  # pragma: no cover - manual execution
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:  # pragma: no cover - manual exit
         logger.info("Shutting down")
+
     except Exception as exc:  # pragma: no cover - error path
         logger.exception("Unhandled exception in main", exc_info=exc)
-
