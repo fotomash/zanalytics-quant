@@ -55,10 +55,18 @@ sys.modules.setdefault("discord", discord_module)
 sys.modules.setdefault("discord.ext", discord_ext)
 sys.modules.setdefault("discord.ext.commands", commands_module)
 
-# Stub aioredis so type annotations resolve during import
-aioredis_stub = types.ModuleType("aioredis")
-aioredis_stub.Redis = object  # pragma: no cover - placeholder
-sys.modules.setdefault("aioredis", aioredis_stub)
+# Stub redis.asyncio so type annotations resolve during import
+redis_module = types.ModuleType("redis")
+redis_asyncio = types.ModuleType("redis.asyncio")
+redis_asyncio.Redis = object  # pragma: no cover - placeholder
+
+async def _fake_from_url(*args, **kwargs):  # pragma: no cover - placeholder
+    return None
+
+redis_asyncio.from_url = _fake_from_url
+redis_module.asyncio = redis_asyncio
+sys.modules.setdefault("redis", redis_module)
+sys.modules.setdefault("redis.asyncio", redis_asyncio)
 
 # Now we can safely import the module under test
 import pulse_discord_bot as bot
@@ -95,6 +103,7 @@ class DummyClient:
         self.response = response
         self.called = False
         self.headers = None
+        self.url = None
 
     async def __aenter__(self):
         return self
@@ -102,9 +111,10 @@ class DummyClient:
     async def __aexit__(self, exc_type, exc, tb):
         return None
 
-    async def post(self, *args, **kwargs):
+    async def post(self, url, *args, **kwargs):
         self.called = True
         self.headers = kwargs.get("headers")
+        self.url = url
         return self.response
 
 
@@ -134,6 +144,7 @@ async def test_fetch_pulse_calls_api_and_caches(monkeypatch):
     assert recorded == {"query": "hello", "response": "answer"}
     assert client.called
     assert client.headers["Authorization"] == "Bearer test-key"
+    assert client.url == f"{bot.MCP_MEMORY_API_URL}/recall"
 
 
 @pytest.mark.asyncio
@@ -186,6 +197,7 @@ async def test_record_interaction_includes_auth(monkeypatch):
     monkeypatch.setattr(bot.httpx, "AsyncClient", lambda: client)
     await bot.record_interaction({"msg": "hi"})
     assert client.headers["Authorization"] == "Bearer test-key"
+    assert client.url == f"{bot.MCP_MEMORY_API_URL}/store"
 
 
 # ---------------------------------------------------------------------------

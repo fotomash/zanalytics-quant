@@ -272,69 +272,6 @@ _Generated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}_
 """
         return alert
 
-class TelegramAlertSystem:
-    """Telegram alert integration (legacy)"""
-
-    def __init__(self):
-        self.bot_token = st.secrets.get("telegram_bot_token", "")
-        self.chat_id = st.secrets.get("telegram_chat_id", "")
-        self.enabled = bool(self.bot_token and self.chat_id)
-
-    async def send_alert(self, message: str, photo_path: Optional[str] = None) -> None:
-        """Send alert via Telegram"""
-        if not self.enabled:
-            st.warning("Telegram alerts not configured")
-            return
-
-        url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
-
-        payload = {
-            "chat_id": self.chat_id,
-            "text": message,
-            "parse_mode": "Markdown"
-        }
-
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload) as response:
-                    if response.status == 200:
-                        st.success("✅ Telegram alert sent!")
-                    else:
-                        st.error(f"Failed to send Telegram alert: {response.status}")
-        except Exception as e:
-            st.error(f"Telegram error: {str(e)}")
-
-    def format_trade_alert(self, analysis: Dict, symbol: str = "XAUUSD") -> str:
-        """Format analysis into alert message"""
-        emoji_map = {
-            "HIGH": "🟢",
-            "MEDIUM": "🟡",
-            "LOW": "🔴"
-        }
-
-        quality_emoji = emoji_map.get(analysis.get("trade_quality", "MEDIUM"), "⚪")
-
-        alert = f"""
-{quality_emoji} *ZANFLOW TRADE ALERT* {quality_emoji}
-
-*Symbol:* {symbol}
-*Quality:* {analysis.get('trade_quality', 'N/A')}
-*Confluence:* {analysis.get('confluence_score', 0)}%
-*R:R Ratio:* {analysis.get('risk_reward', 'N/A')}
-
-📍 *Entry:* {analysis.get('entry_strategy', 'Check chart')}
-🛑 *Stop:* {analysis.get('stop_loss', 'Check chart')}
-🎯 *Targets:* {', '.join(analysis.get('take_profit', ['Check chart']))}
-
-📊 *Market Context:*
-{analysis.get('market_context', 'Analysis pending')}
-
-⚠️ *Invalidation:*
-{analysis.get('alternative_scenario', 'Break of structure')}
-
-_Generated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}_
-"""
-        return alert
 
 class MarketDataEnricher:
     """Enrich data with market intelligence"""
@@ -454,7 +391,6 @@ async def run_integrated_dashboard():
     # Initialize components
     llm_connector = EnhancedLLMConnector()
     discord_alerts = DiscordAlertSystem()
-    telegram_alerts = TelegramAlertSystem()
     market_enricher = MarketDataEnricher()
     backtesting = BacktestingEngine()
 
@@ -474,8 +410,6 @@ async def run_integrated_dashboard():
             st.metric("Finnhub", "✅ Connected" if FINNHUB_API_KEY else "❌ Missing")
         with col2:
             st.metric("Discord", "✅ Ready" if discord_alerts.enabled else "⚠️ Not configured")
-            if telegram_alerts.enabled:
-                st.metric("Telegram", "✅ Ready")
             st.metric("Data Path", "✅ Set" if DATA_PATHS else "❌ Missing")
 
         # Trading Settings
@@ -486,9 +420,6 @@ async def run_integrated_dashboard():
         # Alert Settings
         st.subheader("🔔 Alert Settings")
         enable_discord = st.checkbox("Enable Discord Alerts", value=discord_alerts.enabled)
-        enable_telegram = False
-        if telegram_alerts.enabled:
-            enable_telegram = st.checkbox("Enable Telegram Alerts (legacy)", value=False)
         min_confluence = st.slider("Min Confluence for Alert", 0, 100, 70)
 
         # Backtesting Settings
@@ -569,12 +500,6 @@ async def run_integrated_dashboard():
                                 alert_message = discord_alerts.format_trade_alert(analysis, symbol)
                                 try:
                                     await discord_alerts.send_alert(alert_message)
-                                except NotImplementedError:
-                                    st.warning("Alerting is not yet implemented.")
-                            if enable_telegram and analysis.get('confluence_score', 0) >= min_confluence:
-                                alert_message = telegram_alerts.format_trade_alert(analysis, symbol)
-                                try:
-                                    await telegram_alerts.send_alert(alert_message)
                                 except NotImplementedError:
                                     st.warning("Alerting is not yet implemented.")
 
