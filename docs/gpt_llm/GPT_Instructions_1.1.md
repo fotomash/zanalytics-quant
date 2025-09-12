@@ -67,8 +67,8 @@ Trades usage
 Price confirmation (minimal)
 - `GET /api/v1/feed/bars-enriched?symbol={SYM}&timeframe=M15&limit=1`.
 
-Telegram
-- Do not post directly. Return a short, human‑readable line; backend sends to Telegram.
+Discord
+- Do not post directly. Return a short, human‑readable line; backend sends to Discord.
 
 ## Remember
 - Mirror, don’t mandate. Back every suggestion with data.
