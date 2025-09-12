@@ -9,6 +9,7 @@ from datetime import datetime
 
 from components import advanced_stoploss_lots_engine, confluence_engine
 from core.predictive_scorer import PredictiveScorer
+from utils.enrichment_config import EnrichmentConfig, load_enrichment_config
 from schemas.payloads import (
     ISPTSPipelineResult,
     MarketContext,
@@ -25,11 +26,28 @@ from schemas.predictive_schemas import (
 )
 
 
-def build_unified_analysis(tick: dict) -> "UnifiedAnalysisPayloadV1":
+def build_unified_analysis(
+    tick: dict, config: EnrichmentConfig | None = None
+) -> "UnifiedAnalysisPayloadV1":
     """Run core analyzers and validate against the v1 unified analysis
-    payload."""
+    payload.
 
-    confluence = confluence_engine.compute_confluence_indicators_df(tick)
+    Parameters
+    ----------
+    tick:
+        Incoming market data.
+    config:
+        Optional :class:`~utils.enrichment_config.EnrichmentConfig` controlling
+        which indicator groups are computed.  If ``None`` the default
+        configuration is loaded from disk.
+    """
+
+    cfg = config or load_enrichment_config()
+
+    confluence = {}
+    if cfg.technical.enabled:
+        confluence = confluence_engine.compute_confluence_indicators_df(tick)
+
     risk = advanced_stoploss_lots_engine.compute_risk_snapshot(tick)
 
     scorer = PredictiveScorer()
@@ -64,14 +82,49 @@ def build_unified_analysis(tick: dict) -> "UnifiedAnalysisPayloadV1":
     else:
         timestamp = ts
 
+    smc = SMCAnalysis()
+    wyckoff = WyckoffAnalysis()
+    bars = tick.get("bars") or tick.get("data", {}).get("bars")
+
+    if bars and cfg.structure.smc:
+        try:  # pragma: no cover - optional dependency/data
+            import pandas as pd
+            from core.smc_analyzer import SMCAnalyzer
+
+            smc_engine = SMCAnalyzer()
+            smc_res = smc_engine.analyze(pd.DataFrame(bars))
+            smc = SMCAnalysis(
+                market_structure=smc_res.get("market_structure"),
+                poi=[ob.get("type") for ob in smc_res.get("order_blocks", [])],
+                liquidity_pools=[
+                    zone.get("type") for zone in smc_res.get("liquidity_zones", [])
+                ],
+            )
+        except Exception:
+            pass
+
+    if bars and cfg.structure.wyckoff:
+        try:  # pragma: no cover - optional dependency/data
+            import pandas as pd
+            from core.wyckoff_analyzer import WyckoffAnalyzer
+
+            wyckoff_engine = WyckoffAnalyzer()
+            wyckoff_res = wyckoff_engine.analyze(pd.DataFrame(bars))
+            wyckoff = WyckoffAnalysis(
+                phase=wyckoff_res.get("current_phase"),
+                events=[e.get("type") for e in wyckoff_res.get("events", [])],
+            )
+        except Exception:
+            pass
+
     return UnifiedAnalysisPayloadV1(
         symbol=symbol,
         timeframe=timeframe,
         timestamp=timestamp,
         market_context=MarketContext(symbol=symbol, timeframe=timeframe),
         technical_indicators=TechnicalIndicators(extras=confluence),
-        smc=SMCAnalysis(),
-        wyckoff=WyckoffAnalysis(),
+        smc=smc,
+        wyckoff=wyckoff,
         microstructure=MicrostructureAnalysis(),
         predictive_analysis=predictive,
         ispts_pipeline=pipeline,
