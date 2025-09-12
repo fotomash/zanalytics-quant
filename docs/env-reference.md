@@ -16,7 +16,7 @@ Values defined in `.env` or in the shell environment override the defaults shown
 | --- | --- | --- | --- |
 | `POSTGRES_DB` | `zanalytics` | Change to use a different database name. | PostgreSQL database holding core application data. |
 | `POSTGRES_USER` | `postgres` | Set to the username that exists in your database server. | Username for connecting to PostgreSQL. |
-| `POSTGRES_PASSWORD` | `your_secure_postgres_password_here` | Replace with the actual user password. | Password for the PostgreSQL user. |
+| `POSTGRES_PASSWORD` | _(required)_ | Replace with a strong password; no default is provided. | Password for the PostgreSQL user. |
 | `POSTGRES_HOST` | `postgres` | Adjust if the database runs on another host. | Hostname of the PostgreSQL server. |
 | `POSTGRES_PORT` | `5432` | Change if PostgreSQL listens on a non‑default port. | TCP port for the PostgreSQL server. |
 

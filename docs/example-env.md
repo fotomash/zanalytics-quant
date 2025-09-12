@@ -20,10 +20,11 @@ DASH_METRICS_PATH=dashboard/config/dashboard_metrics_summary.yaml
 DASH_PROMPT_PATH=dashboard/config/dashboard_prompt.txt
 
 # Database config
+# Set POSTGRES_PASSWORD to a strong value; no default is provided.
 POSTGRES_HOST=postgres
 POSTGRES_PORT=5432
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
+POSTGRES_PASSWORD=your_secure_postgres_password_here
 POSTGRES_DB=zanalytics
 
 # Redis config
