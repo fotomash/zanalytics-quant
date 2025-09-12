@@ -1,24 +1,8 @@
 # Zanalytics Quant Platform
 
-Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, Postgres, and Streamlit. Now with LLM‑native Actions and safe position control (partials, scaling, hedging).
-
-For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation. Redis cache design and deployment steps live in [redis_architecture/README.md](redis_architecture/README.md). Guidance on MCP memory windows, journaling, and when to split Redis instances is in [docs/mcp_redis.md](docs/mcp_redis.md).
-The v2.0beta release pivots to a memory-centric stack: Redis handles low-latency state, vector search powers recall, and journal replay keeps sessions deterministic.
-- **MCP Redis** maintains real-time caches and streams for the MCP layer. [Learn more](docs/architecture_v2beta.md#mcp-redis).
-- **Journal persistence** writes a durable, replayable audit log. [Learn more](docs/architecture_v2beta.md#journal-persistence).
-- **Vector memory** stores embeddings for long-term contextual recall. [Learn more](docs/architecture_v2beta.md#vector-memory).
-
-For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation. Redis cache design and deployment steps live in [redis_architecture/README.md](redis_architecture/README.md). MCP-specific Redis memory windows and journaling guidance are covered in [docs/mcp_redis.md](docs/mcp_redis.md).
-## Memory & Persistence
-
-- **MCP Redis** – low-latency message bus and cache for metrics and session state. [More](docs/architecture_v2beta.md#mcp-redis)
-- **Journal persistence** – append-only log for durable audits and replay. [More](docs/architecture_v2beta.md#journal-persistence)
-- **Vector memory** – embedding store enabling long-term contextual recall. [More](docs/architecture_v2beta.md#vector-memory)
-
-For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation. Redis cache design and deployment steps live in [redis_architecture/README.md](redis_architecture/README.md).
+Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, Postgres, and Streamlit, now with LLM‑native Actions and safe position control (partials, scaling, hedging). For architecture and API details, see the [docs README](docs/README.md), Redis cache design in [redis_architecture/README.md](redis_architecture/README.md), and guidance on MCP memory windows and journaling in [docs/mcp_redis.md](docs/mcp_redis.md).
 
 ## Table of Contents
-- [MCP Redis, Journal Persistence & Vector Memory](#mcp-redis-journal-persistence--vector-memory)
 - [Memory & Persistence](#memory--persistence)
 - [What's Inside](#whats-inside)
 - [Architecture](#architecture)
@@ -26,32 +10,30 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [pulse-api](#pulse-api)
 - [tick-to-bar](#tick-to-bar)
 - [Quick Start: MCP2 Metrics & Streams](#quick-start-mcp2-metrics--streams)
-- [pulse-api](#pulse-api)
-- [ticktobar](#ticktobar)
 - [Getting Started – Quick Launch](#getting-started-quick-launch)
 - [Environment Variables](#environment-variables)
 - [MT5 service vs. Django API](#mt5-service-vs-django-api)
+- [mt5 vs mt5-api services](#mt5-vs-mt5-api-services)
 - [How It Works (Practical Flow)](#how-it-works-practical-flow)
 - [Data Integrity and Deduplication](#data-integrity-and-deduplication)
 - [MT5 Bridge & Orders (Execution)](#mt5-bridge-orders-execution)
 - [Actions Bus for GPT (≤30 operations)](#actions-bus-for-gpt-30-operations)
-- [Dashboards & Diagnostics](#dashboards-diagnostics)
+- [Dashboards & Diagnostics](#dashboards--diagnostics)
 - [Journaling (ZBAR)](#journaling-zbar)
 - [Typical User Scenarios](#typical-user-scenarios)
 - [Data Enrichment & Customization](#data-enrichment-customization)
+- [Session Manifest Prompts](#session-manifest-prompts)
 - [Confidence Trace Matrix](#confidence-trace-matrix)
 - [Example .env Configuration](#example-env-configuration)
-- [Security & Access Control](#security-access-control)
+- [Security & Access Control](#security--access-control)
 - [API Health Check and Query Examples](#api-health-check-and-query-examples)
 - [Contributing](#contributing)
 - [Running Tests](#running-tests)
-- [Known Issues & Best Practices](#known-issues-best-practices)
-- [Future Directions & Next Steps](#future-directions-next-steps)
-
+- [Known Issues & Best Practices](#known-issues--best-practices)
+- [Future Directions & Next Steps](#future-directions--next-steps)
 - [License](#license)
 - [Advanced Usage](#advanced-usage)
 - [Kafka Replay Consumer](#kafka-replay-consumer)
-
 - [Full API Documentation](#full-api-documentation)
 - [FAQ](#faq)
 - [Troubleshooting Gold Mine](#troubleshooting-gold-mine)
@@ -59,6 +41,12 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [MCP Scaling Runbook](#mcp-scaling-runbook)
 - [Pulse Dashboard Prototype](#pulse-dashboard-prototype)
 - [Further Reading](#further-reading)
+
+## Memory & Persistence
+
+- **MCP Redis** – low-latency message bus and cache for metrics and session state. [More](docs/architecture_v2beta.md#mcp-redis)
+- **Journal persistence** – append-only log for durable audits and replay. [More](docs/architecture_v2beta.md#journal-persistence)
+- **Vector memory** – embedding store enabling long-term contextual recall. [More](docs/architecture_v2beta.md#vector-memory)
 
 ## What's Inside
 - `backend/mt5`: Flask bridge to MetaTrader5 (send orders, partial close, hedge, scale)
@@ -164,47 +152,6 @@ export KAFKA_BROKERS=localhost:9092
 redis-cli XRANGE ml:signals:v1 - + LIMIT 5
 redis-cli XRANGE ml:risk:v1 - + LIMIT 5
 ```
-
-## pulse-api
-
-FastAPI shim that exposes PulseKernel scoring, risk, and journaling features to other services.
-
-**Build and run**
-
-```bash
-docker compose -f docker-compose.pulse.yml build pulse-api
-docker compose -f docker-compose.pulse.yml up pulse-api
-```
-
-**Environment variables**
-
-- `PULSE_CONFIG` – path to the Pulse configuration file.
-- `PULSE_API_KEY` – API key required for authenticated requests.
-
-Service definition: [docker-compose.pulse.yml](docker-compose.pulse.yml).
-
-## ticktobar
-
-Redis stream consumer that aggregates ticks into OHLCV bars for multiple symbols.
-
-**Build and run**
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.override.yml build tick-to-bar
-docker compose -f docker-compose.yml -f docker-compose.override.yml up tick-to-bar
-```
-
-**Environment variables**
-
-- `REDIS_HOST` – Redis host providing tick streams.
-- `REDIS_PORT` – Redis port (default `6379`).
-- `SYMBOLS` – comma-separated symbols to process.
-- `STREAM_VERSION_PREFIX` – stream namespace version (default `v2`).
-
-Service definition: [docker-compose.override.yml](docker-compose.override.yml).
-
----
-
 ## Getting Started – Quick Launch
 
 Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git), [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/). Optional dependencies include [Wine](https://wiki.winehq.org/Download) for the MT5 bridge on non-Windows hosts and [Traefik](https://doc.traefik.io/traefik/getting-started/install-traefik/) if you plan to use its routing features.
