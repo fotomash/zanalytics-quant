@@ -134,6 +134,7 @@ Environment variables consumed by the Pulse Discord bot
 | `DISCORD_BOT_TOKEN` | `your_discord_bot_token_here` | Replace with your bot token to enable notifications. | Token used to authenticate with the Discord Bot API. |
 | `DISCORD_CHANNEL_WHITELIST` | _(empty)_ | Comma-separated channel IDs permitted to issue commands. | Restricts bot commands to approved channels. |
 | `DISCORD_CHANNEL_ID` | `your_discord_channel_id_here` | Set to the channel ID that should receive messages. | Destination channel for Discord alerts. |
+| `DISCORD_WEBHOOK_URL` | `your_discord_webhook_url_here` | Replace with your webhook to enable default alerts. | Webhook endpoint used for sending alerts to Discord. |
 
 ## Alert Settings
 | Variable | Default | Override Behavior | Purpose |
