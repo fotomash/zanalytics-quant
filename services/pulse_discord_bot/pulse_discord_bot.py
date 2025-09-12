@@ -49,12 +49,11 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 _redis: Optional[redis.Redis] = None
 
 
-async def get_redis() -> Optional[redis.Redis]:
-
+def get_redis() -> Optional[redis.Redis]:
     global _redis
     if _redis is None:
         try:
-            _redis = await redis.from_url(
+            _redis = redis.from_url(
                 REDIS_URL, encoding="utf-8", decode_responses=True
             )
         except Exception:
@@ -87,7 +86,7 @@ async def record_interaction(payload: dict) -> None:
 
 async def fetch_pulse(query: str) -> str:
     cache_key = f"pulse:{query}"
-    r = await get_redis()
+    r = get_redis()
     if r:
         try:
             cached = await r.get(cache_key)
