@@ -3,6 +3,8 @@
 This lightweight bot demonstrates basic Discord integration for the Pulse stack.
 For production deployments with full command support, use
 ``services/pulse_bot/bot.py``.
+
+The bot expects a ``DISCORD_BOT_TOKEN`` environment variable for authentication.
 """
 
 import asyncio
@@ -19,12 +21,12 @@ try:
 except Exception:  # pragma: no cover - redis optional
     aioredis = None
 
-# ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
 # Environment variables
 # ---------------------------------------------------------------------------
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-MCP_MEMORY_API_URL = os.getenv("MCP_MEMORY_API_URL")
+MCP_MEMORY_API_URL = os.getenv("MCP_MEMORY_API_URL", "http://memory.api")
 MCP_MEMORY_API_KEY = os.getenv("MCP_MEMORY_API_KEY")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 CACHE_TTL = int(os.getenv("PULSE_CACHE_TTL", "60"))
@@ -50,14 +52,15 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-_redis: Optional[aioredis.Redis] = None
+_redis: Optional[aioredis.Redis] = None  # type: ignore[name-defined]
 
 
-async def get_redis() -> Optional[aioredis.Redis]:
+async def get_redis() -> Optional[aioredis.Redis]:  # type: ignore[name-defined]
+    """Lazily initialise Redis connection if possible."""
     global _redis
     if _redis is None and aioredis:
         try:
-            _redis = await aioredis.from_url(
+            _redis = await aioredis.from_url(  # type: ignore[attr-defined]
                 REDIS_URL, encoding="utf-8", decode_responses=True
             )
         except Exception:
@@ -80,9 +83,6 @@ async def record_interaction(payload: dict) -> None:
         if exc.response.status_code in {401, 403}:
             logger.error(
                 "Authentication failed persisting interaction - check MCP_MEMORY_API_KEY"
-        if exc.response.status_code in (401, 403):
-            logger.error(
-                "Memory API authentication failed; check MCP_MEMORY_API_KEY"
             )
         else:
             logger.exception("Failed to persist interaction")
@@ -118,12 +118,9 @@ async def fetch_pulse(query: str) -> str:
                 raise RuntimeError(
                     "Authentication with memory API failed: invalid or missing MCP_MEMORY_API_KEY"
                 ) from exc
-            if exc.response.status_code in (401, 403):
-                msg = "Memory API authentication failed; check MCP_MEMORY_API_KEY"
-                logger.error(msg)
-                raise RuntimeError(msg) from exc
             raise
         data = resp.json()
+
     text = data.get("response") or data.get("result") or str(data)
 
     if r:
@@ -149,80 +146,7 @@ async def on_command_error(ctx: commands.Context, error: Exception) -> None:
 
 @bot.command(name="pulse")
 async def pulse(ctx: commands.Context, *, query: str = "") -> None:
-
-import asyncio
-import os
-from typing import Any, Dict, Optional
-
-import httpx
-from aiohttp import web
-
-try:
-    import aioredis
-except Exception:  # pragma: no cover - aioredis may not be installed
-    aioredis = None  # type: ignore
-
-try:
-    import discord
-    from discord.ext import commands
-except Exception:  # pragma: no cover - discord may not be installed in tests
-    discord = None  # type: ignore
-    commands = None  # type: ignore
-
-MCP_MEMORY_API_URL = os.getenv("MCP_MEMORY_API_URL", "http://memory.api")
-
-_redis: Optional[Any] = None
-
-
-async def get_redis() -> Any:
-    """Lazily initialize Redis connection if possible."""
-    global _redis
-    if _redis is None and aioredis is not None:  # pragma: no branch - best effort
-        _redis = await aioredis.from_url(os.getenv("REDIS_URL", "redis://localhost"))
-    return _redis
-
-
-async def record_interaction(payload: Dict[str, Any]) -> None:
-    """Record the interaction to memory service."""
-    async with httpx.AsyncClient() as client:  # pragma: no cover - network
-        await client.post(f"{MCP_MEMORY_API_URL}/memory", json=payload)
-
-
-async def fetch_pulse(query: str) -> str:
-    """Fetch answer from memory service with Redis caching."""
-    redis = _redis or await get_redis()
-    key = f"pulse:{query}"
-    if redis is not None:
-        cached = await redis.get(key)
-        if cached:
-            return cached
-
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(f"{MCP_MEMORY_API_URL}/query", json={"query": query})
-        resp.raise_for_status()
-        answer = resp.json().get("response", "")
-
-    if redis is not None:
-        await redis.set(key, answer, ex=600)
-
-    # Fire and forget recording of the interaction
-    asyncio.create_task(record_interaction({"query": query, "response": answer}))
-
-    return answer
-
-
-# Discord bot setup ---------------------------------------------------------
-if commands is not None:  # pragma: no branch - allows module import without discord
-    intents = getattr(discord, "Intents", object)()
-    _bot = commands.Bot(command_prefix="!", intents=intents)
-    decorator = _bot.command(name="pulse")
-else:  # fallback for tests where discord is stubbed
-    _bot = None  # type: ignore
-    decorator = lambda f: f
-
-
-@decorator
-async def pulse(ctx, *, query: str | None = None):
+    """Handle the !pulse command by querying the memory API."""
     if not query:
         await ctx.send("Usage: !pulse <query>")
         return
@@ -258,19 +182,9 @@ async def main() -> None:
     await bot.start(DISCORD_BOT_TOKEN)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - CLI entry point
     try:
         asyncio.run(main())
-    except KeyboardInterrupt:
+    except KeyboardInterrupt:  # pragma: no cover - shutdown path
         logger.info("Shutting down")
-    except Exception as exc:  # pragma: no cover - error path
-        await ctx.send(f"Error: {exc}")
-
-
-bot = _bot
-
-
-# Aiohttp health endpoint ---------------------------------------------------
-async def health(request: web.Request) -> web.Response:
-    return web.json_response({"status": "ok"})
 
