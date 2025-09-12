@@ -1,5 +1,5 @@
 celery
-redis
+redis==6.4.0
 streamlit
 pandas
 plotly

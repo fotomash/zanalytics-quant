@@ -57,7 +57,7 @@ plotly==5.22.0
 ta>=0.11.0
 
 slowapi==0.1.8
-asyncpg==0.29.0
+asyncpg==0.30.0
 confluent-kafka==2.3.0
 tenacity==8.2.3
 # metrics
@@ -66,5 +66,5 @@ prometheus_client==0.22.1
 # MCP2 service dependencies inlined for isolated build context
 fastapi
 uvicorn
-redis
+redis==6.4.0
 sqlalchemy
