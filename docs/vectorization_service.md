@@ -43,10 +43,10 @@ The vectorization service consumes enriched market analysis messages from Kafka 
 
 ## Vector Database Configuration
 
-The service integrates with external vector stores (e.g. Pinecone, Chroma) through `BrownVectorPipeline`. Configuration is provided via environment variables:
+The service integrates with external vector stores (e.g. Qdrant, Pinecone, Chroma) through `BrownVectorPipeline`. Configuration is provided via environment variables:
 
-- `VECTOR_DB_URL` – base URL for the vector database
-- `VECTOR_DB_API_KEY` – API key used for authentication
+- `QDRANT_URL` – base URL for the vector database
+- `QDRANT_API_KEY` – API key used for authentication
 - `KAFKA_BOOTSTRAP_SERVERS` – Kafka brokers (default `kafka:9092`)
 - `KAFKA_GROUP_ID` – consumer group (default `vectorization-service`)
 - `KAFKA_ANALYSIS_TOPIC` – topic to consume (default `final-analysis-payloads`)
@@ -64,4 +64,4 @@ The service integrates with external vector stores (e.g. Pinecone, Chroma) throu
 }
 ```
 
-The vector store receives the payload via an HTTP `POST` to `${VECTOR_DB_URL}/upsert` with the JSON body above.
+The vector store receives the payload via an HTTP `POST` to `${QDRANT_URL}/upsert` with the JSON body above.

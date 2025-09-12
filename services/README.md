@@ -81,8 +81,8 @@ Required environment variables:
 - `KAFKA_BOOTSTRAP_SERVERS` – Kafka brokers (default `kafka:9092`)
 - `KAFKA_GROUP_ID` – consumer group (default `vectorization-service`)
 - `KAFKA_ANALYSIS_TOPIC` – topic to consume (default `final-analysis-payloads`)
-- `VECTOR_DB_URL` – base URL for the vector database
-- `VECTOR_DB_API_KEY` – API key used for authentication
+- `QDRANT_URL` – base URL for the vector database
+- `QDRANT_API_KEY` – API key used for authentication
 
 See [docs/vectorization_service.md](../docs/vectorization_service.md) for complete details.
 - `KAFKA_BOOTSTRAP_SERVERS` – address of the Kafka broker (default `kafka:9092`)

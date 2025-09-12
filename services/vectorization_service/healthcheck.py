@@ -8,9 +8,9 @@ def main() -> None:
     consumer = Consumer({"bootstrap.servers": brokers, "group.id": "healthcheck"})
     consumer.list_topics(timeout=5)
     consumer.close()
-    url = os.environ["VECTOR_DB_URL"].rstrip("/") + "/health"
+    url = os.environ["QDRANT_URL"].rstrip("/") + "/health"
     headers = {}
-    api_key = os.getenv("VECTOR_DB_API_KEY")
+    api_key = os.getenv("QDRANT_API_KEY")
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     response = requests.get(url, headers=headers, timeout=5)
