@@ -370,7 +370,7 @@ class DashboardDataView(views.APIView):
                     "milestone_amount": milestone_amt,
                     "per_trade_risk": per_trade_risk,
                 }
-                # Optional: publish a Telegram alert once per day (anti-spam via Redis key)
+                # Optional: publish a Discord alert once per day (anti-spam via Redis key)
                 if redis_lib is not None:
                     try:
                         rurl = os.getenv('REDIS_URL')
@@ -389,7 +389,7 @@ class DashboardDataView(views.APIView):
                                     {"label": "Ignore", "action": "ignore"}
                                 ]
                             }
-                            rcli.publish('telegram-alerts', json.dumps(msg))
+                            rcli.publish('discord-alerts', json.dumps(msg))
                             rcli.setex(cache_key, 6*60*60, "1")  # 6 hours TTL
                             # Also append to today's discipline events list for trajectory markers
                             try:

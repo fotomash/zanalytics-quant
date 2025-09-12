@@ -1,8 +1,7 @@
 """Discord alert utilities.
 
-This module mirrors ``telegram_alerts`` but delivers notifications via a
-Discord webhook.  Alerts are rate limited per key and failures are silent
-so trading paths are never disrupted.
+Alerts are delivered via a Discord webhook. Alerts are rate limited per
+key and failures are silent so trading paths are never disrupted.
 """
 
 from __future__ import annotations

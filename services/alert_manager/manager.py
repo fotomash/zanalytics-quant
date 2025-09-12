@@ -60,7 +60,7 @@ class AlertManager:
     ) -> Alert:
         """Helper to build a standard price alert."""
         if channels is None:
-            channels = ["telegram"]
+            channels = ["discord"]
         severity = "high" if abs(current_price - threshold) / threshold > 0.05 else "medium"
         return Alert(
             type="price",

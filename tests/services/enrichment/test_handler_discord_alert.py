@@ -106,7 +106,7 @@ def test_high_maturity_publishes_alert(monkeypatch):
 
     assert fake_redis.published
     channel, payload = fake_redis.published[0]
-    assert channel == "telegram-alerts"
+    assert channel == "discord-alerts"
     data = json.loads(payload)
     assert data["strategy_name"] == "my_strategy"
     assert data["symbol"] == "EURUSD"
