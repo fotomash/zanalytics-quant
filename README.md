@@ -82,7 +82,7 @@ graph LR
 ```
 
 - **Redis-backed MCP memory** – Redis stores session context in TTL-managed hashes and streams for fast recall and ephemeral memory.
-- **Vector DB integration** – the [vectorization service](docs/vectorization_service.md) pushes embeddings to external stores (Qdrant, Pinecone, etc.) for semantic retrieval.
+- **Vector DB integration** – the [vectorization service](docs/vectorization_service.md) pushes embeddings to supported stores like Qdrant or FAISS for semantic retrieval. Pinecone is retained only for legacy setups and is unsupported.
 - **Scaling MCP instances** – add MCP pods behind the gateway when Redis memory or vector workloads near capacity.
 - **OpenAI MCP connector** – OpenAI’s MCP connector can plug into the gateway, exposing GPT tooling via the same `/exec` interface.
 
@@ -263,6 +263,10 @@ file out of version control. Never commit secrets to the repository. Docker Comp
 directive and injects those variables into services like `mcp`. For deployments, supply these values through your
 deployment configuration or a dedicated secrets manager—containers no longer mount `.env` directly.
 
+Qdrant (default) and FAISS are the maintained vector backends. See
+[docs/vectorization_service.md](docs/vectorization_service.md) for configuration
+details. Pinecone is considered legacy and unsupported.
+
 Key variables to configure before launching:
 
 - `CUSTOM_USER` and `PASSWORD` – MT5 account credentials.
@@ -274,9 +278,6 @@ Key variables to configure before launching:
 - `DJANGO_SECRET_KEY` – secret key for Django.
 - `MCP2_API_KEY` – secret used by the `mcp` service. Add it to `.env` and Compose
   or CI will inject it; use a 32‑hex‑character value.
-- `PINECONE_URL` and `PINECONE_API_KEY` – connection details for the Pinecone
-  vector store. Set these to point at your Pinecone deployment or leave the URL
-  as `https://localhost:443` to use the local fallback.
 - `VECTOR_DB_URL` – base URL for the vector database service (defaults to the
   bundled Qdrant instance).
 - `QDRANT_API_KEY` – API key for the Qdrant vector store if auth is required.
@@ -285,19 +286,13 @@ Key variables to configure before launching:
 - `REDIS_URL` – connection string for the MCP Redis instance.
 - `REDIS_STREAMS_URL` – optional Redis dedicated to stream operations
   (falls back to `REDIS_URL`).
-- `USE_KAFKA_JOURNAL` – set to `true` to persist journal events in Kafka instead
-  of Redis.
-
-- `VECTOR_DB_URL` and `QDRANT_API_KEY` – base URL and optional API key for the
-  vector database (Qdrant by default).
-- `LOCAL_LLM_MODEL` – model identifier for on-box inference served by Ollama
-  or a similar local runtime.
-- `REDIS_URL` – connection string for Redis used by MCP and other services.
 - `PULSE_JOURNAL_PATH` and `USE_KAFKA_JOURNAL` – directory for Redis-backed
   journal persistence and flag to mirror entries to Kafka.
 - `LOCAL_THRESHOLD` – confidence cutoff for using the local echo model. Ticks
   below this or in spring/distribution phases get a quick `llm_verdict`; others
   queue for Whisperer.
+
+**Legacy variables (unsupported):** `PINECONE_URL`, `PINECONE_API_KEY`
 
 See [docs/README.md](docs/README.md#flags-and-defaults) for default values and
 additional notes on these settings.
