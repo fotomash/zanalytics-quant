@@ -1,5 +1,22 @@
 #!/usr/bin/env python3
-"""Cron job that processes ticks, publishes alerts, and queues simulations."""
+"""Cron job that processes ticks, publishes alerts, and queues simulations.
+
+Whisperer Simulation Queue Format
+---------------------------------
+Redis list stored at key ``whisperer:simulation`` containing JSON-encoded
+entries with::
+
+    {
+        "symbol": str,          # e.g. "EURUSD"
+        "price": float,         # last traded price
+        "risk_score": float,    # model risk score 0..1
+        "timestamp": str        # ISO 8601 UTC timestamp
+    }
+
+Consumers should BRPOP from ``whisperer:simulation`` and feed ticks to the
+Whisperer simulation engine. They must handle JSON decoding errors and manage
+their own acknowledgment or retry logic.
+"""
 
 from __future__ import annotations
 
@@ -18,27 +35,9 @@ from typing import Any, Dict, List, Optional, Union
 import httpx
 import redis
 import yaml
+
 WHISPERER_QUEUE = "whisperer:simulation"
 CONFIG_PATH = Path(os.getenv("PREDICT_CRON_CONFIG", "config/predict_cron.yaml"))
-
-# ---------------------------------------------------------------------------
-# Whisperer Simulation Queue Format
-# ---------------------------------
-# * Redis data type: List stored at key ``whisperer:simulation``.
-# * Each entry: JSON-encoded object::
-#
-#     {
-#         "symbol": str,          # e.g. "EURUSD"
-#         "price": float,         # last traded price
-#         "risk_score": float,    # model risk score 0..1
-#         "timestamp": str        # ISO 8601 UTC timestamp
-#     }
-#
-# Consumers should BRPOP from ``whisperer:simulation`` to retrieve ticks
-# in FIFO order and feed them into the Whisperer simulation engine.
-# They must handle JSON decoding errors and are responsible for their
-# own acknowledgment or retry logic.
-# ---------------------------------------------------------------------------
 
 
 def publish_alert(redis_client: Any, tick: Dict) -> None:
@@ -53,6 +52,7 @@ def enqueue_for_simulation(redis_client: Any, tick: Dict) -> None:
 
 
 _FLOAT_RE = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
+
 
 def generate_llm_risk_score(prompt: str, *, timeout: float = 10.0) -> str:
     """Return a risk score percentage using an LLM or heuristic.
@@ -197,7 +197,9 @@ def get_risk_threshold() -> float:
 RISK_THRESHOLD = get_risk_threshold()
 
 
-def predict_silence(redis_client: redis.Redis, key: str = "predict:latest_tick") -> float:
+def predict_silence(
+    redis_client: redis.Redis, key: str = "predict:latest_tick"
+) -> float:
     """Fetch the last tick timestamp from ``redis_client`` and compute silence.
 
     The value stored at ``key`` may be bytes or a string. If bytes are
@@ -258,6 +260,7 @@ def process_tick(
         publish_alert(redis_client, tick)
         enqueue_for_simulation(redis_client, tick)
 
+
 def main(argv: Optional[List[str]] = None) -> None:
     parser = argparse.ArgumentParser(description="Prediction cron")
     parser.add_argument(
@@ -271,7 +274,9 @@ def main(argv: Optional[List[str]] = None) -> None:
     )
     parser.add_argument("--symbol", default="EURUSD")
     parser.add_argument("--price", type=float, default=1.2345)
-    parser.add_argument("--risk", default="0.95", help="Risk value or text containing it")
+    parser.add_argument(
+        "--risk", default="0.95", help="Risk value or text containing it"
+    )
     args = parser.parse_args(argv)
 
     threshold = RISK_THRESHOLD
@@ -285,6 +290,7 @@ def main(argv: Optional[List[str]] = None) -> None:
             print(f"Unable to compute recommended threshold: {exc}")
 
     if args.demo:
+
         class _DemoClient:
             def publish(self, channel: str, message: str) -> None:
                 print(f"[publish] {channel}: {message}")
