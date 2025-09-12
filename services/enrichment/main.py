@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from .pipeline import run as run_pipeline
+from pipeline import run as run_pipeline
 from utils.enrichment_config import load_enrichment_config
 
 
