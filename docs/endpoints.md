@@ -1,5 +1,129 @@
 # API Endpoints
 
+## Table of Contents
+- [Pulse REST API](#pulse-rest-api)
+  - [GET /health](#get-health)
+  - [POST /score](#post-score)
+  - [POST /risk](#post-risk)
+  - [GET /signal](#get-signal)
+  - [GET /ticks](#get-ticks)
+- [Django Wyckoff API](#django-wyckoff-api)
+- [MCP Server](#mcp-server)
+- [Django v1 API](#django-v1-api)
+
+## Pulse REST API
+
+### `GET /health`
+Health check for the Pulse runtime.
+
+**Authentication**: _None_
+
+**Sample request**: _None_
+
+**Expected response**
+```json
+{ "name": "pulse-api", "time": "2024-01-01T00:00:00Z", "status": "ok" }
+```
+
+See [monitoring runbook](monitoring.md) for operations guidance.
+
+### `POST /score`
+Compute a confluence score for a market symbol.
+
+**Authentication**: `Authorization: Bearer <token>` and `X-API-Key: <key>`
+
+**Payload schema**
+```json
+{ "symbol": "string", "tf": "string", "df": {} }
+```
+
+**Sample request**
+```json
+{ "symbol": "EURUSD", "tf": "M15" }
+```
+
+**Expected response**
+```json
+{
+  "symbol": "EURUSD",
+  "tf": "M15",
+  "score": 72.5,
+  "grade": "B",
+  "reasons": ["liquidity_support"],
+  "decision": "allow",
+  "raw": {}
+}
+```
+
+See [HowTo_Confluence_Scorer.md](HowTo_Confluence_Scorer.md) for algorithm details.
+
+### `POST /risk`
+Check a trade intent against risk limits.
+
+**Authentication**: `Authorization: Bearer <token>` and `X-API-Key: <key>`
+
+**Payload schema**
+```json
+{ "size": number, "score": number, "meta": {} }
+```
+
+**Sample request**
+```json
+{ "size": 0.005, "score": 65 }
+```
+
+**Expected response**
+```json
+{
+  "allowed": true,
+  "warnings": [],
+  "details": { "trades_left": 3, "daily_loss_pct": 0.01 }
+}
+```
+
+See [update_risk_threshold.md](update_risk_threshold.md) for risk configuration.
+
+### `GET /signal`
+Return top trading opportunities.
+
+**Authentication**: `Authorization: Bearer <token>` and `X-API-Key: <key>`
+
+**Sample request**: _None_
+
+**Expected response**
+```json
+[
+  {
+    "symbol": "EURUSD",
+    "score": 84.2,
+    "bias": "BULL",
+    "risk": "LOW",
+    "reasons": ["trend_up", "volume_surge"]
+  }
+]
+```
+
+See [trading-flow.md](trading-flow.md) for how signals feed the pipeline.
+
+### `GET /ticks`
+Fetch recent tick data for a symbol.
+
+**Authentication**: _None_
+
+**Sample request**
+```
+GET /ticks?symbol=EURUSD&limit=5
+```
+
+**Expected response**
+```json
+[
+  { "symbol": "EURUSD", "time": 1693500000, "bid": 1.2345, "ask": 1.2347 }
+]
+```
+
+See [tick_stream_v2_migration.md](tick_stream_v2_migration.md) for ingestion details.
+
 ## Django Wyckoff API
 
 ### `POST /api/pulse/wyckoff/score`
