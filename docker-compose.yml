@@ -191,12 +191,14 @@ services:
       - traefik
 
   mt5-api:
-    image: python:3.11-slim
+    build:
+      context: ./backend/mt5_api
+      dockerfile: Dockerfile
     container_name: mt5-api
     working_dir: /app
     volumes:
       - ./backend/mt5_api:/app
-    command: sh -lc "pip install --no-cache-dir fastapi uvicorn requests && uvicorn app:app --host 0.0.0.0 --port 5001"
+    command: uvicorn app:app --host 0.0.0.0 --port 5001
     restart: unless-stopped
     env_file:
       - .env
@@ -850,7 +852,9 @@ services:
     networks:
       - default
   redis-ml-bridge:
-    image: python:3.11-slim
+    build:
+      context: .
+      dockerfile: services/redis_ml_bridge/Dockerfile
     container_name: redis-ml-bridge
     working_dir: /app
     volumes:
@@ -859,9 +863,12 @@ services:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - STREAM_VERSION=${STREAM_VERSION:-1}
+      - ML_SIGNAL_STREAM
+      - ML_RISK_STREAM
+    command: python services/redis_ml_bridge.py
       - ML_SIGNAL_STREAM=${ML_SIGNAL_STREAM:-ml:signals:v1}
       - ML_RISK_STREAM=${ML_RISK_STREAM:-ml:risk:v1}
-    command: sh -lc "pip install --no-cache-dir redis && python services/redis_ml_bridge.py"
+      - sh -lc "pip install --no-cache-dir redis && python services/redis_ml_bridge.py"
     depends_on:
       redis:
         condition: service_healthy
@@ -973,7 +980,9 @@ services:
       - data-pipeline
 
   persistence:
-    image: python:3.11-slim
+    build:
+      context: .
+      dockerfile: services/persistence/Dockerfile
     container_name: persistence
     working_dir: /app
     volumes:
@@ -982,9 +991,7 @@ services:
       - KAFKA_BROKERS=${KAFKA_BROKERS:-kafka:9092}
       - TOPIC=enriched-analysis-payloads
       - PG_DSN=postgresql://postgres:timescale@timescaledb:5432/postgres
-    command: >
-      sh -lc "pip install --no-cache-dir psycopg2-binary confluent-kafka &&
-      python services/persistence/consumer.py"
+    command: python services/persistence/consumer.py
     depends_on:
       kafka:
         condition: service_started
