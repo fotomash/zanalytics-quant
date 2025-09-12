@@ -2,7 +2,7 @@
 
 Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, Postgres, and Streamlit. Now with LLM‑native Actions and safe position control (partials, scaling, hedging).
 
-For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation. Redis cache design and deployment steps live in [redis_architecture/README.md](redis_architecture/README.md).
+For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation. Redis cache design and deployment steps live in [redis_architecture/README.md](redis_architecture/README.md). Guidance on MCP memory windows, journaling, and when to split Redis instances is in [docs/mcp_redis.md](docs/mcp_redis.md).
 
 ## Table of Contents
 - [What's Inside](#whats-inside)
