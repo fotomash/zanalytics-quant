@@ -11,8 +11,9 @@ x-common-labels: &default-labels
   stackname: "docker-monitoring-stack-gpnc"
 
 x-discord-env: &discord-env
-  DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
-  DISCORD_CHANNEL_ID: ${DISCORD_CHANNEL_ID}
+  DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+  DISCORD_CHANNEL_ID: ${DISCORD_CHANNEL_ID:-}
+
 
 services:
   traefik:
