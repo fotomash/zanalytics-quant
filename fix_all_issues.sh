@@ -31,23 +31,9 @@ EOF
 
 echo "✓ Fixed Django import issues"
 
-# 2. Install Celery in containers
+# 2. Restart services
 echo ""
-echo "2. INSTALLING CELERY"
-echo "--------------------"
-
-# Install celery in the Django container
-docker-compose exec -T django pip install celery redis
-
-# Install celery in the celery container (if different)
-docker-compose exec -T celery pip install celery redis 2>/dev/null || true
-docker-compose exec -T celery-beat pip install celery redis 2>/dev/null || true
-
-echo "✓ Celery installed"
-
-# 3. Restart services
-echo ""
-echo "3. RESTARTING SERVICES"
+echo "2. RESTARTING SERVICES"
 echo "----------------------"
 
 docker-compose restart django celery celery-beat
@@ -55,9 +41,9 @@ sleep 10
 
 echo "✓ Services restarted"
 
-# 4. Check service status
+# 3. Check service status
 echo ""
-echo "4. SERVICE STATUS"
+echo "3. SERVICE STATUS"
 echo "-----------------"
 
 for service in django celery celery-beat redis mt5; do
