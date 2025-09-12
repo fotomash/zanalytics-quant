@@ -874,39 +874,38 @@ services:
     networks:
       - default
 
-mcp2:
-  build:
-    context: .
-    dockerfile: services/mcp2/Dockerfile
-  container_name: mcp2
-  environment:
-    - REDIS_URL=redis://mcp2-redis:6379/0
-    - REDIS_STREAMS_URL=${REDIS_STREAMS_URL:-redis://redis:6379/0}
-    - DATABASE_URL=postgresql://postgres:postgres@mcp2-pg:5432/postgres
-    - MCP2_API_KEY=${MCP2_API_KEY:-}
-    - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
-    - KAFKA_TOPIC=${KAFKA_TOPIC:-mcp2.enriched_trades}
-    - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-    - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
-  volumes:
-    - ./services/mcp2/init.sql:/docker-entrypoint-initdb.d/init.sql:ro # initialize docs table
-  depends_on:
-    mcp2-redis:
-      condition: service_started
-    mcp2-pg:
-      condition: service_started
-  healthcheck:
-    test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8002/health', timeout=3).getcode()==200 else sys.exit(1)\""]
-    interval: 10s
-    timeout: 5s
-    retries: 5
-    start_period: 10s
-  restart: unless-stopped
-  networks:
-    - traefik-public
-    - default
-  labels:
-    <<: *default-labels 
+  mcp2:
+    build:
+      context: .
+      dockerfile: services/mcp2/Dockerfile
+    container_name: mcp2
+    environment:
+      - REDIS_URL=redis://mcp2-redis:6379/0
+      - REDIS_STREAMS_URL=${REDIS_STREAMS_URL:-redis://redis:6379/0}
+      - DATABASE_URL=postgresql://postgres:postgres@mcp2-pg:5432/postgres
+      - MCP2_API_KEY=${MCP2_API_KEY:-}
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      - KAFKA_TOPIC=${KAFKA_TOPIC:-mcp2.enriched_trades}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+    volumes:
+      - ./services/mcp2/init.sql:/docker-entrypoint-initdb.d/init.sql:ro # initialize docs table
+    depends_on:
+      mcp2-redis:
+        condition: service_started
+      mcp2-pg:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8002/health', timeout=3).getcode()==200 else sys.exit(1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - traefik-public
+      - default
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
