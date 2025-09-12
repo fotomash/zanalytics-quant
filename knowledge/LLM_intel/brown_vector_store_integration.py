@@ -1,8 +1,11 @@
+"""Integration pipeline for external vector stores.
+
+Qdrant is the actively supported backend, configured via the `QDRANT_URL` and
+`QDRANT_API_KEY` environment variables. An in-memory Faiss option is available
+for testing, while previous Pinecone or Chroma integrations are deprecated and
+may return in the future.
 """
-Vector Store Integration for Team Brown
-Bootstrap OS v4.3.3 - Production Ready
-Connects CSV ingestion to Pinecone/Weaviate/Chroma
-"""
+
 
 import os
 import json
