@@ -15,7 +15,8 @@ from discord.ext import commands
 try:
     from redis import asyncio as redis_asyncio
 except Exception:  # pragma: no cover - redis optional
-    redis_asyncio = None  # type: ignore
+    redis_asyncio = None
+
 
 # ---------------------------------------------------------------------------
 # Environment variables
@@ -47,10 +48,11 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-_redis: Optional[redis_asyncio.Redis] = None  # type: ignore[name-defined]
+_redis: Optional[redis_asyncio.Redis] = None  # type: ignore[attr-defined]
 
 
-async def get_redis() -> Optional[redis_asyncio.Redis]:
+async def get_redis() -> Optional[redis_asyncio.Redis]:  # type: ignore[attr-defined]
+
     global _redis
     if _redis is None and redis_asyncio:
         try:
