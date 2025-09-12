@@ -1,6 +1,7 @@
 from typing import Any, Dict, List
 
 import pytest
+from typing import Any, Dict
 
 from services.vectorization_service.brown_vector_store_integration import BrownVectorPipeline
 
@@ -23,8 +24,8 @@ class DummySession:
 @pytest.fixture
 def session(monkeypatch):
     dummy = DummySession()
-    monkeypatch.setenv("VECTOR_DB_URL", "http://db")
-    monkeypatch.setenv("VECTOR_DB_API_KEY", "key")
+    monkeypatch.setenv("QDRANT_URL", "http://db")
+    monkeypatch.setenv("QDRANT_API_KEY", "key")
     monkeypatch.setattr("requests.Session", lambda: dummy)
     return dummy
 

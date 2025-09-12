@@ -599,10 +599,10 @@ A: Another service is already bound to a required port.
 3. Or edit the `ports:` mapping in `docker-compose.yml` to use a free port and restart the stack.
 
 **Q: MCP silent or `curl` 404s, but logs are empty?**
-A: The `pulse-kernel` service is likely hijacking port `8001`. Stop it and recreate the MCP container:
+A: The `pulse-api` service is likely hijacking port `8001`. Stop it and recreate the MCP container:
 
 ```bash
-docker stop pulse-kernel tick-to-bar 2>/dev/null || true
+docker stop pulse-api tick-to-bar 2>/dev/null || true
 docker compose up --force-recreate mcp
 ```
 
@@ -650,7 +650,7 @@ See [docs/mcp_troubleshooting.md](docs/mcp_troubleshooting.md) for Traefik label
 4. Still 404 after auth works: Endpoint name wrong. Code has @app.post(/exec) but Whisperer hits /api/v1/actions/query. → Not our fault-Whisperer's connector config was hardcoded to old path. Updated connector to match real route: /exec.
 5. Pop-up hell: Whisperer says requires approval. → MCP middleware blocks unless approve:true sent. Added flag, updated curl, merged PR 241. Now auto-approves boot & equity.
 6. Wine/MetaTrader feed dead: Whisperer shows yesterday's trades. → MT5 popped resolution dialog, never clicked. Had to manually OK after reboot → feed starts. Documented in FAQ as manual step.
-7. Ghost containers eating ports: docker ps shows pulse-kernel, tick-to-bar on 8001. → docker stop pulse-kernel tick-to-bar → mcp binds clean. End result: curl -k -H "Authorization: Bearer your-dev-secret-123" -H "X-API-Key: your-dev-secret-123" -X POST https://mcp1.zanalytics.app/exec -d '{"type":"session_boot","approve":true}' → returns real equity, positions, risk. Whisperer loads without pop-up. Save this. Every time something breaks, start here-no bush, no circles.
+7. Ghost containers eating ports: docker ps shows pulse-api, tick-to-bar on 8001. → docker stop pulse-api tick-to-bar → mcp binds clean. End result: curl -k -H "Authorization: Bearer your-dev-secret-123" -H "X-API-Key: your-dev-secret-123" -X POST https://mcp1.zanalytics.app/exec -d '{"type":"session_boot","approve":true}' → returns real equity, positions, risk. Whisperer loads without pop-up. Save this. Every time something breaks, start here-no bush, no circles.
 
 ## MCP2 Runbook
 

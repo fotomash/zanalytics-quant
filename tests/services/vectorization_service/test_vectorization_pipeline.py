@@ -30,8 +30,8 @@ def test_process_payload_invalid_type():
 
 
 def test_upsert_vector_posts_embedding(monkeypatch):
-    monkeypatch.setenv("VECTOR_DB_URL", "http://example.com")
-    monkeypatch.setenv("VECTOR_DB_API_KEY", "secret")
+    monkeypatch.setenv("QDRANT_URL", "http://example.com")
+    monkeypatch.setenv("QDRANT_API_KEY", "secret")
     captured = {}
 
     class DummySession(requests.Session):
@@ -58,7 +58,7 @@ def test_upsert_vector_posts_embedding(monkeypatch):
 
 
 def test_brown_vector_pipeline_missing_env(monkeypatch):
-    monkeypatch.delenv("VECTOR_DB_URL", raising=False)
-    monkeypatch.delenv("VECTOR_DB_API_KEY", raising=False)
+    monkeypatch.delenv("QDRANT_URL", raising=False)
+    monkeypatch.delenv("QDRANT_API_KEY", raising=False)
     with pytest.raises(EnvironmentError):
         BrownVectorPipeline()

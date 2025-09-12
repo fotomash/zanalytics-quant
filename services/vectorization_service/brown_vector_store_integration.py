@@ -2,7 +2,7 @@
 
 This module provides :class:`BrownVectorPipeline`, a lightweight wrapper
 around a remote vector database such as Pinecone or Chroma. Connection
-parameters are taken from the ``VECTOR_DB_URL`` and ``VECTOR_DB_API_KEY``
+parameters are taken from the ``QDRANT_URL`` and ``QDRANT_API_KEY``
 environment variables.
 """
 
@@ -24,18 +24,18 @@ class BrownVectorPipeline:
     reconnect if a request fails. It expects the following environment
     variables to be defined:
 
-    ``VECTOR_DB_URL``
+    ``QDRANT_URL``
         Base URL for the vector database service.
-    ``VECTOR_DB_API_KEY``
+    ``QDRANT_API_KEY``
         API key used for authentication.
     """
 
     def __init__(self) -> None:
-        self._db_url = os.getenv("VECTOR_DB_URL")
-        self._api_key = os.getenv("VECTOR_DB_API_KEY")
+        self._db_url = os.getenv("QDRANT_URL")
+        self._api_key = os.getenv("QDRANT_API_KEY")
         if not self._db_url or not self._api_key:
             raise EnvironmentError(
-                "VECTOR_DB_URL and VECTOR_DB_API_KEY must be set to use BrownVectorPipeline"
+                "QDRANT_URL and QDRANT_API_KEY must be set to use BrownVectorPipeline"
             )
         self._session: requests.Session | None = None
         self._connect()
