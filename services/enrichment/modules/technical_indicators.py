@@ -1,6 +1,7 @@
 from typing import Any, Dict
 from core.indicators.registry import IndicatorRegistry
 from services.common import get_logger
+from enrichment.enrichment_engine import ensure_dataframe
 
 logger = get_logger(__name__)
 
@@ -13,13 +14,15 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     'calculate' function that takes a pandas DataFrame and returns a DataFrame
     with the indicator's results.
     """
-    dataframe = state.get("dataframe")
+    dataframe = ensure_dataframe(state)
     metadata = state.get("metadata", {})
     symbol = metadata.get("symbol")
 
-    if dataframe is None or symbol is None:
-        state["status"] = "FAIL"
-        state.setdefault("errors", {})["technical_indicators"] = "Missing dataframe or symbol in state."
+    if dataframe is None:
+        state.setdefault("errors", {})["technical_indicators"] = "Missing dataframe in state."
+        return state
+    if symbol is None:
+        # Gracefully skip when symbol information is unavailable
         return state
 
     registry = IndicatorRegistry()

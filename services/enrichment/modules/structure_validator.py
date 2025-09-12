@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-import pandas as pd
-
 from core.swing_engine import SwingEngine
+from enrichment.enrichment_engine import ensure_dataframe
 
 
 def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
@@ -20,8 +19,10 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         Configuration passed to :class:`SwingEngine`.
     """
 
+    dataframe = ensure_dataframe(state)
+    if dataframe is None:
+        return state
     engine = SwingEngine(config)
-    dataframe: pd.DataFrame = state["dataframe"]  # type: ignore[assignment]
     structure_breaks = engine.analyze(dataframe)
     state["structure_breaks"] = structure_breaks
     state["status"] = "FAIL" if structure_breaks else "PASS"

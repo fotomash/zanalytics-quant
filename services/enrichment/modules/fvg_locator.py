@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-import pandas as pd
-
 from core.liquidity_engine import LiquidityEngine
+from enrichment.enrichment_engine import ensure_dataframe
 
 
 def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
@@ -20,9 +19,8 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         Configuration dictionary (currently unused).
     """
 
-    df = state.get("dataframe")
-    if not isinstance(df, pd.DataFrame):
-        state["status"] = "FAIL"
+    df = ensure_dataframe(state)
+    if df is None:
         return state
 
     gaps: List[Dict[str, Any]] | None = state.get("fair_value_gaps")  # type: ignore[assignment]
