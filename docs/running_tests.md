@@ -3,7 +3,7 @@
 To execute the automated Django test suite:
 
 ```bash
-pip install -r backend/django/requirements.txt
+pip install -r requirements.txt
 export DJANGO_SECRET_KEY=test-secret
 pytest
 ```
