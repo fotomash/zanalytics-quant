@@ -61,8 +61,9 @@ This guide documents the agent‑facing Actions Bus, key REST endpoints, session
 - If a verb rejects an unknown parameter (e.g., `limit` on `/trades/history`), retry with the documented form or use the bus.
 - Prefer Actions Bus for portable, schema‑stable calls.
 
-## Telegram Sends
-- LLMs should NOT call Telegram directly. The backend handles posting; return human‑readable text.
+## Discord Sends
+- LLMs should NOT call Discord directly. The backend handles posting; return human‑readable text.
+- Telegram alerts are supported only for backward compatibility.
 
 ## Security
 - Current endpoints are unauthenticated; if `X-Pulse-Key` appears, include it.

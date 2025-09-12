@@ -8,8 +8,9 @@ import pytest
 # ---------------------------------------------------------------------------
 # Provide environment variables required at import time
 # ---------------------------------------------------------------------------
-os.environ.setdefault("DISCORD_TOKEN", "test-token")
+os.environ.setdefault("DISCORD_BOT_TOKEN", "test-token")
 os.environ.setdefault("MCP_MEMORY_API_URL", "http://memory.api")
+os.environ.setdefault("MCP_MEMORY_API_KEY", "test-key")
 
 # ---------------------------------------------------------------------------
 # Stub out discord.py which is not available in the test environment
@@ -93,6 +94,7 @@ class DummyClient:
     def __init__(self, response):
         self.response = response
         self.called = False
+        self.headers = None
 
     async def __aenter__(self):
         return self
@@ -102,6 +104,7 @@ class DummyClient:
 
     async def post(self, *args, **kwargs):
         self.called = True
+        self.headers = kwargs.get("headers")
         return self.response
 
 
@@ -130,6 +133,7 @@ async def test_fetch_pulse_calls_api_and_caches(monkeypatch):
     assert redis.store["pulse:hello"][0] == "answer"
     assert recorded == {"query": "hello", "response": "answer"}
     assert client.called
+    assert client.headers["Authorization"] == "Bearer test-key"
 
 
 @pytest.mark.asyncio
@@ -171,6 +175,17 @@ async def test_fetch_pulse_http_error(monkeypatch):
 
     with pytest.raises(httpx.HTTPError):
         await bot.fetch_pulse("oops")
+
+
+# ---------------------------------------------------------------------------
+# record_interaction tests
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_record_interaction_includes_auth(monkeypatch):
+    client = DummyClient(DummyResponse({}))
+    monkeypatch.setattr(bot.httpx, "AsyncClient", lambda: client)
+    await bot.record_interaction({"msg": "hi"})
+    assert client.headers["Authorization"] == "Bearer test-key"
 
 
 # ---------------------------------------------------------------------------

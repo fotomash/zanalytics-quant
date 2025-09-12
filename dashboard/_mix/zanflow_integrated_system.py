@@ -215,15 +215,72 @@ class EnhancedLLMConnector:
             "alternative_scenario": "Setup invalid on structure break"
         }
 
+class DiscordAlertSystem:
+    """Discord alert integration via webhook"""
+
+    def __init__(self):
+        self.webhook_url = st.secrets.get("discord_webhook_url", "")
+        self.enabled = bool(self.webhook_url)
+
+    async def send_alert(self, message: str) -> None:
+        """Send alert via Discord"""
+        if not self.enabled:
+            st.warning("Discord alerts not configured")
+            return
+
+        payload = {"content": message}
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(self.webhook_url, json=payload) as response:
+                    if response.status == 204:
+                        st.success("✅ Discord alert sent!")
+                    else:
+                        st.error(f"Failed to send Discord alert: {response.status}")
+        except Exception as e:
+            st.error(f"Discord error: {str(e)}")
+
+    def format_trade_alert(self, analysis: Dict, symbol: str = "XAUUSD") -> str:
+        """Format analysis into alert message"""
+        emoji_map = {
+            "HIGH": "🟢",
+            "MEDIUM": "🟡",
+            "LOW": "🔴"
+        }
+
+        quality_emoji = emoji_map.get(analysis.get("trade_quality", "MEDIUM"), "⚪")
+
+        alert = f"""
+{quality_emoji} *ZANFLOW TRADE ALERT* {quality_emoji}
+
+*Symbol:* {symbol}
+*Quality:* {analysis.get('trade_quality', 'N/A')}
+*Confluence:* {analysis.get('confluence_score', 0)}%
+*R:R Ratio:* {analysis.get('risk_reward', 'N/A')}
+
+📍 *Entry:* {analysis.get('entry_strategy', 'Check chart')}
+🛑 *Stop:* {analysis.get('stop_loss', 'Check chart')}
+🎯 *Targets:* {', '.join(analysis.get('take_profit', ['Check chart']))}
+
+📊 *Market Context:*
+{analysis.get('market_context', 'Analysis pending')}
+
+⚠️ *Invalidation:*
+{analysis.get('alternative_scenario', 'Break of structure')}
+
+_Generated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}_
+"""
+        return alert
+
 class TelegramAlertSystem:
-    """Telegram alert integration"""
+    """Telegram alert integration (legacy)"""
 
     def __init__(self):
         self.bot_token = st.secrets.get("telegram_bot_token", "")
         self.chat_id = st.secrets.get("telegram_chat_id", "")
         self.enabled = bool(self.bot_token and self.chat_id)
 
-    async def send_alert(self, message: str, photo_path: Optional[str] = None):
+    async def send_alert(self, message: str, photo_path: Optional[str] = None) -> None:
         """Send alert via Telegram"""
         if not self.enabled:
             st.warning("Telegram alerts not configured")
@@ -248,10 +305,10 @@ class TelegramAlertSystem:
             st.error(f"Telegram error: {str(e)}")
 
     def format_trade_alert(self, analysis: Dict, symbol: str = "XAUUSD") -> str:
-        """Format analysis into Telegram alert"""
+        """Format analysis into alert message"""
         emoji_map = {
             "HIGH": "🟢",
-            "MEDIUM": "🟡", 
+            "MEDIUM": "🟡",
             "LOW": "🔴"
         }
 
@@ -396,6 +453,7 @@ async def run_integrated_dashboard():
 
     # Initialize components
     llm_connector = EnhancedLLMConnector()
+    discord_alerts = DiscordAlertSystem()
     telegram_alerts = TelegramAlertSystem()
     market_enricher = MarketDataEnricher()
     backtesting = BacktestingEngine()
@@ -415,7 +473,9 @@ async def run_integrated_dashboard():
             st.metric("OpenAI", "✅ Connected" if OPENAI_API_KEY else "❌ Missing")
             st.metric("Finnhub", "✅ Connected" if FINNHUB_API_KEY else "❌ Missing")
         with col2:
-            st.metric("Telegram", "✅ Ready" if telegram_alerts.enabled else "⚠️ Not configured")
+            st.metric("Discord", "✅ Ready" if discord_alerts.enabled else "⚠️ Not configured")
+            if telegram_alerts.enabled:
+                st.metric("Telegram", "✅ Ready")
             st.metric("Data Path", "✅ Set" if DATA_PATHS else "❌ Missing")
 
         # Trading Settings
@@ -425,7 +485,10 @@ async def run_integrated_dashboard():
 
         # Alert Settings
         st.subheader("🔔 Alert Settings")
-        enable_telegram = st.checkbox("Enable Telegram Alerts", value=telegram_alerts.enabled)
+        enable_discord = st.checkbox("Enable Discord Alerts", value=discord_alerts.enabled)
+        enable_telegram = False
+        if telegram_alerts.enabled:
+            enable_telegram = st.checkbox("Enable Telegram Alerts (legacy)", value=False)
         min_confluence = st.slider("Min Confluence for Alert", 0, 100, 70)
 
         # Backtesting Settings
@@ -501,7 +564,13 @@ async def run_integrated_dashboard():
                                 st.markdown(f"**Targets:** {', '.join(analysis.get('take_profit', []))}")
                                 st.markdown(f"**Invalidation:** {analysis.get('alternative_scenario', 'N/A')}")
 
-                            # Send alert if confluence is high
+                            # Send alerts if confluence is high
+                            if enable_discord and analysis.get('confluence_score', 0) >= min_confluence:
+                                alert_message = discord_alerts.format_trade_alert(analysis, symbol)
+                                try:
+                                    await discord_alerts.send_alert(alert_message)
+                                except NotImplementedError:
+                                    st.warning("Alerting is not yet implemented.")
                             if enable_telegram and analysis.get('confluence_score', 0) >= min_confluence:
                                 alert_message = telegram_alerts.format_trade_alert(analysis, symbol)
                                 try:
