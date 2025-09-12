@@ -2,9 +2,23 @@
 
 Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, Postgres, and Streamlit. Now with LLM‑native Actions and safe position control (partials, scaling, hedging).
 
+The v2.0beta release pivots to a memory-centric stack: Redis handles low-latency state, vector search powers recall, and journal replay keeps sessions deterministic.
+- **MCP Redis** maintains real-time caches and streams for the MCP layer. [Learn more](docs/architecture_v2beta.md#mcp-redis).
+- **Journal persistence** writes a durable, replayable audit log. [Learn more](docs/architecture_v2beta.md#journal-persistence).
+- **Vector memory** stores embeddings for long-term contextual recall. [Learn more](docs/architecture_v2beta.md#vector-memory).
+
+For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation. Redis cache design and deployment steps live in [redis_architecture/README.md](redis_architecture/README.md). MCP-specific Redis memory windows and journaling guidance are covered in [docs/mcp_redis.md](docs/mcp_redis.md).
+## Memory & Persistence
+
+- **MCP Redis** – low-latency message bus and cache for metrics and session state. [More](docs/architecture_v2beta.md#mcp-redis)
+- **Journal persistence** – append-only log for durable audits and replay. [More](docs/architecture_v2beta.md#journal-persistence)
+- **Vector memory** – embedding store enabling long-term contextual recall. [More](docs/architecture_v2beta.md#vector-memory)
+
 For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation. Redis cache design and deployment steps live in [redis_architecture/README.md](redis_architecture/README.md).
 
 ## Table of Contents
+- [MCP Redis, Journal Persistence & Vector Memory](#mcp-redis-journal-persistence--vector-memory)
+- [Memory & Persistence](#memory--persistence)
 - [What's Inside](#whats-inside)
 - [Architecture](#architecture)
 - [System Overview](#system-overview)
@@ -41,6 +55,7 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [FAQ](#faq)
 - [Troubleshooting Gold Mine](#troubleshooting-gold-mine)
 - [MCP2 Runbook](#mcp2-runbook)
+- [MCP Scaling Runbook](#mcp-scaling-runbook)
 - [Pulse Dashboard Prototype](#pulse-dashboard-prototype)
 - [Further Reading](#further-reading)
 
@@ -51,6 +66,7 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [`dashboards/`](dashboards/README.md): standalone examples and templates
 - `openapi.actions.yaml`: the single schema to upload to Custom GPT
 - `docs/`: deep dives (Actions Bus, Positions & Orders, Journaling schema)
+- `services/pulse_bot/bot.py`: Discord bot entrypoint for interacting with the Pulse kernel
 
 ## Architecture
 ```mermaid
@@ -64,7 +80,12 @@ graph LR
   MT5 -->|positions/history| Django
 ```
 
-For detailed network flows, MCP2 responsibilities, and storage topology, see [docs/architecture.md](docs/architecture.md).
+- **Redis-backed MCP memory** – Redis stores session context in TTL-managed hashes and streams for fast recall and ephemeral memory.
+- **Vector DB integration** – the [vectorization service](docs/vectorization_service.md) pushes embeddings to external stores (Qdrant, Pinecone, etc.) for semantic retrieval.
+- **Scaling MCP instances** – add MCP pods behind the gateway when Redis memory or vector workloads near capacity.
+- **OpenAI MCP connector** – OpenAI’s MCP connector can plug into the gateway, exposing GPT tooling via the same `/exec` interface.
+
+For detailed network flows, MCP2 responsibilities, storage topology, and vector pipelines, see [docs/architecture.md](docs/architecture.md) and [docs/vectorization_service.md](docs/vectorization_service.md).
 
 ## System Overview
 
@@ -252,9 +273,13 @@ Key variables to configure before launching:
 - `DJANGO_SECRET_KEY` – secret key for Django.
 - `MCP2_API_KEY` – secret used by the `mcp` service. Add it to `.env` and Compose
   or CI will inject it; use a 32‑hex‑character value.
-- `PINECONE_URL` and `PINECONE_API_KEY` – connection details for the Pinecone
-  vector store. Set these to point at your Pinecone deployment or leave the URL
-  as `https://localhost:443` to use the local fallback.
+- `VECTOR_DB_URL` and `QDRANT_API_KEY` – base URL and optional API key for the
+  vector database (Qdrant by default).
+- `LOCAL_LLM_MODEL` – model identifier for on-box inference served by Ollama
+  or a similar local runtime.
+- `REDIS_URL` – connection string for Redis used by MCP and other services.
+- `PULSE_JOURNAL_PATH` and `USE_KAFKA_JOURNAL` – directory for Redis-backed
+  journal persistence and flag to mirror entries to Kafka.
 - `LOCAL_THRESHOLD` – confidence cutoff for using the local echo model. Ticks
   below this or in spring/distribution phases get a quick `llm_verdict`; others
   queue for Whisperer.
@@ -268,6 +293,8 @@ Key variables to configure before launching:
   dashboard's diagnostics panel.
 
 For the complete list of variables, see [docs/env-reference.md](docs/env-reference.md).
+Quick reference defaults (including `USE_KAFKA_JOURNAL`) live in
+[docs/README.md](docs/README.md#flags-and-defaults).
 
 ---
 
@@ -655,6 +682,10 @@ See [docs/mcp_troubleshooting.md](docs/mcp_troubleshooting.md) for Traefik label
 ## MCP2 Runbook
 
 For startup commands, endpoint tests, and database maintenance, see the [MCP2 Runbook](docs/runbooks/mcp2.md).
+
+## MCP Scaling Runbook
+
+For Redis splitting, key isolation, and multi-service deployment, see the [MCP Scaling Runbook](docs/runbooks/mcp_scaling.md).
 
 ---
 
