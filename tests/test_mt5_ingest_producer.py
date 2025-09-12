@@ -34,3 +34,14 @@ def test_producer_closed_on_flush_exception(monkeypatch):
         mt5_ingest.pull_and_stream()
 
     assert mock_producer.close.called
+
+
+def test_graceful_shutdown_closes_producer(monkeypatch):
+    mock_producer = MagicMock()
+    monkeypatch.setattr(mt5_ingest, "_producer", mock_producer)
+
+    mt5_ingest.graceful_shutdown()
+
+    assert mock_producer.flush.called
+    assert mock_producer.close.called
+    assert mt5_ingest._producer is None

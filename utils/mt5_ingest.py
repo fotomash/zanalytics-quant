@@ -28,6 +28,8 @@ def _get_producer() -> MT5KafkaProducer:
 
 def get_tick_from_mt5(symbol: str) -> dict:
     """Retrieve the latest tick for ``symbol`` from MetaTrader5."""
+    # This helper is separate so that tests can inject a deterministic
+    # replacement via ``pull_and_stream``'s ``tick_source`` argument.
     if not mt5.initialize():
         raise RuntimeError("MT5 initialization failed")
     try:
@@ -50,10 +52,20 @@ def pull_and_stream(
 ) -> None:
     """Pull ticks from MT5 and stream them to Kafka.
 
-    If ``from_time`` and ``to_time`` are provided, historical ticks for the
-    supplied ``symbol`` are forwarded. Otherwise live ticks are pulled
-    continuously using ``tick_source`` (defaults to :func:`get_tick_from_mt5`).
+    Parameters
+    ----------
+    symbol:
+        The market symbol to pull.
+    from_time, to_time:
+        When both are supplied, ticks within the closed interval are
+        forwarded.  When omitted, live ticks are streamed indefinitely.
+    tick_source:
+        Optional callable used in live mode to obtain the latest tick.  If not
+        provided, :func:`get_tick_from_mt5` is used.
     """
+
+    if (from_time is None) ^ (to_time is None):
+        raise ValueError("from_time and to_time must both be provided")
 
     prod = _get_producer()
     source = tick_source or get_tick_from_mt5
