@@ -7,6 +7,8 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import pandas as pd
 
+from metadata import indicator_registry
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -18,6 +20,11 @@ class MT5RedisIntegration:
         self.redis_stream = redis.Redis(host=redis_host, port=redis_port, db=redis_db)
         self.symbols: List[str] = []
         self.is_connected = False
+        # Publish indicator metadata so consumers can cache it.
+        try:
+            indicator_registry.publish_registry(redis_client=self.redis_client)
+        except Exception as exc:  # pragma: no cover - publication is best effort
+            logger.warning("Failed to publish indicator metadata: %s", exc)
 
     def connect_mt5(self) -> bool:
         if not mt5.initialize():
@@ -92,12 +99,14 @@ class MT5RedisIntegration:
             df = self.cache_historical_data(symbol, timeframe)
         if df.empty:
             return
-        indicator_data = {'symbol': symbol, 'timeframe': timeframe}
+        values: Dict[int, float] = {}
         for ind_name, params in indicators.items():
             if ind_name == 'SMA':
                 period = params.get('period', 20)
                 df[f'SMA_{period}'] = df['close'].rolling(window=period).mean()
-                indicator_data[f'SMA_{period}'] = float(df[f'SMA_{period}'].iloc[-1])
+                reg_id = indicator_registry.get_id(f'SMA_{period}')
+                if reg_id is not None:
+                    values[reg_id] = float(df[f'SMA_{period}'].iloc[-1])
             elif ind_name == 'RSI':
                 period = params.get('period', 14)
                 delta = df['close'].diff()
@@ -105,9 +114,17 @@ class MT5RedisIntegration:
                 loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
                 rs = gain / loss
                 df[f'RSI_{period}'] = 100 - (100 / (1 + rs))
-                indicator_data[f'RSI_{period}'] = float(df[f'RSI_{period}'].iloc[-1])
+                reg_id = indicator_registry.get_id(f'RSI_{period}')
+                if reg_id is not None:
+                    values[reg_id] = float(df[f'RSI_{period}'].iloc[-1])
+        indicator_data = {'symbol': symbol, 'timeframe': timeframe}
+        indicator_data.update({str(k): v for k, v in values.items()})
         self.redis_stream.xadd(f"indicator_stream:{symbol}:{timeframe}", indicator_data, maxlen=1000)
-        self.redis_client.setex(f"latest_indicators:{symbol}:{timeframe}", 300, json.dumps(indicator_data))
+        self.redis_client.setex(
+            f"latest_indicators:{symbol}:{timeframe}",
+            300,
+            json.dumps({'symbol': symbol, 'timeframe': timeframe, 'indicators': values}),
+        )
 
     def get_account_info(self) -> Dict:
         info = mt5.account_info()

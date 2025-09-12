@@ -1,4 +1,5 @@
 import os
+import json
 import pandas as pd
 import redis
 from celery import Celery
@@ -66,19 +67,3 @@ def flush_to_cold(symbol: str):
 
 # Usage: In Django/MT5 view, after ingestion: accumulate_ticks.delay('EURUSD', new_ticks_list)
 # Schedule flush: Celery beat every hour: flush_to_cold.delay('EURUSD')
-Query Helper (For Dashboards/Scorer)
-python# utils/data_query.py (New)
-def get_data(symbol: str, start_time: datetime = None):
-    """Query hybrid: Hot first, then cold."""
-    # Hot from Redis
-    hot_ticks = [json.loads(t) for t in redis_client.lrange(f"{HOT_KEY_PREFIX}{symbol}", 0, -1)]
-    df_hot = pd.DataFrame(hot_ticks)
-
-    # Cold from Parquet (filter partitions if start_time)
-    cold_path = f"{COLD_PATH}{symbol}/*/*/*.parquet"  # Glob for all
-    df_cold = pd.read_parquet(cold_path)  # Or use dask for large
-
-    df = pd.concat([df_cold, df_hot])
-    if start_time:
-        df = df[df['timestamp'] >= start_time]
-    return df

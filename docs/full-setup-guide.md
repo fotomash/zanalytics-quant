@@ -22,6 +22,8 @@ cp .env.template .env
 # edit .env
 ```
 
+Ensure `POSTGRES_PASSWORD` is set to a strong value; the stack will not start without it.
+
 ## 3. Configure domain records
 
 Add DNS records for the domains used by the services. Create `A` or `CNAME` records pointing to the server's public IP.
@@ -65,6 +67,7 @@ cp .env.template .env
 ```
 
 Edit `.env` and fill in secrets and service domains (database credentials, API tokens, etc.).
+Set `POSTGRES_PASSWORD` to a strong value; the services require it.
 
 ## 3. Set up the MT5 bridge environment
 
