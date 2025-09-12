@@ -17,6 +17,7 @@ try:
 except Exception:  # pragma: no cover - redis optional
     redis_asyncio = None
 
+
 # ---------------------------------------------------------------------------
 # Environment variables
 # ---------------------------------------------------------------------------
@@ -51,6 +52,7 @@ _redis: Optional[redis_asyncio.Redis] = None  # type: ignore[attr-defined]
 
 
 async def get_redis() -> Optional[redis_asyncio.Redis]:  # type: ignore[attr-defined]
+
     global _redis
     if _redis is None and redis_asyncio:
         try:

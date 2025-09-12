@@ -29,3 +29,15 @@
 - [ ] monitoring.md — Last reviewed: 2025-09-10
 - [ ] streamlit.md — Last reviewed: 2025-09-10
 - [ ] trading-flow.md — Last reviewed: 2025-09-10
+
+## Dependency Audit — Last reviewed: 2025-09-12
+
+| Package | Decision |
+|---------|----------|
+| `charset-normalizer` | Pin updated to `3.4.3` |
+| `scikit-learn` | Pin updated to `1.7.2` |
+| `httpx` | Pin updated to `0.28.1` |
+| `redis` | Pin updated to `6.4.0` |
+| `asyncpg` | Pin updated to `0.30.0` |
+| `qdrant-client` | Newly pinned at `1.15.1` |
+| MCP2 duplicate block | Removed redundant entries |
