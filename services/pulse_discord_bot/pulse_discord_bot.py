@@ -65,11 +65,12 @@ async def get_redis() -> Optional[redis_asyncio.Redis]:  # type: ignore[attr-def
 
 
 async def record_interaction(payload: dict) -> None:
-    """Best-effort persistence hook to the memory API."""
+    """Best-effort persistence hook to the memory API ``/store`` endpoint."""
     try:
         async with httpx.AsyncClient() as client:
+            store_url = f"{MCP_MEMORY_API_URL}/store"
             resp = await client.post(
-                f"{MCP_MEMORY_API_URL}/store",
+                store_url,
                 json=payload,
                 headers={"Authorization": f"Bearer {MCP_MEMORY_API_KEY}"},
                 timeout=10,
@@ -98,8 +99,9 @@ async def fetch_pulse(query: str) -> str:
             logger.exception("Redis get failed for %s", cache_key)
 
     async with httpx.AsyncClient() as client:
+        recall_url = f"{MCP_MEMORY_API_URL}/recall"
         resp = await client.post(
-            f"{MCP_MEMORY_API_URL}/recall",
+            recall_url,
             json={"query": query},
             headers={"Authorization": f"Bearer {MCP_MEMORY_API_KEY}"},
             timeout=10,
