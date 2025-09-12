@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ..auth import verify_api_key
-import yaml
+from session_manifest import load_prompt, ManifestNotFound
 
 router = APIRouter(dependencies=[Depends(verify_api_key)])
 
@@ -185,14 +185,10 @@ async def run_manifest(body: ManifestRequest) -> ManifestResponse:
     """Render a prompt from ``session_manifest.yaml`` and return the LLM response."""
     manifest_path = Path(__file__).resolve().parents[3] / "session_manifest.yaml"
     try:
-        with manifest_path.open("r", encoding="utf-8") as fh:
-            manifest = yaml.safe_load(fh) or {}
-    except FileNotFoundError:  # pragma: no cover - misconfiguration
+        template = load_prompt(body.key, path=str(manifest_path))
+    except ManifestNotFound:  # pragma: no cover - misconfiguration
         raise HTTPException(status_code=503, detail="session manifest missing")
-
-    prompts = manifest.get("whisperer_prompts", {})
-    template = prompts.get(body.key)
-    if not template:
+    except KeyError:
         raise HTTPException(status_code=404, detail="prompt key not found")
 
     try:
