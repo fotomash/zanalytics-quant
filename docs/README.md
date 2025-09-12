@@ -1,9 +1,9 @@
 Zanalytics Pulse — Documentation Hub
 ===================================
 
-This repository is migrating from a Redis‑only realtime stack to a dual‑stream
-architecture (Redis + Kafka) with durable, replayable journal events. This hub
-points to the current sources of truth and clearly marks legacy docs.
+The repository now anchors the v2.0beta memory‑centric stack:
+MCP Redis handles rapid agent state, LLM memory flows move session context,
+and vector DBs persist embeddings for long‑term recall.
 
 > **Note:** The [Actions Tracker](actions-tracker.md) is the canonical source for action status and links. When updating actions, keep schemas, implementation code, and documentation in sync with the tracker.
 
@@ -22,12 +22,16 @@ points to the current sources of truth and clearly marks legacy docs.
 Current Direction (Active)
 --------------------------
 
+
 - [Architecture (v2beta)](architecture_v2beta.md)
 - [Tick stream v2 migration notes](tick_stream_v2_migration.md)
 - [Architecture (streaming)](architecture_pulse_streaming.md)
 - [Journal envelopes and contracts](journal_envelopes.md)
 - [Actions API overview](ACTIONS_API_OVERVIEW.md)
 - [Kafka sidecar quickstart](../ops/kafka/quickstart.md)
+- [MCP Redis guide](mcp_redis.md)
+- [LLM memory flow](llm_memory_flow.md)
+- [Vector DB usage](vector_db_usage.md)
 - [Pulse runtime (gates + detail API)](../backend/django/app/nexus/pulse/README.md)
 - [Services (mirror, tick→bar, reconciler)](../services/README.md)
 - [Dashboard pages index](../dashboard/pages/README.md)
@@ -46,6 +50,7 @@ Current Direction (Active)
 Legacy / Retired (kept for history)
 -----------------------------------
 
+- [Tick stream v2 migration notes](tick_stream_v2_migration.md)
 - [Kafka migration notes](tick_stream_v2_migration.md)
 
 Older guides remain in this directory for historical reference and are no longer maintained.
