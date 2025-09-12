@@ -1,0 +1,19 @@
+# Enrichment Service
+
+This service enriches incoming market data before it is stored or published.
+
+## Running
+
+From within this directory run the main module:
+
+```bash
+python -m main
+```
+
+The legacy worker entrypoint is still available:
+
+```bash
+python -m worker
+```
+
+`worker.py` is deprecated and retained only for backward compatibility.
