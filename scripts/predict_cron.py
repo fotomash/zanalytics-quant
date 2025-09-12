@@ -42,7 +42,7 @@ CONFIG_PATH = Path(os.getenv("PREDICT_CRON_CONFIG", "config/predict_cron.yaml"))
 def publish_alert(redis_client: redis.Redis, tick: Dict) -> None:
     """Publish a high-risk tick alert to the alerts channel."""
     alert = {"event": "high_risk_tick", "tick": tick}
-    redis_client.publish("telegram-alerts", json.dumps(alert))
+    redis_client.publish("discord-alerts", json.dumps(alert))
 
 
 def enqueue_for_simulation(redis_client: redis.Redis, tick: Dict) -> None:

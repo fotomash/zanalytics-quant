@@ -139,7 +139,7 @@ async def _maybe_publish(diff: dict[str, Any], prompt: str, en: dict[str, Any], 
             "echo": en,
             "whisper": wh,
         }
-        await redis_client.redis.publish("telegram-alerts", json.dumps(payload))
+        await redis_client.redis.publish("discord-alerts", json.dumps(payload))
         AB_PUBLISHED.inc()
         return True
     except Exception:
