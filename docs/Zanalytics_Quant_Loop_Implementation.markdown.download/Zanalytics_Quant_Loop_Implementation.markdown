@@ -144,16 +144,16 @@ from pinecone import Pinecone, ServerlessSpec
 import faiss
 import numpy as np
 
-VECTOR_DB_URL = os.getenv('PINECONE_URL', 'https://localhost:443')
-VECTOR_DB_API_KEY = os.getenv('PINECONE_API_KEY', 'fake-key')
-USE_LOCAL = VECTOR_DB_URL.startswith('https://localhost')
+QDRANT_URL = os.getenv('PINECONE_URL', 'https://localhost:443')
+QDRANT_API_KEY = os.getenv('PINECONE_API_KEY', 'fake-key')
+USE_LOCAL = QDRANT_URL.startswith('https://localhost')
 
 if USE_LOCAL:
     dimension = 384
     index = faiss.IndexFlatL2(dimension)
     vectors = {}
 else:
-    pc = Pinecone(api_key=VECTOR_DB_API_KEY)
+    pc = Pinecone(api_key=QDRANT_API_KEY)
     pc.create_index('quickstart', dimension=384, spec=ServerlessSpec(cloud='aws', region='us-east-1'))
 
 def add_vectors(ticks: list[dict]):
