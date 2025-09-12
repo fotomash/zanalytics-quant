@@ -719,6 +719,7 @@ services:
       - .env
       - .env.discord
     environment:
+      <<: *discord-env
       PYTHONPATH: /app
       DJANGO_API_URL: http://django:8000
       DJANGO_API_TOKEN: ${DJANGO_API_TOKEN:-}
