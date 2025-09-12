@@ -30,8 +30,15 @@ REDIS_HOST=redis
 REDIS_PORT=6379
 
 # Vector store config
-PINECONE_URL=https://controller.your-pinecone.io
-PINECONE_API_KEY=
+VECTOR_DB_URL=http://qdrant:6333
+QDRANT_API_KEY=
+
+# Local model served via Ollama or similar
+LOCAL_LLM_MODEL=llama3:8b-instruct
+
+# Journal persistence
+PULSE_JOURNAL_PATH=/app/data/journal
+USE_KAFKA_JOURNAL=false
 
 # Traefik/SSL/Domains
 VNC_DOMAIN=your-vnc-domain.com
