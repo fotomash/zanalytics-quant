@@ -13,44 +13,79 @@ runtime based on a YAML or JSON configuration file.
 
 ## Configuration
 
-Configuration defines which processors run and in what order. A minimal YAML
-configuration looks like:
+Configuration defines which processors run and in what order.  The default
+grouped configuration lives in
+[`config/enrichment_default.yaml`](../config/enrichment_default.yaml) and is
+split into four hierarchies: **core**, **technical**, **structure**, and
+**advanced**.  Each group toggles a set of enrichment modules:
 
 ```yaml
-pipeline:
-  processors:
-    - name: enrich_prices
-      class: EnrichPriceProcessor
-      params:
-        source: prices
-    - name: add_sentiment
-      class: SentimentProcessor
+core:
+  structure_validator: true
+
+technical:
+  groups:
+    trend:
+      enabled: true
+      indicators:
+        sma: true
+        ema: false
+    oscillators:
+      enabled: true
+      indicators:
+        rsi: true
+        macd: true
+
+structure:
+  smc: true
+  wyckoff: true
+
+advanced:
+  liquidity_engine: true
+  context_analyzer: true
+  fvg_locator: true
+  predictive_scorer: true
 ```
 
-The equivalent JSON configuration:
+### Pydantic configuration model
 
-```json
-{
-  "pipeline": {
-    "processors": [
-      {"name": "enrich_prices", "class": "EnrichPriceProcessor", "params": {"source": "prices"}},
-      {"name": "add_sentiment", "class": "SentimentProcessor"}
-    ]
-  }
-}
+The groups are represented by the Pydantic
+`EnrichmentConfig` model.  It can be loaded from YAML and converted into the
+module map expected by the engine:
+
+```python
+from utils.enrichment_config import EnrichmentConfig, load_enrichment_config
+
+# Load defaults from config/enrichment_default.yaml
+cfg: EnrichmentConfig = load_enrichment_config()
+cfg.technical.groups["trend"].indicators["ema"] = True  # enable EMA on the fly
+
+# Translate grouped toggles into per-module configs
+module_cfg = cfg.to_module_configs()
 ```
 
-## Dynamic configuration API
+### Dynamic configuration API
 
-Processors can be reconfigured without a restart by calling the configuration
-endpoint:
+Processors can be reconfigured without a restart by posting the generated module
+config to the API:
 
 ```python
 import requests
 
-config = {"processors": [{"name": "add_sentiment", "enabled": True}]}
-requests.post("https://engine.example/api/config", json=config, timeout=10)
+requests.post("https://engine.example/api/config", json=module_cfg, timeout=10)
 ```
+
+### Selective enrichment and metadata decoupling
+
+Each group or indicator can be toggled independently so only the desired
+enrichment steps run.  The engine publishes the enriched payload separately from
+its metadata, allowing consumers to fetch lightweight context only when needed.
+
+### Serialization options
+
+Published payloads use MessagePack when the optional ``msgpack`` dependency is
+available and fall back to JSON otherwise, keeping wire formats compact while
+remaining universally compatible.
 
 ## Processors
 
