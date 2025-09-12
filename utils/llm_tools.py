@@ -1,3 +1,5 @@
+"""Utility helpers for working with LLM numeric outputs."""
+
 import logging
 import re
 from typing import Optional
