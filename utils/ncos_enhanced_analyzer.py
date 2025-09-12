@@ -40,6 +40,7 @@ import sqlite3
 import pickle
 import gzip
 from collections import defaultdict, deque
+from utils.processors.structure import StructureProcessor
 import talib
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.cluster import DBSCAN, KMeans
@@ -620,6 +621,7 @@ class SMCAnalyzer:
         self.liquidity_zones = []
         self.order_blocks = []
         self.fair_value_gaps = []
+        self.structure_processor = StructureProcessor()
         self.logger = logger_instance if logger_instance else logging.getLogger(__name__)
 
     # --- Updated: SMCAnalyzer.analyze_smc to call _analyze_fvg_signals ---
@@ -635,10 +637,10 @@ class SMCAnalyzer:
             results['liquidity_zones'] = self._identify_liquidity_zones(df)
 
             # Order blocks
-            results['order_blocks'] = self._identify_order_blocks(df)
+            results['order_blocks'] = self.structure_processor.identify_order_blocks(df)
 
             # Fair value gaps
-            results['fair_value_gaps'] = self._identify_fair_value_gaps(df)
+            results['fair_value_gaps'] = self.structure_processor.identify_fair_value_gaps(df)
 
             # NEW: Analyze FVG signals
             results['fvg_signals'] = self._analyze_fvg_signals(df)
@@ -669,7 +671,7 @@ class SMCAnalyzer:
         after liquidity sweeps.
         """
         fvg_signals = []
-        fair_value_gaps = self._identify_fair_value_gaps(df)
+        fair_value_gaps = self.structure_processor.identify_fair_value_gaps(df)
         # Re-use existing displacement analysis for context
         displacement_events = self._analyze_displacement(df)
 
@@ -763,83 +765,13 @@ class SMCAnalyzer:
 
         return zones
 
-    def _identify_order_blocks(self, df: pd.DataFrame) -> List[Dict]:
-        """Identify order blocks"""
-        order_blocks = []
-
-        try:
-            open_prices = df['open'].values
-            high = df['high'].values
-            low = df['low'].values
-            close = df['close'].values
-
-            for i in range(1, len(df) - 1):
-                # Bullish order block
-                if close[i] > open_prices[i] and close[i+1] > high[i]:
-                    order_blocks.append({
-                        'type': 'bullish_ob',
-                        'top': high[i],
-                        'bottom': open_prices[i],
-                        'index': i,
-                        'strength': (close[i] - open_prices[i]) / open_prices[i]
-                    })
-
-                # Bearish order block
-                if close[i] < open_prices[i] and close[i+1] < low[i]:
-                    order_blocks.append({
-                        'type': 'bearish_ob',
-                        'top': open_prices[i],
-                        'bottom': low[i],
-                        'index': i,
-                        'strength': (open_prices[i] - close[i]) / open_prices[i]
-                    })
-
-        except Exception as e:
-            self.logger.warning(f"Error identifying order blocks: {e}")
-
-        return order_blocks
-
-    def _identify_fair_value_gaps(self, df: pd.DataFrame) -> List[Dict]:
-        """Identify fair value gaps"""
-        gaps = []
-
-        try:
-            high = df['high'].values
-            low = df['low'].values
-
-            for i in range(2, len(df)):
-                # Bullish FVG
-                if low[i] > high[i-2]:
-                    gaps.append({
-                        'type': 'bullish_fvg',
-                        'top': low[i],
-                        'bottom': high[i-2],
-                        'index': i,
-                        'size': low[i] - high[i-2]
-                    })
-
-                # Bearish FVG
-                if high[i] < low[i-2]:
-                    gaps.append({
-                        'type': 'bearish_fvg',
-                        'top': low[i-2],
-                        'bottom': high[i],
-                        'index': i,
-                        'size': low[i-2] - high[i]
-                    })
-
-        except Exception as e:
-            self.logger.warning(f"Error identifying fair value gaps: {e}")
-
-        return gaps
-
     def _identify_breaker_blocks(self, df: pd.DataFrame) -> List[Dict]:
         """Identify breaker blocks"""
         breakers = []
 
         try:
             # Implementation of breaker block identification
-            order_blocks = self._identify_order_blocks(df)
+            order_blocks = self.structure_processor.identify_order_blocks(df)
             close = df['close'].values
 
             for ob in order_blocks:
@@ -872,7 +804,7 @@ class SMCAnalyzer:
         mitigations = []
 
         try:
-            order_blocks = self._identify_order_blocks(df)
+            order_blocks = self.structure_processor.identify_order_blocks(df)
             close = df['close'].values
 
             for ob in order_blocks:
@@ -989,249 +921,6 @@ class SMCAnalyzer:
         # This would identify when price breaks through significant swing levels
         return breaks
 
-class WyckoffAnalyzer:
-    """Micro Wyckoff Analysis"""
-
-    # --- Updated: WyckoffAnalyzer.__init__ ---
-    def __init__(self, logger_instance=None):
-        self.phases = ['accumulation', 'markup', 'distribution', 'markdown']
-        self.events = ['PS', 'SC', 'AR', 'ST', 'BC', 'LPS', 'SOS', 'LPSY', 'UTAD', 'LPSY2']
-        self.logger = logger_instance if logger_instance else logging.getLogger(__name__)
-
-    def analyze_wyckoff(self, df: pd.DataFrame) -> Dict:
-        """Comprehensive Wyckoff analysis"""
-        results = {}
-
-        try:
-            # Identify Wyckoff phases
-            results['phases'] = self._identify_phases(df)
-
-            # Identify key events
-            results['events'] = self._identify_events(df)
-
-            # Volume analysis
-            results['volume_analysis'] = self._analyze_volume_patterns(df)
-
-            # Effort vs Result
-            results['effort_vs_result'] = self._analyze_effort_vs_result(df)
-
-            # Supply and Demand
-            results['supply_demand'] = self._analyze_supply_demand(df)
-
-        except Exception as e:
-            self.logger.warning(f"Error in Wyckoff analysis: {e}")
-
-        return results
-
-    def _identify_phases(self, df: pd.DataFrame) -> List[Dict]:
-        """
-        **Stable Wyckoff phase detector**
-        • Pre‑computes 20‑bar volatility & volume means once  
-        • No nested rolling inside the main loop  
-        • Hard‑cap of 1 000 detected segments to avoid runaway loops
-        """
-        phases: List[Dict] = []
-        if len(df) < 60 or 'close' not in df.columns:
-            return phases
-
-        close   = df['close'].to_numpy()
-        volume  = df.get('volume', pd.Series(np.ones(len(df)))).to_numpy()
-
-        # one‑time rolling calculations
-        vol_20  = pd.Series(close).rolling(20).std().fillna(method='bfill').to_numpy()
-        vol_50m = pd.Series(vol_20).rolling(30).mean().fillna(method='bfill').to_numpy()  # mean of the volatility
-        volu_20 = pd.Series(volume).rolling(20).mean().fillna(method='bfill').to_numpy()
-
-        for i in range(50, len(df) - 10):
-            try:
-                # ── Accumulation: quiet price, loud tape ────
-                if vol_20[i] < 0.75 * vol_50m[i] and volume[i] > 1.25 * volu_20[i]:
-                    phases.append(dict(phase='accumulation',
-                                       start=i-10, end=i+10,
-                                       strength=volume[i] / volu_20[i]))
-
-                # ── Mark‑up: volatility + upward momentum + volume ────
-                elif (vol_20[i] > 1.25 * vol_50m[i]
-                      and close[i] > 1.01 * close[i-5]
-                      and volume[i] > volu_20[i]):
-                    phases.append(dict(phase='markup',
-                                       start=i-5, end=i+5,
-                                       strength=(close[i]-close[i-5])/close[i-5]))
-
-                # safety valve
-                if len(phases) > 1000:
-                    self.logger.warning("Wyckoff phase detector stopped early (1000+ phases).")
-                    break
-            except Exception as e:
-                self.logger.debug("Wyckoff phase calc issue @%d: %s", i, e)
-
-        return phases
-
-    def _identify_events(self, df: pd.DataFrame) -> List[Dict]:
-        """Identify Wyckoff events"""
-        events = []
-
-        try:
-            high = df['high'].values
-            low = df['low'].values
-            close = df['close'].values
-            volume = df['volume'].values if 'volume' in df.columns else np.ones(len(df))
-
-            # Preliminary Support (PS) - first sign of buying interest
-            for i in range(10, len(df) - 10):
-                if (close[i] < close[i-5] and volume[i] > np.mean(volume[i-10:i]) and
-                    close[i+1] > close[i]):
-                    events.append({
-                        'event': 'PS',
-                        'index': i,
-                        'price': close[i],
-                        'volume': volume[i],
-                        'description': 'Preliminary Support'
-                    })
-
-            # Selling Climax (SC) - panic selling
-            for i in range(10, len(df) - 10):
-                if (volume[i] > 2 * np.mean(volume[i-10:i]) and
-                    close[i] < close[i-1] and
-                    close[i+1] > close[i]):
-                    events.append({
-                        'event': 'SC',
-                        'index': i,
-                        'price': close[i],
-                        'volume': volume[i],
-                        'description': 'Selling Climax'
-                    })
-
-        except Exception as e:
-            self.logger.warning(f"Error identifying Wyckoff events: {e}")
-
-        return events
-
-    def _analyze_volume_patterns(self, df: pd.DataFrame) -> Dict:
-        """Analyze volume patterns"""
-        analysis = {}
-
-        try:
-            volume = df['volume'].values if 'volume' in df.columns else np.ones(len(df))
-            close = df['close'].values
-
-            # Volume trend analysis
-            volume_trend = np.polyfit(range(len(volume)), volume, 1)[0]
-
-            # Volume divergence
-            price_trend = np.polyfit(range(len(close)), close, 1)[0]
-
-            analysis = {
-                'volume_trend': volume_trend,
-                'price_trend': price_trend,
-                'divergence': (price_trend > 0 and volume_trend < 0) or (price_trend < 0 and volume_trend > 0),
-                'avg_volume': np.mean(volume),
-                'volume_spikes': np.where(volume > 2 * np.mean(volume))[0].tolist()
-            }
-
-        except Exception as e:
-            self.logger.warning(f"Error analyzing volume patterns: {e}")
-
-        return analysis
-
-    def _analyze_effort_vs_result(self, df: pd.DataFrame) -> List[Dict]:
-        """Analyze effort vs result"""
-        analysis = []
-
-        try:
-            close = df['close'].values
-            volume = df['volume'].values if 'volume' in df.columns else np.ones(len(df))
-
-            for i in range(1, len(df)):
-                price_change = abs(close[i] - close[i-1]) / close[i-1]
-                volume_effort = volume[i] / np.mean(volume)
-
-                if volume_effort > 1.5:  # High volume effort
-                    if price_change < 0.001:  # Low price result
-                        analysis.append({
-                            'index': i,
-                            'type': 'high_effort_low_result',
-                            'effort': volume_effort,
-                            'result': price_change,
-                            'interpretation': 'Potential accumulation/distribution'
-                        })
-                    elif price_change > 0.01:  # High price result
-                        analysis.append({
-                            'index': i,
-                            'type': 'high_effort_high_result',
-                            'effort': volume_effort,
-                            'result': price_change,
-                            'interpretation': 'Strong move with support'
-                        })
-
-        except Exception as e:
-            self.logger.warning(f"Error analyzing effort vs result: {e}")
-
-        return analysis
-
-    def _analyze_supply_demand(self, df: pd.DataFrame) -> Dict:
-        """Analyze supply and demand"""
-        analysis = {}
-
-        try:
-            high = df['high'].values
-            low = df['low'].values
-            close = df['close'].values
-            volume = df['volume'].values if 'volume' in df.columns else np.ones(len(df))
-
-            # Supply zones (resistance areas with high volume)
-            supply_zones = []
-            demand_zones = []
-
-            for i in range(10, len(df) - 10):
-                # Supply zone
-                if (high[i] == max(high[i-5:i+5]) and
-                    volume[i] > np.mean(volume[i-10:i+10])):
-                    supply_zones.append({
-                        'price': high[i],
-                        'index': i,
-                        'strength': volume[i] / np.mean(volume[i-10:i+10])
-                    })
-
-                # Demand zone
-                if (low[i] == min(low[i-5:i+5]) and
-                    volume[i] > np.mean(volume[i-10:i+10])):
-                    demand_zones.append({
-                        'price': low[i],
-                        'index': i,
-                        'strength': volume[i] / np.mean(volume[i-10:i+10])
-                    })
-
-            analysis = {
-                'supply_zones': supply_zones,
-                'demand_zones': demand_zones,
-                'current_bias': self._determine_supply_demand_bias(close, volume)
-            }
-
-        except Exception as e:
-            self.logger.warning(f"Error analyzing supply/demand: {e}")
-
-        return analysis
-
-    def _determine_supply_demand_bias(self, close, volume):
-        """Determine current supply/demand bias"""
-        try:
-            recent_close = close[-10:]
-            recent_volume = volume[-10:]
-
-            # Up moves vs down moves with volume
-            up_volume = sum(recent_volume[i] for i in range(1, len(recent_close)) if recent_close[i] > recent_close[i-1])
-            down_volume = sum(recent_volume[i] for i in range(1, len(recent_close)) if recent_close[i] < recent_close[i-1])
-
-            if up_volume > down_volume * 1.2:
-                return 'demand_dominant'
-            elif down_volume > up_volume * 1.2:
-                return 'supply_dominant'
-            else:
-                return 'balanced'
-        except:
-            return 'unknown'
-
 class TickDataAnalyzer:
     """Advanced tick data analysis"""
 
@@ -1240,6 +929,7 @@ class TickDataAnalyzer:
         self.config = config
         self.tick_limit = config.tick_bars_limit
         self.logger = logger_instance if logger_instance else logging.getLogger(__name__)
+        self.structure_processor = StructureProcessor(self.logger)
 
     def analyze_tick_data(self, df: pd.DataFrame) -> Dict:
         """Comprehensive tick data analysis"""
@@ -1261,7 +951,7 @@ class TickDataAnalyzer:
             results['volume_analysis'] = self._analyze_tick_volume(df)
 
             # Market manipulation detection
-            results['manipulation'] = self._detect_manipulation(df)
+            results['manipulation'] = self.structure_processor.detect_manipulation(df)
 
             # Liquidity analysis
             results['liquidity'] = self._analyze_liquidity(df)
@@ -1288,7 +978,7 @@ class UltimateDataProcessor:
         self.indicator_engine = UltimateIndicatorEngine(self.logger)  # Passed logger
         self.harmonic_detector = HarmonicPatternDetector(self.logger)  # Passed logger
         self.smc_analyzer = SMCAnalyzer(self.logger)  # Passed logger
-        self.wyckoff_analyzer = WyckoffAnalyzer(self.logger)  # Passed logger
+        self.structure_processor = StructureProcessor(self.logger)
         self.tick_analyzer = TickDataAnalyzer(config, self.logger)  # Passed logger
 
     # --- New: UltimateDataProcessor._generate_analysis_metadata ---
@@ -1464,7 +1154,7 @@ class UltimateDataProcessor:
                 self.logger.info("FINISHED: SMC analysis")
 
                 self.logger.info("STARTING: Wyckoff analysis")
-                results['wyckoff_analysis'] = self.wyckoff_analyzer.analyze_wyckoff(df)
+                results['wyckoff_analysis'] = self.structure_processor.analyze_wyckoff(df)
                 self.logger.info("FINISHED: Wyckoff analysis")
 
             # Tick data analysis (ALWAYS ENABLED if tick data)

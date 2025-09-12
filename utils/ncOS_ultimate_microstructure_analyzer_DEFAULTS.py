@@ -37,6 +37,7 @@ import sqlite3
 import pickle
 import gzip
 from collections import defaultdict, deque
+from utils.processors.structure import StructureProcessor
 import talib
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.cluster import DBSCAN, KMeans
@@ -605,6 +606,7 @@ class SMCAnalyzer:
         self.liquidity_zones = []
         self.order_blocks = []
         self.fair_value_gaps = []
+        self.structure_processor = StructureProcessor()
 
     def analyze_smc(self, df: pd.DataFrame) -> Dict:
         """Comprehensive SMC analysis"""
@@ -618,10 +620,10 @@ class SMCAnalyzer:
             results['liquidity_zones'] = self._identify_liquidity_zones(df)
 
             # Order blocks
-            results['order_blocks'] = self._identify_order_blocks(df)
+            results['order_blocks'] = self.structure_processor.identify_order_blocks(df)
 
             # Fair value gaps
-            results['fair_value_gaps'] = self._identify_fair_value_gaps(df)
+            results['fair_value_gaps'] = self.structure_processor.identify_fair_value_gaps(df)
 
             # Breaker blocks
             results['breaker_blocks'] = self._identify_breaker_blocks(df)
@@ -702,83 +704,13 @@ class SMCAnalyzer:
         return zones
 
 
-    def _identify_order_blocks(self, df: pd.DataFrame) -> List[Dict]:
-        """Identify order blocks"""
-        order_blocks = []
-
-        try:
-            open_prices = df['open'].values
-            high = df['high'].values
-            low = df['low'].values
-            close = df['close'].values
-
-            for i in range(1, len(df) - 1):
-                # Bullish order block
-                if close[i] > open_prices[i] and close[i+1] > high[i]:
-                    order_blocks.append({
-                        'type': 'bullish_ob',
-                        'top': high[i],
-                        'bottom': open_prices[i],
-                        'index': i,
-                        'strength': (close[i] - open_prices[i]) / open_prices[i]
-                    })
-
-                # Bearish order block
-                if close[i] < open_prices[i] and close[i+1] < low[i]:
-                    order_blocks.append({
-                        'type': 'bearish_ob',
-                        'top': open_prices[i],
-                        'bottom': low[i],
-                        'index': i,
-                        'strength': (open_prices[i] - close[i]) / open_prices[i]
-                    })
-
-        except Exception as e:
-            logger.warning(f"Error identifying order blocks: {e}")
-
-        return order_blocks
-
-    def _identify_fair_value_gaps(self, df: pd.DataFrame) -> List[Dict]:
-        """Identify fair value gaps"""
-        gaps = []
-
-        try:
-            high = df['high'].values
-            low = df['low'].values
-
-            for i in range(2, len(df)):
-                # Bullish FVG
-                if low[i] > high[i-2]:
-                    gaps.append({
-                        'type': 'bullish_fvg',
-                        'top': low[i],
-                        'bottom': high[i-2],
-                        'index': i,
-                        'size': low[i] - high[i-2]
-                    })
-
-                # Bearish FVG
-                if high[i] < low[i-2]:
-                    gaps.append({
-                        'type': 'bearish_fvg',
-                        'top': low[i-2],
-                        'bottom': high[i],
-                        'index': i,
-                        'size': low[i-2] - high[i]
-                    })
-
-        except Exception as e:
-            logger.warning(f"Error identifying fair value gaps: {e}")
-
-        return gaps
-
     def _identify_breaker_blocks(self, df: pd.DataFrame) -> List[Dict]:
         """Identify breaker blocks"""
         breakers = []
 
         try:
             # Implementation of breaker block identification
-            order_blocks = self._identify_order_blocks(df)
+            order_blocks = self.structure_processor.identify_order_blocks(df)
             close = df['close'].values
 
             for ob in order_blocks:
@@ -811,7 +743,7 @@ class SMCAnalyzer:
         mitigations = []
 
         try:
-            order_blocks = self._identify_order_blocks(df)
+            order_blocks = self.structure_processor.identify_order_blocks(df)
             close = df['close'].values
 
             for ob in order_blocks:
@@ -930,253 +862,13 @@ class SMCAnalyzer:
 
         return breaks
 
-class WyckoffAnalyzer:
-    """Micro Wyckoff Analysis"""
-
-    def __init__(self):
-        self.phases = ['accumulation', 'markup', 'distribution', 'markdown']
-        self.events = ['PS', 'SC', 'AR', 'ST', 'BC', 'LPS', 'SOS', 'LPSY', 'UTAD', 'LPSY2']
-
-    def analyze_wyckoff(self, df: pd.DataFrame) -> Dict:
-        """Comprehensive Wyckoff analysis"""
-        results = {}
-
-        try:
-            # Identify Wyckoff phases
-            results['phases'] = self._identify_phases(df)
-
-            # Identify key events
-            results['events'] = self._identify_events(df)
-
-            # Volume analysis
-            results['volume_analysis'] = self._analyze_volume_patterns(df)
-
-            # Effort vs Result
-            results['effort_vs_result'] = self._analyze_effort_vs_result(df)
-
-            # Supply and Demand
-            results['supply_demand'] = self._analyze_supply_demand(df)
-
-        except Exception as e:
-            logger.warning(f"Error in Wyckoff analysis: {e}")
-
-        return results
-
-    def _identify_phases(self, df: pd.DataFrame) -> List[Dict]:
-        """
-        **Stable Wyckoff phase detector**
-        • Pre‑computes 20‑bar volatility & volume means once
-        • No nested rolling inside the main loop
-        • Hard‑cap of 1 000 detected segments to avoid runaway loops
-        """
-        phases: List[Dict] = []
-        if len(df) < 60 or 'close' not in df.columns:
-            return phases
-
-        close   = df['close'].to_numpy()
-        volume  = df.get('volume', pd.Series(np.ones(len(df)))).to_numpy()
-
-        # one‑time rolling calculations
-        vol_20  = pd.Series(close).rolling(20).std().fillna(method='bfill').to_numpy()
-        vol_50m = pd.Series(vol_20).rolling(30).mean().fillna(method='bfill').to_numpy()  # mean of the volatility
-        volu_20 = pd.Series(volume).rolling(20).mean().fillna(method='bfill').to_numpy()
-
-        for i in range(50, len(df) - 10):
-            try:
-                # ── Accumulation: quiet price, loud tape ────────────────────
-                if vol_20[i] < 0.75 * vol_50m[i] and volume[i] > 1.25 * volu_20[i]:
-                    phases.append(dict(phase='accumulation',
-                                       start=i-10, end=i+10,
-                                       strength=volume[i] / volu_20[i]))
-
-                # ── Mark‑up: volatility + upward momentum + volume ──────────
-                elif (vol_20[i] > 1.25 * vol_50m[i]
-                      and close[i] > 1.01 * close[i-5]
-                      and volume[i] > volu_20[i]):
-                    phases.append(dict(phase='markup',
-                                       start=i-5, end=i+5,
-                                       strength=(close[i]-close[i-5])/close[i-5]))
-
-                # safety valve
-                if len(phases) > 1000:
-                    logger.warning("Wyckoff phase detector stopped early (1000+ phases).")
-                    break
-            except Exception as e:
-                logger.debug("Wyckoff phase calc issue @%d: %s", i, e)
-
-        return phases
-
-    def _identify_events(self, df: pd.DataFrame) -> List[Dict]:
-        """Identify Wyckoff events"""
-        events = []
-
-        try:
-            high = df['high'].values
-            low = df['low'].values
-            close = df['close'].values
-            volume = df['volume'].values if 'volume' in df.columns else np.ones(len(df))
-
-            # Preliminary Support (PS) - first sign of buying interest
-            for i in range(10, len(df) - 10):
-                if (close[i] < close[i-5] and volume[i] > np.mean(volume[i-10:i]) and
-                    close[i+1] > close[i]):
-                    events.append({
-                        'event': 'PS',
-                        'index': i,
-                        'price': close[i],
-                        'volume': volume[i],
-                        'description': 'Preliminary Support'
-                    })
-
-            # Selling Climax (SC) - panic selling
-            for i in range(10, len(df) - 10):
-                if (volume[i] > 2 * np.mean(volume[i-10:i]) and
-                    close[i] < close[i-1] and
-                    close[i+1] > close[i]):
-                    events.append({
-                        'event': 'SC',
-                        'index': i,
-                        'price': close[i],
-                        'volume': volume[i],
-                        'description': 'Selling Climax'
-                    })
-
-        except Exception as e:
-            logger.warning(f"Error identifying Wyckoff events: {e}")
-
-        return events
-
-    def _analyze_volume_patterns(self, df: pd.DataFrame) -> Dict:
-        """Analyze volume patterns"""
-        analysis = {}
-
-        try:
-            volume = df['volume'].values if 'volume' in df.columns else np.ones(len(df))
-            close = df['close'].values
-
-            # Volume trend analysis
-            volume_trend = np.polyfit(range(len(volume)), volume, 1)[0]
-
-            # Volume divergence
-            price_trend = np.polyfit(range(len(close)), close, 1)[0]
-
-            analysis = {
-                'volume_trend': volume_trend,
-                'price_trend': price_trend,
-                'divergence': (price_trend > 0 and volume_trend < 0) or (price_trend < 0 and volume_trend > 0),
-                'avg_volume': np.mean(volume),
-                'volume_spikes': np.where(volume > 2 * np.mean(volume))[0].tolist()
-            }
-
-        except Exception as e:
-            logger.warning(f"Error analyzing volume patterns: {e}")
-
-        return analysis
-
-    def _analyze_effort_vs_result(self, df: pd.DataFrame) -> List[Dict]:
-        """Analyze effort vs result"""
-        analysis = []
-
-        try:
-            close = df['close'].values
-            volume = df['volume'].values if 'volume' in df.columns else np.ones(len(df))
-
-            for i in range(1, len(df)):
-                price_change = abs(close[i] - close[i-1]) / close[i-1]
-                volume_effort = volume[i] / np.mean(volume)
-
-                if volume_effort > 1.5:  # High volume effort
-                    if price_change < 0.001:  # Low price result
-                        analysis.append({
-                            'index': i,
-                            'type': 'high_effort_low_result',
-                            'effort': volume_effort,
-                            'result': price_change,
-                            'interpretation': 'Potential accumulation/distribution'
-                        })
-                    elif price_change > 0.01:  # High price result
-                        analysis.append({
-                            'index': i,
-                            'type': 'high_effort_high_result',
-                            'effort': volume_effort,
-                            'result': price_change,
-                            'interpretation': 'Strong move with support'
-                        })
-
-        except Exception as e:
-            logger.warning(f"Error analyzing effort vs result: {e}")
-
-        return analysis
-
-    def _analyze_supply_demand(self, df: pd.DataFrame) -> Dict:
-        """Analyze supply and demand"""
-        analysis = {}
-
-        try:
-            high = df['high'].values
-            low = df['low'].values
-            close = df['close'].values
-            volume = df['volume'].values if 'volume' in df.columns else np.ones(len(df))
-
-            # Supply zones (resistance areas with high volume)
-            supply_zones = []
-            demand_zones = []
-
-            for i in range(10, len(df) - 10):
-                # Supply zone
-                if (high[i] == max(high[i-5:i+5]) and
-                    volume[i] > np.mean(volume[i-10:i+10])):
-                    supply_zones.append({
-                        'price': high[i],
-                        'index': i,
-                        'strength': volume[i] / np.mean(volume[i-10:i+10])
-                    })
-
-                # Demand zone
-                if (low[i] == min(low[i-5:i+5]) and
-                    volume[i] > np.mean(volume[i-10:i+10])):
-                    demand_zones.append({
-                        'price': low[i],
-                        'index': i,
-                        'strength': volume[i] / np.mean(volume[i-10:i+10])
-                    })
-
-            analysis = {
-                'supply_zones': supply_zones,
-                'demand_zones': demand_zones,
-                'current_bias': self._determine_supply_demand_bias(close, volume)
-            }
-
-        except Exception as e:
-            logger.warning(f"Error analyzing supply/demand: {e}")
-
-        return analysis
-
-    def _determine_supply_demand_bias(self, close, volume):
-        """Determine current supply/demand bias"""
-        try:
-            recent_close = close[-10:]
-            recent_volume = volume[-10:]
-
-            # Up moves vs down moves with volume
-            up_volume = sum(recent_volume[i] for i in range(1, len(recent_close)) if recent_close[i] > recent_close[i-1])
-            down_volume = sum(recent_volume[i] for i in range(1, len(recent_close)) if recent_close[i] < recent_close[i-1])
-
-            if up_volume > down_volume * 1.2:
-                return 'demand_dominant'
-            elif down_volume > up_volume * 1.2:
-                return 'supply_dominant'
-            else:
-                return 'balanced'
-        except:
-            return 'unknown'
-
 class TickDataAnalyzer:
     """Advanced tick data analysis"""
 
     def __init__(self, config: AnalysisConfig):
         self.config = config
         self.tick_limit = config.tick_bars_limit
+        self.structure_processor = StructureProcessor()
 
     def analyze_tick_data(self, df: pd.DataFrame) -> Dict:
         """Comprehensive tick data analysis"""
@@ -1198,7 +890,7 @@ class TickDataAnalyzer:
             results['volume_analysis'] = self._analyze_tick_volume(df)
 
             # Market manipulation detection
-            results['manipulation'] = self._detect_manipulation(df)
+            results['manipulation'] = self.structure_processor.detect_manipulation(df)
 
             # Liquidity analysis
             results['liquidity'] = self._analyze_liquidity(df)
@@ -1313,181 +1005,6 @@ class TickDataAnalyzer:
             logger.warning(f"Error analyzing tick volume: {e}")
 
         return analysis
-
-    def _detect_manipulation(self, df: pd.DataFrame) -> Dict:
-        """Detect market manipulation patterns"""
-        manipulation = {}
-
-        try:
-            # Spoofing detection
-            manipulation['spoofing'] = self._detect_spoofing(df)
-
-            # Layering detection
-            manipulation['layering'] = self._detect_layering(df)
-
-            # Wash trading
-            manipulation['wash_trading'] = self._detect_wash_trading(df)
-
-            # Quote stuffing
-            manipulation['quote_stuffing'] = self._detect_quote_stuffing(df)
-
-            # Momentum ignition
-            manipulation['momentum_ignition'] = self._detect_momentum_ignition(df)
-
-        except Exception as e:
-            logger.warning(f"Error detecting manipulation: {e}")
-
-        return manipulation
-
-    def _detect_spoofing(self, df: pd.DataFrame) -> List[Dict]:
-        """Detect spoofing patterns"""
-        spoofing_events = []
-
-        try:
-            if 'bid' in df.columns and 'ask' in df.columns and 'volume' in df.columns:
-                bid = df['bid'].values
-                ask = df['ask'].values
-                volume = df['volume'].values
-
-                # Look for large bid/ask changes with no volume
-                for i in range(1, len(df)):
-                    bid_change = abs(bid[i] - bid[i-1])
-                    ask_change = abs(ask[i] - ask[i-1])
-
-                    # Large price change with zero volume (potential spoofing)
-                    if (bid_change > np.std(np.diff(bid)) * 3 or
-                        ask_change > np.std(np.diff(ask)) * 3) and volume[i] == 0:
-                        spoofing_events.append({
-                            'index': i,
-                            'timestamp': df.index[i] if hasattr(df.index[i], 'timestamp') else i,
-                            'bid_change': bid_change,
-                            'ask_change': ask_change,
-                            'volume': volume[i],
-                            'severity': max(bid_change, ask_change)
-                        })
-
-        except Exception as e:
-            logger.warning(f"Error detecting spoofing: {e}")
-
-        return spoofing_events
-
-    def _detect_layering(self, df: pd.DataFrame) -> List[Dict]:
-        """Detect layering patterns"""
-        layering_events = []
-
-        try:
-            # Layering detection would require order book data
-            # This is a simplified implementation
-            if 'bid' in df.columns and 'ask' in df.columns:
-                bid = df['bid'].values
-                ask = df['ask'].values
-
-                # Look for rapid bid/ask adjustments
-                for i in range(5, len(df)):
-                    recent_bid_changes = np.diff(bid[i-5:i])
-                    recent_ask_changes = np.diff(ask[i-5:i])
-
-                    # Multiple rapid changes in same direction
-                    if (np.sum(recent_bid_changes > 0) >= 3 or
-                        np.sum(recent_ask_changes > 0) >= 3):
-                        layering_events.append({
-                            'index': i,
-                            'pattern': 'rapid_adjustments',
-                            'bid_changes': recent_bid_changes.tolist(),
-                            'ask_changes': recent_ask_changes.tolist()
-                        })
-
-        except Exception as e:
-            logger.warning(f"Error detecting layering: {e}")
-
-        return layering_events
-
-    def _detect_wash_trading(self, df: pd.DataFrame) -> List[Dict]:
-        """Detect wash trading patterns"""
-        wash_events = []
-
-        try:
-            if 'volume' in df.columns and 'last' in df.columns:
-                volume = df['volume'].values
-                last_price = df['last'].values
-
-                # Look for high volume with minimal price movement
-                for i in range(10, len(df)):
-                    recent_volume = np.sum(volume[i-10:i])
-                    price_range = np.max(last_price[i-10:i]) - np.min(last_price[i-10:i])
-                    avg_price = np.mean(last_price[i-10:i])
-
-                    # High volume, low price movement
-                    if (recent_volume > np.mean(volume) * 5 and
-                        price_range < avg_price * 0.001):
-                        wash_events.append({
-                            'index': i,
-                            'volume': recent_volume,
-                            'price_range': price_range,
-                            'suspicion_level': recent_volume / (price_range + 1e-10)
-                        })
-
-        except Exception as e:
-            logger.warning(f"Error detecting wash trading: {e}")
-
-        return wash_events
-
-    def _detect_quote_stuffing(self, df: pd.DataFrame) -> Dict:
-        """Detect quote stuffing"""
-        analysis = {}
-
-        try:
-            # Count rapid quote updates
-            timestamps = df.index if hasattr(df, 'index') else range(len(df))
-
-            # Calculate time between quotes
-            if len(timestamps) > 1:
-                time_diffs = np.diff([t.timestamp() if hasattr(t, 'timestamp') else t for t in timestamps])
-
-                # Very rapid quotes (< 1ms apart) could indicate stuffing
-                rapid_quotes = np.sum(time_diffs < 0.001)
-
-                analysis = {
-                    'total_quotes': len(df),
-                    'rapid_quotes': rapid_quotes,
-                    'rapid_quote_ratio': rapid_quotes / len(df),
-                    'mean_time_between_quotes': np.mean(time_diffs),
-                    'min_time_between_quotes': np.min(time_diffs),
-                    'stuffing_suspected': rapid_quotes > len(df) * 0.1
-                }
-
-        except Exception as e:
-            logger.warning(f"Error detecting quote stuffing: {e}")
-
-        return analysis
-
-    def _detect_momentum_ignition(self, df: pd.DataFrame) -> List[Dict]:
-        """Detect momentum ignition patterns"""
-        ignition_events = []
-
-        try:
-            if 'last' in df.columns and 'volume' in df.columns:
-                last_price = df['last'].values
-                volume = df['volume'].values
-
-                # Look for sudden price spikes with high volume
-                price_changes = np.diff(last_price) / last_price[:-1]
-
-                for i in range(1, len(price_changes)):
-                    # Sudden large price movement with high volume
-                    if (abs(price_changes[i]) > np.std(price_changes) * 3 and
-                        volume[i] > np.mean(volume) * 2):
-                        ignition_events.append({
-                            'index': i,
-                            'price_change': price_changes[i],
-                            'volume': volume[i],
-                            'intensity': abs(price_changes[i]) * volume[i]
-                        })
-
-        except Exception as e:
-            logger.warning(f"Error detecting momentum ignition: {e}")
-
-        return ignition_events
 
     def _analyze_liquidity(self, df: pd.DataFrame) -> Dict:
         """Analyze liquidity patterns"""
@@ -1631,7 +1148,7 @@ class UltimateDataProcessor:
         self.indicator_engine = UltimateIndicatorEngine()
         self.harmonic_detector = HarmonicPatternDetector()
         self.smc_analyzer = SMCAnalyzer()
-        self.wyckoff_analyzer = WyckoffAnalyzer()
+        self.structure_processor = StructureProcessor()
         self.tick_analyzer = TickDataAnalyzer(config)
 
     async def process_file(self, file_path: str) -> Dict:
@@ -1695,7 +1212,7 @@ class UltimateDataProcessor:
                 results['smc_analysis'] = self.smc_analyzer.analyze_smc(df)
                 logger.info("FINISHED: SMC analysis")
                 logger.info("STARTING: Wyckoff analysis")
-                results['wyckoff_analysis'] = self.wyckoff_analyzer.analyze_wyckoff(df)
+                results['wyckoff_analysis'] = self.structure_processor.analyze_wyckoff(df)
                 logger.info("FINISHED: Wyckoff analysis")
 
             # Tick data analysis (ALWAYS ENABLED if tick data)
