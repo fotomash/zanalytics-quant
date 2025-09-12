@@ -3,6 +3,7 @@ import json
 from typing import Dict, Any
 
 import redis
+from services.common import get_logger
 
 try:
     from confluent_kafka import Consumer, TopicPartition  # type: ignore
@@ -23,6 +24,8 @@ REDIS_BARS_KEY = os.getenv("REDIS_BARS_KEY", "bars:BTCUSDT:1m")
 PIP_SIZE = float(os.getenv("PIP_SIZE", "0.0001"))
 TICKS_TOL = int(os.getenv("TOL_PRICE_TICKS", "1"))
 VOL_TOL = float(os.getenv("TOL_VOLUME", "1.0"))
+
+logger = get_logger(__name__)
 
 
 def read_kafka_last_n(topic: str, partition: int, n: int) -> Dict[int, Dict[str, Any]]:
@@ -95,7 +98,11 @@ def main() -> None:
     kafka_bars = read_kafka_last_n(TOPIC, PARTITION, WINDOW_BARS)
     redis_bars = read_redis_bars(REDIS_BARS_KEY)
     if not kafka_bars or not redis_bars:
-        print("WARN: Missing bars from one of the sources; kafka=%d redis=%d" % (len(kafka_bars), len(redis_bars)))
+        logger.warning(
+            "Missing bars from one of the sources; kafka=%d redis=%d",
+            len(kafka_bars),
+            len(redis_bars),
+        )
     price_tol = PIP_SIZE * TICKS_TOL
     checked = 0
     mismatches = 0
@@ -114,9 +121,16 @@ def main() -> None:
         except Exception:
             mismatches += 1
     parity = 0.0 if checked == 0 else (1.0 - (mismatches / checked)) * 100.0
-    print(f"Checked={checked} mismatches={mismatches} parity={parity:.3f}% tol_ticks={TICKS_TOL} tol_vol={VOL_TOL}")
+    logger.info(
+        "Checked=%d mismatches=%d parity=%.3f%% tol_ticks=%d tol_vol=%s",
+        checked,
+        mismatches,
+        parity,
+        TICKS_TOL,
+        VOL_TOL,
+    )
     if parity < 99.9:
-        print("PARITY BELOW THRESHOLD")
+        logger.warning("PARITY BELOW THRESHOLD")
         exit(2)
 
 

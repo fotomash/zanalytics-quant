@@ -5,6 +5,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from prometheus_client import Counter, CONTENT_TYPE_LATEST, generate_latest
+from services.common import get_logger
 
 try:
     from confluent_kafka import Consumer  # type: ignore
@@ -30,6 +31,8 @@ PG_DSN = os.getenv(
 payloads_written_to_db_total = Counter(
     "payloads_written_to_db_total", "Total payloads written to DB"
 )
+
+logger = get_logger(__name__)
 
 # global references used by the health endpoint
 kafka_consumer = None
@@ -177,7 +180,7 @@ def replay_to_postgres(consumer, *, batch_size: int = 100) -> None:
 
 def main() -> None:
     if Consumer is None or psycopg2 is None:
-        print("Missing dependencies for consumer; exiting")
+        logger.error("Missing dependencies for consumer; exiting")
         return
 
     global kafka_consumer, pg_conn

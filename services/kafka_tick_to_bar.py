@@ -10,11 +10,15 @@ except Exception:  # pragma: no cover
     Consumer = None  # type: ignore
     Producer = None  # type: ignore
 
+from services.common import get_logger
+
 
 BROKERS = os.getenv("KAFKA_BROKERS", "kafka:9092")
 TOP_IN = os.getenv("TICKS_TOPIC", "ticks.BTCUSDT")
 TOP_OUT = os.getenv("BARS_TOPIC", "bars.BTCUSDT.1m")
 GROUP = os.getenv("KAFKA_GROUP", "bars-1m-builder")
+
+logger = get_logger(__name__)
 
 
 def bucket_minute(ts: float) -> int:
@@ -23,7 +27,7 @@ def bucket_minute(ts: float) -> int:
 
 def main() -> None:
     if Consumer is None or Producer is None:
-        print("confluent_kafka not available; exiting")
+        logger.error("confluent_kafka not available; exiting")
         return
     c = Consumer({
         "bootstrap.servers": BROKERS,

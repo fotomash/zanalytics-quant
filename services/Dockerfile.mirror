@@ -3,7 +3,8 @@ FROM python:3.11-slim
 WORKDIR /app
 
 COPY services/requirements.mirror.txt /app/requirements.txt
-ENV PIP_ROOT_USER_ACTION=ignore
+ENV PIP_ROOT_USER_ACTION=ignore \
+    PYTHONUNBUFFERED=1
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY services/redis_to_kafka_mirror.py /app/

@@ -14,6 +14,7 @@ from prometheus_client import (
     REGISTRY,
     generate_latest,
 )
+from services.common import get_logger
 
 
 KAFKA_BROKERS = os.getenv("KAFKA_BROKERS", "kafka:9092")
@@ -43,6 +44,7 @@ REDIS_CACHE_MISSES = Counter(
 
 running = False
 worker_thread: Optional[Thread] = None
+logger = get_logger(__name__)
 
 
 def _create_consumer() -> Consumer:
@@ -71,7 +73,7 @@ def _handle_payload(r: redis.Redis, payload_str: str) -> None:
     try:
         payload: Dict[str, Any] = json.loads(payload_str)
     except json.JSONDecodeError:
-        print("Invalid JSON payload")
+        logger.error("Invalid JSON payload")
         return
 
     symbol: Optional[str] = payload.get("symbol")
@@ -108,8 +110,12 @@ def _consume_loop() -> None:
     consumer = _create_consumer()
     redis_client = _create_redis_client()
     consumer.subscribe([KAFKA_TOPIC])
-    print(
-        f"Caching service consuming '{KAFKA_TOPIC}' from {KAFKA_BROKERS} and writing to Redis@{REDIS_HOST}:{REDIS_PORT}"
+    logger.info(
+        "Caching service consuming '%s' from %s and writing to Redis@%s:%d",
+        KAFKA_TOPIC,
+        KAFKA_BROKERS,
+        REDIS_HOST,
+        REDIS_PORT,
     )
     while running:
         msg = consumer.poll(1.0)
@@ -118,7 +124,7 @@ def _consume_loop() -> None:
         if msg.error():
             if msg.error().code() == KafkaError._PARTITION_EOF:
                 continue
-            print(f"Consumer error: {msg.error()}")
+            logger.error("Consumer error: %s", msg.error())
             continue
         payload_str = msg.value().decode("utf-8")
         _handle_payload(redis_client, payload_str)

@@ -15,6 +15,7 @@ from typing import Dict
 
 import requests
 from redis import Redis
+from services.common import get_logger
 
 
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
@@ -26,6 +27,8 @@ POLL_INTERVAL = float(os.getenv("POLL_INTERVAL", 1.0))
 
 redis_client = Redis(host=REDIS_HOST, port=REDIS_PORT)
 last_phases: Dict[str, str] = {}
+
+logger = get_logger(__name__)
 
 
 def query_ollama(prompt: str) -> str:
@@ -56,7 +59,7 @@ def main() -> None:
                 if last_phases.get(symbol) != phase:
                     prompt = f"{symbol}: phase={phase}, confidence={conf:.2f}. Trade?"
                     decision = query_ollama(prompt)
-                    print(f"[Ollama] {symbol} → {phase} → {decision}")
+                    logger.info("[Ollama] %s → %s → %s", symbol, phase, decision)
                     last_phases[symbol] = phase
 
                 # Risk spike trigger
@@ -65,7 +68,7 @@ def main() -> None:
                         f"{symbol}: risk alert. Confidence {conf:.2f}. Kill trade?"
                     )
                     decision = query_ollama(prompt)
-                    print(f"[Ollama] {symbol} risk alert → {decision}")
+                    logger.info("[Ollama] %s risk alert → %s", symbol, decision)
 
         time.sleep(POLL_INTERVAL)
 

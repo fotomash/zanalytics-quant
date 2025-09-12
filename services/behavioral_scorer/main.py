@@ -16,6 +16,7 @@ import redis
 from confluent_kafka import Consumer, KafkaError
 
 from services.common.redis_utils import set_behavioral_score
+from services.common import get_logger
 
 
 KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:9092")
@@ -29,6 +30,8 @@ RAPID_TRADE_THRESHOLD = int(os.getenv("RAPID_TRADE_THRESHOLD", "3"))
 PATIENCE_PENALTY = float(os.getenv("PATIENCE_PENALTY", "0.1"))
 
 TOPICS = ["final-analysis-payloads", "trade-execution-events"]
+
+logger = get_logger(__name__)
 
 
 def record_trade(trader_state: Dict[str, Any], timestamp: float) -> None:
@@ -99,7 +102,7 @@ def main() -> None:
                 continue
             if msg.error():
                 if msg.error().code() != KafkaError._PARTITION_EOF:
-                    print(f"kafka error: {msg.error()}")
+                    logger.error("kafka error: %s", msg.error())
                 continue
 
             try:
