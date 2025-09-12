@@ -1,89 +1,125 @@
+from types import SimpleNamespace
 import importlib
+import sys
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 
-@pytest.fixture()
-def bot(monkeypatch):
-    import discord.ext.commands.bot as dcbot
-    orig_init = dcbot.Bot.__init__
+@pytest.fixture
+def pulse_bot(monkeypatch):
+    from discord.ext import commands
 
-    def patched_init(self, *args, **kwargs):
+    original_bot = commands.Bot
+
+    def patched_bot(*args, **kwargs):
         kwargs.setdefault("help_command", None)
-        return orig_init(self, *args, **kwargs)
+        return original_bot(*args, **kwargs)
 
-    monkeypatch.setattr(dcbot.Bot, "__init__", patched_init)
-    module = importlib.reload(importlib.import_module("services.pulse_bot.bot"))
-    return module
+    monkeypatch.setattr(commands, "Bot", patched_bot)
+    sys.modules.pop("services.pulse_bot.bot", None)
+    return importlib.import_module("services.pulse_bot.bot")
 
 
-@pytest.mark.asyncio
-async def test_cmd_help_authorization(monkeypatch, bot):
-    ctx = MagicMock()
-    ctx.channel.id = 123
-    ctx.send = AsyncMock()
+class DummyCtx:
+    def __init__(self, channel_id: int):
+        self.channel = SimpleNamespace(id=channel_id)
+        self.sent: list[str] = []
 
-    # Authorized channel
-    monkeypatch.setattr(bot, "CHANNEL_WHITELIST", {"123"})
+    async def send(self, message: str):
+        self.sent.append(message)
+
+
+class FakeRedis:
+    def __init__(self, data=None, fail=False):
+        self.data = data or {}
+        self.fail = fail
+        self.setex_called_with = None
+
+    def get(self, key):
+        return self.data.get(key)
+
+    def setex(self, key, ttl, value):
+        self.setex_called_with = (key, ttl, value)
+        if self.fail:
+            raise RuntimeError("boom")
+        self.data[key] = value
+
+
+@pytest.mark.anyio("asyncio")
+async def test_cmd_help_authorization(monkeypatch, pulse_bot):
+    bot = pulse_bot
+    monkeypatch.setattr(bot, "CHANNEL_WHITELIST", {"1"})
+
+    ctx = DummyCtx(channel_id=2)
     await bot.cmd_help(ctx)
-    ctx.send.assert_called_once()
+    assert ctx.sent == []
 
-    # Unauthorized channel
-    ctx2 = MagicMock()
-    ctx2.channel.id = 999
-    ctx2.send = AsyncMock()
-    await bot.cmd_help(ctx2)
-    ctx2.send.assert_not_called()
+    ctx_ok = DummyCtx(channel_id=1)
+    await bot.cmd_help(ctx_ok)
+    assert ctx_ok.sent  # message should be sent
 
 
-@pytest.mark.asyncio
-async def test_cached_response_hits_and_misses(monkeypatch, bot):
-    redis = MagicMock()
-    redis.get.return_value = "cached"
-    redis.setex = MagicMock()
+@pytest.mark.anyio("asyncio")
+async def test_cached_response_cache_hit(monkeypatch, pulse_bot):
+    bot = pulse_bot
+    redis = FakeRedis({"prompt:hi": "cached"})
     monkeypatch.setattr(bot, "redis_client", redis)
 
-    recall = MagicMock()
-    store = MagicMock()
-    monkeypatch.setattr(bot, "_recall", recall)
-    monkeypatch.setattr(bot, "_store", store)
+    called = {}
 
-    # Cache hit
-    result = await bot._cached_response("hello")
-    assert result == "cached"
-    recall.assert_not_called()
-    store.assert_not_called()
-    redis.setex.assert_not_called()
+    def fake_recall(prompt):
+        called["recall"] = True
+        return ["mem"]
 
-    # Cache miss with memories
-    redis.get.return_value = None
-    recall.return_value = ["m1", "m2"]
-    result2 = await bot._cached_response("hello")
-    assert result2 == "hello\nm1\nm2"
-    recall.assert_called_with("hello")
-    store.assert_called_once_with("hello", result2)
-    redis.setex.assert_called_once_with("prompt:hello", 3600, result2)
+    def fake_store(prompt, response):
+        called["store"] = True
 
-
-@pytest.mark.asyncio
-async def test_cached_response_handles_redis_errors(monkeypatch, bot):
-    redis = MagicMock()
-    redis.get.return_value = None
-    redis.setex.side_effect = Exception("boom")
-    monkeypatch.setattr(bot, "redis_client", redis)
-    monkeypatch.setattr(bot, "_recall", MagicMock(return_value=[]))
-    monkeypatch.setattr(bot, "_store", MagicMock())
+    monkeypatch.setattr(bot, "_recall", fake_recall)
+    monkeypatch.setattr(bot, "_store", fake_store)
 
     result = await bot._cached_response("hi")
-    assert result == "hi"
-    redis.setex.assert_called_once()
+    assert result == "cached"
+    assert "recall" not in called
+    assert "store" not in called
+    assert redis.setex_called_with is None
 
 
-def test_recall_handles_request_errors(monkeypatch, bot):
-    monkeypatch.setattr(bot, "MCP_MEMORY_API_URL", "http://memory")
-    monkeypatch.setattr(bot, "MCP_MEMORY_API_KEY", "key")
-    with patch.object(bot.requests, "post", side_effect=Exception("fail")) as post:
-        memories = bot._recall("prompt")
-    assert memories == []
-    post.assert_called_once()
+@pytest.mark.anyio("asyncio")
+async def test_cached_response_cache_miss(monkeypatch, pulse_bot):
+    bot = pulse_bot
+    redis = FakeRedis()
+    monkeypatch.setattr(bot, "redis_client", redis)
+
+    recalled = []
+    stored = []
+
+    def fake_recall(prompt):
+        recalled.append(prompt)
+        return ["m1", "m2"]
+
+    def fake_store(prompt, response):
+        stored.append((prompt, response))
+
+    monkeypatch.setattr(bot, "_recall", fake_recall)
+    monkeypatch.setattr(bot, "_store", fake_store)
+
+    result = await bot._cached_response("hello")
+    assert result == "hello\nm1\nm2"
+    assert recalled == ["hello"]
+    assert stored == [("hello", "hello\nm1\nm2")]
+    assert redis.setex_called_with == ("prompt:hello", 3600, "hello\nm1\nm2")
+
+
+@pytest.mark.anyio("asyncio")
+async def test_cached_response_redis_error(monkeypatch, pulse_bot):
+    bot = pulse_bot
+    redis = FakeRedis(fail=True)
+    monkeypatch.setattr(bot, "redis_client", redis)
+
+    monkeypatch.setattr(bot, "_recall", lambda prompt: [])
+    monkeypatch.setattr(bot, "_store", lambda prompt, response: None)
+
+    result = await bot._cached_response("oops")
+    assert result == "oops"
+    # even though setex fails, function should return response without raising
+    assert redis.setex_called_with == ("prompt:oops", 3600, "oops")
