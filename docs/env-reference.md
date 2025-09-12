@@ -127,7 +127,7 @@ Values defined in `.env` or in the shell environment override the defaults shown
 
 ## Discord Notifications
 Environment variables consumed by the Pulse Discord bot
-[`services/pulse_bot/bot.py`](../services/pulse_bot/bot.py).
+[canonical entry point `services/pulse_bot/bot.py`](../services/pulse_bot/bot.py).
 
 | Variable | Default | Override Behavior | Purpose |
 | --- | --- | --- | --- |

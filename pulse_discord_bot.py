@@ -1,6 +1,12 @@
-from redis import asyncio as redis_asyncio  # noqa: F401
+"""Compatibility wrapper for the Pulse Discord bot.
+
+This module preserves the legacy ``pulse_discord_bot`` entry point while
+redirecting all imports to the canonical implementation at
+``services.pulse_bot.bot``.
+"""
+
 import sys
-from redis import asyncio as redis_asyncio  # noqa: F401
-from services.pulse_discord_bot import pulse_discord_bot as _impl
+
+from services.pulse_bot import bot as _impl
 
 sys.modules[__name__] = _impl

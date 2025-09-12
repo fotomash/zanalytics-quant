@@ -69,7 +69,7 @@ The v2.0beta release pivots to a memory-centric stack: Redis handles low-latency
 - [`dashboards/`](dashboards/README.md): standalone examples and templates
 - `openapi.actions.yaml`: the single schema to upload to Custom GPT
 - `docs/`: deep dives (Actions Bus, Positions & Orders, Journaling schema)
-- `services/pulse_bot/bot.py`: Discord bot entrypoint for interacting with the Pulse kernel
+- `services/pulse_bot/bot.py`: canonical Discord bot entrypoint for interacting with the Pulse kernel
 
 ## Architecture
 ```mermaid

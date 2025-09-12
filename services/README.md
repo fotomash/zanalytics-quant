@@ -51,7 +51,7 @@ Build and run the Discord bot service:
 docker compose up pulse-bot
 ```
 
-Source code lives at [`services/pulse_bot/bot.py`](pulse_bot/bot.py).
+Source code lives at the canonical entry point [`services/pulse_bot/bot.py`](pulse_bot/bot.py).
 
 Ensure the following environment variables are set before starting:
 
