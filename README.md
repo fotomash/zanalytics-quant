@@ -255,9 +255,22 @@ Key variables to configure before launching:
 - `PINECONE_URL` and `PINECONE_API_KEY` – connection details for the Pinecone
   vector store. Set these to point at your Pinecone deployment or leave the URL
   as `https://localhost:443` to use the local fallback.
+- `VECTOR_DB_URL` – base URL for the vector database service (defaults to the
+  bundled Qdrant instance).
+- `QDRANT_API_KEY` – API key for the Qdrant vector store if auth is required.
+- `LOCAL_LLM_MODEL` – model name or path for on‑device LLM inference when
+  avoiding external APIs.
+- `REDIS_URL` – connection string for the MCP Redis instance.
+- `REDIS_STREAMS_URL` – optional Redis dedicated to stream operations
+  (falls back to `REDIS_URL`).
+- `USE_KAFKA_JOURNAL` – set to `true` to persist journal events in Kafka instead
+  of Redis.
 - `LOCAL_THRESHOLD` – confidence cutoff for using the local echo model. Ticks
   below this or in spring/distribution phases get a quick `llm_verdict`; others
   queue for Whisperer.
+
+See [docs/README.md](docs/README.md#flags-and-defaults) for default values and
+additional notes on these settings.
 - `RISK_THRESHOLD` – minimum risk score that triggers high-risk handling in the
   `predict-cron` demo.
 - `PREDICT_CRON_INTERVAL`, `PREDICT_CRON_SYMBOL`, `PREDICT_CRON_PRICE`,
