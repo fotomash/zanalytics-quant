@@ -10,9 +10,6 @@ x-common-labels: &default-labels
   logging_jobname: "containerlogs"
   stackname: "docker-monitoring-stack-gpnc"
 
-x-discord-env: &discord-env
-  DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
-  DISCORD_CHANNEL_ID: ${DISCORD_CHANNEL_ID}
 
 services:
   traefik:
@@ -273,7 +270,6 @@ services:
     env_file:
       - .env
     environment:
-      <<: *discord-env
       PYTHONPATH: /app:/app/components:/app/utils:/app/backend:/app/agents
       DJANGO_SETTINGS_MODULE: app.settings
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-key-change-me}
@@ -616,7 +612,6 @@ services:
       dockerfile: Dockerfile.tick-to-bar
     command: ["python", "services/tick_to_bar.py"]
     environment:
-      <<: *discord-env
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       SYMBOL: EURUSD
     volumes:
@@ -716,8 +711,8 @@ services:
       - .:/app
     env_file:
       - .env
+      - .env.discord
     environment:
-      <<: *discord-env
       PYTHONPATH: /app
       DJANGO_API_URL: http://django:8000
       DJANGO_API_TOKEN: ${DJANGO_API_TOKEN:-}
@@ -742,8 +737,8 @@ services:
     working_dir: /app
     env_file:
       - .env
+      - .env.discord
     environment:
-      <<: *discord-env
       MCP_MEMORY_API_URL: ${MCP_MEMORY_API_URL}
       MCP_MEMORY_API_KEY: ${MCP_MEMORY_API_KEY}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
