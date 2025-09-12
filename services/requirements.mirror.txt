@@ -1,4 +1,4 @@
-redis==5.0.8
+redis==6.4.0
 confluent-kafka==2.3.0
 requests==2.32.3
 python-dotenv==1.0.1
