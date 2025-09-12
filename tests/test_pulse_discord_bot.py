@@ -103,6 +103,7 @@ class DummyClient:
         self.response = response
         self.called = False
         self.headers = None
+        self.url = None
 
     async def __aenter__(self):
         return self
@@ -110,9 +111,10 @@ class DummyClient:
     async def __aexit__(self, exc_type, exc, tb):
         return None
 
-    async def post(self, *args, **kwargs):
+    async def post(self, url, *args, **kwargs):
         self.called = True
         self.headers = kwargs.get("headers")
+        self.url = url
         return self.response
 
 
@@ -142,6 +144,7 @@ async def test_fetch_pulse_calls_api_and_caches(monkeypatch):
     assert recorded == {"query": "hello", "response": "answer"}
     assert client.called
     assert client.headers["Authorization"] == "Bearer test-key"
+    assert client.url == f"{bot.MCP_MEMORY_API_URL}/recall"
 
 
 @pytest.mark.asyncio
@@ -194,6 +197,7 @@ async def test_record_interaction_includes_auth(monkeypatch):
     monkeypatch.setattr(bot.httpx, "AsyncClient", lambda: client)
     await bot.record_interaction({"msg": "hi"})
     assert client.headers["Authorization"] == "Bearer test-key"
+    assert client.url == f"{bot.MCP_MEMORY_API_URL}/store"
 
 
 # ---------------------------------------------------------------------------
