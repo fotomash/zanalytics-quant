@@ -21,8 +21,19 @@ import json
 import uuid
 from typing import Any, Dict, List, TYPE_CHECKING
 
-from services.mcp2.llm_config import call_local_echo
-from services.mcp2 import llm_config
+try:
+    from services.mcp2 import llm_config
+    from services.mcp2.llm_config import call_local_echo
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+
+    class _FallbackLLMConfig:
+        LOCAL_THRESHOLD: float = 0.6
+
+    llm_config = _FallbackLLMConfig()  # type: ignore
+
+    def call_local_echo(prompt: str) -> str:  # pragma: no cover - simple echo
+        return f"echo: {prompt}"
+
 
 if TYPE_CHECKING:  # pragma: no cover - for type checkers only
     from sentence_transformers import SentenceTransformer
@@ -53,6 +64,7 @@ def _get_model() -> "SentenceTransformer | _MockSentenceTransformer":
     if _MODEL is None:
         try:  # pragma: no cover - exercised in tests via monkeypatching
             from sentence_transformers import SentenceTransformer
+
             _MODEL = SentenceTransformer("paraphrase-MiniLM-L3-v2")
         except Exception:  # pragma: no cover - fallback path
             _MODEL = _MockSentenceTransformer()
