@@ -1,6 +1,15 @@
 # Zanalytics Quant Platform
 
-Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, Postgres, and Streamlit, now with LLM‑native Actions and safe position control (partials, scaling, hedging). For architecture and API details, see the [docs README](docs/README.md), Redis cache design in [redis_architecture/README.md](redis_architecture/README.md), and guidance on MCP memory windows and journaling in [docs/mcp_redis.md](docs/mcp_redis.md).
+
+Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, Postgres, and Streamlit. Now with LLM‑native Actions and safe position control (partials, scaling, hedging).
+
+The v2.0beta release pivots to a memory-centric stack: Redis handles low-latency state, vector search powers recall, and journal replay keeps sessions deterministic. For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation. Redis cache design and deployment steps live in [redis_architecture/README.md](redis_architecture/README.md), and MCP memory windows and journaling guidance are covered in [docs/mcp_redis.md](docs/mcp_redis.md).
+
+## Memory & Persistence
+
+- **MCP Redis** maintains real-time caches and streams for the MCP layer. [Learn more](docs/architecture_v2beta.md#mcp-redis).
+- **Journal persistence** writes a durable, replayable audit log. [Learn more](docs/architecture_v2beta.md#journal-persistence).
+- **Vector memory** stores embeddings for long-term contextual recall. [Learn more](docs/architecture_v2beta.md#vector-memory).
 
 ## Table of Contents
 - [Memory & Persistence](#memory--persistence)
@@ -10,8 +19,9 @@ Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, 
 - [pulse-api](#pulse-api)
 - [tick-to-bar](#tick-to-bar)
 - [Quick Start: MCP2 Metrics & Streams](#quick-start-mcp2-metrics--streams)
-- [Getting Started – Quick Launch](#getting-started-quick-launch)
+- [Getting Started – Quick Launch](#getting-started-%E2%80%93-quick-launch)
 - [Environment Variables](#environment-variables)
+  - [Execution Validation Settings](#execution-validation-settings)
 - [MT5 service vs. Django API](#mt5-service-vs-django-api)
 - [mt5 vs mt5-api services](#mt5-vs-mt5-api-services)
 - [How It Works (Practical Flow)](#how-it-works-practical-flow)
@@ -34,6 +44,9 @@ Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, 
 - [License](#license)
 - [Advanced Usage](#advanced-usage)
 - [Kafka Replay Consumer](#kafka-replay-consumer)
+  - [Basic usage](#basic-usage)
+  - [Replay into Redis](#replay-into-redis)
+  - [Replay into Postgres](#replay-into-postgres)
 - [Full API Documentation](#full-api-documentation)
 - [FAQ](#faq)
 - [Troubleshooting Gold Mine](#troubleshooting-gold-mine)
@@ -47,6 +60,7 @@ Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, 
 - **MCP Redis** – low-latency message bus and cache for metrics and session state. [More](docs/architecture_v2beta.md#mcp-redis)
 - **Journal persistence** – append-only log for durable audits and replay. [More](docs/architecture_v2beta.md#journal-persistence)
 - **Vector memory** – embedding store enabling long-term contextual recall. [More](docs/architecture_v2beta.md#vector-memory)
+
 
 ## What's Inside
 - `backend/mt5`: Flask bridge to MetaTrader5 (send orders, partial close, hedge, scale)
@@ -101,7 +115,7 @@ This modular design facilitates secure separation of concerns, easy extensibilit
 **Build & Run**
 
 ```bash
-docker compose -f docker-compose.pulse.yml up --build pulse-api
+docker compose up --build pulse-api
 ```
 
 **Required Environment Variables**
@@ -109,7 +123,7 @@ docker compose -f docker-compose.pulse.yml up --build pulse-api
 - `PULSE_CONFIG` – path to the Pulse YAML configuration.
 - `PULSE_API_KEY` – API key expected in the `X-API-Key` request header.
 
-See [docker-compose.pulse.yml](docker-compose.pulse.yml) for a full example stack.
+Service definition is included in [docker-compose.yml](docker-compose.yml).
 
 ## tick-to-bar
 
@@ -129,6 +143,7 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml up --build t
 - `KAFKA_BOOTSTRAP_SERVERS` – Kafka broker addresses.
 - `KAFKA_TICKS_TOPIC` – source topic for tick data.
 - `KAFKA_GROUP_ID` – consumer group identifier.
+- `STREAM_VERSION_PREFIX` – stream namespace version (default `v2`).
 
 See [docker-compose.override.yml](docker-compose.override.yml) (extends [docker-compose.yml](docker-compose.yml)) for configuration details.
 
@@ -152,6 +167,49 @@ export KAFKA_BROKERS=localhost:9092
 redis-cli XRANGE ml:signals:v1 - + LIMIT 5
 redis-cli XRANGE ml:risk:v1 - + LIMIT 5
 ```
+
+
+## pulse-api
+
+FastAPI shim that exposes PulseKernel scoring, risk, and journaling features to other services.
+
+**Build and run**
+
+```bash
+docker compose build pulse-api
+docker compose up pulse-api
+```
+
+**Environment variables**
+
+- `PULSE_CONFIG` – path to the Pulse configuration file.
+- `PULSE_API_KEY` – API key required for authenticated requests.
+
+Service definition: [docker-compose.yml](docker-compose.yml).
+
+## ticktobar
+
+Redis stream consumer that aggregates ticks into OHLCV bars for multiple symbols.
+
+**Build and run**
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.override.yml build tick-to-bar
+docker compose -f docker-compose.yml -f docker-compose.override.yml up tick-to-bar
+```
+
+**Environment variables**
+
+- `REDIS_HOST` – Redis host providing tick streams.
+- `REDIS_PORT` – Redis port (default `6379`).
+- `SYMBOLS` – comma-separated symbols to process.
+- `STREAM_VERSION_PREFIX` – stream namespace version (default `v2`).
+
+Service definition: [docker-compose.override.yml](docker-compose.override.yml).
+
+---
+
+
 ## Getting Started – Quick Launch
 
 Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git), [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/). Optional dependencies include [Wine](https://wiki.winehq.org/Download) for the MT5 bridge on non-Windows hosts and [Traefik](https://doc.traefik.io/traefik/getting-started/install-traefik/) if you plan to use its routing features.

@@ -1044,6 +1044,21 @@ services:
       - data-pipeline
       - default
 
+  overseer:
+    build:
+      context: .
+      dockerfile: services/overseer/Dockerfile
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      - OVERSEER_TOPIC=${OVERSEER_TOPIC:-overseer-events}
+    depends_on:
+      kafka:
+        condition: service_started
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - data-pipeline
+
   qdrant:
     image: qdrant/qdrant:latest
     container_name: qdrant
