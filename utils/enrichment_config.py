@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, Mapping
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class CoreConfig(BaseModel):
@@ -38,10 +38,35 @@ class TechnicalSubGroup(BaseModel):
     )
 
 
+def _default_technical_groups() -> Dict[str, TechnicalSubGroup]:
+    """Return default indicator groups for backward compatibility."""
+
+    return {
+        "momentum": TechnicalSubGroup(
+            enabled=True, indicators={"rsi": True, "macd": True}
+        ),
+        "volatility": TechnicalSubGroup(
+            enabled=True, indicators={"atr": True, "bollinger": True}
+        ),
+    }
+
+
 class TechnicalConfig(BaseModel):
     """Configuration for technical indicator groups."""
 
-    groups: Mapping[str, TechnicalSubGroup] = Field(default_factory=dict)
+    groups: Dict[str, TechnicalSubGroup] = Field(default_factory=_default_technical_groups)
+
+    @field_validator("groups", mode="before")
+    @classmethod
+    def _merge_defaults(
+        cls, v: Mapping[str, TechnicalSubGroup] | None
+    ) -> Dict[str, TechnicalSubGroup]:
+        """Merge user-provided groups with defaults."""
+
+        defaults = _default_technical_groups()
+        if v:
+            defaults.update(v)
+        return defaults
 
     @property
     def enabled(self) -> bool:

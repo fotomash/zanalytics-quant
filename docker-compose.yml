@@ -971,7 +971,7 @@ services:
     container_name: timescaledb
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-timescale}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD?POSTGRES_PASSWORD is required}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
     ports:
       - "5432:5432"
@@ -991,7 +991,7 @@ services:
     environment:
       - KAFKA_BROKERS=${KAFKA_BROKERS:-kafka:9092}
       - TOPIC=enriched-analysis-payloads
-      - PG_DSN=${PG_DSN:-postgresql://postgres:timescale@timescaledb:5432/postgres}
+      - PG_DSN=${PG_DSN:-postgresql://postgres:${POSTGRES_PASSWORD}@timescaledb:5432/postgres}
     command: python services/persistence/consumer.py
     depends_on:
       kafka:

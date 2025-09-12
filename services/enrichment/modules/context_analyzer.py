@@ -38,5 +38,19 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         }
         state["wyckoff_current_phase"] = state.get("phase")
         state["status"] = state.get("phase")
+    df = state.get("dataframe")
+    required_cols = {"open", "high", "low", "close", "volume"}
+    if not isinstance(df, pd.DataFrame) or not required_cols.issubset(df.columns):
+        state["status"] = "FAIL"
+        return state
+
+    analyzer = ContextAnalyzer()
+    results = analyzer.analyze(df)
+
+    state.update(results)
+    # Preserve backward compatible keys expected by tests
+    state["wyckoff_analysis"] = results
+    state["wyckoff_current_phase"] = results.get("phase")
+    state["status"] = results.get("phase", "PASS")
     return state
 

@@ -9,18 +9,32 @@ from __future__ import annotations
 
 from typing import Dict, List
 
+from indicators.registry import (
+    register_indicator,
+    is_indicator_enabled,
+)
+
 import pandas as pd
 
 
 class ContextAnalyzer:
     """Analyze market context using simplified Wyckoff logic."""
 
+    def __init__(self) -> None:
+        self._features = {
+            "phase": ("context", self.identify_current_phase),
+            "sos_sow": ("wyckoff", self.detect_sos_sow),
+        }
+        for name, (category, _) in self._features.items():
+            register_indicator(name, category)
+
     def analyze(self, df: pd.DataFrame) -> Dict[str, object]:
         """Return the current Wyckoff phase and SOS/SOW events."""
-        return {
-            "phase": self.identify_current_phase(df),
-            "sos_sow": self.detect_sos_sow(df),
-        }
+        results: Dict[str, object] = {}
+        for name, (_, func) in self._features.items():
+            if is_indicator_enabled(name):
+                results[name] = func(df)
+        return results
 
     # --- Logic ported from components.wyckoff_analyzer -----------------------------
     def identify_current_phase(self, df: pd.DataFrame, lookback: int = 100) -> str:

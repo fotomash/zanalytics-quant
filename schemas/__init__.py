@@ -20,6 +20,7 @@ from .behavioral import (
     TradeExecutionEvent,
     BehavioralScoreOutput,
 )
+from .tick import TickPayload
 from .agent_profile_schemas import (
     PipelineConfig,
     SessionManifest,
@@ -45,6 +46,7 @@ __all__ = (
     "StageDefinition",
     "TechnicalIndicators",
     "TopicConfig",
+    "TickPayload",
     "TradeExecutionEvent",
     "UnifiedAnalysisPayloadV1",
     "WyckoffAnalysis",
