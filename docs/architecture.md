@@ -28,6 +28,8 @@ graph LR
 
 Traefik also routes requests to the Streamlit info site on port `8501`; see [streamlit.md](streamlit.md) for details.
 
+For a memory-centric view of the platform, see [architecture_v2beta.md](architecture_v2beta.md). The legacy dual-stream approach remains documented in [architecture_pulse_streaming.md](architecture_pulse_streaming.md).
+
 ## Monitoring
 
 For metrics collection, dashboards, and alerts, see [monitoring.md](monitoring.md).
@@ -43,5 +45,5 @@ Redis still provides the in-memory event bus and cache for ticks, bars, and othe
 
 ## Multi-Stream Architecture
 
-The platform has moved beyond the single Redis stream. Real-time data is written to Redis for fast reads while Kafka captures the same events for replay and downstream processing. MCP2 coordinates across these streams to support concurrent feeds and smoother failover. See [architecture_pulse_streaming.md](architecture_pulse_streaming.md) for a deeper dive into the dual-stream model.
+The platform has moved beyond the single Redis stream. Real-time data is written to Redis for fast reads while Kafka captures the same events for replay and downstream processing. MCP2 coordinates across these streams to support concurrent feeds and smoother failover. See [architecture_pulse_streaming.md](architecture_pulse_streaming.md) for a deeper dive into the older dual-stream model.
 
