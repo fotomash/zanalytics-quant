@@ -259,11 +259,11 @@ python-dateutil==2.9.0.post0
     #   pinecone-client
 python-dotenv==1.0.1
     # via -r requirements/base.txt
-# pytz==2024.2
+pytz==2024.2
     # via
     #   -r requirements/base.txt
     #   pandas
-pyyaml==6.0.2
+PyYAML==6.0.2
     # via
     #   -r requirements/base.txt
     #   huggingface-hub
