@@ -1,9 +1,11 @@
 """Integration pipeline for external vector stores.
 
 This module provides :class:`BrownVectorPipeline`, a lightweight wrapper
-around a remote vector database such as Pinecone or Chroma. Connection
-parameters are taken from the ``QDRANT_URL`` and ``QDRANT_API_KEY``
-environment variables.
+around a remote vector database. Qdrant is the currently supported store, and
+connection parameters are supplied via the ``QDRANT_URL`` and
+``QDRANT_API_KEY`` environment variables. Support for an in-memory Faiss
+backend is planned, while previous integrations with Pinecone or Chroma are
+considered deprecated and may return in the future.
 """
 
 from __future__ import annotations
