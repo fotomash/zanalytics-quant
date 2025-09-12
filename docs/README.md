@@ -22,6 +22,8 @@ points to the current sources of truth and clearly marks legacy docs.
 Current Direction (Active)
 --------------------------
 
+- [Architecture (v2beta)](architecture_v2beta.md)
+- [Tick stream v2 migration notes](tick_stream_v2_migration.md)
 - [Architecture (streaming)](architecture_pulse_streaming.md)
 - [Journal envelopes and contracts](journal_envelopes.md)
 - [Actions API overview](ACTIONS_API_OVERVIEW.md)
