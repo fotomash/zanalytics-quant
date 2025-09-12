@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y \
  && rm -rf /var/lib/apt/lists/*
 
 # 1) Install deps
+COPY requirements /app/requirements/
 COPY requirements.txt /app/requirements.txt
 COPY services/mcp2/requirements.txt /app/services/mcp2/requirements.txt
 COPY backend/django/requirements.txt /app/backend/django/requirements.txt

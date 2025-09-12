@@ -1,5 +1,7 @@
 """
 Enhanced Dashboard Integration - Connecting Real MT5 Data to Pulse UI
+
+Requires packages from requirements/dashboard.txt
 """
 
 import streamlit as st

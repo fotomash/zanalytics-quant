@@ -140,36 +140,22 @@ def enrich_ticks(ticks: list[dict], manifest_path='session_manifest.yaml', matri
 ```python
 # analytics/vector_db_config.py
 import os
-from pinecone import Pinecone, ServerlessSpec
 import faiss
 import numpy as np
 
-QDRANT_URL = os.getenv('PINECONE_URL', 'https://localhost:443')
-QDRANT_API_KEY = os.getenv('PINECONE_API_KEY', 'fake-key')
-USE_LOCAL = QDRANT_URL.startswith('https://localhost')
-
-if USE_LOCAL:
-    dimension = 384
-    index = faiss.IndexFlatL2(dimension)
-    vectors = {}
-else:
-    pc = Pinecone(api_key=QDRANT_API_KEY)
-    pc.create_index('quickstart', dimension=384, spec=ServerlessSpec(cloud='aws', region='us-east-1'))
+VECTOR_DIMENSION = int(os.getenv("VECTOR_DIMENSION", "384"))
+index = faiss.IndexFlatL2(VECTOR_DIMENSION)
+vectors = {}
 
 def add_vectors(ticks: list[dict]):
-    if USE_LOCAL:
-        embeddings = np.array([t['embedding'] for t in ticks], dtype='float32')
-        for tick in ticks:
-            vectors[tick['trade_id']] = tick
-        index.add(embeddings)
-    else:
-        pc_index = pc.Index('quickstart')
-        pc_index.upsert([(t['trade_id'], t['embedding'], {'data': t}) for t in ticks])
+    embeddings = np.array([t["embedding"] for t in ticks], dtype="float32")
+    for tick in ticks:
+        vectors[tick["trade_id"]] = tick
+    index.add(embeddings)
 ```
 ```plaintext
 # .env
-PINECONE_URL=https://localhost:443
-PINECONE_API_KEY=fake-key
+# No Pinecone settings required; FAISS runs in-memory.
 ```
 
 ### Pull Request
@@ -358,4 +344,4 @@ nudges:
   - Add prompt versioning to session_manifest
 
 ### Dev Note
-Run: `curl -X POST http://localhost:8002/llm/whisperer/analyze -d '{"symbol":"EURUSD"}'`, `streamlit run dashboard/stream.py`. Ensure .env has PINECONE_URL, PINECONE_API_KEY.
+Run: `curl -X POST http://localhost:8002/llm/whisperer/analyze -d '{"symbol":"EURUSD"}'`, `streamlit run dashboard/stream.py`. Ensure .env has QDRANT_URL, QDRANT_API_KEY if using a remote vector store.

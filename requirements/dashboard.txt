@@ -1,6 +1,6 @@
 # Dependencies for running Streamlit dashboards
-streamlit>=1.32
-plotly>=5.22.0
+streamlit==1.36.0
+plotly==5.22.0
 pandas
 numpy
 pytz
@@ -9,3 +9,4 @@ redis
 pyyaml>=6.0
 requests>=2.31
 websocket-client>=1.8
+ta>=0.11.0
