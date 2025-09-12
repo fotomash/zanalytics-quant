@@ -58,7 +58,10 @@ Older guides remain in this directory for historical reference and are no longer
 Flags and Defaults
 ------------------
 
+- REDIS_URL=redis://redis:6379/0, REDIS_STREAMS_URL=redis://redis:6379/0
 - USE_KAFKA_JOURNAL=false (prod default)
+- VECTOR_DB_URL=http://qdrant:6333, QDRANT_API_KEY=
+- LOCAL_LLM_MODEL=ggml-model.bin
 - KAFKA_BROKERS=kafka:9092, PULSE_JOURNAL_TOPIC=pulse.journal
 - Data sources (dual): PULSE_BAR_SOURCE=redis|kafka, SCORES_SOURCE=redis|kafka, DECISIONS_SINK=redis|kafka
 - Favorites: PULSE_DEFAULT_SYMBOL, baseline: PULSE_BASELINE_EQUITY
@@ -70,6 +73,9 @@ Flags and Defaults
 
 See the [Environment Variables](../README.md#environment-variables)
 section of the project README for descriptions and additional options.
+
+See the [project README](../README.md#environment-variables) for detailed
+descriptions of these variables.
 
 
 Static Info Site
