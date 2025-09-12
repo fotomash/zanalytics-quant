@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Optional
 
 import requests
+import redis
 import discord
 from discord.ext import commands
 
@@ -40,10 +41,20 @@ TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_WHITELIST = {c.strip() for c in os.getenv("DISCORD_CHANNEL_WHITELIST", "").split(",") if c.strip()}
 DJANGO_API_URL = (os.getenv("DJANGO_API_URL", "http://django:8000") or "").rstrip('/')
 DJANGO_API_TOKEN = (os.getenv("DJANGO_API_TOKEN", "") or "").strip().strip('"')
+REDIS_URL = os.getenv("REDIS_URL")
+MCP_MEMORY_API_URL = (os.getenv("MCP_MEMORY_API_URL", "") or "").rstrip("/")
+MCP_MEMORY_API_KEY = (os.getenv("MCP_MEMORY_API_KEY", "") or "").strip()
 
 logger = logging.getLogger(__name__)
 
 kernel: Optional[PulseKernel] = None
+redis_client: Optional[redis.Redis] = None
+
+if REDIS_URL:
+    try:
+        redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+    except Exception as e:  # pragma: no cover - connection issues
+        logger.error("Failed to connect to Redis at %s: %s", REDIS_URL, e)
 
 
 def get_kernel() -> PulseKernel:
@@ -66,6 +77,78 @@ def _auth(channel_id: int) -> bool:
 
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="/", intents=intents)
+
+
+def _recall(prompt: str) -> list[str]:
+    if not MCP_MEMORY_API_URL or not MCP_MEMORY_API_KEY:
+        return []
+    try:
+        r = requests.post(
+            f"{MCP_MEMORY_API_URL}/recall",
+            headers={"Authorization": f"Bearer {MCP_MEMORY_API_KEY}"},
+            json={"prompt": prompt},
+            timeout=5,
+        )
+        if r.ok:
+            data = r.json()
+            memories = data.get("memories")
+            if isinstance(memories, list):
+                return [str(m) for m in memories]
+    except Exception as e:  # pragma: no cover - network issues
+        logger.error("Memory recall failed: %s", e)
+    return []
+
+
+def _store(prompt: str, response: str) -> None:
+    if not MCP_MEMORY_API_URL or not MCP_MEMORY_API_KEY:
+        return
+    try:
+        requests.post(
+            f"{MCP_MEMORY_API_URL}/store",
+            headers={"Authorization": f"Bearer {MCP_MEMORY_API_KEY}"},
+            json={"prompt": prompt, "response": response},
+            timeout=5,
+        )
+    except Exception as e:  # pragma: no cover - network issues
+        logger.error("Memory store failed: %s", e)
+
+
+async def _cached_response(prompt: str) -> str:
+    key = f"prompt:{prompt}"
+    if redis_client:
+        cached = redis_client.get(key)
+        if cached:
+            return cached
+    memories = _recall(prompt)
+    response = prompt
+    if memories:
+        response = f"{response}\n" + "\n".join(memories)
+    _store(prompt, response)
+    if redis_client:
+        try:
+            redis_client.setex(key, 3600, response)
+        except Exception as e:  # pragma: no cover - redis issues
+            logger.error("Redis cache set failed: %s", e)
+    return response
+
+
+@bot.event
+async def on_message(message: discord.Message):
+    if message.author.bot:
+        return
+    if message.content.startswith("/"):
+        await bot.process_commands(message)
+        return
+    should_reply = message.guild is None or bot.user in message.mentions
+    if not should_reply:
+        await bot.process_commands(message)
+        return
+    prompt = message.content
+    if bot.user in message.mentions:
+        prompt = prompt.replace(f"<@{bot.user.id}>", "").strip()
+    response = await _cached_response(prompt)
+    await message.channel.send(response)
+    await bot.process_commands(message)
 
 
 @bot.command(name="help")
@@ -209,6 +292,15 @@ async def on_ready():
 
 
 if __name__ == "__main__":
-    if not TOKEN:
-        raise RuntimeError("Set DISCORD_BOT_TOKEN")
+    required = {
+        "DISCORD_BOT_TOKEN": TOKEN,
+        "REDIS_URL": REDIS_URL,
+        "MCP_MEMORY_API_URL": MCP_MEMORY_API_URL,
+        "MCP_MEMORY_API_KEY": MCP_MEMORY_API_KEY,
+    }
+    missing = [k for k, v in required.items() if not v]
+    if missing:
+        for k in missing:
+            logger.error("Environment variable %s is not set", k)
+        sys.exit(1)
     bot.run(TOKEN)
