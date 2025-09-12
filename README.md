@@ -64,7 +64,12 @@ graph LR
   MT5 -->|positions/history| Django
 ```
 
-For detailed network flows, MCP2 responsibilities, and storage topology, see [docs/architecture.md](docs/architecture.md).
+- **Redis-backed MCP memory** – Redis stores session context in TTL-managed hashes and streams for fast recall and ephemeral memory.
+- **Vector DB integration** – the [vectorization service](docs/vectorization_service.md) pushes embeddings to external stores (Qdrant, Pinecone, etc.) for semantic retrieval.
+- **Scaling MCP instances** – add MCP pods behind the gateway when Redis memory or vector workloads near capacity.
+- **OpenAI MCP connector** – OpenAI’s MCP connector can plug into the gateway, exposing GPT tooling via the same `/exec` interface.
+
+For detailed network flows, MCP2 responsibilities, storage topology, and vector pipelines, see [docs/architecture.md](docs/architecture.md) and [docs/vectorization_service.md](docs/vectorization_service.md).
 
 ## System Overview
 
