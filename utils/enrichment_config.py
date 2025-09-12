@@ -91,6 +91,18 @@ class AlligatorConfig(BaseModel):
     lips: int = 5
 
 
+class ElliottConfig(BaseModel):
+    """Configuration for Elliott Wave forecasting."""
+
+    enabled: bool = True
+    ml_ensemble: bool = Field(
+        False, description="Use machine-learning ensemble for wave scoring"
+    )
+    llm_max_tokens: int = Field(
+        256, description="Token limit for optional local LLM forecast"
+    )
+
+
 class AdvancedConfig(BaseModel):
     """Advanced enrichment modules."""
 
@@ -101,6 +113,7 @@ class AdvancedConfig(BaseModel):
     fractal_detector: bool = True
     fractal_bars: int = 2
     alligator: AlligatorConfig = Field(default_factory=AlligatorConfig)
+    elliott: ElliottConfig = Field(default_factory=ElliottConfig)
 
 
 class EnrichmentConfig(BaseModel):
@@ -131,6 +144,11 @@ class EnrichmentConfig(BaseModel):
                 "teeth": self.advanced.alligator.teeth,
                 "lips": self.advanced.alligator.lips,
             },
+            "elliott_wave": {
+                "enabled": self.advanced.elliott.enabled,
+                "ml_ensemble": self.advanced.elliott.ml_ensemble,
+                "llm_max_tokens": self.advanced.elliott.llm_max_tokens,
+            },
         }
 
 
@@ -153,6 +171,7 @@ __all__ = [
     "TechnicalConfig",
     "StructureConfig",
     "AlligatorConfig",
+    "ElliottConfig",
     "AdvancedConfig",
     "EnrichmentConfig",
     "load_enrichment_config",

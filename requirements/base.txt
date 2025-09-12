@@ -259,7 +259,7 @@ python-dateutil==2.9.0.post0
     #   pinecone-client
 python-dotenv==1.0.1
     # via -r requirements/base.txt
-pytz==2024.2
+# pytz==2024.2
     # via
     #   -r requirements/base.txt
     #   pandas
@@ -325,7 +325,7 @@ tqdm==4.67.1
     #   transformers
 transformers==4.56.1
     # via sentence-transformers
-triton==3.4.0
+# triton==3.4.0
     # via torch
 typing-extensions==4.12.2
     # via
