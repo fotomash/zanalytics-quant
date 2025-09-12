@@ -735,12 +735,9 @@ services:
       - default
 
   pulse-discord-bot:
-    build:
-      context: .
+    build: ./services/pulse_discord_bot
     container_name: pulse-discord-bot
     working_dir: /app
-    volumes:
-      - .:/app
     env_file:
       - .env
     environment:
