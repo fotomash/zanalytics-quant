@@ -25,7 +25,7 @@ graph LR
 
 Traefik also routes requests to the Streamlit info site on port `8501`; see [streamlit.md](streamlit.md) for details.
 
-For a memory-centric view of the platform, see [architecture_v2beta.md](architecture_v2beta.md). The legacy dual-stream approach remains documented in [architecture_pulse_streaming.md](architecture_pulse_streaming.md).
+For a memory-centric view of the platform, see [architecture_v2.1beta.md](architecture_v2.1beta.md). The legacy dual-stream approach remains documented in [architecture_pulse_streaming.md](architecture_pulse_streaming.md).
 
 ## Monitoring
 

@@ -11,7 +11,7 @@ This document summarizes the architecture and data flow for the second generatio
 - **MCP Layer** – routes authenticated requests to LLM services and internal APIs.
 - **Vector DB** – persists embeddings for retrieval‑augmented generation.
 
-See [architecture_v2beta.md](architecture_v2beta.md) for diagrams and deeper memory design.
+See [architecture_v2.1beta.md](architecture_v2.1beta.md) for diagrams and deeper memory design.
 
 ## Data Flow
 

@@ -7,9 +7,9 @@ The v2.0beta release pivots to a memory-centric stack: Redis handles low-latency
 
 ## Memory & Persistence
 
-- **MCP Redis** maintains real-time caches and streams for the MCP layer. [Learn more](docs/architecture_v2beta.md#mcp-redis).
-- **Journal persistence** writes a durable, replayable audit log. [Learn more](docs/architecture_v2beta.md#journal-persistence).
-- **Vector memory** stores embeddings for long-term contextual recall. [Learn more](docs/architecture_v2beta.md#vector-memory).
+- **MCP Redis** maintains real-time caches and streams for the MCP layer. [Learn more](docs/architecture_v2.1beta.md#mcp-redis-for-working-memory).
+- **Journal persistence** writes a durable, replayable audit log. [Learn more](docs/architecture_v2.1beta.md#journal-persistence).
+- **Vector memory** stores embeddings for long-term contextual recall. [Learn more](docs/architecture_v2.1beta.md#vector-db-for-long-term-embeddings).
 
 ## Table of Contents
 - [Memory & Persistence](#memory--persistence)
@@ -57,9 +57,9 @@ The v2.0beta release pivots to a memory-centric stack: Redis handles low-latency
 
 ## Memory & Persistence
 
-- **MCP Redis** – low-latency message bus and cache for metrics and session state. [More](docs/architecture_v2beta.md#mcp-redis)
-- **Journal persistence** – append-only log for durable audits and replay. [More](docs/architecture_v2beta.md#journal-persistence)
-- **Vector memory** – embedding store enabling long-term contextual recall. [More](docs/architecture_v2beta.md#vector-memory)
+- **MCP Redis** – low-latency message bus and cache for metrics and session state. [More](docs/architecture_v2.1beta.md#mcp-redis-for-working-memory)
+- **Journal persistence** – append-only log for durable audits and replay. [More](docs/architecture_v2.1beta.md#journal-persistence)
+- **Vector memory** – embedding store enabling long-term contextual recall. [More](docs/architecture_v2.1beta.md#vector-db-for-long-term-embeddings)
 
 
 ## What's Inside
