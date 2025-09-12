@@ -55,10 +55,18 @@ sys.modules.setdefault("discord", discord_module)
 sys.modules.setdefault("discord.ext", discord_ext)
 sys.modules.setdefault("discord.ext.commands", commands_module)
 
-# Stub aioredis so type annotations resolve during import
-aioredis_stub = types.ModuleType("aioredis")
-aioredis_stub.Redis = object  # pragma: no cover - placeholder
-sys.modules.setdefault("aioredis", aioredis_stub)
+# Stub redis.asyncio so type annotations resolve during import
+redis_module = types.ModuleType("redis")
+redis_asyncio = types.ModuleType("redis.asyncio")
+redis_asyncio.Redis = object  # pragma: no cover - placeholder
+
+async def _fake_from_url(*args, **kwargs):  # pragma: no cover - placeholder
+    return None
+
+redis_asyncio.from_url = _fake_from_url
+redis_module.asyncio = redis_asyncio
+sys.modules.setdefault("redis", redis_module)
+sys.modules.setdefault("redis.asyncio", redis_asyncio)
 
 # Now we can safely import the module under test
 import pulse_discord_bot as bot
