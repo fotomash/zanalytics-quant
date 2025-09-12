@@ -7,7 +7,7 @@ sqlalchemy
 asyncpg
 aiokafka
 
-httpx
+httpx==0.28.1
 prometheus-client
 prometheus_client==0.22.1
 aiokafka==0.8.1
