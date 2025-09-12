@@ -119,6 +119,9 @@ Values defined in `.env` or in the shell environment override the defaults shown
 | `CELERY_CONCURRENCY` | `3` | Adjust to control number of worker processes. | Concurrency level for Celery workers. |
 
 ## Discord Notifications
+Environment variables consumed by the Pulse Discord bot
+[`services/pulse_bot/bot.py`](../services/pulse_bot/bot.py).
+
 | Variable | Default | Override Behavior | Purpose |
 | --- | --- | --- | --- |
 | `DISCORD_BOT_TOKEN` | `your_discord_bot_token_here` | Replace with your bot token to enable notifications. | Token used to authenticate with the Discord Bot API. |
