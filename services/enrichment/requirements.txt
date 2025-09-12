@@ -1,7 +1,7 @@
 confluent-kafka==2.3.0
 pydantic==2.7.4
-pandas
-numpy
-fastapi
-uvicorn
-prometheus-client
+pandas==2.2.2
+numpy==1.26.4
+fastapi==0.115.0
+uvicorn==0.30.6
+prometheus-client==0.20.0

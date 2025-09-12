@@ -23,7 +23,7 @@ Current Direction (Active)
 --------------------------
 
 
-- [Architecture (v2beta)](architecture_v2beta.md)
+- [Architecture (v2.1beta)](architecture_v2.1beta.md)
 - [Tick stream v2 migration notes](tick_stream_v2_migration.md)
 - [Journal envelopes and contracts](journal_envelopes.md)
 - [Actions API overview](ACTIONS_API_OVERVIEW.md)
