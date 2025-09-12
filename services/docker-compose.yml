@@ -647,6 +647,7 @@ services:
       - QDRANT_API_KEY=${QDRANT_API_KEY}
     depends_on:
       - kafka
+      - qdrant
     healthcheck:
       test: ["CMD", "python", "healthcheck.py"]
       interval: 30s
