@@ -43,6 +43,7 @@ Values defined in `.env` or in the shell environment override the defaults shown
 | `DJANGO_SECRET_KEY` | `your-super-secret-django-key-change-this-in-production` | Replace with a secure random string in production. | Secret key for Django's cryptographic signing. |
 | `DJANGO_SETTINGS_MODULE` | `app.settings` | Change to use a different settings module. | Python module path to Django settings. |
 | `DJANGO_DOMAIN` | `django.localhost` | Update to the domain serving the Django app. | Hostname used by Django for site URLs. |
+| `DJANGO_DEBUG` | `false` | Set to `true` to enable Django debug mode. | Enables Django debug output. |
 | `DJANGO_API_URL` | `http://django:8000` | Modify if the Django API is accessible elsewhere. | Base URL for the Django REST API. |
 | `DJANGO_API_PREFIX` | `/api/v1` | Adjust if the API prefix changes. | Root path prefix for Django API endpoints. |
 | `INTERNAL_API_BASE` | `http://django:8000` | Override to point at a different internal Django API host. | Base URL the MCP server uses when proxying `/exec` requests to Django. |
