@@ -25,6 +25,7 @@ except Exception:  # pragma: no cover - redis optional
 # ---------------------------------------------------------------------------
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 MCP_MEMORY_API_URL = os.getenv("MCP_MEMORY_API_URL")
+MCP_MEMORY_API_KEY = os.getenv("MCP_MEMORY_API_KEY")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 CACHE_TTL = int(os.getenv("PULSE_CACHE_TTL", "60"))
 
@@ -33,6 +34,7 @@ missing = [
     for name, value in [
         ("DISCORD_BOT_TOKEN", DISCORD_BOT_TOKEN),
         ("MCP_MEMORY_API_URL", MCP_MEMORY_API_URL),
+        ("MCP_MEMORY_API_KEY", MCP_MEMORY_API_KEY),
     ]
     if not value
 ]
@@ -42,7 +44,7 @@ if missing:
     )
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
-logger = logging.getLogger("pulse_bot_mvp")
+logger = logging.getLogger("pulse_discord_bot")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -67,7 +69,20 @@ async def record_interaction(payload: dict) -> None:
     """Best-effort persistence hook to the memory API."""
     try:
         async with httpx.AsyncClient() as client:
-            await client.post(MCP_MEMORY_API_URL, json={"store": payload}, timeout=10)
+            resp = await client.post(
+                MCP_MEMORY_API_URL,
+                json={"store": payload},
+                headers={"Authorization": f"Bearer {MCP_MEMORY_API_KEY}"},
+                timeout=10,
+            )
+            resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in (401, 403):
+            logger.error(
+                "Memory API authentication failed; check MCP_MEMORY_API_KEY"
+            )
+        else:
+            logger.exception("Failed to persist interaction")
     except Exception:
         logger.exception("Failed to persist interaction")
 
@@ -85,9 +100,19 @@ async def fetch_pulse(query: str) -> str:
 
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            MCP_MEMORY_API_URL, json={"query": query}, timeout=10
+            MCP_MEMORY_API_URL,
+            json={"query": query},
+            headers={"Authorization": f"Bearer {MCP_MEMORY_API_KEY}"},
+            timeout=10,
         )
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in (401, 403):
+                msg = "Memory API authentication failed; check MCP_MEMORY_API_KEY"
+                logger.error(msg)
+                raise RuntimeError(msg) from exc
+            raise
         data = resp.json()
     text = data.get("response") or data.get("result") or str(data)
 

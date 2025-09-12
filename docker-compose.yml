@@ -721,6 +721,7 @@ services:
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - DISCORD_CHANNEL_WHITELIST=${DISCORD_CHANNEL_WHITELIST:-}
+      - MCP_MEMORY_API_KEY=${MCP_MEMORY_API_KEY:-}
     command: python services/pulse_bot/bot.py
     depends_on:
       django:
