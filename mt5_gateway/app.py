@@ -15,7 +15,7 @@ try:  # pragma: no cover - optional dependency
 except Exception:  # pragma: no cover - no redis available
     redis = None  # type: ignore
 
-from alerts.telegram_alerts import _send as _send_telegram  # type: ignore
+from alerts.discord_alerts import _send as _send_discord  # type: ignore
 
 try:
     import MetaTrader5 as mt5
@@ -69,7 +69,7 @@ def _heartbeat_watchdog() -> None:
         elapsed = time.time() - _last_heartbeat
         if elapsed > ALERT_THRESHOLD and not alerted:
             try:
-                _send_telegram(
+                _send_discord(
                     f"⚠️ MT5 heartbeat missing for {int(elapsed)}s"
                 )
             except Exception:

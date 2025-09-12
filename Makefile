@@ -20,7 +20,7 @@ api:
 	uvicorn services.pyrest.app:app --host 0.0.0.0 --port $(API_PORT) --reload
 
 bot:
-	python services/telegram/bot.py
+	python services/pulse_bot/bot.py
 
 # Run Streamlit dashboard locally (multi-page)
 dashboard:

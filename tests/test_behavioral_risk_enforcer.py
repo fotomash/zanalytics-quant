@@ -31,7 +31,7 @@ def test_discipline_reduces_lot(tmp_path):
 
     redis_client.publish.assert_called_once()
     channel, payload = redis_client.publish.call_args[0]
-    assert channel == "telegram-alerts"
+    assert channel == "discord-alerts"
     alert = json.loads(payload)
     assert alert["event"] == "behavioral_risk"
     assert "discipline" in alert["message"].lower()
@@ -53,7 +53,7 @@ def test_patience_triggers_cooldown(tmp_path):
 
     redis_client.publish.assert_called_once()
     channel, payload = redis_client.publish.call_args[0]
-    assert channel == "telegram-alerts"
+    assert channel == "discord-alerts"
     alert = json.loads(payload)
     assert alert["event"] == "behavioral_risk"
     assert "cooling-off" in alert["message"].lower()

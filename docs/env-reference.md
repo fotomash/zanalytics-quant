@@ -122,6 +122,7 @@ Values defined in `.env` or in the shell environment override the defaults shown
 | Variable | Default | Override Behavior | Purpose |
 | --- | --- | --- | --- |
 | `DISCORD_BOT_TOKEN` | `your_discord_bot_token_here` | Replace with your bot token to enable notifications. | Token used to authenticate with the Discord Bot API. |
+| `DISCORD_CHANNEL_WHITELIST` | _(empty)_ | Comma-separated channel IDs permitted to issue commands. | Restricts bot commands to approved channels. |
 | `DISCORD_CHANNEL_ID` | `your_discord_channel_id_here` | Set to the channel ID that should receive messages. | Destination channel for Discord alerts. |
 
 ## Alert Settings

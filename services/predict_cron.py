@@ -4,7 +4,7 @@ from typing import Any
 
 from services.mcp2 import call_local_echo
 
-ALERT_CHANNEL = os.getenv("PREDICT_ALERT_CHANNEL", "telegram-alerts")
+ALERT_CHANNEL = os.getenv("PREDICT_ALERT_CHANNEL", "discord-alerts")
 LAST_EVENT_KEY = os.getenv("PREDICT_LAST_EVENT_KEY", "predict:last_event")
 SILENCE_THRESHOLD = float(os.getenv("PREDICT_SILENCE_THRESHOLD", "60"))
 

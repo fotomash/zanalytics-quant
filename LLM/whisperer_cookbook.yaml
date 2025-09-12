@@ -180,17 +180,17 @@ api_guidelines:
   - "Treat `openapi.yaml` as the source of truth for endpoints."
   - "Prefer lightweight GETs where available; avoid stateful actions unless explicitly requested."
   - "Pulse integration: use `/api/v1/feed/pulse-detail?symbol=...` for gate context and confluence."
-  - "If checking Telegram connectivity, call `/api/v1/health/telegram?send=false` first; do not attempt to send messages directly."
+  - "If checking Discord connectivity, call `/api/v1/health/discord?send=false` first; do not attempt to send messages directly."
   - "Do not assume Pydantic models; payloads are guarded by JSON Schemas at the boundary."
   - "If an endpoint returns unexpected fields, proceed but note the drift and suggest schema review."
 
-alerting_integration:
-  overview: "Telegram sends are handled by a backend worker subscribing to gate events; the LLM should not attempt to send messages."
+  alerting_integration:
+    overview: "Discord sends are handled by a backend worker subscribing to gate events; the LLM should not attempt to send messages."
   health_check:
-    endpoint: "/api/v1/health/telegram"
+    endpoint: "/api/v1/health/discord"
     usage:
-      - "Check config only: `/api/v1/health/telegram?send=false`"
-      - "Optional ping: `/api/v1/health/telegram?text=Pulse%20ping%20✅`"
+      - "Check config only: `/api/v1/health/discord?send=false`"
+      - "Optional ping: `/api/v1/health/discord?text=Pulse%20ping%20✅`"
   best_practices:
     - "Avoid including MarkdownV2 formatting; plain text or HTML is safer."
     - "When drafting alert text for humans, keep it under 200 chars and lead with the decision and symbol."

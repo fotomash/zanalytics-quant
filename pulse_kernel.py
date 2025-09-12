@@ -409,13 +409,13 @@ class PulseKernel:
         except RedisError:
             logger.warning("Redis publish failed")
         
-        # Send to Telegram if significant
+        # Send to Discord if significant
         if decision['action'] in ['signal', 'blocked', 'warning']:
-            await self._send_telegram_alert(decision)
-    
-    async def _send_telegram_alert(self, decision: Dict):
-        """Send alert to Telegram bot"""
-        # Telegram integration would go here
+            await self._send_discord_alert(decision)
+
+    async def _send_discord_alert(self, decision: Dict):
+        """Send alert to Discord bot"""
+        # Discord integration would go here
         pass
 
     def flush_and_close(self) -> None:

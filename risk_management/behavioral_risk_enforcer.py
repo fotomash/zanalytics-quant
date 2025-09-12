@@ -26,7 +26,7 @@ class BehavioralRiskEnforcer:
             "payload_id": order.get("payload_id"),
         }
         try:
-            self.redis.publish("telegram-alerts", json.dumps(alert))
+            self.redis.publish("discord-alerts", json.dumps(alert))
         except Exception as exc:  # pragma: no cover - notification failures shouldn't break flow
             logger.error("Failed to publish behavioral risk alert: %s", exc)
 

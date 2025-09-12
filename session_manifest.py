@@ -25,7 +25,7 @@ def _load(path: str = DEFAULT_MANIFEST) -> dict[str, Any]:
 
 def load_prompt(key: str, *, path: str = DEFAULT_MANIFEST) -> str:
     data = _load(path)
-    prompts = (data or {}).get("llm_prompts", {})
+    prompts = (data or {}).get("llm_prompts") or (data or {}).get("whisperer_prompts", {})
     if key not in prompts:
         raise KeyError(f"prompt key not found: {key}")
     return str(prompts[key])

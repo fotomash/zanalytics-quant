@@ -7,7 +7,7 @@ from .views import (
     BarsEnriched,
     YFBars,
     TradeQualityDist,
-    TelegramHealth,
+    DiscordHealth,
 )
 
 urlpatterns = [
@@ -19,5 +19,5 @@ urlpatterns = [
     path('feed/yf-bars', YFBars.as_view(), name='yf-bars'),
     path('feed/trade-quality', TradeQualityDist.as_view(), name='trade-quality'),
     # Health
-    path('health/telegram', TelegramHealth.as_view(), name='telegram-health'),
+    path('health/discord', DiscordHealth.as_view(), name='discord-health'),
 ]
