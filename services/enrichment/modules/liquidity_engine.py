@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-import pandas as pd
-
 from core.liquidity_engine import LiquidityEngine
+from enrichment.enrichment_engine import run_data_module
 
 
 def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
@@ -19,15 +18,13 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     missing.
     """
 
-    df = state.get("dataframe")
-    required_cols = {"open", "high", "low", "close"}
-    if not isinstance(df, pd.DataFrame) or not required_cols.issubset(df.columns):
-        state["status"] = "FAIL"
-        return state
-
-    engine = LiquidityEngine()
-    results = engine.analyze(df)
-    state.update(results)
-
-    state["status"] = "PASS"
+    state = run_data_module(
+        state,
+        {"open", "high", "low", "close"},
+        LiquidityEngine,
+        "analyze",
+    )
+    # Ensure downstream modules relying on additional keys do not fail
+    for key in ["market_structure", "liquidity_sweeps", "displacement", "inducement"]:
+        state.setdefault(key, [])
     return state

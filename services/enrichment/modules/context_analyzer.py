@@ -9,9 +9,8 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-import pandas as pd
-
 from core.context_analyzer import ContextAnalyzer
+from enrichment.enrichment_engine import run_data_module
 
 
 def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
@@ -25,6 +24,20 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         Configuration dictionary (currently unused).
     """
 
+    state = run_data_module(
+        state,
+        {"open", "high", "low", "close", "volume"},
+        ContextAnalyzer,
+        "analyze",
+    )
+    if state.get("status") != "FAIL":
+        # Maintain backward-compatible field names
+        state["wyckoff_analysis"] = {
+            "phase": state.get("phase"),
+            "sos_sow": state.get("sos_sow"),
+        }
+        state["wyckoff_current_phase"] = state.get("phase")
+        state["status"] = state.get("phase")
     df = state.get("dataframe")
     required_cols = {"open", "high", "low", "close", "volume"}
     if not isinstance(df, pd.DataFrame) or not required_cols.issubset(df.columns):

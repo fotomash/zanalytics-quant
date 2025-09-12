@@ -6,6 +6,7 @@ score, and merges the results back into the provided ``state`` dictionary.
 """
 
 from core.predictive_scorer import PredictiveScorer
+from enrichment.enrichment_engine import run_state_module
 
 
 def run(state, config):
@@ -25,7 +26,4 @@ def run(state, config):
     when necessary.
     """
 
-    scorer = PredictiveScorer(config)
-    result = scorer.score(state)
-    state.update(result)
-    return state
+    return run_state_module(state, lambda: PredictiveScorer(config), "score")
