@@ -11,7 +11,7 @@ numexpr==2.10.1
 # Your stack (examples; keep your existing pins but respect constraints)
 fastapi==0.111.0
 uvicorn==0.30.1
-python-telegram-bot==20.7
+discord.py==2.3.2
 plotly==5.22.0
 streamlit==1.36.0
 pydantic==2.7.4

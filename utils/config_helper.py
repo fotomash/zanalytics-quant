@@ -21,8 +21,8 @@ def setup_environment():
         "openai_API": "your-openai-key",
         "finnhub_api_key": "your-finnhub-key",
         "newsapi_key": "your-newsapi-key",
-        "telegram_bot_token": "",  # Add if you have
-        "telegram_chat_id": "",    # Add if you have
+        "discord_bot_token": "",  # Add if you have
+        "discord_channel_id": "",    # Add if you have
         "folders": {
             "data_directory": str(Path.home() / "Documents" / "_trade" / "_exports" / "_tick" / "parquet"),
             "raw_data_directory": str(Path.home() / "Documents" / "_trade" / "_exports" / "_tick" / "_raw"),
