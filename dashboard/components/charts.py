@@ -83,3 +83,5 @@ def create_metric_donut(value, title, color, suffix="%", max_value=100):
     )
     return fig
 
+
+__all__ = ["create_metric_donut", "create_behavioral_donut"]
