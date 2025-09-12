@@ -13,6 +13,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt -c constraints.txt
           pip install .[lint]
+      - name: Install hadolint
+        run: |
+          wget -qO /usr/local/bin/hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
+          chmod +x /usr/local/bin/hadolint
+      - name: Lint Dockerfiles
+        run: |
+          hadolint --failure-threshold error $(find . -name 'Dockerfile*')
       - name: Lint docstrings
         run: make lint-docs
       - name: Validate action routes
