@@ -47,8 +47,8 @@ Telegram Bot
 
 Build and run the Telegram service:
 
-```
-docker compose -f services/docker-compose.yml up telegram
+```bash
+docker compose up telegram
 ```
 
 Ensure the following environment variables are set before starting:
@@ -57,23 +57,13 @@ Ensure the following environment variables are set before starting:
 - `TELEGRAM_BOT_TOKEN` – token for your Telegram bot
 - `TELEGRAM_CHAT_ID` – destination chat ID for messages
 
-
 Vectorization Service
 ---------------------
 
 Consumes `final-analysis-payloads` messages and writes embeddings to an external vector database.
 
-```
-docker compose -f services/docker-compose.yml up vectorization_service
-Overseer
---------
-
-Simple consumer that logs messages from a Kafka topic.
-
-Start the service:
-
-```
-docker compose -f services/docker-compose.yml up overseer
+```bash
+docker compose up vectorization-service
 ```
 
 Required environment variables:
@@ -85,6 +75,20 @@ Required environment variables:
 - `QDRANT_API_KEY` – API key used for authentication
 
 See [docs/vectorization_service.md](../docs/vectorization_service.md) for complete details.
+
+Overseer
+--------
+
+Simple consumer that logs messages from a Kafka topic.
+
+Start the service:
+
+```bash
+docker compose up overseer
+```
+
+Required environment variables:
+
 - `KAFKA_BOOTSTRAP_SERVERS` – address of the Kafka broker (default `kafka:9092`)
 - `OVERSEER_TOPIC` – Kafka topic to consume (default `overseer-events`)
 
