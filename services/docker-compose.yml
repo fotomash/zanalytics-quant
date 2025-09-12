@@ -545,13 +545,15 @@ services:
       start_period: 20s
     logging: *default-logging
 
-  pulse-kernel:
-    build: .
-    command: python -m uvicorn api.pulse_api:app --host 0.0.0.0 --port 8000
+  pulse-api:
+    build:
+      context: .
+      dockerfile: services/pulse_api/Dockerfile
+    command: python -m uvicorn services.pulse_api.main:app --host 0.0.0.0 --port 8000
     environment:
       - PULSE_CONFIG=/app/pulse_config.yaml
       - PULSE_JOURNAL_PATH=/app/data/journal
-      - PYTHONPATH=/app:/app/pulse_kernel
+      - PYTHONPATH=/app:/app/services:/app/pulse_kernel
     volumes:
       - ./pulse_kernel.py:/app/pulse_kernel.py
       - ./pulse_config.yaml:/app/pulse_config.yaml
@@ -564,7 +566,7 @@ services:
       django:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/pulse/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/pulse/health"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -574,7 +576,7 @@ services:
     command: streamlit run dashboard/pulse_dashboard.py --server.port=${STREAMLIT_SERVER_PORT:-8501}
     ports: ["8501:8501"]
     env_file: [.env]
-    depends_on: [pulse-kernel]
+    depends_on: [pulse-api]
     volumes:
       - ./:/app
 
