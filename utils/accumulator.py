@@ -7,16 +7,15 @@ from typing import List, Dict, Optional
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-import redis
 from celery import shared_task
 import logging
 
 from utils.data_processor import resample_ticks_to_bars
 from journal_engine import log_event, check_tick_gaps
+from utils.redis_client import get_redis_connection
 
 COLD_ROOT = os.environ.get("COLD_ROOT", "/app/data/cold")
-REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-redis_client = redis.Redis.from_url(REDIS_URL)
+redis_client = get_redis_connection()
 
 logger = logging.getLogger(__name__)
 

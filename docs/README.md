@@ -22,8 +22,9 @@ points to the current sources of truth and clearly marks legacy docs.
 Current Direction (Active)
 --------------------------
 
-- [Architecture (streaming)](architecture_pulse_streaming.md)
+- [Architecture (v2beta)](architecture_v2beta.md)
 - [Tick stream v2 migration notes](tick_stream_v2_migration.md)
+- [Architecture (streaming)](architecture_pulse_streaming.md)
 - [Journal envelopes and contracts](journal_envelopes.md)
 - [Actions API overview](ACTIONS_API_OVERVIEW.md)
 - [Kafka sidecar quickstart](../ops/kafka/quickstart.md)
@@ -33,12 +34,19 @@ Current Direction (Active)
 - [Dashboard app](../dashboard/README.md)
 - [Prototype dashboards](../dashboards/README.md)
 - [Monitoring stack](monitoring.md)
+- [MCP Redis memory windows](mcp_redis.md)
 - [MCP2 connector config](connectors/mcp2_connector.yaml) – dev/prod SSE endpoints
 - [MCP2 OpenAI tools manifest](connectors/actions_openai_mcp2.yaml)
 - [MCP2 runbook](runbooks/mcp2.md)
+- [MCP Redis](mcp_redis.md)
+- [LLM memory flow](llm_memory_flow.md)
+- [Vector DB usage](vector_db_usage.md)
+- [MCP Redis memory windows](mcp_redis.md)
 
 Legacy / Retired (kept for history)
 -----------------------------------
+
+- [Kafka migration notes](tick_stream_v2_migration.md)
 
 Older guides remain in this directory for historical reference and are no longer maintained.
 
@@ -49,6 +57,14 @@ Flags and Defaults
 - KAFKA_BROKERS=kafka:9092, PULSE_JOURNAL_TOPIC=pulse.journal
 - Data sources (dual): PULSE_BAR_SOURCE=redis|kafka, SCORES_SOURCE=redis|kafka, DECISIONS_SINK=redis|kafka
 - Favorites: PULSE_DEFAULT_SYMBOL, baseline: PULSE_BASELINE_EQUITY
+- Redis settings: REDIS_URL=redis://redis:6379/0,
+  PULSE_JOURNAL_PATH=/app/data/journal
+- Vector DB: VECTOR_DB_URL=http://qdrant:6333,
+  QDRANT_API_KEY=<token>
+- Local inference: LOCAL_LLM_MODEL=llama3:8b-instruct
+
+See the [Environment Variables](../README.md#environment-variables)
+section of the project README for descriptions and additional options.
 
 
 Static Info Site
