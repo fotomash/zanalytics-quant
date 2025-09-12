@@ -23,17 +23,9 @@ cp .env.template .env
 
 ## 3. Install Required Packages
 
-Add to your requirements.txt:
-```
-MetaTrader5==5.0.45
-plotly==5.18.0
-redis==5.0.1
-python-dotenv==1.0.0
-```
-
-Install in your Docker container:
+Use the shared dashboard requirements file:
 ```bash
-docker compose exec django pip install MetaTrader5 plotly redis python-dotenv
+pip install -r requirements/dashboard.txt
 ```
 
 ## 4. Access the Dashboard

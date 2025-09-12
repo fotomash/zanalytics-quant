@@ -24,9 +24,11 @@ async def ensure_group(r, stream: str, group: str) -> None:
 
 
 async def main() -> None:
-    import redis.asyncio as redis
+    from redis import asyncio as redis_asyncio
     import asyncpg
-    r = await redis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
+    r = await redis_asyncio.from_url(
+        REDIS_URL, encoding="utf-8", decode_responses=True
+    )
     await ensure_group(r, STREAM_KEY, GROUP)
     pool = await asyncpg.create_pool(PG_DSN)
 
