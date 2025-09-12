@@ -78,10 +78,11 @@ Values defined in `.env` or in the shell environment override the defaults shown
 ## MT5 Settings
 | Variable | Default | Override Behavior | Purpose |
 | --- | --- | --- | --- |
+| `MT5_LOGIN` | `your_mt5_login` | Set to your MT5 account ID. | Login for the MT5 account. |
+| `MT5_PASSWORD` | `your_mt5_password` | Replace with the MT5 account password. | Password for the MT5 account. |
+| `MT5_SERVER` | `your_mt5_server` | Provide the broker server name. | MT5 server host. |
 | `MT5_API_URL` | `http://mt5:5001` | Change if the MT5 bridge runs elsewhere. | Base URL for MT5 API requests. |
 | `MT5_API_BASE` | `http://mt5:5001` | Adjust when the base URL differs from the API URL. | Root URL for MT5 API endpoints. |
-| `CUSTOM_USER` | `your_mt5_username` | Set to your MT5 account username. | Username for authenticating with MT5. |
-| `PASSWORD` | `your_mt5_password` | Replace with the MT5 account password. | Password for the MT5 account. |
 | `MT5_HEARTBEAT_INTERVAL` | `30` | Change to control heartbeat frequency in seconds. | Interval between MT5 gateway heartbeat messages. |
 | `MT5_HEARTBEAT_ALERT_THRESHOLD` | `90` | Adjust to tune downtime alerts in seconds. | Time without heartbeat before an alert is triggered. |
 
