@@ -4,16 +4,15 @@ This service enriches incoming market data before it is stored or published.
 
 ## Running
 
-From within this directory run the main module:
-
-```bash
-python -m main
-```
-
-The legacy worker entrypoint is still available:
+Run the worker module to consume ticks from Redis and persist enriched
+results:
 
 ```bash
 python -m worker
 ```
 
-`worker.py` is deprecated and retained only for backward compatibility.
+For programmatic use of the enrichment pipeline:
+
+```bash
+python -m main
+```

@@ -24,13 +24,13 @@ Status
 
 - Experimental/shadow mode until parity passes (≥99.9% for 5 trading days)
 
-Enrich Worker
--------------
+Enrichment Worker
+-----------------
 
 Consumes tick data from Redis Streams and persists enriched ticks to Postgres.
 
 ```
-python services/enrich/enrich_worker.py
+python services/enrichment/worker.py
 ```
 
 Required environment variables:
