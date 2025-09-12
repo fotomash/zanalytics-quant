@@ -12,6 +12,7 @@ MT5_URL=http://mt5:5001
 MT5_API_URL=http://mt5:5001
 DJANGO_API_URL=http://django:8000
 DJANGO_API_PREFIX=/api/v1
+DJANGO_DEBUG=false
 BRIDGE_TOKEN=
 
 # Dashboard config

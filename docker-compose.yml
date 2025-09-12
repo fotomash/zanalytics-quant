@@ -277,6 +277,7 @@ services:
       DJANGO_SETTINGS_MODULE: app.settings
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-key-change-me}
       DJANGO_DOMAIN: ${DJANGO_DOMAIN:-localhost}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       ALERTS_ENABLED: true
       ALERTS_MIN_INTERVAL_SECONDS: 60
