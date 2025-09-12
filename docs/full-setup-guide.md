@@ -71,7 +71,7 @@ Edit `.env` and fill in secrets and service domains (database credentials, API t
 The MT5 bridge service uses its own environment file:
 
 ```bash
-cp backend/mt5/.env.example backend/mt5/.env
+cp backend/mt5/.env.template backend/mt5/.env
 ```
 
 Edit `backend/mt5/.env` and provide your MetaTrader 5 credentials:
