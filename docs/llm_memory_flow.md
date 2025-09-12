@@ -28,4 +28,4 @@ flowchart LR
     V -->|recall| A
 ```
 
-For broader architectural context see [architecture_v2beta.md](architecture_v2beta.md).
+For broader architectural context see [architecture_v2.1beta.md](architecture_v2.1beta.md).
