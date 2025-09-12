@@ -1,6 +1,7 @@
 package com.pulse.services;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.github.fppt.jedismock.RedisServer;
 import org.junit.jupiter.api.AfterEach;
@@ -30,5 +31,10 @@ public class RedisServiceTest {
     void testSetAndGetKey() {
         service.setKey("foo", "bar");
         assertEquals("bar", service.getKey("foo"));
+    }
+
+    @Test
+    void testGetMissingKeyReturnsNull() {
+        assertNull(service.getKey("missing"));
     }
 }
