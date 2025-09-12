@@ -16,8 +16,13 @@ ta>=0.11.0
 slowapi==0.1.8
 redis==6.4.0        # Official Redis client with sync & asyncio (redis.asyncio)
 asyncpg==0.30.0
-confluent-kafka==2.3.0
+
+redis==5.0.8        # Official Redis client with sync & asyncio (redis.asyncio)
 tenacity==8.2.3
+
+slowapi==0.1.8
+asyncpg==0.29.0
+confluent-kafka==2.3.0
 # Embeddings and vector search
 sentence-transformers==5.1.0
 pinecone-client==6.0.0
