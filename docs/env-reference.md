@@ -118,11 +118,11 @@ Values defined in `.env` or in the shell environment override the defaults shown
 | `CELERY_APP` | `app` | Change if the Celery application module is different. | Celery application name used by workers. |
 | `CELERY_CONCURRENCY` | `3` | Adjust to control number of worker processes. | Concurrency level for Celery workers. |
 
-## Telegram Notifications
+## Discord Notifications
 | Variable | Default | Override Behavior | Purpose |
 | --- | --- | --- | --- |
-| `TELEGRAM_BOT_TOKEN` | `your_telegram_bot_token_here` | Replace with your bot token to enable notifications. | Token used to authenticate with the Telegram Bot API. |
-| `TELEGRAM_CHAT_ID` | `your_telegram_chat_id_here` | Set to the chat/user ID that should receive messages. | Destination chat for Telegram alerts. |
+| `DISCORD_BOT_TOKEN` | `your_discord_bot_token_here` | Replace with your bot token to enable notifications. | Token used to authenticate with the Discord Bot API. |
+| `DISCORD_CHANNEL_ID` | `your_discord_channel_id_here` | Set to the channel ID that should receive messages. | Destination channel for Discord alerts. |
 
 ## Alert Settings
 | Variable | Default | Override Behavior | Purpose |

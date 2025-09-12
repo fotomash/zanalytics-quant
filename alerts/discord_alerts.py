@@ -1,8 +1,8 @@
-"""Telegram alert utilities.
+"""Discord alert utilities.
 
-This module provides a simple, non-blocking notifier for Pulse that sends
-concise messages to Telegram.  Alerts are rate-limited per key to avoid
-spamming and never raise exceptions in the trading path.
+This module mirrors ``telegram_alerts`` but delivers notifications via a
+Discord webhook.  Alerts are rate limited per key and failures are silent
+so trading paths are never disrupted.
 """
 
 from __future__ import annotations
@@ -12,14 +12,13 @@ import os
 import threading
 import time
 import urllib.request
-from typing import Any, Dict
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import yaml
 
 try:
     import redis  # type: ignore
-except Exception:
+except Exception:  # pragma: no cover - redis optional
     redis = None  # type: ignore
 
 
@@ -28,21 +27,21 @@ def _load_config() -> Dict[str, Any]:
     try:
         with open(path, "r", encoding="utf-8") as fh:
             cfg = yaml.safe_load(fh) or {}
-            tg = cfg.get("telegram", {})
-            # Expand environment variables like ${VAR}
-            return {k: os.path.expandvars(v) if isinstance(v, str) else v for k, v in tg.items()}
+            dc = cfg.get("discord", {})
+            return {k: os.path.expandvars(v) if isinstance(v, str) else v for k, v in dc.items()}
     except Exception:
         return {}
 
-_TG_CFG = _load_config()
-BOT_TOKEN = _TG_CFG.get("bot_token") or os.getenv("TELEGRAM_BOT_TOKEN", "")
-CHAT_ID = _TG_CFG.get("chat_id") or os.getenv("TELEGRAM_CHAT_ID", "")
+
+_DC_CFG = _load_config()
+WEBHOOK_URL = _DC_CFG.get("webhook_url") or os.getenv("DISCORD_WEBHOOK_URL", "")
 ENABLED = os.getenv("ALERTS_ENABLED", "true").lower() == "true"
 MIN_GAP = float(os.getenv("ALERTS_MIN_INTERVAL_SECONDS", "60"))
 
 _last_sent: Dict[str, float] = {}
 _lock = threading.Lock()
 _rds: Optional["redis.Redis"] = None
+
 
 def _redis_client() -> Optional["redis.Redis"]:
     global _rds
@@ -59,34 +58,29 @@ def _redis_client() -> Optional["redis.Redis"]:
 
 
 def _send(text: str) -> None:
-    """Send a message to Telegram if configured."""
-    if not (ENABLED and BOT_TOKEN and CHAT_ID):
+    """Send ``text`` to Discord if configured."""
+    if not (ENABLED and WEBHOOK_URL):
         return
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    data = json.dumps({"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}).encode()
-    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+    data = json.dumps({"content": text}).encode()
+    req = urllib.request.Request(WEBHOOK_URL, data=data, headers={"Content-Type": "application/json"})
     try:
         urllib.request.urlopen(req, timeout=5)
     except Exception:
-        # Alerts must never break the trading loop
         pass
 
 
 def _should_throttle(key: str) -> bool:
     """Return True if a message for ``key`` was recently sent."""
-    # Prefer Redis-based cooldown if available
     try:
         r = _redis_client()
         if r is not None:
             k = f"pulse:alerts:dedupe:{key}"
-            # Set with NX, expire in MIN_GAP seconds
             created = r.set(k, str(int(time.time())), ex=max(1, int(MIN_GAP)), nx=True)
             if created:
                 return False
             return True
     except Exception:
         pass
-    # Fallback to in-memory throttle (per-process)
     now = time.time()
     with _lock:
         last = _last_sent.get(key, 0.0)
@@ -97,7 +91,7 @@ def _should_throttle(key: str) -> bool:
 
 
 def notify(event: Dict[str, Any]) -> None:
-    """Send a Telegram alert for ``event`` if thresholds are met."""
+    """Send a Discord alert for ``event`` if thresholds are met."""
     if not ENABLED:
         return
 
@@ -121,7 +115,6 @@ def notify(event: Dict[str, Any]) -> None:
 
     hi = float(os.getenv("ALERTS_SCORE_HI", "90"))
 
-    # High-quality opportunity
     if (
         rs == "allowed"
         and sc is not None
@@ -131,27 +124,24 @@ def notify(event: Dict[str, Any]) -> None:
     ):
         key = f"hi:{sym}"
         text = (
-            f"🧠 <b>Top signal</b> {sym} — Score {sc} ({grd})\n"
+            f"🧠 **Top signal** {sym} — Score {sc} ({grd})\n"
             f"• Toxicity {tox:.2f} | Liquidity {liq if liq is not None else '—'}\n"
             f"• Why: " + ", ".join(reasons[:3])
         )
 
-    # Blocked by risk rules
     if rs in ("blocked", "deny") or (viol and len(viol) > 0):
         key = f"blk:{sym}:{','.join(sorted(set(viol)))}"
-        text = f"⛔ <b>Blocked</b> {sym}\n• Reasons: {', '.join(viol) or ', '.join(warn) or 'policy'}"
+        text = f"⛔ **Blocked** {sym}\n• Reasons: {', '.join(viol) or ', '.join(warn) or 'policy'}"
 
-    # Intraday drawdown / cooldown
     dd_warn = float(os.getenv("ALERTS_DD_INTRADAY_WARN", "0.025"))
     if ddp is not None and ddp >= dd_warn:
         key = f"dd:{int(ddp * 1000)}"
-        text = f"📉 <b>Drawdown</b> {ddp * 100:.2f}% — cooldown active"
+        text = f"📉 **Drawdown** {ddp * 100:.2f}% — cooldown active"
 
-    # Trade-count / frequency guard
     if tcnt is not None:
         key = key or f"tc:{tcnt}"
         if tcnt in (3, 4, 5):
-            text = text or f"🧯 <b>Trade count</b> {tcnt} — frequency guard engaged"
+            text = text or f"🧯 **Trade count** {tcnt} — frequency guard engaged"
 
     if key and text and not _should_throttle(key):
         _send(text)

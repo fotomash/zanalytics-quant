@@ -48,14 +48,14 @@ Telegram Bot
 Build and run the Telegram service:
 
 ```
-docker compose -f services/docker-compose.yml up telegram
+docker compose -f services/docker-compose.yml up discord
 ```
 
 Ensure the following environment variables are set before starting:
 
 - `KAFKA_BROKER` – address of the Kafka broker (default `kafka:9092`)
-- `TELEGRAM_BOT_TOKEN` – token for your Telegram bot
-- `TELEGRAM_CHAT_ID` – destination chat ID for messages
+- `DISCORD_BOT_TOKEN` – token for your Discord bot
+- `DISCORD_CHANNEL_ID` – destination channel ID for messages
 
 
 Vectorization Service
