@@ -1,4 +1,9 @@
 version: "3.9"
+
+x-discord-bot-env: &discord-bot-env
+  DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
+  DISCORD_CHANNEL_WHITELIST: ${DISCORD_CHANNEL_WHITELIST}
+
 services:
   redis:
     image: redis:7.2
@@ -21,8 +26,7 @@ services:
     build:
       context: ./services/pulse_bot
     environment:
-      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
-      DISCORD_CHANNEL_WHITELIST: ${DISCORD_CHANNEL_WHITELIST}
+      <<: *discord-bot-env
       PULSE_CONFIG: /app/pulse_config.yaml
     volumes:
       - ./pulse_config.yaml:/app/pulse_config.yaml:ro
