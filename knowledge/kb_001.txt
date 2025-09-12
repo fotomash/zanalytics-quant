@@ -289,7 +289,7 @@ output
 
 Copy
 
-[DEPRECATED: Telegram flowchart content removed]
+[DEPRECATED: Telegram flowchart removed; see Discord flowchart]
 
 python
 
@@ -762,9 +762,9 @@ class PulseKernel:
         
         # Send to Discord if significant
         if decision['action'] in ['signal', 'blocked', 'warning']:
-            await self._send_telegram_alert(decision)
-    
-    async def _send_telegram_alert(self, decision: Dict):
+            await self._send_discord_alert(decision)
+
+    async def _send_discord_alert(self, decision: Dict):
         """Send alert to Discord bot"""
         # Discord integration would go here
         pass
@@ -1491,7 +1491,7 @@ Risk warnings and behavioral nudges
 Command structure (/status, /score, /journal, etc.)
 Conversation examples for pre/post trade
 Daily summaries and pattern recognition alerts
-2. 🔄 [DEPRECATED] Telegram Flowchart
+2. 🔄 [DEPRECATED] Telegram Flowchart (moved to legacy)
 
 3. 🎨 Streamlit UI Design
 

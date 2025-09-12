@@ -11,12 +11,6 @@ x-common-labels: &default-labels
   stackname: "docker-monitoring-stack-gpnc"
 
 
-x-discord-env: &discord-env
-  DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
-  DISCORD_CHANNEL_ID: ${DISCORD_CHANNEL_ID:-}
-  DISCORD_CHANNEL_WHITELIST: ${DISCORD_CHANNEL_WHITELIST:-}
-
-
 services:
   traefik:
     image: traefik:v3.1
@@ -719,7 +713,6 @@ services:
       - .env
       - .env.discord
     environment:
-      <<: *discord-env
       PYTHONPATH: /app
       DJANGO_API_URL: http://django:8000
       DJANGO_API_TOKEN: ${DJANGO_API_TOKEN:-}
