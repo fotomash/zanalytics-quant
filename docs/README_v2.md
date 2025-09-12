@@ -28,7 +28,7 @@ For network routing and service topology, consult [architecture.md](architecture
 
 - **Dashboards** – Streamlit and web dashboards visualize live bars and strategy output.
 - **Risk & Execution** – Services in `risk_enforcer` and `SRB` consume Kafka and Redis streams to manage trades.
-- **Backtesting** – Uses persisted Kafka/Postgres data to simulate strategies under historical conditions.
+- **Backtesting** – Uses persisted Kafka/Postgres data to simulate strategies under historical conditions. Kafka log replay reconstructs tick-by-tick sequences so simulations remain deterministic and reproducible.
 - **Monitoring** – Metrics and alerts are documented in [monitoring.md](monitoring.md).
 
 ## Related Documentation
