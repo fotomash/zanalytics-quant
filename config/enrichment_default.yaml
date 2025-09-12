@@ -26,3 +26,10 @@ advanced:
   context_analyzer: true
   fvg_locator: true
   predictive_scorer: true
+  fractal_detector: true
+  fractal_bars: 2
+  alligator:
+    enabled: true
+    jaw: 13
+    teeth: 8
+    lips: 5
