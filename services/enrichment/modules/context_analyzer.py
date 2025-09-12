@@ -35,6 +35,9 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     results = analyzer.analyze(df)
 
     state.update(results)
-    state["status"] = "PASS"
+    # Preserve backward compatible keys expected by tests
+    state["wyckoff_analysis"] = results
+    state["wyckoff_current_phase"] = results.get("phase")
+    state["status"] = results.get("phase", "PASS")
     return state
 

@@ -6,25 +6,35 @@ import pandas as pd
 import numpy as np
 from scipy.signal import find_peaks
 
+from indicators.registry import (
+    register_indicator,
+    is_indicator_enabled,
+)
+
 
 class WyckoffAnalyzer:
     def __init__(self, config: dict | None = None):
         self.config = config or {}
         self.phases = ['Accumulation', 'Markup', 'Distribution', 'Markdown']
         self.events = []
-    
+        self._features = {
+            'current_phase': ('wyckoff', self.identify_current_phase),
+            'events': ('wyckoff', self.detect_wyckoff_events),
+            'volume_analysis': ('volume', self.analyze_volume_patterns),
+            'spring_upthrust': ('wyckoff', self.detect_springs_upthrusts),
+            'sos_sow': ('wyckoff', self.detect_sos_sow),
+            'trading_ranges': ('wyckoff', self.identify_trading_ranges),
+            'composite_operator': ('volume', self.analyze_composite_operator),
+        }
+        for name, (category, _) in self._features.items():
+            register_indicator(name, category)
+
     def analyze(self, df):
         """Run complete Wyckoff analysis"""
-        results = {
-            'current_phase': self.identify_current_phase(df),
-            'events': self.detect_wyckoff_events(df),
-            'volume_analysis': self.analyze_volume_patterns(df),
-            'spring_upthrust': self.detect_springs_upthrusts(df),
-            'sos_sow': self.detect_sos_sow(df),
-            'trading_ranges': self.identify_trading_ranges(df),
-            'composite_operator': self.analyze_composite_operator(df)
-        }
-        
+        results = {}
+        for name, (_, func) in self._features.items():
+            if is_indicator_enabled(name):
+                results[name] = func(df)
         return results
     
     def identify_current_phase(self, df, lookback=100):

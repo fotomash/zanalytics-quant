@@ -4,33 +4,43 @@ from __future__ import annotations
 
 import pandas as pd
 import numpy as np
-import scipy.signal
+try:
+    import scipy.signal  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    scipy = None  # type: ignore
+
+from indicators.registry import (
+    register_indicator,
+    is_indicator_enabled,
+)
 
 class SMCAnalyzer:
     """Analyze price data for liquidity and market structure."""
 
     def __init__(self, config: dict | None = None):
         self.config = config or {}
-        self.liquidity_zones = []
-        self.order_blocks = []
-        self.fair_value_gaps = []
-        self.market_structure = []
+        # Map indicator names to (category, handler)
+        self._features = {
+            "liquidity_zones": ("liquidity", self.identify_liquidity_zones),
+            "order_blocks": ("structure", self.identify_order_blocks),
+            "fair_value_gaps": ("imbalance", self.identify_fair_value_gaps),
+            "market_structure": ("structure", self.analyze_market_structure),
+            "liquidity_sweeps": ("liquidity", self.detect_liquidity_sweeps),
+            "displacement": ("momentum", self.detect_displacement),
+            "inducement": ("liquidity", self.detect_inducement),
+        }
+        for name, (category, _) in self._features.items():
+            register_indicator(name, category)
 
     def analyze(self, df, precomputed_fvgs: list | None = None):
-
-        results = {
-            "liquidity_zones": self.identify_liquidity_zones(df),
-            "order_blocks": self.identify_order_blocks(df),
-            "fair_value_gaps": (
-                precomputed_fvgs if precomputed_fvgs is not None
-                else self.identify_fair_value_gaps(df)
-            ),
-            "market_structure": self.analyze_market_structure(df),
-            "liquidity_sweeps": self.detect_liquidity_sweeps(df),
-            "displacement": self.detect_displacement(df),
-            "inducement": self.detect_inducement(df)
-        }
-
+        results = {}
+        for name, (_, func) in self._features.items():
+            if not is_indicator_enabled(name):
+                continue
+            if name == "fair_value_gaps" and precomputed_fvgs is not None:
+                results[name] = precomputed_fvgs
+            else:
+                results[name] = func(df)
         return results
 
     def identify_liquidity_zones(self, df, lookback=50):
@@ -160,6 +170,8 @@ class SMCAnalyzer:
 
     def analyze_market_structure(self, df):
         """Analyze market structure breaks and shifts"""
+        if scipy is None:  # pragma: no cover - fallback when scipy missing
+            return []
         structure = []
 
         # Find swing highs and lows
