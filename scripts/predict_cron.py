@@ -9,10 +9,10 @@ import json
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from statistics import mean, stdev
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Union
 
 import redis
 import yaml
@@ -96,6 +96,35 @@ def _parse_risk(value: object) -> Optional[float]:
         return num
     except Exception:
         return None
+
+
+def compute_silence_duration(timestamp: Union[str, int, float]) -> float:
+    """Return seconds elapsed since ``timestamp``.
+
+    The ``timestamp`` may be an ISO 8601 string or a Unix epoch expressed as
+    either a number or numeric string.  The current time is determined using
+    :func:`datetime.utcnow`.  A ``ValueError`` is raised if the timestamp cannot
+    be parsed.
+    """
+    now = datetime.utcnow()
+
+    try:
+        if isinstance(timestamp, (int, float)):
+            tick_dt = datetime.utcfromtimestamp(float(timestamp))
+        else:
+            ts = str(timestamp).strip()
+            if not ts:
+                raise ValueError("empty timestamp")
+            try:
+                tick_dt = datetime.utcfromtimestamp(float(ts))
+            except ValueError:
+                tick_dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                if tick_dt.tzinfo is not None:
+                    tick_dt = tick_dt.astimezone(timezone.utc).replace(tzinfo=None)
+    except Exception as exc:
+        raise ValueError(f"Malformed timestamp: {timestamp!r}") from exc
+
+    return (now - tick_dt).total_seconds()
 
 
 def _load_config_threshold() -> Optional[float]:
