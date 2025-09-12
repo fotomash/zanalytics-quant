@@ -1,7 +1,12 @@
+import json
+import logging
+import os
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
 from apscheduler.schedulers.background import BackgroundScheduler
 import requests
-import os
-import time
 import yaml
 
 # Orchestrator endpoint that understands the flow 'session_close_debrief'.
@@ -9,6 +14,10 @@ import yaml
 API_ORCHESTRATOR_URL = os.getenv("API_ORCHESTRATOR_URL", "https://your-orchestrator-host")
 API_TOKEN = os.getenv("API_TOKEN", "")
 SESSION_TIMES_FILE = os.getenv("SESSION_TIMES_FILE", "docs/gpt_llm/session_times.yaml")
+HEALTH_PORT = int(os.getenv("SESSION_SCHEDULER_PORT", "8011"))
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 def load_session_times():
@@ -51,6 +60,28 @@ def run_session_close_debrief(session_name: str):
         print(f"[Scheduler] Error running {session_name} debrief:", e)
 
 
+def _start_health_server(scheduler):
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            if self.path == "/health":
+                payload = json.dumps({"scheduler_running": scheduler.running})
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(payload.encode("utf-8"))
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+        def log_message(self, format, *args):  # noqa: D401, N802
+            return
+
+    server = HTTPServer(("0.0.0.0", HEALTH_PORT), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    logger.info("[Scheduler] Health server started on port %s", HEALTH_PORT)
+
+
 def start_scheduler():
     scheduler = BackgroundScheduler()
     session_times = load_session_times()
@@ -67,16 +98,31 @@ def start_scheduler():
         )
         print(f"[Scheduler] Scheduled {session_name} close at {hour:02d}:{minute:02d} UTC")
 
-    scheduler.start()
+    _start_health_server(scheduler)
+
+    try:
+        scheduler.start()
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.exception("[Scheduler] Failed to start scheduler: %s", exc)
+        try:
+            scheduler.shutdown(wait=False)
+        except Exception:  # pragma: no cover
+            logger.exception("[Scheduler] Error during scheduler shutdown")
+        time.sleep(5)
+        logger.info("[Scheduler] Retrying scheduler start…")
+        scheduler.start()
+
     print("[Scheduler] Session close debrief jobs scheduled.")
+    return scheduler
 
 
 if __name__ == "__main__":
-    start_scheduler()
+    scheduler = start_scheduler()
     # Keep process alive
     try:
         while True:
             time.sleep(60)
     except (KeyboardInterrupt, SystemExit):
         print("[Scheduler] Shutting down...")
+        scheduler.shutdown(wait=False)
 
