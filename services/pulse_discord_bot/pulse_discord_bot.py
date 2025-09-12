@@ -13,9 +13,9 @@ import discord
 from discord.ext import commands
 
 try:
-    import aioredis
+    from redis import asyncio as redis_asyncio
 except Exception:  # pragma: no cover - redis optional
-    aioredis = None
+    redis_asyncio = None
 
 # ---------------------------------------------------------------------------
 # Environment variables
@@ -47,14 +47,14 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-_redis: Optional[aioredis.Redis] = None
+_redis: Optional[redis_asyncio.Redis] = None  # type: ignore[attr-defined]
 
 
-async def get_redis() -> Optional[aioredis.Redis]:
+async def get_redis() -> Optional[redis_asyncio.Redis]:  # type: ignore[attr-defined]
     global _redis
-    if _redis is None and aioredis:
+    if _redis is None and redis_asyncio:
         try:
-            _redis = await aioredis.from_url(
+            _redis = await redis_asyncio.from_url(
                 REDIS_URL, encoding="utf-8", decode_responses=True
             )
         except Exception:
@@ -67,8 +67,8 @@ async def record_interaction(payload: dict) -> None:
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                MCP_MEMORY_API_URL,
-                json={"store": payload},
+                f"{MCP_MEMORY_API_URL}/store",
+                json=payload,
                 headers={"Authorization": f"Bearer {MCP_MEMORY_API_KEY}"},
                 timeout=10,
             )
@@ -97,7 +97,7 @@ async def fetch_pulse(query: str) -> str:
 
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            MCP_MEMORY_API_URL,
+            f"{MCP_MEMORY_API_URL}/recall",
             json={"query": query},
             headers={"Authorization": f"Bearer {MCP_MEMORY_API_KEY}"},
             timeout=10,
