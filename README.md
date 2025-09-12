@@ -113,7 +113,7 @@ This modular design facilitates secure separation of concerns, easy extensibilit
 **Build & Run**
 
 ```bash
-docker compose -f docker-compose.pulse.yml up --build pulse-api
+docker compose up --build pulse-api
 ```
 
 **Required Environment Variables**
@@ -121,7 +121,7 @@ docker compose -f docker-compose.pulse.yml up --build pulse-api
 - `PULSE_CONFIG` – path to the Pulse YAML configuration.
 - `PULSE_API_KEY` – API key expected in the `X-API-Key` request header.
 
-See [docker-compose.pulse.yml](docker-compose.pulse.yml) for a full example stack.
+Service definition is included in [docker-compose.yml](docker-compose.yml).
 
 ## tick-to-bar
 
@@ -172,8 +172,8 @@ FastAPI shim that exposes PulseKernel scoring, risk, and journaling features to 
 **Build and run**
 
 ```bash
-docker compose -f docker-compose.pulse.yml build pulse-api
-docker compose -f docker-compose.pulse.yml up pulse-api
+docker compose build pulse-api
+docker compose up pulse-api
 ```
 
 **Environment variables**
@@ -181,7 +181,7 @@ docker compose -f docker-compose.pulse.yml up pulse-api
 - `PULSE_CONFIG` – path to the Pulse configuration file.
 - `PULSE_API_KEY` – API key required for authenticated requests.
 
-Service definition: [docker-compose.pulse.yml](docker-compose.pulse.yml).
+Service definition: [docker-compose.yml](docker-compose.yml).
 
 ## ticktobar
 
