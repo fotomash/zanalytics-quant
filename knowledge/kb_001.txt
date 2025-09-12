@@ -289,6 +289,7 @@ output
 
 Copy
 
+[DEPRECATED: Telegram flowchart content removed]
 
 python
 
@@ -1490,6 +1491,8 @@ Risk warnings and behavioral nudges
 Command structure (/status, /score, /journal, etc.)
 Conversation examples for pre/post trade
 Daily summaries and pattern recognition alerts
+2. 🔄 [DEPRECATED] Telegram Flowchart
+
 3. 🎨 Streamlit UI Design
 
 streamlit_ui_config.json - Component specifications
