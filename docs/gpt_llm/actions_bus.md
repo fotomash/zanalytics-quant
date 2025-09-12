@@ -48,6 +48,6 @@ POST /api/v1/actions/query
 Notes
 
 - The bus is intentionally not included in the main `openapi.yaml` to keep that spec ≤ 30 operations. A separate slim spec `openapi.actions.yaml` is available for LLM manifests.
-- Whisper suggestions are best‑effort and rate‑limited server‑side. They prefer a concise one‑liner suitable for dashboards or Telegram relays.
+- Whisper suggestions are best‑effort and rate‑limited server‑side. They prefer a concise one‑liner suitable for dashboards or Discord relays.
 - For broader actions (e.g., history ranges, behavior summaries), add verbs here rather than growing the main REST surface.
 
