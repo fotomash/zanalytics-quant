@@ -49,6 +49,14 @@ Flags and Defaults
 - KAFKA_BROKERS=kafka:9092, PULSE_JOURNAL_TOPIC=pulse.journal
 - Data sources (dual): PULSE_BAR_SOURCE=redis|kafka, SCORES_SOURCE=redis|kafka, DECISIONS_SINK=redis|kafka
 - Favorites: PULSE_DEFAULT_SYMBOL, baseline: PULSE_BASELINE_EQUITY
+- Redis settings: REDIS_URL=redis://redis:6379/0,
+  PULSE_JOURNAL_PATH=/app/data/journal
+- Vector DB: VECTOR_DB_URL=http://qdrant:6333,
+  QDRANT_API_KEY=<token>
+- Local inference: LOCAL_LLM_MODEL=llama3:8b-instruct
+
+See the [Environment Variables](../README.md#environment-variables)
+section of the project README for descriptions and additional options.
 
 
 Static Info Site

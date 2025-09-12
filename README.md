@@ -252,9 +252,13 @@ Key variables to configure before launching:
 - `DJANGO_SECRET_KEY` – secret key for Django.
 - `MCP2_API_KEY` – secret used by the `mcp` service. Add it to `.env` and Compose
   or CI will inject it; use a 32‑hex‑character value.
-- `PINECONE_URL` and `PINECONE_API_KEY` – connection details for the Pinecone
-  vector store. Set these to point at your Pinecone deployment or leave the URL
-  as `https://localhost:443` to use the local fallback.
+- `VECTOR_DB_URL` and `QDRANT_API_KEY` – base URL and optional API key for the
+  vector database (Qdrant by default).
+- `LOCAL_LLM_MODEL` – model identifier for on-box inference served by Ollama
+  or a similar local runtime.
+- `REDIS_URL` – connection string for Redis used by MCP and other services.
+- `PULSE_JOURNAL_PATH` and `USE_KAFKA_JOURNAL` – directory for Redis-backed
+  journal persistence and flag to mirror entries to Kafka.
 - `LOCAL_THRESHOLD` – confidence cutoff for using the local echo model. Ticks
   below this or in spring/distribution phases get a quick `llm_verdict`; others
   queue for Whisperer.
@@ -268,6 +272,8 @@ Key variables to configure before launching:
   dashboard's diagnostics panel.
 
 For the complete list of variables, see [docs/env-reference.md](docs/env-reference.md).
+Quick reference defaults (including `USE_KAFKA_JOURNAL`) live in
+[docs/README.md](docs/README.md#flags-and-defaults).
 
 ---
 

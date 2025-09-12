@@ -111,6 +111,13 @@ Values defined in `.env` or in the shell environment override the defaults shown
 | Variable | Default | Override Behavior | Purpose |
 | --- | --- | --- | --- |
 | `LOCAL_THRESHOLD` | `0.6` | Raise or lower to adjust when ticks are sent to Whisperer. | Confidence cutoff for local echo vs. remote Whisperer processing. |
+| `LOCAL_LLM_MODEL` | `llama3:8b-instruct` | Set to the model name served by Ollama or similar. | Model used for on-box inference. |
+
+## Vector Store Settings
+| Variable | Default | Override Behavior | Purpose |
+| --- | --- | --- | --- |
+| `VECTOR_DB_URL` | `http://qdrant:6333` | Change to point at a different vector database. | Base URL for the vector store (Qdrant). |
+| `QDRANT_API_KEY` | _(empty)_ | Provide if your vector DB requires authentication. | API key for the vector database. |
 
 ## Celery Settings
 | Variable | Default | Override Behavior | Purpose |
