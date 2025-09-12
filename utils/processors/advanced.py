@@ -246,13 +246,43 @@ class AdvancedProcessor:
     # Unified process
     # ------------------------------------------------------------------
     @record_metrics
-    def process(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """Run all advanced analytics and return consolidated results."""
+    def process(
+        self,
+        df: pd.DataFrame,
+        *,
+        fractals_only: bool = False,
+        wave_only: bool = False,
+    ) -> Dict[str, Any]:
+        """Run advanced analytics with optional selective outputs.
+
+        Parameters
+        ----------
+        df:
+            Price data with ``open``, ``high``, ``low`` and ``close`` columns.
+        fractals_only:
+            If ``True`` return only the ``fractals`` section of the full
+            analysis.  Other metrics are skipped to reduce the payload size.
+        wave_only:
+            If ``True`` return only the ``elliott_wave`` section.  Supporting
+            analytics such as fractals and pivots are computed internally but
+            omitted from the returned dictionary.  ``fractals_only`` takes
+            precedence if both flags are ``True``.
+        """
 
         if df.empty:
             return {}
         try:
+            # Fractals are needed for both modes so compute first
             fractals = self.detect_fractals(df)
+            if fractals_only:
+                return {"fractals": fractals}
+
+            if wave_only:
+                gator = self.calculate_alligator(df)
+                pivots = self.detect_pivots(df)
+                elliott = self.elliott_wave(df, pivots, fractals, gator)
+                return {"elliott_wave": elliott}
+
             gator = self.calculate_alligator(df)
             vol = self.volatility(df)
             pivots = self.detect_pivots(df)
