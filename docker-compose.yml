@@ -1064,12 +1064,18 @@ services:
         condition: service_started
       qdrant:
         condition: service_started
+    command: sh -c "python import_check.py && python main.py"
     healthcheck:
       test: ["CMD", "python", "healthcheck.py"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 20s
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
     restart: unless-stopped
     logging: *default-logging
     networks:
