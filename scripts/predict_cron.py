@@ -9,6 +9,11 @@ import json
 import logging
 import os
 import re
+import time
+from datetime import datetime
+from pathlib import Path
+from statistics import mean, stdev
+from typing import Dict, Optional, List, Union
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import mean, stdev
@@ -199,6 +204,35 @@ def get_risk_threshold() -> float:
 # setting ``risk_threshold`` in ``config/predict_cron.yaml``. See
 # ``docs/update_risk_threshold.md`` for details.
 RISK_THRESHOLD = get_risk_threshold()
+
+
+def compute_silence_duration(latest_tick: Union[str, float, int]) -> float:
+    """Return elapsed seconds since ``latest_tick``.
+
+    ``latest_tick`` may be a string or numeric representation of the
+    timestamp (seconds since the epoch). Any value that cannot be coerced to a
+    float results in a duration of ``0.0`` seconds.
+    """
+    try:
+        last = float(latest_tick)
+    except (TypeError, ValueError):
+        return 0.0
+    return time.time() - last
+
+
+def predict_silence(redis_client: redis.Redis, key: str = "predict:latest_tick") -> float:
+    """Fetch the last tick timestamp from ``redis_client`` and compute silence.
+
+    The value stored at ``key`` may be bytes or a string. If bytes are
+    retrieved, they are decoded to UTF-8 before being passed to
+    :func:`compute_silence_duration`.
+    """
+    latest_tick = redis_client.get(key)
+    if latest_tick is None:
+        return compute_silence_duration(0.0)
+    if isinstance(latest_tick, bytes):
+        latest_tick = latest_tick.decode()
+    return compute_silence_duration(latest_tick)
 
 
 def recommend_threshold(history_path: str) -> float:
