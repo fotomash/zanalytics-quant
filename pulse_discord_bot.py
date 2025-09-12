@@ -77,6 +77,9 @@ async def record_interaction(payload: dict) -> None:
             )
             resp.raise_for_status()
     except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in {401, 403}:
+            logger.error(
+                "Authentication failed persisting interaction - check MCP_MEMORY_API_KEY"
         if exc.response.status_code in (401, 403):
             logger.error(
                 "Memory API authentication failed; check MCP_MEMORY_API_KEY"
@@ -108,6 +111,13 @@ async def fetch_pulse(query: str) -> str:
         try:
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in {401, 403}:
+                logger.error(
+                    "Authentication failed querying memory API - check MCP_MEMORY_API_KEY"
+                )
+                raise RuntimeError(
+                    "Authentication with memory API failed: invalid or missing MCP_MEMORY_API_KEY"
+                ) from exc
             if exc.response.status_code in (401, 403):
                 msg = "Memory API authentication failed; check MCP_MEMORY_API_KEY"
                 logger.error(msg)
