@@ -264,6 +264,7 @@ services:
       - static_volume:/app/staticfiles
       - ./data/cold:/app/data/cold
       - ./agents:/app/agents
+      - ./services:/app/services
     restart: unless-stopped
     ports:
       - 8010:8000
@@ -361,6 +362,7 @@ services:
       - static_volume:/app/staticfiles
       - ./data/cold:/app/data/cold
       - ./agents:/app/agents
+      - ./services:/app/services
     env_file:
       - .env
     environment:
@@ -390,6 +392,7 @@ services:
       - static_volume:/app/staticfiles
       - ./data/cold:/app/data/cold
       - ./agents:/app/agents
+      - ./services:/app/services
     env_file:
       - .env
     environment:

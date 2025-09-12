@@ -1,2 +1,6 @@
 ignored:
   - DL3021 # COPY with more than 2 arguments requires the last argument to end with /
+  - DL3008 # pin versions in apt-get install
+  - DL3015 # avoid additional packages with --no-install-recommends
+  - DL3013 # pin versions in pip install
+  - DL3025 # use JSON notation for CMD and ENTRYPOINT
