@@ -13,6 +13,9 @@ import argparse
 from typing import List, Dict, Any
 import datetime as dt
 import requests
+from services.common import get_logger
+
+logger = get_logger(__name__)
 
 
 def fetch_chart(symbol: str, interval: str = "1h", rng: str = "60d") -> Dict[str, Any]:
@@ -59,7 +62,17 @@ def main(argv: list[str]) -> int:
     args = ap.parse_args(argv)
     data = fetch_chart(args.symbol, args.interval, args.rng)
     bars = flatten_bars(data)
-    print(json.dumps({"symbol": args.symbol, "interval": args.interval, "range": args.rng, "items": bars}, separators=(",", ":")))
+    logger.info(
+        json.dumps(
+            {
+                "symbol": args.symbol,
+                "interval": args.interval,
+                "range": args.rng,
+                "items": bars,
+            },
+            separators=(",", ":"),
+        )
+    )
     return 0
 
 

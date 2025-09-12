@@ -1,5 +1,8 @@
 from typing import Any, Dict
 from core.indicators.registry import IndicatorRegistry
+from services.common import get_logger
+
+logger = get_logger(__name__)
 
 def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -21,7 +24,7 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
 
     registry = IndicatorRegistry()
     active_indicators = registry.get_active_indicators(symbol)
-    
+
     indicator_outputs = {}
 
     for indicator_id in active_indicators:
@@ -40,7 +43,7 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
                 indicator_outputs[indicator_id] = indicator_result
 
             except Exception as e:
-                print(f"Error calculating indicator '{indicator_id}': {e}")
+                logger.error("Error calculating indicator '%s': %s", indicator_id, e)
     
     # Attach the results to the pipeline's shared state
     if 'technical_indicators' not in state['outputs']:

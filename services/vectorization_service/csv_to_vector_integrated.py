@@ -6,8 +6,9 @@ from typing import Dict, Tuple, List
 import yaml
 
 from services.mcp2.vector.embeddings import embed
+from services.common import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _load_field_patch() -> Dict[str, object]:
@@ -156,4 +157,4 @@ if __name__ == "__main__":  # pragma: no cover
     args = parser.parse_args()
 
     vectors = vectorize_csv(args.path)
-    print(json.dumps(vectors, default=str))
+    logger.info(json.dumps(vectors, default=str))

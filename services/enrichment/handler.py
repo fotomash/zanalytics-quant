@@ -8,6 +8,9 @@ from pydantic import ValidationError
 from utils.analysis_engines import build_unified_analysis
 from schemas.behavioral import AnalysisPayload
 from schemas import UnifiedAnalysisPayloadV1
+from services.common import get_logger
+
+logger = get_logger(__name__)
 
 
 def on_message(ctx: Dict[str, Any], msg: Message) -> None:
@@ -21,7 +24,7 @@ def on_message(ctx: Dict[str, Any], msg: Message) -> None:
             msg.value().decode("utf-8")
         )
     except ValidationError as exc:
-        print(f"payload validation error: {exc}")
+        logger.error("payload validation error: %s", exc)
         ctx["consumer"].commit(msg)
         return
 
@@ -43,7 +46,7 @@ def on_message(ctx: Dict[str, Any], msg: Message) -> None:
         ctx["producer"].produce("enriched-analysis-payloads", value=serialized)
         decision = "produced_payload"
     except Exception as e:  # pragma: no cover - log and continue
-        print(f"analysis error: {e}")
+        logger.exception("analysis error: %s", e)
         decision = f"error: {e}"
     ctx["journal"].append(
         action="enrich_tick",

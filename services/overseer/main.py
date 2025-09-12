@@ -8,8 +8,11 @@ import os
 from typing import Any
 
 from utils.kafka_utils import KafkaConsumer
+from services.common import get_logger
 
 KAFKA_TOPIC = os.getenv("OVERSEER_TOPIC", "overseer-events")
+
+logger = get_logger(__name__)
 
 
 async def run() -> None:
@@ -20,7 +23,7 @@ async def run() -> None:
                 payload: Any = json.loads(raw)
             except json.JSONDecodeError:
                 payload = raw
-            print(payload)
+            logger.info("%s", payload)
 
 
 def main() -> None:

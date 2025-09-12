@@ -3,7 +3,8 @@ FROM python:3.11-slim
 WORKDIR /app
 
 COPY services/requirements.bars.txt /app/requirements.txt
-ENV PIP_ROOT_USER_ACTION=ignore
+ENV PIP_ROOT_USER_ACTION=ignore \
+    PYTHONUNBUFFERED=1
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY services/kafka_tick_to_bar.py /app/
