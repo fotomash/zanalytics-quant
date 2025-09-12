@@ -275,7 +275,7 @@ details. Pinecone is considered legacy and unsupported.
 
 Key variables to configure before launching:
 
-- `CUSTOM_USER` and `PASSWORD` – MT5 account credentials.
+- `MT5_LOGIN`, `MT5_PASSWORD`, and `MT5_SERVER` – MT5 account credentials.
 - `MT5_API_URL` / `MT5_URL` – URLs for the MT5 bridge.
 - `DJANGO_API_URL` and `DJANGO_API_PREFIX` – Django API endpoints.
 - `DASH_METRICS_PATH` and `DASH_PROMPT_PATH` – dashboard configuration paths.
