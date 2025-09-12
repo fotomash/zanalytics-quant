@@ -735,7 +735,9 @@ services:
       - default
 
   pulse-discord-bot:
-    build: ./services/pulse_discord_bot
+    build:
+      context: .
+      dockerfile: services/pulse_discord_bot/Dockerfile
     container_name: pulse-discord-bot
     working_dir: /app
     env_file:
