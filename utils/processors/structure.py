@@ -32,31 +32,37 @@ class StructureProcessor:
         """
         order_blocks: List[Dict] = []
         try:
-            open_prices = df['open'].values
-            high = df['high'].values
-            low = df['low'].values
-            close = df['close'].values
+            open_prices = df['open'].to_numpy()
+            high = df['high'].to_numpy()
+            low = df['low'].to_numpy()
+            close = df['close'].to_numpy()
 
-            for i in range(1, len(df) - 1):
-                # Bullish order block
-                if close[i] > open_prices[i] and close[i + 1] > high[i]:
-                    order_blocks.append({
+            bullish_idx = np.where((close > open_prices) & (np.roll(close, -1) > high))[0]
+            bearish_idx = np.where((close < open_prices) & (np.roll(close, -1) < low))[0]
+
+            if bullish_idx.size:
+                order_blocks.extend([
+                    {
                         'type': 'bullish_ob',
                         'top': float(high[i]),
                         'bottom': float(open_prices[i]),
                         'index': int(i),
-                        'strength': float((close[i] - open_prices[i]) / open_prices[i])
-                    })
+                        'strength': float((close[i] - open_prices[i]) / open_prices[i]),
+                    }
+                    for i in bullish_idx
+                ])
 
-                # Bearish order block
-                if close[i] < open_prices[i] and close[i + 1] < low[i]:
-                    order_blocks.append({
+            if bearish_idx.size:
+                order_blocks.extend([
+                    {
                         'type': 'bearish_ob',
                         'top': float(open_prices[i]),
                         'bottom': float(low[i]),
                         'index': int(i),
-                        'strength': float((open_prices[i] - close[i]) / open_prices[i])
-                    })
+                        'strength': float((open_prices[i] - close[i]) / open_prices[i]),
+                    }
+                    for i in bearish_idx
+                ])
         except Exception as e:  # pragma: no cover - defensive logging
             self.logger.warning("Error identifying order blocks: %s", e)
 
@@ -66,28 +72,30 @@ class StructureProcessor:
         """Identify bullish and bearish fair value gaps."""
         gaps: List[Dict] = []
         try:
-            high = df['high'].values
-            low = df['low'].values
+            high = df['high'].to_numpy()
+            low = df['low'].to_numpy()
 
-            for i in range(2, len(df)):
-                # Bullish FVG
-                if low[i] > high[i - 2]:
+            bullish_idx = np.where(low > np.roll(high, 2))[0]
+            bearish_idx = np.where(high < np.roll(low, 2))[0]
+
+            for i in bullish_idx:
+                if i >= 2:
                     gaps.append({
                         'type': 'bullish_fvg',
                         'top': float(low[i]),
                         'bottom': float(high[i - 2]),
                         'index': int(i),
-                        'size': float(low[i] - high[i - 2])
+                        'size': float(low[i] - high[i - 2]),
                     })
 
-                # Bearish FVG
-                if high[i] < low[i - 2]:
+            for i in bearish_idx:
+                if i >= 2:
                     gaps.append({
                         'type': 'bearish_fvg',
                         'top': float(low[i - 2]),
                         'bottom': float(high[i]),
                         'index': int(i),
-                        'size': float(low[i - 2] - high[i])
+                        'size': float(low[i - 2] - high[i]),
                     })
         except Exception as e:  # pragma: no cover - defensive logging
             self.logger.warning("Error identifying fair value gaps: %s", e)
