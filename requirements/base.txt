@@ -57,7 +57,6 @@ fastjsonschema==2.19.1
 slowapi==0.1.8
 redis==5.0.8        # Official Redis client with sync & asyncio (redis.asyncio)
 redis==6.4.0        # Official Redis client with sync & asyncio (redis.asyncio)
-aioredis==2.0.1     # Legacy async client still used by some services
 fakeredis==2.23.2   # In-memory Redis for tests
 asyncpg==0.30.0
 confluent-kafka==2.3.0

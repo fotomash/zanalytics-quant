@@ -1,0 +1,2 @@
+ignored:
+  - DL3021 # COPY with more than 2 arguments requires the last argument to end with /

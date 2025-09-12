@@ -14,6 +14,7 @@ x-discord-env: &discord-env
   DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
   DISCORD_CHANNEL_ID: ${DISCORD_CHANNEL_ID:-}
 
+
 services:
   traefik:
     image: traefik:v3.1
@@ -272,19 +273,19 @@ services:
       - 8010:8000
     env_file:
       - .env
-      environment:
-        <<: *discord-env
-        PYTHONPATH: /app:/app/components:/app/utils:/app/backend:/app/agents
-        DJANGO_SETTINGS_MODULE: app.settings
-        DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-key-change-me}
-        DJANGO_DOMAIN: ${DJANGO_DOMAIN:-localhost}
-        REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-        ALERTS_ENABLED: true
-        ALERTS_MIN_INTERVAL_SECONDS: 60
-        ALERTS_SCORE_HI: 90
-        ALERTS_TOXICITY_LIMIT: 0.30
-        ALERTS_DD_INTRADAY_WARN: 0.025
-        MT5_API_URL: http://mt5:5001
+    environment:
+      <<: *discord-env
+      PYTHONPATH: /app:/app/components:/app/utils:/app/backend:/app/agents
+      DJANGO_SETTINGS_MODULE: app.settings
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-key-change-me}
+      DJANGO_DOMAIN: ${DJANGO_DOMAIN:-localhost}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      ALERTS_ENABLED: true
+      ALERTS_MIN_INTERVAL_SECONDS: 60
+      ALERTS_SCORE_HI: 90
+      ALERTS_TOXICITY_LIMIT: 0.30
+      ALERTS_DD_INTRADAY_WARN: 0.025
+      MT5_API_URL: http://mt5:5001
       # Avoid overriding secret key with empty value; single definition above is sufficient
     depends_on:
       postgres:

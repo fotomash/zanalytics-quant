@@ -13,6 +13,7 @@ httpx==0.28.1
 streamlit==1.36.0
 plotly==5.22.0
 ta>=0.11.0
+
 slowapi==0.1.8
 redis==6.4.0        # Official Redis client with sync & asyncio (redis.asyncio)
 asyncpg==0.30.0

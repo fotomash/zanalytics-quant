@@ -12,10 +12,8 @@ import httpx
 import discord
 from discord.ext import commands
 
-try:
-    from redis import asyncio as redis_asyncio
-except Exception:  # pragma: no cover - redis optional
-    redis_asyncio = None
+# Official Redis asyncio client
+import redis.asyncio as redis
 
 
 # ---------------------------------------------------------------------------
@@ -48,15 +46,15 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-_redis: Optional[redis_asyncio.Redis] = None  # type: ignore[attr-defined]
+_redis: Optional[redis.Redis] = None
 
 
-async def get_redis() -> Optional[redis_asyncio.Redis]:  # type: ignore[attr-defined]
+async def get_redis() -> Optional[redis.Redis]:
 
     global _redis
-    if _redis is None and redis_asyncio:
+    if _redis is None:
         try:
-            _redis = await redis_asyncio.from_url(
+            _redis = await redis.from_url(
                 REDIS_URL, encoding="utf-8", decode_responses=True
             )
         except Exception:

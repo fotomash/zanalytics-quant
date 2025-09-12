@@ -1,0 +1,17 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 24.4.2
+    hooks:
+      - id: black
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint
+        files: ^Dockerfile(\..*)?$|^.+/Dockerfile(\..*)?$
+  - repo: local
+    hooks:
+      - id: validate-requirement-paths
+        name: Validate requirement file paths
+        entry: python scripts/validate_requirement_paths.py
+        language: system
+        files: ^requirements\.txt$
