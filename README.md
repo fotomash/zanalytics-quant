@@ -461,6 +461,8 @@ The `Content-Type: application/json` header is mandatory when submitting JSON pa
 
 This codebase is not open for external contributions. All changes are managed internally with strict audit and review.
 
+Developers should run `pre-commit install` after cloning to enable local hooks.
+
 ---
 
 ## Running Tests
