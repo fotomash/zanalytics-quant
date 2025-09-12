@@ -36,7 +36,7 @@ episodes, Kafka lag, and other metrics.
 
 ## Running Locally
 
-1. Ensure a Kafka broker is available (see `services/docker-compose.yml`).
+1. Ensure a Kafka broker is available (see `docker-compose.yml`).
 2. Set the topic and broker variables as needed:
    ```bash
    export OVERSEER_TOPIC=overseer-events
@@ -65,5 +65,5 @@ overseer:
 
 Then launch alongside other services:
 ```bash
-docker compose -f services/docker-compose.yml up overseer
+docker compose up overseer
 ```

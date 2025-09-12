@@ -1,24 +1,17 @@
 # Zanalytics Quant Platform
 
+
 Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, Postgres, and Streamlit. Now with LLM‑native Actions and safe position control (partials, scaling, hedging).
 
-For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation. Redis cache design and deployment steps live in [redis_architecture/README.md](redis_architecture/README.md). Guidance on MCP memory windows, journaling, and when to split Redis instances is in [docs/mcp_redis.md](docs/mcp_redis.md).
-The v2.0beta release pivots to a memory-centric stack: Redis handles low-latency state, vector search powers recall, and journal replay keeps sessions deterministic.
+The v2.0beta release pivots to a memory-centric stack: Redis handles low-latency state, vector search powers recall, and journal replay keeps sessions deterministic. For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation. Redis cache design and deployment steps live in [redis_architecture/README.md](redis_architecture/README.md), and MCP memory windows and journaling guidance are covered in [docs/mcp_redis.md](docs/mcp_redis.md).
+
+## Memory & Persistence
+
 - **MCP Redis** maintains real-time caches and streams for the MCP layer. [Learn more](docs/architecture_v2beta.md#mcp-redis).
 - **Journal persistence** writes a durable, replayable audit log. [Learn more](docs/architecture_v2beta.md#journal-persistence).
 - **Vector memory** stores embeddings for long-term contextual recall. [Learn more](docs/architecture_v2beta.md#vector-memory).
 
-For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation. Redis cache design and deployment steps live in [redis_architecture/README.md](redis_architecture/README.md). MCP-specific Redis memory windows and journaling guidance are covered in [docs/mcp_redis.md](docs/mcp_redis.md).
-## Memory & Persistence
-
-- **MCP Redis** – low-latency message bus and cache for metrics and session state. [More](docs/architecture_v2beta.md#mcp-redis)
-- **Journal persistence** – append-only log for durable audits and replay. [More](docs/architecture_v2beta.md#journal-persistence)
-- **Vector memory** – embedding store enabling long-term contextual recall. [More](docs/architecture_v2beta.md#vector-memory)
-
-For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation. Redis cache design and deployment steps live in [redis_architecture/README.md](redis_architecture/README.md).
-
 ## Table of Contents
-- [MCP Redis, Journal Persistence & Vector Memory](#mcp-redis-journal-persistence--vector-memory)
 - [Memory & Persistence](#memory--persistence)
 - [What's Inside](#whats-inside)
 - [Architecture](#architecture)
@@ -26,32 +19,34 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [pulse-api](#pulse-api)
 - [tick-to-bar](#tick-to-bar)
 - [Quick Start: MCP2 Metrics & Streams](#quick-start-mcp2-metrics--streams)
-- [pulse-api](#pulse-api)
-- [ticktobar](#ticktobar)
-- [Getting Started – Quick Launch](#getting-started-quick-launch)
+- [Getting Started – Quick Launch](#getting-started-%E2%80%93-quick-launch)
 - [Environment Variables](#environment-variables)
+  - [Execution Validation Settings](#execution-validation-settings)
 - [MT5 service vs. Django API](#mt5-service-vs-django-api)
+- [mt5 vs mt5-api services](#mt5-vs-mt5-api-services)
 - [How It Works (Practical Flow)](#how-it-works-practical-flow)
 - [Data Integrity and Deduplication](#data-integrity-and-deduplication)
 - [MT5 Bridge & Orders (Execution)](#mt5-bridge-orders-execution)
 - [Actions Bus for GPT (≤30 operations)](#actions-bus-for-gpt-30-operations)
-- [Dashboards & Diagnostics](#dashboards-diagnostics)
+- [Dashboards & Diagnostics](#dashboards--diagnostics)
 - [Journaling (ZBAR)](#journaling-zbar)
 - [Typical User Scenarios](#typical-user-scenarios)
 - [Data Enrichment & Customization](#data-enrichment-customization)
+- [Session Manifest Prompts](#session-manifest-prompts)
 - [Confidence Trace Matrix](#confidence-trace-matrix)
 - [Example .env Configuration](#example-env-configuration)
-- [Security & Access Control](#security-access-control)
+- [Security & Access Control](#security--access-control)
 - [API Health Check and Query Examples](#api-health-check-and-query-examples)
 - [Contributing](#contributing)
 - [Running Tests](#running-tests)
-- [Known Issues & Best Practices](#known-issues-best-practices)
-- [Future Directions & Next Steps](#future-directions-next-steps)
-
+- [Known Issues & Best Practices](#known-issues--best-practices)
+- [Future Directions & Next Steps](#future-directions--next-steps)
 - [License](#license)
 - [Advanced Usage](#advanced-usage)
 - [Kafka Replay Consumer](#kafka-replay-consumer)
-
+  - [Basic usage](#basic-usage)
+  - [Replay into Redis](#replay-into-redis)
+  - [Replay into Postgres](#replay-into-postgres)
 - [Full API Documentation](#full-api-documentation)
 - [FAQ](#faq)
 - [Troubleshooting Gold Mine](#troubleshooting-gold-mine)
@@ -59,6 +54,13 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [MCP Scaling Runbook](#mcp-scaling-runbook)
 - [Pulse Dashboard Prototype](#pulse-dashboard-prototype)
 - [Further Reading](#further-reading)
+
+## Memory & Persistence
+
+- **MCP Redis** – low-latency message bus and cache for metrics and session state. [More](docs/architecture_v2beta.md#mcp-redis)
+- **Journal persistence** – append-only log for durable audits and replay. [More](docs/architecture_v2beta.md#journal-persistence)
+- **Vector memory** – embedding store enabling long-term contextual recall. [More](docs/architecture_v2beta.md#vector-memory)
+
 
 ## What's Inside
 - `backend/mt5`: Flask bridge to MetaTrader5 (send orders, partial close, hedge, scale)
@@ -82,7 +84,7 @@ graph LR
 ```
 
 - **Redis-backed MCP memory** – Redis stores session context in TTL-managed hashes and streams for fast recall and ephemeral memory.
-- **Vector DB integration** – the [vectorization service](docs/vectorization_service.md) pushes embeddings to external stores (Qdrant, Pinecone, etc.) for semantic retrieval.
+- **Vector DB integration** – the [vectorization service](docs/vectorization_service.md) pushes embeddings to supported stores like Qdrant or FAISS for semantic retrieval. Pinecone is retained only for legacy setups and is unsupported.
 - **Scaling MCP instances** – add MCP pods behind the gateway when Redis memory or vector workloads near capacity.
 - **OpenAI MCP connector** – OpenAI’s MCP connector can plug into the gateway, exposing GPT tooling via the same `/exec` interface.
 
@@ -113,7 +115,7 @@ This modular design facilitates secure separation of concerns, easy extensibilit
 **Build & Run**
 
 ```bash
-docker compose -f docker-compose.pulse.yml up --build pulse-api
+docker compose up --build pulse-api
 ```
 
 **Required Environment Variables**
@@ -121,7 +123,7 @@ docker compose -f docker-compose.pulse.yml up --build pulse-api
 - `PULSE_CONFIG` – path to the Pulse YAML configuration.
 - `PULSE_API_KEY` – API key expected in the `X-API-Key` request header.
 
-See [docker-compose.pulse.yml](docker-compose.pulse.yml) for a full example stack.
+Service definition is included in [docker-compose.yml](docker-compose.yml).
 
 ## tick-to-bar
 
@@ -141,6 +143,7 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml up --build t
 - `KAFKA_BOOTSTRAP_SERVERS` – Kafka broker addresses.
 - `KAFKA_TICKS_TOPIC` – source topic for tick data.
 - `KAFKA_GROUP_ID` – consumer group identifier.
+- `STREAM_VERSION_PREFIX` – stream namespace version (default `v2`).
 
 See [docker-compose.override.yml](docker-compose.override.yml) (extends [docker-compose.yml](docker-compose.yml)) for configuration details.
 
@@ -165,6 +168,7 @@ redis-cli XRANGE ml:signals:v1 - + LIMIT 5
 redis-cli XRANGE ml:risk:v1 - + LIMIT 5
 ```
 
+
 ## pulse-api
 
 FastAPI shim that exposes PulseKernel scoring, risk, and journaling features to other services.
@@ -172,8 +176,8 @@ FastAPI shim that exposes PulseKernel scoring, risk, and journaling features to 
 **Build and run**
 
 ```bash
-docker compose -f docker-compose.pulse.yml build pulse-api
-docker compose -f docker-compose.pulse.yml up pulse-api
+docker compose build pulse-api
+docker compose up pulse-api
 ```
 
 **Environment variables**
@@ -181,7 +185,7 @@ docker compose -f docker-compose.pulse.yml up pulse-api
 - `PULSE_CONFIG` – path to the Pulse configuration file.
 - `PULSE_API_KEY` – API key required for authenticated requests.
 
-Service definition: [docker-compose.pulse.yml](docker-compose.pulse.yml).
+Service definition: [docker-compose.yml](docker-compose.yml).
 
 ## ticktobar
 
@@ -204,6 +208,7 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml up tick-to-b
 Service definition: [docker-compose.override.yml](docker-compose.override.yml).
 
 ---
+
 
 ## Getting Started – Quick Launch
 
@@ -263,6 +268,10 @@ file out of version control. Never commit secrets to the repository. Docker Comp
 directive and injects those variables into services like `mcp`. For deployments, supply these values through your
 deployment configuration or a dedicated secrets manager—containers no longer mount `.env` directly.
 
+Qdrant (default) and FAISS are the maintained vector backends. See
+[docs/vectorization_service.md](docs/vectorization_service.md) for configuration
+details. Pinecone is considered legacy and unsupported.
+
 Key variables to configure before launching:
 
 - `CUSTOM_USER` and `PASSWORD` – MT5 account credentials.
@@ -274,9 +283,6 @@ Key variables to configure before launching:
 - `DJANGO_SECRET_KEY` – secret key for Django.
 - `MCP2_API_KEY` – secret used by the `mcp` service. Add it to `.env` and Compose
   or CI will inject it; use a 32‑hex‑character value.
-- `PINECONE_URL` and `PINECONE_API_KEY` – connection details for the Pinecone
-  vector store. Set these to point at your Pinecone deployment or leave the URL
-  as `https://localhost:443` to use the local fallback.
 - `VECTOR_DB_URL` – base URL for the vector database service (defaults to the
   bundled Qdrant instance).
 - `QDRANT_API_KEY` – API key for the Qdrant vector store if auth is required.
@@ -285,19 +291,13 @@ Key variables to configure before launching:
 - `REDIS_URL` – connection string for the MCP Redis instance.
 - `REDIS_STREAMS_URL` – optional Redis dedicated to stream operations
   (falls back to `REDIS_URL`).
-- `USE_KAFKA_JOURNAL` – set to `true` to persist journal events in Kafka instead
-  of Redis.
-
-- `VECTOR_DB_URL` and `QDRANT_API_KEY` – base URL and optional API key for the
-  vector database (Qdrant by default).
-- `LOCAL_LLM_MODEL` – model identifier for on-box inference served by Ollama
-  or a similar local runtime.
-- `REDIS_URL` – connection string for Redis used by MCP and other services.
 - `PULSE_JOURNAL_PATH` and `USE_KAFKA_JOURNAL` – directory for Redis-backed
   journal persistence and flag to mirror entries to Kafka.
 - `LOCAL_THRESHOLD` – confidence cutoff for using the local echo model. Ticks
   below this or in spring/distribution phases get a quick `llm_verdict`; others
   queue for Whisperer.
+
+**Legacy variables (unsupported):** `PINECONE_URL`, `PINECONE_API_KEY`
 
 See [docs/README.md](docs/README.md#flags-and-defaults) for default values and
 additional notes on these settings.
