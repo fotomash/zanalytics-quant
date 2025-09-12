@@ -1,4 +1,6 @@
-"""Simplified PulseKernel implementation used by the demo dashboard."""
+"""Simplified PulseKernel implementation used by the demo dashboard.
+
+Requires packages from requirements/dashboard.txt."""
 import json
 import os
 import yaml
