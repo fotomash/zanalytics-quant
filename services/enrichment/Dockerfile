@@ -19,4 +19,4 @@ ENV KAFKA_BROKER=kafka:9092 \
 
 # Explicitly invoke python3 in case the environment does not provide a
 # `python` shim.
-CMD ["python3", "-u", "-m", "worker"]
+CMD ["python3", "-u", "-m", "main"]
