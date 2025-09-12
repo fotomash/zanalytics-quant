@@ -54,6 +54,7 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [FAQ](#faq)
 - [Troubleshooting Gold Mine](#troubleshooting-gold-mine)
 - [MCP2 Runbook](#mcp2-runbook)
+- [MCP Scaling Runbook](#mcp-scaling-runbook)
 - [Pulse Dashboard Prototype](#pulse-dashboard-prototype)
 - [Further Reading](#further-reading)
 
@@ -679,6 +680,10 @@ See [docs/mcp_troubleshooting.md](docs/mcp_troubleshooting.md) for Traefik label
 ## MCP2 Runbook
 
 For startup commands, endpoint tests, and database maintenance, see the [MCP2 Runbook](docs/runbooks/mcp2.md).
+
+## MCP Scaling Runbook
+
+For Redis splitting, key isolation, and multi-service deployment, see the [MCP Scaling Runbook](docs/runbooks/mcp_scaling.md).
 
 ---
 
