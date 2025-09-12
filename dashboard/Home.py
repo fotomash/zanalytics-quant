@@ -9,6 +9,8 @@
 Zanalytics Dashboard
 
 A focused dashboard providing at-a-glance market intelligence and an overview of available data.
+
+Requires packages from requirements/dashboard.txt.
 """
 import streamlit as st
 

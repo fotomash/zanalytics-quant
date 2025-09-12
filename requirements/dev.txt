@@ -1,5 +1,3 @@
+-r dashboard.txt
 pytest
 black
-streamlit==1.36.0
-plotly==5.22.0
-ta>=0.11.0

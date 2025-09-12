@@ -8,7 +8,7 @@ The `dashboards/` directory collects standalone Streamlit scripts and experiment
 ## Setup
 1. Install the shared dashboard dependencies:
    ```bash
-   pip install -r requirements-dashboard.txt
+   pip install -r requirements/dashboard.txt
    ```
 2. Ensure any required services (e.g. Redis, Django API) are running.
 

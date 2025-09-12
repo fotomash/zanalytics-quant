@@ -18,7 +18,7 @@ streamlit run dashboard/Home.py
 ## Setup
 1. **Install dependencies** (from repo root):
    ```bash
-   pip install -r requirements-dashboard.txt  # or dashboard/requirements.txt
+   pip install -r requirements/dashboard.txt  # or dashboard/requirements.txt
    ```
 2. **Environment** – ensure Redis and the Django API are reachable; most pages expect live data. Set `HEALTH_AGGREGATOR_URL` to the base URL of your health aggregator service.
 
@@ -28,7 +28,7 @@ streamlit run dashboard/Home.py
 - Update configuration values under `config/` or `configs/`.
 
 ## Maintenance Notes
-- Keep `requirements-dashboard.txt` in sync with `dashboard/requirements.txt`.
+- Keep `requirements/dashboard.txt` in sync with `dashboard/requirements.txt`.
 - Watch for breaking Streamlit or API changes and update entry points accordingly.
 - Run `streamlit run` locally before pushing changes to catch obvious errors.
 
