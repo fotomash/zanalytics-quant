@@ -9,11 +9,14 @@ import json
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from statistics import mean, stdev
-from typing import Dict, Optional, List
+from typing import Any, Dict, Optional, List
 
+from typing import Dict, Optional, List, Union
+
+import httpx
 import redis
 import yaml
 WHISPERER_QUEUE = "whisperer:simulation"
@@ -39,18 +42,54 @@ CONFIG_PATH = Path(os.getenv("PREDICT_CRON_CONFIG", "config/predict_cron.yaml"))
 # ---------------------------------------------------------------------------
 
 
-def publish_alert(redis_client: redis.Redis, tick: Dict) -> None:
+def publish_alert(redis_client: Any, tick: Dict) -> None:
     """Publish a high-risk tick alert to the alerts channel."""
     alert = {"event": "high_risk_tick", "tick": tick}
     redis_client.publish("discord-alerts", json.dumps(alert))
 
 
-def enqueue_for_simulation(redis_client: redis.Redis, tick: Dict) -> None:
+def enqueue_for_simulation(redis_client: Any, tick: Dict) -> None:
     """Queue the high-risk tick for Whisperer offline simulation."""
     redis_client.rpush(WHISPERER_QUEUE, json.dumps(tick))
 
 
 _FLOAT_RE = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
+
+def generate_llm_risk_score(prompt: str, *, timeout: float = 10.0) -> str:
+    """Return a risk score percentage using an LLM or heuristic.
+
+    The function attempts to call an HTTP endpoint specified by the
+    ``LLM_RISK_ENDPOINT`` environment variable. The endpoint is expected to
+    return JSON containing either a ``risk`` field (0..1 or 0..100) or text
+    with an embedded numeric value. Network errors and timeouts are caught and
+    a fallback heuristic is used instead.
+    """
+
+    endpoint = os.getenv("LLM_RISK_ENDPOINT")
+    if endpoint:
+        try:
+            with httpx.Client(timeout=timeout) as client:
+                response = client.post(endpoint, json={"prompt": prompt})
+                response.raise_for_status()
+                data = response.json()
+                value = data.get("risk", data.get("result", ""))
+                match = _FLOAT_RE.search(str(value))
+                if match:
+                    risk = float(match.group())
+                    if risk <= 1:
+                        risk *= 100
+                    return f"{risk:.1f}%"
+        except httpx.TimeoutException:
+            logging.warning("LLM risk endpoint timeout for prompt %s", prompt)
+        except httpx.HTTPError as exc:
+            logging.warning("LLM risk endpoint error: %s", exc)
+        except (ValueError, TypeError) as exc:
+            logging.warning("Unexpected LLM response: %s", exc)
+        except Exception as exc:
+            logging.warning("LLM risk endpoint failure: %s", exc)
+
+    heuristic = min(prompt.count("!") * 10.0, 100.0)
+    return f"{heuristic:.1f}%"
 
 
 def _parse_risk(value: object) -> Optional[float]:
@@ -96,6 +135,35 @@ def _parse_risk(value: object) -> Optional[float]:
         return num
     except Exception:
         return None
+
+
+def compute_silence_duration(timestamp: Union[str, int, float]) -> float:
+    """Return seconds elapsed since ``timestamp``.
+
+    The ``timestamp`` may be an ISO 8601 string or a Unix epoch expressed as
+    either a number or numeric string.  The current time is determined using
+    :func:`datetime.utcnow`.  A ``ValueError`` is raised if the timestamp cannot
+    be parsed.
+    """
+    now = datetime.utcnow()
+
+    try:
+        if isinstance(timestamp, (int, float)):
+            tick_dt = datetime.utcfromtimestamp(float(timestamp))
+        else:
+            ts = str(timestamp).strip()
+            if not ts:
+                raise ValueError("empty timestamp")
+            try:
+                tick_dt = datetime.utcfromtimestamp(float(ts))
+            except ValueError:
+                tick_dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                if tick_dt.tzinfo is not None:
+                    tick_dt = tick_dt.astimezone(timezone.utc).replace(tzinfo=None)
+    except Exception as exc:
+        raise ValueError(f"Malformed timestamp: {timestamp!r}") from exc
+
+    return (now - tick_dt).total_seconds()
 
 
 def _load_config_threshold() -> Optional[float]:
@@ -157,7 +225,7 @@ def recommend_threshold(history_path: str) -> float:
 
 
 def process_tick(
-    redis_client: redis.Redis, tick: Dict, threshold: float = RISK_THRESHOLD
+    redis_client: Any, tick: Dict, threshold: float = RISK_THRESHOLD
 ) -> None:
     """Publish alerts and enqueue ticks when risk exceeds ``threshold``.
 
@@ -188,7 +256,6 @@ def main(argv: Optional[List[str]] = None) -> None:
     parser.add_argument("--symbol", default="EURUSD")
     parser.add_argument("--price", type=float, default=1.2345)
     parser.add_argument("--risk", default="0.95", help="Risk value or text containing it")
-    parser.add_argument("--redis-url", default=os.getenv("REDIS_URL", "redis://redis:6379/0"))
     args = parser.parse_args(argv)
 
     threshold = RISK_THRESHOLD
@@ -202,11 +269,14 @@ def main(argv: Optional[List[str]] = None) -> None:
             print(f"Unable to compute recommended threshold: {exc}")
 
     if args.demo:
-        try:
-            r = redis.from_url(args.redis_url, decode_responses=True)
-        except Exception as exc:
-            print(f"Unable to connect to Redis: {exc}")
-            return
+        class _DemoClient:
+            def publish(self, channel: str, message: str) -> None:
+                print(f"[publish] {channel}: {message}")
+
+            def rpush(self, key: str, value: str) -> None:
+                print(f"[rpush] {key}: {value}")
+
+        r = _DemoClient()
         risk_val = _parse_risk(args.risk) or 0.0
         tick = {
             "symbol": args.symbol,
