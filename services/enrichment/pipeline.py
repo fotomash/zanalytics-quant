@@ -69,7 +69,7 @@ def run(
         if cfg.get("enabled", True) is False:
             continue
         try:
-            module = import_module(f".modules.{name}", package=__package__)
+            module = import_module(f"modules.{name}")
             runner = getattr(module, "run")
 
             before_keys = set(state.keys())
