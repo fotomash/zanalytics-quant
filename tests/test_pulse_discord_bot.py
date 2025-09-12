@@ -237,25 +237,3 @@ async def test_pulse_command_handles_error(monkeypatch):
     assert ctx.sent == ["Error: fail"]
 
 
-# ---------------------------------------------------------------------------
-# /healthz endpoint test
-# ---------------------------------------------------------------------------
-from aiohttp import web
-from aiohttp.test_utils import TestClient, TestServer
-
-
-@pytest.mark.asyncio
-async def test_health_endpoint():
-    app = web.Application()
-    app.router.add_get("/healthz", bot.health)
-
-    server = TestServer(app)
-    client = TestClient(server)
-    await client.start_server()
-
-    resp = await client.get("/healthz")
-    assert resp.status == 200
-    assert await resp.json() == {"status": "ok"}
-
-    await client.close()
-

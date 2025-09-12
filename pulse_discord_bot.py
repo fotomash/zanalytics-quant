@@ -3,7 +3,6 @@ import os
 from typing import Any, Dict, Optional
 
 import httpx
-from aiohttp import web
 
 try:
     import aioredis
@@ -80,12 +79,13 @@ else:  # fallback for tests where discord is stubbed
 
 @decorator
 async def pulse(ctx, *, query: str | None = None):
-"""Minimal Pulse Discord bot (MVP).
+    """Minimal Pulse Discord bot (MVP).
 
-This lightweight bot demonstrates basic Discord integration for the Pulse stack.
-For production deployments with full command support, use
-``services/pulse_bot/bot.py``.
-"""
+    This lightweight bot demonstrates basic Discord integration for the Pulse stack.
+    For production deployments with full command support, use
+    ``services/pulse_bot/bot.py``.
+    """
+    pass
 
 import asyncio
 import logging
@@ -94,7 +94,6 @@ from typing import Optional
 
 import httpx
 import discord
-from aiohttp import web
 from discord.ext import commands
 
 try:
@@ -153,8 +152,8 @@ async def record_interaction(payload: dict) -> None:
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                MCP_MEMORY_API_URL,
-                json={"store": payload},
+                f"{MCP_MEMORY_API_URL}/store",
+                json=payload,
                 headers={"Authorization": f"Bearer {MCP_MEMORY_API_KEY}"},
                 timeout=10,
             )
@@ -184,7 +183,7 @@ async def fetch_pulse(query: str) -> str:
 
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            MCP_MEMORY_API_URL,
+            f"{MCP_MEMORY_API_URL}/recall",
             json={"query": query},
             headers={"Authorization": f"Bearer {MCP_MEMORY_API_KEY}"},
             timeout=10,
@@ -237,7 +236,7 @@ async def pulse(ctx: commands.Context, *, query: str = "") -> None:
 
 
 # ---------------------------------------------------------------------------
-# Simple HTTP healthcheck endpoint
+# Logging setup
 # ---------------------------------------------------------------------------
 
 def setup_logging() -> None:
@@ -251,21 +250,7 @@ def setup_logging() -> None:
 setup_logging()
 
 
-async def health(_: web.Request) -> web.Response:
-    return web.json_response({"status": "ok"})
-
-
-async def start_health_server() -> None:
-    app = web.Application()
-    app.router.add_get("/healthz", health)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", "8080")))
-    await site.start()
-
-
 async def main() -> None:  # pragma: no cover - manual invocation
-    await start_health_server()
     if _bot is not None:
         token = os.getenv("DISCORD_BOT_TOKEN", "")
         await _bot.start(token)
