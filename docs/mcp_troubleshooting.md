@@ -12,7 +12,7 @@ docker compose:
     mcp_server:
       labels:
         - "traefik.enable=true"
-        - "traefik.http.routers.mcp.rule=Host(`mcp1.example.com`)"
+        - "traefik.http.routers.mcp.rule=Host(`mcp2.example.com`)"
         - "traefik.http.routers.mcp.entrypoints=websecure"
         - "traefik.http.services.mcp.loadbalancer.server.port=8001"
 ```

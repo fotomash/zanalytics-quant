@@ -7,7 +7,7 @@ info:
     Authentication is not required; an optional `X-Pulse-Key` header may be
     enabled later without breaking this contract.
 servers:
-  - url: https://mcp1.zanalytics.app
+  - url: https://mcp2.zanalytics.app
 paths:
   /api/v1/ping/:
     get:
