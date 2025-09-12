@@ -61,7 +61,7 @@ class LLMAgentManager:
                 prompt, self.threshold
             )
             if is_significant and summary:
-                await self.redis.publish("telegram-alerts", summary)
+                await self.redis.publish("discord-alerts", summary)
         except json.JSONDecodeError:
             logger.exception("JSON decoding error during agent cycle")
         except Exception:

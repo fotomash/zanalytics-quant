@@ -21,7 +21,7 @@ class Whisper:
     ttl_seconds: int
     cooldown_key: str
     cooldown_seconds: int
-    channel: List[str]   # ["dashboard","telegram"]
+    channel: List[str]   # ["dashboard","discord"]
     journal_ref: Optional[str] = None
 
 
@@ -110,7 +110,7 @@ class WhisperEngine:
         r = w.get("rate_limits", {})
         self.cd_default = int(r.get("default_cooldown_seconds", 300))
         self.cd_patience = int(r.get("patience_cooldown_seconds", 900))
-        self.channels = list(w.get("channels", ["dashboard", "telegram"]))
+        self.channels = list(w.get("channels", ["dashboard", "discord"]))
 
     def evaluate(self, s: State) -> List[Whisper]:
         if s.hard_cooldown_active:

@@ -4,11 +4,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import pandas as pd
-import redis
+
+from utils.redis_client import get_redis_connection
 
 COLD_ROOT = os.environ.get("COLD_ROOT", "/app/data/cold")
-REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-redis_client = redis.Redis.from_url(REDIS_URL)
+redis_client = get_redis_connection()
 
 
 def get_ticks(symbol: str, start: datetime, end: Optional[datetime] = None) -> pd.DataFrame:

@@ -125,7 +125,12 @@ CELERY_APP=app
 CELERY_CONCURRENCY=3
 
 # -----------------------------------------------------------------------------
-# TELEGRAM NOTIFICATIONS (Optional)
+# DISCORD NOTIFICATIONS (Default)
+# -----------------------------------------------------------------------------
+DISCORD_WEBHOOK_URL=your_discord_webhook_url_here
+
+# -----------------------------------------------------------------------------
+# TELEGRAM NOTIFICATIONS (Legacy - Optional)
 # -----------------------------------------------------------------------------
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 TELEGRAM_CHAT_ID=your_telegram_chat_id_here
