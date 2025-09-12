@@ -24,8 +24,14 @@ TOPIC = os.getenv("TOPIC", "enriched-analysis-payloads")
 GROUP = os.getenv("KAFKA_GROUP", "enriched-persistence")
 AUTO_OFFSET_RESET = os.getenv("KAFKA_AUTO_OFFSET_RESET", "earliest")
 BATCH_SIZE = int(os.getenv("KAFKA_BATCH_SIZE", "100"))
+
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+if POSTGRES_PASSWORD is None:
+    raise RuntimeError("POSTGRES_PASSWORD environment variable is required")
+
 PG_DSN = os.getenv(
-    "PG_DSN", "postgresql://postgres:timescale@timescaledb:5432/postgres"
+    "PG_DSN",
+    f"postgresql://{os.getenv('POSTGRES_USER', 'postgres')}:{POSTGRES_PASSWORD}@{os.getenv('POSTGRES_HOST', 'timescaledb')}:5432/{os.getenv('POSTGRES_DB', 'postgres')}",
 )
 
 payloads_written_to_db_total = Counter(

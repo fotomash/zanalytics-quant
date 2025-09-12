@@ -49,5 +49,5 @@ The command creates the `data-pipeline` network if it does not exist, starts the
 Future ETL jobs can join the `data-pipeline` network and either subscribe to Kafka topics or read from TimescaleDB:
 
 - To consume from Kafka, configure the job with `KAFKA_BROKERS=kafka:9092` and subscribe to the desired topic.
-- To query TimescaleDB, use the connection string `postgresql://postgres:timescale@timescaledb:5432/postgres`.
+- To query TimescaleDB, use a connection string like `postgresql://postgres:<password>@timescaledb:5432/postgres`.
 - Containers run with `--network data-pipeline` will have direct access to both services.
