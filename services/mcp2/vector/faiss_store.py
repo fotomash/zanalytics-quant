@@ -9,6 +9,9 @@ import faiss
 class FaissStore:
     """In-memory FAISS vector store with metadata and pruning.
 
+    This provides the in-memory option for vector storage when a persistent
+    backend (e.g., Qdrant) is unnecessary.
+
     Parameters
     ----------
     dimension:
