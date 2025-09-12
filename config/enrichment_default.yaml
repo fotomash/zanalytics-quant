@@ -6,16 +6,16 @@ core:
 
 technical:
   groups:
-    trend:
-      enabled: true
-      indicators:
-        sma: true
-        ema: false
-    oscillators:
+    momentum:
       enabled: true
       indicators:
         rsi: true
         macd: true
+    volatility:
+      enabled: true
+      indicators:
+        atr: true
+        bollinger: true
 
 structure:
   smc: true
