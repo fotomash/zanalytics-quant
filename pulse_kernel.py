@@ -229,7 +229,7 @@ class PulseKernel:
             # Step 5: Journal the decision
             await self._journal_decision(decision)
             
-            # Step 6: Publish to UI and alerting channel (e.g., Discord)
+            # Step 6: Publish to UI and alerting channel (e.g., Discord or another service)
             await self._publish_decision(decision)
 
             # Step 7: Evaluate and publish whispers (if engine available)
