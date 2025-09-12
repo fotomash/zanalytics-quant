@@ -1,0 +1,21 @@
+# Enrichment configuration tailored for Elliott Wave Theory (EWT).
+# Provides stream source, Elliott-specific settings, and batching/output behaviors.
+
+# Identifier for the incoming Redis stream of raw ticks.
+stream_id: "v2:ticks:l1"
+
+advanced:
+  elliott:
+    enabled: true          # Toggle Elliott Wave forecasting module
+    ml_ensemble: false     # Use ML ensemble to score detected waves
+    llm_max_tokens: 256    # Token limit for optional local LLM forecasts
+
+# Control how ticks are grouped before enrichment.
+batching:
+  max_batch_size: 500      # Process this many ticks before forcing a batch flush
+  flush_interval_ms: 1000  # Flush batch if this many milliseconds pass without new data
+
+# Destination and serialization settings for enriched batches.
+output:
+  path: "data/enriched"    # Directory where enriched batches are written
+  format: "parquet"        # File format for persisted batches

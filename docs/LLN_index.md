@@ -15,6 +15,7 @@ This document tracks the fields exposed for downstream consumption.
 | `pivots.troughs` | `List[int]` | Swing low indices detected via `find_peaks` |
 | `elliott_wave.label` | `str` | Detected Elliott Wave pattern label |
 | `elliott_wave.score` | `float` | Confidence score (0-1) combining fractal and Alligator validation |
+| `ewt_forecast` | `str` | Optional short forecast from local LLM when Elliott Wave label is detected |
 
 The `pivots` and `elliott_wave` sections enable higher level pattern
 recognition.  Confidence scores incorporate Fibonacci retracement

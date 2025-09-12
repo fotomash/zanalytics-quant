@@ -966,6 +966,25 @@ services:
     networks:
       - data-pipeline
 
+  mcp-enrichment-ewt:
+    build:
+      context: .
+      dockerfile: services/enrichment/Dockerfile
+    environment:
+      KAFKA_BROKER: ${KAFKA_BROKER:-kafka:9092}
+      RAW_MARKET_DATA_TOPIC: ${RAW_MARKET_DATA_TOPIC:-raw-market-data}
+      ENRICHED_TOPIC: ${ENRICHED_TOPIC:-enriched-analysis-payloads}
+      EWT_ALERTS_TOPIC: ${EWT_ALERTS_TOPIC:-ewt_alerts}
+      REDIS_URL: ${EWT_REDIS_URL:-redis://redis:6379/0}
+      ALERTS_REDIS_URL: ${EWT_ALERTS_REDIS_URL:-redis://redis:6379/1}
+      FRACTALS_ONLY: ${FRACTALS_ONLY:-false}
+      WAVE_ONLY: ${WAVE_ONLY:-false}
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - data-pipeline
+
   timescaledb:
     image: timescale/timescaledb:latest-pg15
     container_name: timescaledb
