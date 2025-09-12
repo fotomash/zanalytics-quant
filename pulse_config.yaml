@@ -38,10 +38,9 @@ position_breakdown:
   min_confluence_per_entry: 60    # Minimum score for each entry
   scale_in_increment: 5           # Confluence points between entries
 
-telegram:
+discord:
   enabled: true
-  bot_token: "${TELEGRAM_BOT_TOKEN}"
-  chat_id: "${TELEGRAM_CHAT_ID}"
+  webhook_url: "${DISCORD_WEBHOOK_URL}"
   alert_types:
     - high_confluence
     - risk_warning
@@ -84,5 +83,5 @@ whisper:
   rate_limits:
     default_cooldown_seconds: 300
     patience_cooldown_seconds: 900
-  channels: ["dashboard", "telegram"]
+  channels: ["dashboard", "discord"]
   quiet_hours: []

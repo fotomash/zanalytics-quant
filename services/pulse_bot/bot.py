@@ -1,15 +1,18 @@
 import os
 import sys
-import asyncio
 import importlib.util
 import logging
 from datetime import datetime
 from typing import Optional
 
+import requests
+import discord
+from discord.ext import commands
+
 # Robust import of PulseKernel regardless of PYTHONPATH/cwd
 try:
     from pulse_kernel import PulseKernel
-except Exception:
+except Exception:  # pragma: no cover - fallback loader
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     candidates = [
         os.path.join(repo_root, "pulse_kernel.py"),
@@ -32,19 +35,9 @@ except Exception:
                 continue
     if not loaded:
         raise ModuleNotFoundError("Cannot locate pulse_kernel.py in repo root or core/")
-from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-import requests
-import json
-import threading
-import time
-try:
-    import redis  # optional
-except Exception:
-    redis = None
 
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHAT_WHITELIST = {c.strip() for c in os.getenv("TELEGRAM_CHAT_WHITELIST", "").split(",") if c.strip()}
+TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+CHANNEL_WHITELIST = {c.strip() for c in os.getenv("DISCORD_CHANNEL_WHITELIST", "").split(",") if c.strip()}
 DJANGO_API_URL = (os.getenv("DJANGO_API_URL", "http://django:8000") or "").rstrip('/')
 DJANGO_API_TOKEN = (os.getenv("DJANGO_API_TOKEN", "") or "").strip().strip('"')
 
@@ -65,36 +58,37 @@ def get_kernel() -> PulseKernel:
     return kernel
 
 
-def _auth(msg: Message) -> bool:
-    if not CHAT_WHITELIST:
+def _auth(channel_id: int) -> bool:
+    if not CHANNEL_WHITELIST:
         return True
-    uid = str(msg.chat.id)
-    return uid in CHAT_WHITELIST
+    return str(channel_id) in CHANNEL_WHITELIST
 
 
-async def cmd_help(msg: Message):
-    if not _auth(msg):
+intents = discord.Intents.default()
+bot = commands.Bot(command_prefix="/", intents=intents)
+
+
+@bot.command(name="help")
+async def cmd_help(ctx: commands.Context):
+    if not _auth(ctx.channel.id):
         return
-    await msg.answer(
+    await ctx.send(
         "/status – risk & limits\n"
         "/score <SYMBOL> – confluence now (e.g. /score EURUSD)\n"
         "/journal <TEXT> – append a note\n"
-        "/stats – today’s stats\n"
+        "/stats – today's stats\n"
         "/break <mins> – voluntary cooling period\n"
-        "/help – this menu\n\n"
-        "— Protection —\n"
-        "/protect_be <ticket> – move SL to BE\n"
-        "/protect_trail <ticket> [ratio] – trail SL to lock ratio (default 0.5)"
     )
 
 
-async def cmd_status(msg: Message):
-    if not _auth(msg):
+@bot.command(name="status")
+async def cmd_status(ctx: commands.Context):
+    if not _auth(ctx.channel.id):
         return
     k = get_kernel()
     st = k.get_status()
     ds = st.get("daily_stats", {})
-    await msg.answer(
+    await ctx.send(
         f"📊 Status [{datetime.utcnow().strftime('%H:%M:%S')} UTC]\n"
         f"State: {st.get('behavioral_state','n/a')}\n"
         f"Trades: {ds.get('trades_count',0)} / {k.config['risk_limits']['max_trades_per_day']}\n"
@@ -103,41 +97,44 @@ async def cmd_status(msg: Message):
     )
 
 
-async def cmd_score(msg: Message):
-    if not _auth(msg):
+@bot.command(name="score")
+async def cmd_score(ctx: commands.Context, symbol: str | None = None):
+    if not _auth(ctx.channel.id):
         return
-    parts = msg.text.strip().split()
-    if len(parts) < 2:
-        await msg.answer("Usage: /score EURUSD")
+    if not symbol:
+        await ctx.send("Usage: /score EURUSD")
         return
-    symbol = parts[1].upper()
+    symbol = symbol.upper()
     k = get_kernel()
     res = await k.on_frame({"symbol": symbol, "tf": "M15", "df": {}})
     score = res.get("confidence", res.get("score", 0))
     reasons = res.get("reasons", [])
     action = res.get("action", "none")
-    await msg.answer(
-        f"🎯 {symbol} score: {score}\n"
-        f"Action: {action}\n"
-        + ("\n".join([f"• {r}" for r in reasons[:5]]) if reasons else "No reasons.")
-    )
+    lines = [
+        f"🎯 {symbol} score: {score}",
+        f"Action: {action}",
+    ]
+    if reasons:
+        lines.extend([f"• {r}" for r in reasons[:5]])
+    await ctx.send("\n".join(lines))
 
 
-async def cmd_journal(msg: Message):
-    if not _auth(msg):
+@bot.command(name="journal")
+async def cmd_journal(ctx: commands.Context, *, text: str | None = None):
+    if not _auth(ctx.channel.id):
         return
-    text = msg.text.partition(" ")[2].strip()
     if not text:
-        await msg.answer("Usage: /journal <your note>")
+        await ctx.send("Usage: /journal <your note>")
         return
     k = get_kernel()
     entry = {"timestamp": datetime.utcnow().isoformat(), "type": "note", "data": {"text": text}}
     await k._journal_decision(entry)
-    await msg.answer("📝 Journaled.")
+    await ctx.send("📝 Journaled.")
 
 
-async def cmd_stats(msg: Message):
-    if not _auth(msg):
+@bot.command(name="stats")
+async def cmd_stats(ctx: commands.Context):
+    if not _auth(ctx.channel.id):
         return
     k = get_kernel()
     ds = k.get_status().get("daily_stats", {})
@@ -145,7 +142,7 @@ async def cmd_stats(msg: Message):
     losses = ds.get("losses", 0)
     tot = max(1, wins + losses)
     wr = 100.0 * wins / tot
-    await msg.answer(
+    await ctx.send(
         f"📈 Today\n"
         f"Trades: {ds.get('trades_count',0)}\n"
         f"Wins/Losses: {wins}/{losses} (WR {wr:.1f}%)\n"
@@ -153,21 +150,18 @@ async def cmd_stats(msg: Message):
     )
 
 
-async def cmd_break(msg: Message):
-    if not _auth(msg):
+@bot.command(name="break")
+async def cmd_break(ctx: commands.Context, mins: int = 15):
+    if not _auth(ctx.channel.id):
         return
-    mins = 15
-    parts = msg.text.strip().split()
-    if len(parts) > 1 and parts[1].isdigit():
-        mins = int(parts[1])
     k = get_kernel()
     re = k.risk_enforcer  # type: ignore
     from datetime import timedelta
     re.daily_stats["cooling_until"] = datetime.now() + timedelta(minutes=mins)
-    await msg.answer(f"❄️ Cooling period set for {mins} minutes.")
+    await ctx.send(f"❄️ Cooling period set for {mins} minutes.")
 
 
-def _protect_call(action: str, ticket: int, symbol: str = None, lock_ratio: float = 0.5) -> str:
+def _protect_call(action: str, ticket: int, symbol: str | None = None, lock_ratio: float = 0.5) -> str:
     try:
         url = f"{DJANGO_API_URL}/api/v1/protect/position/"
         headers = {"Content-Type": "application/json"}
@@ -182,161 +176,39 @@ def _protect_call(action: str, ticket: int, symbol: str = None, lock_ratio: floa
         if r.ok and isinstance(r.json(), dict) and r.json().get("ok"):
             return "✅ Protection applied"
         return f"❌ Failed ({r.status_code})"
-    except Exception as e:
+    except Exception as e:  # pragma: no cover - network issues
         return f"❌ Error: {e}"
 
 
-async def cmd_protect_be(msg: Message):
-    if not _auth(msg):
+@bot.command(name="protect_be")
+async def cmd_protect_be(ctx: commands.Context, ticket: int | None = None):
+    if not _auth(ctx.channel.id):
         return
-    parts = msg.text.strip().split()
-    if len(parts) < 2 or not parts[1].isdigit():
-        await msg.answer("Usage: /protect_be <ticket>")
+    if ticket is None:
+        await ctx.send("Usage: /protect_be <ticket>")
         return
-    ticket = int(parts[1])
     resp = _protect_call("protect_breakeven", ticket)
-    await msg.answer(resp)
+    await ctx.send(resp)
 
 
-async def cmd_protect_trail(msg: Message):
-    if not _auth(msg):
+@bot.command(name="protect_trail")
+async def cmd_protect_trail(ctx: commands.Context, ticket: int | None = None, ratio: float = 0.5):
+    if not _auth(ctx.channel.id):
         return
-    parts = msg.text.strip().split()
-    if len(parts) < 2 or not parts[1].isdigit():
-        await msg.answer("Usage: /protect_trail <ticket> [ratio]")
+    if ticket is None:
+        await ctx.send("Usage: /protect_trail <ticket> [ratio]")
         return
-    ticket = int(parts[1])
-    ratio = 0.5
-    if len(parts) >= 3:
-        try:
-            ratio = float(parts[2])
-        except Exception:
-            ratio = 0.5
     ratio = max(0.1, min(0.9, ratio))
     resp = _protect_call("protect_trail_50", ticket, lock_ratio=ratio)
-    await msg.answer(resp)
+    await ctx.send(resp)
 
 
-def _build_inline_kb(actions):
-    try:
-        buttons = []
-        for a in actions or []:
-            label = a.get('label') or 'Action'
-            action = a.get('action') or 'ignore'
-            buttons.append([InlineKeyboardButton(text=label, callback_data=action)])
-        return InlineKeyboardMarkup(inline_keyboard=buttons) if buttons else None
-    except Exception:
-        return None
-
-
-def _redis_alert_loop(
-    bot: Bot, loop: asyncio.AbstractEventLoop, stop_event: threading.Event
-):
-    """Background loop to forward 'telegram-alerts' to whitelisted chats."""
-    if redis is None:
-        return
-    rcli = None
-    pubsub = None
-    try:
-        rurl = os.getenv("REDIS_URL")
-        if rurl:
-            rcli = redis.from_url(rurl)
-        else:
-            rcli = redis.Redis(
-                host=os.getenv("REDIS_HOST", "redis"),
-                port=int(os.getenv("REDIS_PORT", 6379)),
-            )
-        pubsub = rcli.pubsub()
-        pubsub.subscribe("telegram-alerts")
-        while not stop_event.is_set():
-            try:
-                msg = pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-                if msg and msg.get("type") == "message":
-                    try:
-                        data = json.loads(msg.get("data") or b"{}")
-                    except Exception:
-                        data = {}
-                    text = data.get("text") or ""
-                    if not text:
-                        continue
-                    # Build keyboard if actions provided
-                    kb = _build_inline_kb(data.get("actions"))
-                    # Broadcast to whitelisted chats or skip if none
-                    chats = CHAT_WHITELIST or set()
-                    for chat_id in chats:
-                        fut = asyncio.run_coroutine_threadsafe(
-                            bot.send_message(chat_id=chat_id, text=text, reply_markup=kb),
-                            loop,
-                        )
-                        try:
-                            fut.result()
-                        except Exception:
-                            logger.exception("Failed to send message to %s", chat_id)
-            except Exception:
-                logger.exception("Redis alert loop iteration failed")
-            time.sleep(0.1)
-    except Exception:
-        logger.exception("Redis alert loop failed to start")
-    finally:
-        if pubsub is not None:
-            try:
-                pubsub.close()
-            except Exception:
-                pass
-        if rcli is not None:
-            try:
-                rcli.close()
-            except Exception:
-                pass
-
-
-async def main():
-    if not TOKEN:
-        raise RuntimeError("Set TELEGRAM_BOT_TOKEN")
-    bot = Bot(TOKEN)
-    dp = Dispatcher()
-    dp.message.register(cmd_help, F.text.regexp(r"^/help$"))
-    dp.message.register(cmd_status, F.text.regexp(r"^/status$"))
-    dp.message.register(cmd_score, F.text.regexp(r"^/score(\s+.+)?$"))
-    dp.message.register(cmd_journal, F.text.regexp(r"^/journal(\s+.+)?$"))
-    dp.message.register(cmd_stats, F.text.regexp(r"^/stats$"))
-    dp.message.register(cmd_break, F.text.regexp(r"^/break(\s+\d+)?$"))
-    dp.message.register(cmd_protect_be, F.text.regexp(r"^/protect_be(\s+\d+)$"))
-    dp.message.register(cmd_protect_trail, F.text.regexp(r"^/protect_trail(\s+\d+(\s+\d*\.?\d+)?)$"))
-    
-    # Callback handlers for inline actions
-    async def cb_handler(cb: CallbackQuery):
-        if not CHAT_WHITELIST or str(cb.message.chat.id) in CHAT_WHITELIST:
-            action = cb.data
-            # Inline actions are generic; for now just acknowledge
-            await cb.answer(f"Received: {action}")
-        else:
-            await cb.answer("Not authorized", show_alert=True)
-    dp.callback_query.register(cb_handler)
-
-    # Start Redis alert forwarder in background
-    stop_event = threading.Event()
-    t: Optional[threading.Thread] = None
-    if redis is not None and CHAT_WHITELIST:
-        loop = asyncio.get_running_loop()
-        t = threading.Thread(
-            target=_redis_alert_loop, args=(bot, loop, stop_event), daemon=True
-        )
-        t.start()
-    try:
-        await dp.start_polling(bot)
-    finally:
-        stop_event.set()
-        if t is not None:
-            await asyncio.get_running_loop().run_in_executor(None, t.join)
+@bot.event
+async def on_ready():
+    logger.info("Discord bot connected as %s", bot.user)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
-def format_telegram(w: dict) -> str:
-    lines = [f"🫢 *The Whisperer*\n{w.get('message','')}"]
-    reasons = w.get("reasons") or []
-    if reasons:
-        top = ", ".join([f"{r.get('key')}={r.get('value')}" for r in reasons[:3]])
-        lines.append(f"_Why_: {top}")
-    return "\n".join(lines)
+    if not TOKEN:
+        raise RuntimeError("Set DISCORD_BOT_TOKEN")
+    bot.run(TOKEN)

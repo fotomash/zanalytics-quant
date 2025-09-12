@@ -146,8 +146,8 @@ services:
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-dev-insecure-key-change-me}
       - DJANGO_DOMAIN=${DJANGO_DOMAIN:-localhost}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID}
       - ALERTS_ENABLED=true
       - ALERTS_MIN_INTERVAL_SECONDS=60
       - ALERTS_SCORE_HI=90
@@ -485,8 +485,8 @@ services:
     environment:
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - SYMBOL=EURUSD
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID:-}
     volumes:
       - .:/app
     depends_on:
@@ -611,14 +611,14 @@ services:
     restart: unless-stopped
     logging: *default-logging
 
-  telegram:
+  discord_bot:
     build:
       context: .
-      dockerfile: services/telegram/Dockerfile
+      dockerfile: services/pulse_bot/Dockerfile
     environment:
       - KAFKA_BROKER=${KAFKA_BROKER:-kafka:9092}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID}
     depends_on:
       - kafka
     restart: unless-stopped
