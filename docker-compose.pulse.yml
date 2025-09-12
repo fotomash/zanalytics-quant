@@ -19,8 +19,7 @@ services:
 
   pulse-bot:
     build:
-      context: .
-      dockerfile: services/pulse_bot/Dockerfile
+      context: ./services/pulse_bot
     environment:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_WHITELIST: ${TELEGRAM_CHAT_WHITELIST}
