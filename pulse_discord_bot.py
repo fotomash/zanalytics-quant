@@ -7,7 +7,6 @@ import os
 from typing import Any, Dict, Optional
 
 import httpx
-from aiohttp import web
 
 try:
     import aioredis
@@ -84,14 +83,20 @@ else:  # fallback for tests where discord is stubbed
 
 @decorator
 async def pulse(ctx, *, query: str | None = None):
-"""Minimal Pulse Discord bot (MVP).
+    """Minimal Pulse Discord bot (MVP).
 
+    This lightweight bot demonstrates basic Discord integration for the Pulse stack.
+    For production deployments with full command support, use
+    ``services/pulse_bot/bot.py``.
+    """
+    pass
 This lightweight bot demonstrates basic Discord integration for the Pulse
 stack.  For production deployments with full command support, use
 ``services/pulse_bot/bot.py``.
 
 The bot expects a ``DISCORD_BOT_TOKEN`` environment variable for authentication.
 """
+
 
 from __future__ import annotations
 
@@ -117,7 +122,6 @@ except Exception:  # pragma: no cover
 
 
 import discord
-from aiohttp import web
 from discord.ext import commands
 
 try:
@@ -196,8 +200,8 @@ async def record_interaction(payload: dict) -> None:
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                MCP_MEMORY_API_URL,
-                json={"store": payload},
+                f"{MCP_MEMORY_API_URL}/store",
+                json=payload,
                 headers={"Authorization": f"Bearer {MCP_MEMORY_API_KEY}"},
                 timeout=10,
             )
@@ -336,7 +340,7 @@ async def pulse(ctx: commands.Context, *, query: str = "") -> None:
 
 
 # ---------------------------------------------------------------------------
-# Simple HTTP healthcheck endpoint
+# Logging setup
 # ---------------------------------------------------------------------------
 
 def setup_logging() -> None:
@@ -348,6 +352,7 @@ def setup_logging() -> None:
 
 
 setup_logging()
+
 
 
 async def health(_: web.Request) -> web.Response:
@@ -362,9 +367,7 @@ async def start_health_server() -> None:  # pragma: no cover - runtime helper
     site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", "8080")))
     await site.start()
 
-
 async def main() -> None:  # pragma: no cover - manual invocation
-    await start_health_server()
     if _bot is not None:
         token = os.getenv("DISCORD_BOT_TOKEN", "")
         await _bot.start(token)
