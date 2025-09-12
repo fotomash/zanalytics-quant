@@ -23,6 +23,7 @@ import os
 import re
 import pandas as pd
 import numpy as np
+from utils.processors.structure import StructureProcessor
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from datetime import datetime
@@ -38,6 +39,7 @@ class MicrostructureAnalyzer:
         self.tick_file_path = tick_file_path
         self.tick_df = None
         self.analysis_results = {}
+        self.structure_processor = StructureProcessor()
         self.limit_ticks = limit_ticks
         self.export_json = export_json
         self.no_dashboard = no_dashboard
@@ -130,6 +132,7 @@ class MicrostructureAnalyzer:
         self.analysis_results['price_reversals'] = len(self.tick_df[self.tick_df['price_reversal']])
         self.analysis_results['stop_hunts'] = len(self.tick_df[self.tick_df['stop_hunt']])
         self.analysis_results['liquidity_sweeps'] = len(self.tick_df[self.tick_df['liquidity_sweep']])
+        self.analysis_results['manipulation'] = self.structure_processor.detect_manipulation(self.tick_df)
 
     def wyckoff_analysis(self):
         """Perform Wyckoff phase analysis"""
@@ -168,6 +171,7 @@ class MicrostructureAnalyzer:
         for phase in [1, 2, 3, 4]:
             count = len(self.tick_df[self.tick_df['wyckoff_phase'] == phase])
             self.analysis_results['wyckoff_phases'][phase] = count
+        self.analysis_results['wyckoff_details'] = self.structure_processor.analyze_wyckoff(self.tick_df)
 
     def smc_analysis(self):
         """Perform Smart Money Concepts analysis"""
@@ -186,18 +190,15 @@ class MicrostructureAnalyzer:
         minute_data['fvg_up'] = False
         minute_data['fvg_down'] = False
 
-        # Detect Fair Value Gaps
-        if len(minute_data) > 3:
-            for i in range(2, len(minute_data)):
-                if minute_data['mid_price'].iloc[i-2] > minute_data['mid_price'].iloc[i]:
-                    minute_data.iloc[i-1, minute_data.columns.get_loc('fvg_up')] = True
-
-                if minute_data['mid_price'].iloc[i-2] < minute_data['mid_price'].iloc[i]:
-                    minute_data.iloc[i-1, minute_data.columns.get_loc('fvg_down')] = True
+        gaps = self.structure_processor.identify_fair_value_gaps(minute_data)
+        for gap in gaps:
+            col = 'fvg_up' if gap['type'] == 'bullish_fvg' else 'fvg_down'
+            if gap['index'] < len(minute_data):
+                minute_data.at[gap['index'], col] = True
 
         self.minute_data = minute_data
-        self.analysis_results['bullish_fvgs'] = len(minute_data[minute_data['fvg_up'] == True])
-        self.analysis_results['bearish_fvgs'] = len(minute_data[minute_data['fvg_down'] == True])
+        self.analysis_results['bullish_fvgs'] = int(minute_data['fvg_up'].sum())
+        self.analysis_results['bearish_fvgs'] = int(minute_data['fvg_down'].sum())
 
     def inducement_analysis(self):
         """Detect inducement patterns"""
