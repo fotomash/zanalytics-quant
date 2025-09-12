@@ -38,7 +38,7 @@ MCP2 brokers `/exec` commands from external clients to the Django API. It handle
 
 ## Redis, Kafka, and Postgres Topology
 
-Redis still provides the in-memory event bus and cache for ticks, bars, and other ephemeral session data. Kafka now backs the durable, replayable journal stream used for historical recovery and cross-service analytics. Postgres stores long-lived records such as positions, journal entries, and enrichment results. Django consumes from both Redis and Kafka, while the MT5 bridge publishes market data into Redis for low-latency dashboards and into Kafka for durability.
+Ticks are sourced via `utils/mt5_ingest.py`, which streams them directly into Kafka for durable journaling. Redis remains available as a low-latency buffer when rapid pub/sub is required. Kafka topics back the replayable journal used for historical recovery, cross-service analytics, and deterministic backtests. Postgres stores long-lived records such as positions, journal entries, and enrichment results. Django consumes from both Redis and Kafka, while the MT5 bridge can publish into Redis for dashboards and into Kafka for durability.
 
 ## Multi-Stream Architecture
 

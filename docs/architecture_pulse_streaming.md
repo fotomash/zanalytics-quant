@@ -7,10 +7,12 @@ replay without breaking existing clients.
 Core flows
 ----------
 
-- Ticks: MT5/bridge → Redis (pub/sub) → (mirror) → Kafka `ticks.<SYMBOL>`
+- Ticks: `utils/mt5_ingest.py` pulls from MT5 and streams to Kafka `ticks.<SYMBOL>` for durable journaling; Redis can mirror the stream for low-latency pub/sub
 - Bars: (current) Redis bar builder • (shadow) Kafka bars service → `bars.<SYMBOL>.1m`
 - Pulse gates: Django `nexus/pulse` loads bars (DB/bridge), computes Structure/Liquidity/Risk, exposes `/api/v1/feed/pulse-status|pulse-detail`
 - Journal: PulseKernel emits envelopes to Kafka `pulse.journal` (feature‑flagged)
+
+Kafka topics underpin deterministic replay in backtesting, letting services reconstruct tick streams exactly as originally observed.
 
 Feature flags
 -------------

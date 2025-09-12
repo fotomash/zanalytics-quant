@@ -3,7 +3,7 @@
 Kafka and TimescaleDB form the backbone of the data pipeline.
 
 ## Kafka
-Kafka brokers provide a high-throughput, fault-tolerant bus for real-time data flow. Producers write market events to topics where they are immediately available to consumer services. Partitioning and replication let the stream scale horizontally while preserving ordering guarantees for time-critical processing.
+Kafka brokers provide a high-throughput, fault-tolerant bus for real-time data flow. `utils/mt5_ingest.py` streams ticks from MetaTrader 5 into Kafka topics for durable journaling, while Redis can optionally buffer events for low-latency consumers. Partitioning and replication let the stream scale horizontally while preserving ordering guarantees for time-critical processing, and the resulting topics enable deterministic replay during backtests.
 
 ## TimescaleDB
 TimescaleDB manages time-series data on top of PostgreSQL. Streams coming from Kafka consumers are stored in hypertables that automatically partition data by time, enabling efficient retention policies, compression, and fast range queries. This makes it suitable for analytics and historical backtests.

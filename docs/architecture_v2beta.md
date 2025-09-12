@@ -46,7 +46,7 @@ High-speed cache and event bus for ticks, bars, and agent state. It coordinates 
 See [redis_architecture/README.md](../redis_architecture/README.md) for deployment and topology details.
 
 ## Journal Persistence
-Durable event journal backed by Kafka and Postgres enables replay, audits, and behavioral analytics.
+Ticks are streamed from MetaTrader 5 via `utils/mt5_ingest.py` directly into Kafka, providing a durable journal of market events. Redis can still be used as an optional low-latency buffer, but Kafka topics form the source of truth that enables deterministic replay for audits, analytics, and backtesting. Postgres remains the long-term store once events are materialised.
 
 Schemas and integration notes live in [JOURNALING.md](JOURNALING.md).
 
