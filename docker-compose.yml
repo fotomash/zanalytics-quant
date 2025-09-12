@@ -707,9 +707,7 @@ services:
     logging: *default-logging
 
   pulse-bot:
-    build:
-      context: services/pulse_bot
-      context: ./services/pulse_bot
+    build: ./services/pulse_bot
     container_name: pulse-bot
     working_dir: /app
     volumes:
