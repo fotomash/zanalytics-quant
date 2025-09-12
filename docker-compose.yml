@@ -611,7 +611,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.tick-to-bar
-    command: ["python", "services/tick_to_bar.py"]
+    command: ["python", "tick_to_bar.py"]
     environment:
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - SYMBOL=EURUSD

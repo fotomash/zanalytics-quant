@@ -7,6 +7,9 @@ Mirror & Bars (shadow mode)
 - `redis_to_kafka_mirror.py` — mirrors Redis pub/sub `ticks.*` to Kafka topics (same names)
 - `kafka_tick_to_bar.py` — consumes `ticks.<SYMBOL>`, produces `bars.<SYMBOL>.1m`
 - `bars_reconcile.py` — compares Kafka bars vs Redis bars for parity
+- Legacy script [`tick_to_bar.py`](tick_to_bar.py) provided an initial
+  single-symbol implementation; production aggregation runs via the
+  repository root [`../tick_to_bar.py`](../tick_to_bar.py).
 
 Dockerfiles
 -----------

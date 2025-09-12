@@ -1,4 +1,13 @@
     
+"""Minimal 1m bar aggregation script.
+
+This module represents the original MVP implementation used during early
+development. It processes a single symbol and emits only 1‑minute bars. The
+production service is provided by :mod:`tick_to_bar_service` and invoked via
+``tick_to_bar.py``. Docker configurations now point to that production
+entrypoint; this file remains for experimentation and reference.
+"""
+
 import os
 import json
 import time

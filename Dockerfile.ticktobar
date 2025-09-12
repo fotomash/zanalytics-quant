@@ -1,5 +1,8 @@
 FROM python:3.11-slim
 
+# Legacy image that runs TickToBarService directly. Production deployments
+# use Dockerfile.tick-to-bar and the ``tick_to_bar.py`` wrapper.
+
 WORKDIR /app
 
 RUN pip install --no-cache-dir \

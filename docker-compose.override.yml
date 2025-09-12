@@ -6,7 +6,7 @@ services:
   tick-to-bar:
     build:
       context: .
-      dockerfile: Dockerfile.ticktobar
+      dockerfile: Dockerfile.tick-to-bar
     container_name: tick-to-bar
     environment:
       - REDIS_HOST=redis
@@ -20,5 +20,5 @@ services:
       - default
     restart: unless-stopped
     volumes:
-      - ./services/tick_to_bar.py:/app/tick_to_bar.py
+      - ./tick_to_bar.py:/app/tick_to_bar.py
     command: python /app/tick_to_bar.py

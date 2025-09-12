@@ -10,4 +10,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "services/tick_to_bar.py"]
+CMD ["python", "tick_to_bar.py"]

@@ -27,7 +27,6 @@ For deeper architecture insights and API details, visit the [docs README](docs/R
 - [tick-to-bar](#tick-to-bar)
 - [Quick Start: MCP2 Metrics & Streams](#quick-start-mcp2-metrics--streams)
 - [pulse-api](#pulse-api)
-- [ticktobar](#ticktobar)
 - [Getting Started – Quick Launch](#getting-started-quick-launch)
 - [Environment Variables](#environment-variables)
 - [MT5 service vs. Django API](#mt5-service-vs-django-api)
@@ -127,6 +126,11 @@ See [docker-compose.pulse.yml](docker-compose.pulse.yml) for a full example stac
 
 **Purpose**: Aggregates raw tick streams into OHLCV bars and publishes them to Redis or downstream consumers.
 
+**Entrypoint**: [`tick_to_bar.py`](tick_to_bar.py) wraps the production
+[`TickToBarService`](tick_to_bar_service.py). A legacy single-timeframe
+prototype remains at [`services/tick_to_bar.py`](services/tick_to_bar.py) for
+experimentation but is not used by Docker deployments.
+
 **Build & Run**
 
 ```bash
@@ -147,7 +151,6 @@ See [docker-compose.override.yml](docker-compose.override.yml) (extends [docker-
 ## Quick Start: MCP2 Metrics & Streams
 
 ```bash
-export MCP_HOST=http://localhost:8002
 export MCP2_API_KEY=your-dev-key
 
 # Authenticated doc search
@@ -182,24 +185,6 @@ docker compose -f docker-compose.pulse.yml up pulse-api
 - `PULSE_API_KEY` – API key required for authenticated requests.
 
 Service definition: [docker-compose.pulse.yml](docker-compose.pulse.yml).
-
-## ticktobar
-
-Redis stream consumer that aggregates ticks into OHLCV bars for multiple symbols.
-
-**Build and run**
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.override.yml build tick-to-bar
-docker compose -f docker-compose.yml -f docker-compose.override.yml up tick-to-bar
-```
-
-**Environment variables**
-
-- `REDIS_HOST` – Redis host providing tick streams.
-- `REDIS_PORT` – Redis port (default `6379`).
-- `SYMBOLS` – comma-separated symbols to process.
-- `STREAM_VERSION_PREFIX` – stream namespace version (default `v2`).
 
 Service definition: [docker-compose.override.yml](docker-compose.override.yml).
 
