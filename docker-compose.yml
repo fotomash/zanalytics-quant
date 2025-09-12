@@ -743,6 +743,7 @@ services:
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - MCP_MEMORY_API_URL=${MCP_MEMORY_API_URL}
+      - MCP_MEMORY_API_KEY=${MCP_MEMORY_API_KEY}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     command: python pulse_discord_bot.py
     depends_on:
