@@ -8,4 +8,4 @@ COPY . .
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]
+CMD ["uvicorn", "services.mcp2.main:app", "--host", "0.0.0.0", "--port", "8002"]
