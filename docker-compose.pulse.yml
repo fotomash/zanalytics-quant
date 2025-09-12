@@ -27,4 +27,5 @@ services:
     volumes:
       - ./pulse_config.yaml:/app/pulse_config.yaml:ro
       - ./:/app:ro
+    command: python services/pulse_bot/bot.py
     depends_on: [redis]

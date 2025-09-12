@@ -24,3 +24,7 @@ curl -H "X-API-Key: $MCP2_API_KEY" \
 
 - **Redis** stores serialized trade payloads and a list of trade IDs.
 - **Postgres** backs the document search endpoint via the `docs` table.
+
+## Scaling and Redis Separation
+
+For guidance on splitting Redis workloads and deploying additional MCP services, see the [MCP Scaling Runbook](mcp_scaling.md).

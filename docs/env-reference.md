@@ -111,6 +111,13 @@ Values defined in `.env` or in the shell environment override the defaults shown
 | Variable | Default | Override Behavior | Purpose |
 | --- | --- | --- | --- |
 | `LOCAL_THRESHOLD` | `0.6` | Raise or lower to adjust when ticks are sent to Whisperer. | Confidence cutoff for local echo vs. remote Whisperer processing. |
+| `LOCAL_LLM_MODEL` | `llama3:8b-instruct` | Set to the model name served by Ollama or similar. | Model used for on-box inference. |
+
+## Vector Store Settings
+| Variable | Default | Override Behavior | Purpose |
+| --- | --- | --- | --- |
+| `VECTOR_DB_URL` | `http://qdrant:6333` | Change to point at a different vector database. | Base URL for the vector store (Qdrant). |
+| `QDRANT_API_KEY` | _(empty)_ | Provide if your vector DB requires authentication. | API key for the vector database. |
 
 ## Celery Settings
 | Variable | Default | Override Behavior | Purpose |
@@ -119,11 +126,15 @@ Values defined in `.env` or in the shell environment override the defaults shown
 | `CELERY_CONCURRENCY` | `3` | Adjust to control number of worker processes. | Concurrency level for Celery workers. |
 
 ## Discord Notifications
+Environment variables consumed by the Pulse Discord bot
+[`services/pulse_bot/bot.py`](../services/pulse_bot/bot.py).
+
 | Variable | Default | Override Behavior | Purpose |
 | --- | --- | --- | --- |
 | `DISCORD_BOT_TOKEN` | `your_discord_bot_token_here` | Replace with your bot token to enable notifications. | Token used to authenticate with the Discord Bot API. |
 | `DISCORD_CHANNEL_WHITELIST` | _(empty)_ | Comma-separated channel IDs permitted to issue commands. | Restricts bot commands to approved channels. |
 | `DISCORD_CHANNEL_ID` | `your_discord_channel_id_here` | Set to the channel ID that should receive messages. | Destination channel for Discord alerts. |
+| `DISCORD_WEBHOOK_URL` | `your_discord_webhook_url_here` | Replace with your webhook to enable default alerts. | Webhook endpoint used for sending alerts to Discord. |
 
 ## Alert Settings
 | Variable | Default | Override Behavior | Purpose |

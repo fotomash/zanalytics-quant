@@ -51,6 +51,8 @@ Build and run the Discord bot service:
 docker compose -f services/docker-compose.yml up pulse-bot
 ```
 
+Source code lives at [`services/pulse_bot/bot.py`](pulse_bot/bot.py).
+
 Ensure the following environment variables are set before starting:
 
 - `DISCORD_BOT_TOKEN` – token for your Discord bot
