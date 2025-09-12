@@ -626,7 +626,15 @@ services:
     build:
       context: .
       dockerfile: services/pulse_api/Dockerfile
-    command: [python -m uvicorn services.pulse_api.main:app --host 0.0.0.0 --port 8000]
+    command:
+      - python
+      - -m
+      - uvicorn
+      - services.pulse_api.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
     environment:
       - PULSE_CONFIG=/app/pulse_config.yaml
       - PULSE_JOURNAL_PATH=/app/data/journal
