@@ -274,8 +274,8 @@ services:
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-dev-insecure-key-change-me}
       - DJANGO_DOMAIN=${DJANGO_DOMAIN:-localhost}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID}
       - ALERTS_ENABLED=true
       - ALERTS_MIN_INTERVAL_SECONDS=60
       - ALERTS_SCORE_HI=90
@@ -615,8 +615,8 @@ services:
     environment:
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - SYMBOL=EURUSD
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID:-}
     volumes:
       - .:/app
     depends_on:
@@ -708,6 +708,7 @@ services:
 
   pulse-bot:
     build:
+      context: services/pulse_bot
       context: ./services/pulse_bot
     container_name: pulse-bot
     working_dir: /app
@@ -720,8 +721,8 @@ services:
       - DJANGO_API_URL=http://django:8000
       - DJANGO_API_TOKEN=${DJANGO_API_TOKEN:-}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_CHAT_WHITELIST=${TELEGRAM_CHAT_WHITELIST:-}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_CHANNEL_WHITELIST=${DISCORD_CHANNEL_WHITELIST:-}
     command: python services/pulse_bot/bot.py
     depends_on:
       django:
@@ -731,6 +732,33 @@ services:
     restart: unless-stopped
     networks:
       - default
+
+  pulse-discord-bot:
+    build:
+      context: .
+    container_name: pulse-discord-bot
+    working_dir: /app
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - MCP_MEMORY_API_URL=${MCP_MEMORY_API_URL}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+    command: python pulse_discord_bot.py
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - default
+
 
   info:
     build:

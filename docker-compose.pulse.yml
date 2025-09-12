@@ -21,8 +21,8 @@ services:
     build:
       context: ./services/pulse_bot
     environment:
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
-      TELEGRAM_CHAT_WHITELIST: ${TELEGRAM_CHAT_WHITELIST}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
+      DISCORD_CHANNEL_WHITELIST: ${DISCORD_CHANNEL_WHITELIST}
       PULSE_CONFIG: /app/pulse_config.yaml
     volumes:
       - ./pulse_config.yaml:/app/pulse_config.yaml:ro
