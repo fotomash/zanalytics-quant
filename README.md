@@ -106,7 +106,7 @@ This modular design facilitates secure separation of concerns, easy extensibilit
 **Build & Run**
 
 ```bash
-docker compose -f docker-compose.pulse.yml up --build pulse-api
+docker compose up --build pulse-api
 ```
 
 **Required Environment Variables**
@@ -114,7 +114,7 @@ docker compose -f docker-compose.pulse.yml up --build pulse-api
 - `PULSE_CONFIG` – path to the Pulse YAML configuration.
 - `PULSE_API_KEY` – API key expected in the `X-API-Key` request header.
 
-See [docker-compose.pulse.yml](docker-compose.pulse.yml) for a full example stack.
+Service definition is included in [docker-compose.yml](docker-compose.yml).
 
 ## tick-to-bar
 
@@ -159,6 +159,46 @@ redis-cli XRANGE ml:signals:v1 - + LIMIT 5
 redis-cli XRANGE ml:risk:v1 - + LIMIT 5
 ```
 
+
+## pulse-api
+
+FastAPI shim that exposes PulseKernel scoring, risk, and journaling features to other services.
+
+**Build and run**
+
+```bash
+docker compose build pulse-api
+docker compose up pulse-api
+```
+
+**Environment variables**
+
+- `PULSE_CONFIG` – path to the Pulse configuration file.
+- `PULSE_API_KEY` – API key required for authenticated requests.
+
+Service definition: [docker-compose.yml](docker-compose.yml).
+
+## ticktobar
+
+Redis stream consumer that aggregates ticks into OHLCV bars for multiple symbols.
+
+**Build and run**
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.override.yml build tick-to-bar
+docker compose -f docker-compose.yml -f docker-compose.override.yml up tick-to-bar
+```
+
+**Environment variables**
+
+- `REDIS_HOST` – Redis host providing tick streams.
+- `REDIS_PORT` – Redis port (default `6379`).
+- `SYMBOLS` – comma-separated symbols to process.
+- `STREAM_VERSION_PREFIX` – stream namespace version (default `v2`).
+
+Service definition: [docker-compose.override.yml](docker-compose.override.yml).
+
+---
 
 ## Getting Started – Quick Launch
 

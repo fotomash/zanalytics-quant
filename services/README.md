@@ -48,7 +48,7 @@ Discord Bot
 Build and run the Discord bot service:
 
 ```
-docker compose -f services/docker-compose.yml up pulse-bot
+docker compose up pulse-bot
 ```
 
 Source code lives at [`services/pulse_bot/bot.py`](pulse_bot/bot.py).
@@ -65,7 +65,9 @@ Vectorization Service
 Consumes `final-analysis-payloads` messages and writes embeddings to an external vector database.
 
 ```
-docker compose -f services/docker-compose.yml up vectorization_service
+docker compose up vectorization-service
+```
+
 Overseer
 --------
 
@@ -74,7 +76,7 @@ Simple consumer that logs messages from a Kafka topic.
 Start the service:
 
 ```
-docker compose -f services/docker-compose.yml up overseer
+docker compose up overseer
 ```
 
 Required environment variables:

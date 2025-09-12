@@ -31,3 +31,14 @@ def test_predict_silence_decodes_bytes(monkeypatch):
     dummy = DummyRedis(str(now - 5).encode())
     monkeypatch.setattr(predict_cron.time, "time", lambda: now)
     assert predict_cron.predict_silence(dummy) == 5
+
+
+def test_predict_silence_none_returns_zero(monkeypatch):
+    class DummyRedis:
+        def get(self, key):
+            return None
+
+    now = time.time()
+    dummy = DummyRedis()
+    monkeypatch.setattr(predict_cron.time, "time", lambda: now)
+    assert predict_cron.predict_silence(dummy) == 0.0
