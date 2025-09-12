@@ -63,7 +63,7 @@ This guide documents the agent‑facing Actions Bus, key REST endpoints, session
 
 ## Discord Sends
 - LLMs should NOT call Discord directly. The backend handles posting; return human‑readable text.
-- Telegram alerts are supported only for backward compatibility.
+- Previous alert integrations are deprecated; Discord is the supported messaging platform.
 
 ## Security
 - Current endpoints are unauthenticated; if `X-Pulse-Key` appears, include it.

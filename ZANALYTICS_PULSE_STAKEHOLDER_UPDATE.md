@@ -73,7 +73,7 @@ System: "Would you like to split this into 5 entries of 0.1% each?"
 - 🟡 Yellow (Alert): Heightened risk, gentle warnings active
 - 🔴 Red (Danger): High-risk state, protective measures engaged
 
-### 3. 💬 Conversational Intelligence via Telegram
+### 3. 💬 Conversational Intelligence via Discord
 **Proactive Nudges**:
 
 - "You've tried this EURUSD setup 3 times this week. Success rate: 33%. Proceed?"
@@ -146,7 +146,7 @@ System: "Would you like to split this into 5 entries of 0.1% each?"
 - Create PulseKernel orchestrator
 - Implement ConfluenceScorer wrapper
 - Deploy RiskEnforcer with behavioral rules
-- Set up Telegram bot for alerts
+- Set up Discord bot for alerts
 
 ### Week 2: Behavioral Layer
 - Add psychological state tracking
@@ -189,7 +189,7 @@ System: "Would you like to split this into 5 entries of 0.1% each?"
 ## 🔧 TECHNICAL SPECIFICATIONS
 
 ### Data Flow Architecture
-MT5 → Redis Streams → MIDAS Adapter → PulseKernel → Risk/Score/Journal → UI/Telegram
+MT5 → Redis Streams → MIDAS Adapter → PulseKernel → Risk/Score/Journal → UI/Discord
 
 ### API Endpoints
 - /pulse/health - System status
@@ -214,7 +214,7 @@ MT5 → Redis Streams → MIDAS Adapter → PulseKernel → Risk/Score/Journal �
 - Journal Timeline: Recent decisions and outcomes
 - Position Manager: Break down and scale interface
 
-### Telegram Integration
+### Discord Integration
 - Real-time alerts and warnings
 - Conversational coaching
 - Session summaries

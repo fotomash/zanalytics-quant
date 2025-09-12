@@ -65,7 +65,7 @@ The assistant should treat the following uploaded documents as authoritative kno
    • If TIMESTAMP is split into separate DATE and TIME fields, do not error out. Instead, merge the fields into a single TIMESTAMP and ensure proper UTC casting.
 3. **Inject Intermarket Sentiment**: run `intermarket_sentiment.py` → `sentiment_snapshot.json` (sets `context_overall_bias` & scalping config).  
 4. **Activate Scalping Filter**: load `microstructure_filter.py`, `scalp_filters.py`, `micro_wyckoff_phase_engine.py`; hook into `entry_executor_smc.py` & `copilot_orchestrator.py`.  
--5. **Run Full Analysis**: `copilot_orchestrator.run_full_analysis()` → `advanced_smc_orchestrator.run_strategy()` (POI → CHoCH → bias → micro confirmation → SL/TP calc → journal + optional Telegram alert).  
+-5. **Run Full Analysis**: `copilot_orchestrator.run_full_analysis()` → `advanced_smc_orchestrator.run_strategy()` (POI → CHoCH → bias → micro confirmation → SL/TP calc → journal + optional Discord alert).  
 
 6. **Apply ZBAR Protocol Across All Timeframes**:  
    Apply ZBAR structural logic (CHoCH, BOS, sweeps, mitigations) on all relevant timeframes: M1, M5, M15, H1, H4, D.  
@@ -189,7 +189,7 @@ Confirm with `fvg8am.md` logic – use as priority confluence zone for all XAUUS
 ## 8. Scheduled Loop Frequencies (By Function)
 - Every 1 min: M1 fetch, CHoCH/BOS/FVG/OB detection  
 - Every 15 min: macro snapshot, simulate setup, intermarket sentiment refresh  
-- Every 1 min: scan for structural changes (CHoCH, BOS, sweep, mitigation); if detected, publish Telegram alert with structure context
+- Every 1 min: scan for structural changes (CHoCH, BOS, sweep, mitigation); if detected, publish Discord alert with structure context
 
 ## 9. Retry & Circuit-Breaker Policies
 - Retry x3 with exponential backoff  

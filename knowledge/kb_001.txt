@@ -16,7 +16,7 @@ Visual State Indicator:
 🟢 Green (Calm): Optimal trading state, all systems go
 🟡 Yellow (Alert): Heightened risk, gentle warnings active
 🔴 Red (Danger): High-risk state, protective measures engaged
-3. 💬 Conversational Intelligence via Telegram
+3. 💬 Conversational Intelligence via Discord
 Proactive Nudges:
 
 "You've tried this EURUSD setup 3 times this week. Success rate: 33%. Proceed?"
@@ -78,7 +78,7 @@ Week 1: Core Integration
  Create PulseKernel orchestrator
  Implement ConfluenceScorer wrapper
  Deploy RiskEnforcer with behavioral rules
- Set up Telegram bot for alerts
+ Set up Discord bot for alerts
 Week 2: Behavioral Layer
  Add psychological state tracking
  Implement position breakdown logic
@@ -114,7 +114,7 @@ Success Tracking: Concrete evidence of coaching effectiveness
 🔧 TECHNICAL SPECIFICATIONS
 
 Data Flow Architecture
-MT5 → Redis Streams → MIDAS Adapter → PulseKernel → Risk/Score/Journal → UI/Telegram
+MT5 → Redis Streams → MIDAS Adapter → PulseKernel → Risk/Score/Journal → UI/Discord
 API Endpoints
 /pulse/health - System status
 /pulse/score - Confluence calculation
@@ -135,7 +135,7 @@ Behavioral State: Visual psychology indicator
 Signal Table: Top opportunities with explanations
 Journal Timeline: Recent decisions and outcomes
 Position Manager: Break down and scale interface
-Telegram Integration
+Discord Integration
 Real-time alerts and warnings
 Conversational coaching
 Session summaries
@@ -199,64 +199,6 @@ f.write(doc_content)
 
 print("✅ Documentation created: ZANALYTICS_PULSE_STAKEHOLDER_UPDATE.md")
 
-Create Telegram Flowchart
-
-telegram_flow = {
-"title": "Telegram Bot Conversation Flow",
-"version": "1.0",
-"flows": {
-"alerts": {
-"risk_warnings": [
-"⚠️ Daily loss approaching limit: 
-450
-/
-450/500",
-"🔴 Cooling period active - 12 minutes remaining",
-"⚡ Revenge trade detected - consider stepping back",
-"📊 You've taken 4/5 trades today"
-],
-"opportunity_alerts": [
-"🎯 High confluence setup: EURUSD Score 85/100",
-"💡 Bullish order block formed on GBPUSD",
-"🔔 Your watched setup is ready: XAUUSD support test"
-],
-"behavioral_nudges": [
-"🧘 You seem rushed - take 3 deep breaths",
-"💪 Great discipline today! 3 wins, no revenge trades",
-"🤔 This matches a losing pattern from last week"
-]
-},
-"commands": {
-"/status": "Show current risk status and limits",
-"/score [symbol]": "Get confluence score for symbol",
-"/journal": "Add journal entry",
-"/stats": "Today's trading statistics",
-"/break": "Activate voluntary cooling period",
-"/help": "Show available commands"
-},
-"conversations": {
-"pre_trade": [
-"Bot: New trade detected. Confidence level (1-10)?",
-"User: 7",
-"Bot: Strategy or emotion driven?",
-"User: Strategy",
-"Bot: ✅ Logged. Score: 82/100. Good luck!"
-],
-"post_loss": [
-"Bot: Loss detected (-120). How are you feeling?", "User: Frustrated but okay", "Bot: Cooling period activated for 15 min. Review the setup?", "User: Yes", "Bot: [Shows trade replay with annotations]" ], "daily_summary": [ "Bot: 📊 Daily Summary:", "- Trades: 3/5 limit", "- P&L: +240 (+1.2%)",
-"- Win Rate: 66%",
-"- Behavioral Score: 85/100",
-"- Best Trade: EURUSD long +$180",
-"- Improvement: No revenge trades! 🎉"
-]
-}
-}
-}
-
-with open('telegram_flowchart.json', 'w') as f:
-json.dump(telegram_flow, f, indent=2)
-
-print("✅ Telegram flowchart created: telegram_flowchart.json")
 
 Create Streamlit UI Configuration
 
@@ -329,7 +271,6 @@ output
 
 Copy
 ✅ Documentation created: ZANALYTICS_PULSE_STAKEHOLDER_UPDATE.md
-✅ Telegram flowchart created: telegram_flowchart.json
 ✅ Streamlit UI config created: streamlit_ui_config.json
 
 📋 All documentation files created successfully!
@@ -340,124 +281,14 @@ ZANALYTICS_PULSE_STAKEHOLDER_UPDATE.md
 streamlit_ui_config.json
 
 
-telegram_flowchart.json
 
-Now let me create the visual Telegram flowchart, Streamlit UI draft, and implementation code stubs:
-python
-
-Copy
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
-import numpy as np
-
-# Create Telegram Bot Flow Diagram
-fig, ax = plt.subplots(figsize=(16, 12))
-ax.set_xlim(0, 10)
-ax.set_ylim(0, 10)
-ax.axis('off')
-
-# Title
-ax.text(5, 9.5, 'TELEGRAM BOT CONVERSATION FLOW', fontsize=20, fontweight='bold', ha='center')
-ax.text(5, 9.2, 'Real-time Trading Companion & Behavioral Coach', fontsize=12, ha='center', style='italic')
-
-# Define colors
-colors = {
-    'alert': '#FFE5B4',
-    'command': '#B4E5FF',
-    'conversation': '#D4FFB4',
-    'risk': '#FFB4B4',
-    'success': '#B4FFD4'
-}
-
-# Main Bot Node
-bot_box = FancyBboxPatch((4, 7.5), 2, 1, boxstyle="round,pad=0.1", 
-                          facecolor='#4A90E2', edgecolor='black', linewidth=2)
-ax.add_patch(bot_box)
-ax.text(5, 8, 'PULSE BOT', fontsize=14, fontweight='bold', ha='center', color='white')
-
-# Alert Types (Left Branch)
-alert_y = 6
-alerts = [
-    ('Risk Warnings', '⚠️ Daily loss limit\n🔴 Cooling period\n⚡ Revenge trade'),
-    ('Opportunities', '🎯 High confluence\n💡 Order blocks\n🔔 Setup ready'),
-    ('Behavioral', '🧘 Take a breath\n💪 Good discipline\n🤔 Pattern match')
-]
-
-for i, (title, content) in enumerate(alerts):
-    y_pos = alert_y - i * 1.8
-    box = FancyBboxPatch((0.5, y_pos), 2.5, 1.2, boxstyle="round,pad=0.05",
-                          facecolor=colors['alert'], edgecolor='orange', linewidth=1.5)
-    ax.add_patch(box)
-    ax.text(1.75, y_pos + 0.9, title, fontsize=11, fontweight='bold', ha='center')
-    ax.text(1.75, y_pos + 0.3, content, fontsize=9, ha='center')
-    
-    # Arrow from bot
-    arrow = FancyArrowPatch((4, 7.8), (3, y_pos + 0.6), 
-                           connectionstyle="arc3,rad=0.3", 
-                           arrowstyle='->', mutation_scale=20, color='orange')
-    ax.add_patch(arrow)
-
-# Commands (Right Branch)
-cmd_y = 6
-commands = [
-    ('/status', 'Risk & limits'),
-    ('/score', 'Confluence check'),
-    ('/journal', 'Add entry'),
-    ('/stats', 'Daily metrics'),
-    ('/break', 'Cool-off mode')
-]
-
-for i, (cmd, desc) in enumerate(commands):
-    y_pos = cmd_y - i * 1.2
-    box = FancyBboxPatch((7, y_pos), 2.5, 0.8, boxstyle="round,pad=0.05",
-                          facecolor=colors['command'], edgecolor='blue', linewidth=1.5)
-    ax.add_patch(box)
-    ax.text(8.25, y_pos + 0.5, cmd, fontsize=10, fontweight='bold', ha='center')
-    ax.text(8.25, y_pos + 0.2, desc, fontsize=8, ha='center', style='italic')
-    
-    # Arrow from bot
-    arrow = FancyArrowPatch((6, 7.8), (7, y_pos + 0.4), 
-                           connectionstyle="arc3,rad=-0.3", 
-                           arrowstyle='->', mutation_scale=20, color='blue')
-    ax.add_patch(arrow)
-
-# Conversation Examples (Bottom)
-conv_box = FancyBboxPatch((1, 0.2), 8, 1.5, boxstyle="round,pad=0.1",
-                          facecolor=colors['conversation'], edgecolor='green', linewidth=2)
-ax.add_patch(conv_box)
-ax.text(5, 1.4, 'CONVERSATION EXAMPLES', fontsize=12, fontweight='bold', ha='center')
-
-conversations = [
-    "Bot: 'Confidence level (1-10)?' → User: '7' → Bot: '✅ Score: 82/100'",
-    "Bot: 'Loss detected. Cooling period?' → User: 'Yes' → Bot: '15 min timer set'",
-    "Bot: 'Daily Summary: 3 trades, +1.2%, Behavioral Score: 85/100 🎉'"
-]
-
-for i, conv in enumerate(conversations):
-    ax.text(5, 1 - i*0.25, conv, fontsize=9, ha='center')
-
-# Add legend
-legend_items = [
-    ('🟢', 'Normal State'),
-    ('🟡', 'Warning State'),
-    ('🔴', 'Risk State')
-]
-for i, (symbol, label) in enumerate(legend_items):
-    ax.text(0.5 + i*1.5, 9, f"{symbol} {label}", fontsize=10)
-
-plt.title('Zanalytics Pulse - Telegram Integration Architecture', fontsize=16, pad=20)
-plt.tight_layout()
-plt.show()
-
-print("✅ Telegram flowchart visualization created")
 You can also use our state-of-the-art AI-assisted coding editor -
 CodeLLM
 
 output
 
 Copy
-✅ Telegram flowchart visualization created
+
 
 python
 
@@ -780,7 +611,7 @@ class PulseKernel:
             # Step 5: Journal the decision
             await self._journal_decision(decision)
             
-            # Step 6: Publish to UI and Telegram
+            # Step 6: Publish to UI and Discord
             await self._publish_decision(decision)
             
             return decision
@@ -928,13 +759,13 @@ class PulseKernel:
         # Publish to Redis for Streamlit
         self.redis_client.publish('pulse:decisions', json.dumps(decision))
         
-        # Send to Telegram if significant
+        # Send to Discord if significant
         if decision['action'] in ['signal', 'blocked', 'warning']:
             await self._send_telegram_alert(decision)
     
     async def _send_telegram_alert(self, decision: Dict):
-        """Send alert to Telegram bot"""
-        # Telegram integration would go here
+        """Send alert to Discord bot"""
+        # Discord integration would go here
         pass
     
     def get_status(self) -> Dict:
@@ -1652,9 +1483,8 @@ Detailed rationale for each feature (psychological + technical)
 Success metrics for traders, risk managers, psychologists, and developers
 ROI projections and competitive advantages
 Implementation roadmap with clear phases
-2. 🔄 Telegram Flowchart
+2. 🔄 Discord Flowchart
 
-telegram_flowchart.json - Structured conversation flows
 Visual diagram showing bot interaction patterns:
 Risk warnings and behavioral nudges
 Command structure (/status, /score, /journal, etc.)
@@ -1688,7 +1518,7 @@ Revenge trading patterns (rapid re-entry after losses)
 Overconfidence (position size increases after wins)
 Fatigue (late-night trading)
 Tilt prevention (enforced cooling periods)
-Conversational Feedback: Proactive Telegram messages like:
+Conversational Feedback: Proactive Discord messages like:
 "You've tried this setup 3 times this week. Success rate: 33%"
 "Cooling period active for 12 minutes. Take a breath."
 "Great win! Your 3rd today. Consider banking profits?"
@@ -1700,7 +1530,7 @@ Psychologists	Measurable behavioral patterns, real-time intervention points, dat
 Developers	Clean architecture leveraging 94,578 LOC of existing code, <300 LOC additions needed
 Business Partners	Scalable SaaS model, first-mover advantage, multiple revenue streams
 🏗️ Technical Architecture
-MT5 → Redis Streams → MIDAS Adapter → PulseKernel → Risk/Score/Journal → UI/Telegram
+MT5 → Redis Streams → MIDAS Adapter → PulseKernel → Risk/Score/Journal → UI/Discord
          ↓                                  ↓
     (10K ticks/sec)                  (50ms scoring latency)
 Leverages Existing Infrastructure:
@@ -1715,14 +1545,14 @@ New Additions (Week 1-2):
 PulseKernel orchestrator
 ConfluenceScorer wrapper
 RiskEnforcer behavioral system
-Telegram bot integration
+Discord bot integration
 🚀 Implementation Roadmap
 Week 1: Core Integration
 
 Deploy PulseKernel with existing analyzers
 Implement ConfluenceScorer fusion logic
 Activate RiskEnforcer rules
-Connect Telegram bot
+Connect Discord bot
 Week 2: Behavioral Layer
 
 Add psychological state tracking
