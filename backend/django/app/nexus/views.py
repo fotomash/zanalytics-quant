@@ -370,7 +370,7 @@ class DashboardDataView(views.APIView):
                     "milestone_amount": milestone_amt,
                     "per_trade_risk": per_trade_risk,
                 }
-                # Optional: publish a Telegram alert once per day (anti-spam via Redis key)
+                # Optional: publish a Discord alert once per day (anti-spam via Redis key)
                 if redis_lib is not None:
                     try:
                         rurl = os.getenv('REDIS_URL')
@@ -389,7 +389,7 @@ class DashboardDataView(views.APIView):
                                     {"label": "Ignore", "action": "ignore"}
                                 ]
                             }
-                            rcli.publish('telegram-alerts', json.dumps(msg))
+                            rcli.publish('discord-alerts', json.dumps(msg))
                             rcli.setex(cache_key, 6*60*60, "1")  # 6 hours TTL
                             # Also append to today's discipline events list for trajectory markers
                             try:
@@ -1217,6 +1217,56 @@ class TradesRecentView(views.APIView):
         return Response(out)
 
 
+class ActionsReadView(views.APIView):
+    """Lightweight descriptor reader for Actions."""
+    permission_classes = [AllowAny]
+
+    ACTIONS = [
+        {
+            "name": "session_boot",
+            "version": "1",
+            "type": "read",
+            "schema": {"expects": ["account", "equity", "risk", "trades"]},
+            "meta": {"group": "whisperer"},
+        },
+        {
+            "name": "whisper_menu",
+            "version": "1",
+            "type": "read",
+            "schema": {"expects": ["whispers"]},
+            "meta": {"group": "whisperer"},
+        },
+        {
+            "name": "trades_recent",
+            "version": "1",
+            "type": "query",
+            "schema": {},
+            "meta": {"group": "session"},
+        },
+    ]
+
+    def get(self, request):
+        name = request.GET.get("name")
+        group = request.GET.get("group")
+        keys_param = request.GET.get("keys")
+        keys = []
+        if keys_param:
+            keys = [k.strip() for k in keys_param.split(",") if k.strip()]
+        for k in request.GET.getlist("key"):
+            if k:
+                keys.append(k)
+        items = self.ACTIONS
+        if name:
+            items = [a for a in items if a["name"] == name]
+        elif group:
+            items = [a for a in items if a.get("meta", {}).get("group") == group]
+        elif keys:
+            items = [a for a in items if a["name"] in keys]
+        else:
+            items = items[:100]
+        return Response({"items": items})
+
+
 class ActionsQueryView(views.APIView):
     """Consolidated query endpoint (prototype). Not documented in OpenAPI actions cap.
 
@@ -1334,11 +1384,9 @@ class ActionsQueryView(views.APIView):
         data = request.data or {}
         typ = str(data.get('type') or '')
         payload = data.get('payload') or {}
-        # Back-compat: allow flat fields when payload is omitted by the client/tooling
         try:
             if not payload and typ in ('position_close', 'position_modify', 'position_open', 'position_hedge'):
                 flat = {}
-                # Collect common fields if present at top-level
                 for k in ('ticket', 'fraction', 'volume', 'sl', 'tp', 'symbol', 'side', 'comment'):
                     if k in data and data.get(k) is not None:
                         flat[k] = data.get(k)
@@ -1346,6 +1394,14 @@ class ActionsQueryView(views.APIView):
                     payload = flat
         except Exception:
             pass
+        resp = self._dispatch(request, typ, payload)
+        status_code = getattr(resp, 'status_code', 200)
+        body = resp.data if isinstance(resp, Response) else resp
+        if status_code >= 400:
+            return Response({'ok': False, 'action': typ, 'error': body}, status=status_code)
+        return Response({'ok': True, 'action': typ, 'data': body}, status=status_code)
+
+    def _dispatch(self, request, typ, payload):
         try:
             if typ == 'session_boot':
                 # Composite boot snapshot for LLM initialization

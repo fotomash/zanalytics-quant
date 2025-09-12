@@ -2231,7 +2231,7 @@ def main():
 
         api_current = st.session_state.get('adv19_api_base', '') or (os.getenv('DJANGO_API_URL', ''))
         with st.expander("Django API Base (override)", expanded=False):
-            api_input = st.text_input("Django API Base URL", value=api_current or '', placeholder="e.g. https://mcp1.zanalytics.app")
+            api_input = st.text_input("Django API Base URL", value=api_current or '', placeholder="e.g. https://mcp2.zanalytics.app")
             c1, c2, _ = st.columns([1,1,4])
             with c1:
                 if st.button("Apply", key="apply_api_19"):

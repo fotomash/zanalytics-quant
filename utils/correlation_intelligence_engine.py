@@ -7,44 +7,53 @@ from typing import Any, Dict, Tuple
 
 from services.mcp2.llm_config import call_local_echo, call_whisperer
 from session_manifest import load_prompt
-try:
+
+try:  # Redis is optional; tests may patch in a fake implementation.
     import redis  # type: ignore
 except Exception:  # pragma: no cover
     redis = None  # type: ignore
 
 
-_ESCALATIONS: dict[Tuple[str, str, float], float] = {}
 _REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    _RCLI = None
-if redis is not None:
+_RCLI = None
+
+
+def _redis():
+    """Return a cached Redis client if possible."""
+    global _RCLI
+    if _RCLI is not None:
+        return _RCLI
+    if redis is None:
+        return None
     try:
         _RCLI = redis.from_url(_REDIS_URL, decode_responses=True)
-    except Exception:
+    except Exception:  # pragma: no cover - connection errors
         _RCLI = None
+    return _RCLI
 
 
 def recently_escalated(key: Tuple[str, str, float], within_secs: int = 120) -> bool:
-    """Check dedupe window using Redis if available; fallback to in-memory."""
-    if _RCLI is not None:
-        try:
-            skey = f"dedupe:escalate:{key[0]}:{key[1]}:{key[2]:.2f}"
-            return _RCLI.ttl(skey) > 0 if _RCLI.exists(skey) else False
-        except Exception:
-            pass
-    ts = _ESCALATIONS.get(key)
-    return bool(ts and (time.time() - ts) < within_secs)
+    """Return True if ``key`` was escalated within the TTL window."""
+    r = _redis()
+    if r is None:
+        return False
+    skey = f"dedupe:escalate:{key[0]}:{key[1]}:{key[2]:.2f}"
+    try:
+        return bool(r.exists(skey))
+    except Exception:  # pragma: no cover - redis runtime failure
+        return False
 
 
 def mark_escalated(key: Tuple[str, str, float], within_secs: int = 120) -> None:
-    """Mark escalation with Redis TTL if available; fallback to in-memory."""
-    if _RCLI is not None:
-        try:
-            skey = f"dedupe:escalate:{key[0]}:{key[1]}:{key[2]:.2f}"
-            _RCLI.setex(skey, max(5, within_secs), "1")
-            return
-        except Exception:
-            pass
-    _ESCALATIONS[key] = time.time()
+    """Mark ``key`` as escalated using a Redis TTL."""
+    r = _redis()
+    if r is None:
+        return
+    skey = f"dedupe:escalate:{key[0]}:{key[1]}:{key[2]:.2f}"
+    try:
+        r.setex(skey, max(1, within_secs), "1")
+    except Exception:  # pragma: no cover - redis runtime failure
+        pass
 
 
 def _json_or_raise(text: str) -> Dict[str, Any]:

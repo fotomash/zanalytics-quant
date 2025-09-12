@@ -49,7 +49,7 @@ Streams NDJSON events from the MCP server.
 **Expected response (NDJSON stream)**
 ```
 {"event":"open","data":{"status":"ready","timestamp":1693499999.0}}
-{"event":"heartbeat","data":{"time":1693499999.0,"server":"mcp1.zanalytics.app"}}
+{"event":"heartbeat","data":{"time":1693499999.0,"server":"mcp2.zanalytics.app"}}
 ...
 ```
 

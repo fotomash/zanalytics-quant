@@ -34,7 +34,7 @@ def test_publish_on_significant_shift():
         manager.start()
         await asyncio.sleep(0.01)
         await manager.stop()
-        assert ("telegram-alerts", "market shift") in redis.published
+        assert ("discord-alerts", "market shift") in redis.published
         assert "past context" in analyzer.last_prompt
         assert "risk query" in analyzer.last_prompt
 
@@ -62,6 +62,6 @@ def test_analyzer_exception_does_not_stop_loop():
         await asyncio.sleep(0.05)
         await manager.stop()
         assert analyzer.calls >= 2
-        assert ("telegram-alerts", "market shift") in redis.published
+        assert ("discord-alerts", "market shift") in redis.published
 
     asyncio.run(run())

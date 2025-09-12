@@ -1,9 +1,9 @@
 Zanalytics Pulse — Documentation Hub
 ===================================
 
-This repository is migrating from a Redis‑only realtime stack to a dual‑stream
-architecture (Redis + Kafka) with durable, replayable journal events. This hub
-points to the current sources of truth and clearly marks legacy docs.
+The repository now anchors the v2.0beta memory‑centric stack:
+MCP Redis handles rapid agent state, LLM memory flows move session context,
+and vector DBs persist embeddings for long‑term recall.
 
 > **Note:** The [Actions Tracker](actions-tracker.md) is the canonical source for action status and links. When updating actions, keep schemas, implementation code, and documentation in sync with the tracker.
 
@@ -22,33 +22,60 @@ points to the current sources of truth and clearly marks legacy docs.
 Current Direction (Active)
 --------------------------
 
-- [Architecture (streaming)](architecture_pulse_streaming.md)
+
+- [Architecture (v2beta)](architecture_v2beta.md)
 - [Tick stream v2 migration notes](tick_stream_v2_migration.md)
+- [Architecture (streaming)](architecture_pulse_streaming.md)
 - [Journal envelopes and contracts](journal_envelopes.md)
 - [Actions API overview](ACTIONS_API_OVERVIEW.md)
 - [Kafka sidecar quickstart](../ops/kafka/quickstart.md)
+- [MCP Redis guide](mcp_redis.md)
+- [LLM memory flow](llm_memory_flow.md)
+- [Vector DB usage](vector_db_usage.md)
 - [Pulse runtime (gates + detail API)](../backend/django/app/nexus/pulse/README.md)
 - [Services (mirror, tick→bar, reconciler)](../services/README.md)
 - [Dashboard pages index](../dashboard/pages/README.md)
 - [Dashboard app](../dashboard/README.md)
 - [Prototype dashboards](../dashboards/README.md)
 - [Monitoring stack](monitoring.md)
+- [MCP Redis memory windows](mcp_redis.md)
 - [MCP2 connector config](connectors/mcp2_connector.yaml) – dev/prod SSE endpoints
 - [MCP2 OpenAI tools manifest](connectors/actions_openai_mcp2.yaml)
 - [MCP2 runbook](runbooks/mcp2.md)
+- [MCP Redis](mcp_redis.md)
+- [LLM memory flow](llm_memory_flow.md)
+- [Vector DB usage](vector_db_usage.md)
+- [MCP Redis memory windows](mcp_redis.md)
 
 Legacy / Retired (kept for history)
 -----------------------------------
+
+- [Tick stream v2 migration notes](tick_stream_v2_migration.md)
+- [Kafka migration notes](tick_stream_v2_migration.md)
 
 Older guides remain in this directory for historical reference and are no longer maintained.
 
 Flags and Defaults
 ------------------
 
+- REDIS_URL=redis://redis:6379/0, REDIS_STREAMS_URL=redis://redis:6379/0
 - USE_KAFKA_JOURNAL=false (prod default)
+- VECTOR_DB_URL=http://qdrant:6333, QDRANT_API_KEY=
+- LOCAL_LLM_MODEL=ggml-model.bin
 - KAFKA_BROKERS=kafka:9092, PULSE_JOURNAL_TOPIC=pulse.journal
 - Data sources (dual): PULSE_BAR_SOURCE=redis|kafka, SCORES_SOURCE=redis|kafka, DECISIONS_SINK=redis|kafka
 - Favorites: PULSE_DEFAULT_SYMBOL, baseline: PULSE_BASELINE_EQUITY
+- Redis settings: REDIS_URL=redis://redis:6379/0,
+  PULSE_JOURNAL_PATH=/app/data/journal
+- Vector DB: VECTOR_DB_URL=http://qdrant:6333,
+  QDRANT_API_KEY=<token>
+- Local inference: LOCAL_LLM_MODEL=llama3:8b-instruct
+
+See the [Environment Variables](../README.md#environment-variables)
+section of the project README for descriptions and additional options.
+
+See the [project README](../README.md#environment-variables) for detailed
+descriptions of these variables.
 
 
 Static Info Site

@@ -721,6 +721,9 @@ services:
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - DISCORD_CHANNEL_WHITELIST=${DISCORD_CHANNEL_WHITELIST:-}
+      - MCP_MEMORY_API_KEY=${MCP_MEMORY_API_KEY:-}
+
+    # Canonical Pulse Discord bot entrypoint
     command: python services/pulse_bot/bot.py
     depends_on:
       django:
@@ -743,6 +746,7 @@ services:
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - MCP_MEMORY_API_URL=${MCP_MEMORY_API_URL}
+      - MCP_MEMORY_API_KEY=${MCP_MEMORY_API_KEY}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     command: python pulse_discord_bot.py
     depends_on:

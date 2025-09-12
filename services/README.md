@@ -42,20 +42,21 @@ Key endpoints:
 
 For operational details, see the [mcp2 runbook](../docs/runbooks/mcp2.md).
 
-Telegram Bot
-------------
+Discord Bot
+-----------
 
-Build and run the Telegram service:
+Build and run the Discord bot service:
 
 ```
-docker compose -f services/docker-compose.yml up discord
+docker compose -f services/docker-compose.yml up pulse-bot
 ```
+
+Source code lives at [`services/pulse_bot/bot.py`](pulse_bot/bot.py).
 
 Ensure the following environment variables are set before starting:
 
-- `KAFKA_BROKER` – address of the Kafka broker (default `kafka:9092`)
 - `DISCORD_BOT_TOKEN` – token for your Discord bot
-- `DISCORD_CHANNEL_ID` – destination channel ID for messages
+- `DISCORD_CHANNEL_WHITELIST` – optional comma‑separated list of allowed channel IDs
 
 
 Vectorization Service

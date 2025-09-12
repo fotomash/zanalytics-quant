@@ -14,7 +14,7 @@ Index
 - Account/State: session_boot, state_snapshot, account_info, account_positions, account_risk, equity_today
 - Market/Scan: market_mini, market_snapshot, market_symbols, market_calendar_next, market_regime, liquidity_map, pulse_status, opportunity_priority_items
 - Journal/Behavior: journal_recent, journal_append, behavior_events, whisper_suggest
-- Auth: mcp1_authenticate
+- Auth: mcp2_authenticate
 
 Positions
 
@@ -170,7 +170,7 @@ whisper_suggest
 
 Auth / MCP1
 
-mcp1_authenticate
+mcp2_authenticate
 - Payload
   - token: string
 - Response

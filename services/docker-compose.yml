@@ -611,16 +611,20 @@ services:
     restart: unless-stopped
     logging: *default-logging
 
-  discord_bot:
+  pulse-bot:
     build:
       context: .
       dockerfile: services/pulse_bot/Dockerfile
     environment:
-      - KAFKA_BROKER=${KAFKA_BROKER:-kafka:9092}
+      - DJANGO_API_URL=http://django:8000
+      - DJANGO_API_TOKEN=${DJANGO_API_TOKEN:-}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
-      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID}
+      - DISCORD_CHANNEL_WHITELIST=${DISCORD_CHANNEL_WHITELIST:-}
+    command: python services/pulse_bot/bot.py
     depends_on:
-      - kafka
+      - django
+      - redis
     restart: unless-stopped
     logging: *default-logging
 

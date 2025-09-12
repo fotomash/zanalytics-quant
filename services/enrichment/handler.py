@@ -38,7 +38,7 @@ def on_message(ctx: Dict[str, Any], msg: Message) -> None:
                 "entry_price": data.get("entry_price"),
                 "payload_id": str(uuid.uuid4()),
             }
-            ctx["redis"].publish("telegram-alerts", json.dumps(alert))
+            ctx["redis"].publish("discord-alerts", json.dumps(alert))
         serialized = payload.model_dump_json().encode("utf-8")
         ctx["producer"].produce("enriched-analysis-payloads", value=serialized)
         decision = "produced_payload"
