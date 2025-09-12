@@ -45,6 +45,7 @@ FROM base
 
 # Copy the scripts directory and convert start.sh to Unix format
 COPY app /app
+RUN pip3 install -r /app/requirements.txt
 COPY scripts /scripts
 RUN dos2unix /scripts/*.sh && \
     chmod +x /scripts/*.sh
