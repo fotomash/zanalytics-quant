@@ -1,0 +1,3 @@
+# Configuration for predict_cron script
+# risk_threshold is used when RISK_THRESHOLD env var not provided
+risk_threshold: 0.5

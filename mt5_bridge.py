@@ -5,6 +5,7 @@ Connects to MT5 account history and provides real behavioral analytics.
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import json
+import logging
 
 import MetaTrader5 as mt5
 import numpy as np
@@ -14,6 +15,8 @@ import requests
 
 # Timezone constants
 LONDON = pytz.timezone("Europe/London")
+
+logger = logging.getLogger(__name__)
 
 
 class MT5Bridge:
@@ -31,17 +34,22 @@ class MT5Bridge:
         self.behavioral_patterns = {}
 
     def connect(self) -> bool:
-        """Establish connection to MT5."""
+        """Establish connection to MT5.
+
+        Raises:
+            RuntimeError: If MT5 initialization or login fails.
+        """
         if not mt5.initialize():
-            print("MT5 initialization failed")
-            return False
+            logger.error("MT5 initialization failed")
+            raise RuntimeError("MT5 initialization failed")
 
         if self.account:
             authorized = mt5.login(self.account, password=self.password, server=self.server)
             if not authorized:
-                print(f"Failed to connect to account {self.account}")
+
+                logger.error(f"Failed to connect to account {self.account}")
                 mt5.shutdown()
-                return False
+                raise RuntimeError(f"Failed to connect to account {self.account}")
 
         self.connected = True
         return True
@@ -254,7 +262,11 @@ class MT5Bridge:
         return len(journal)
 
     def sync_to_pulse_journal_api(self, base_url: str, token: str) -> int:
-        """Sync trade history to Pulse journal via REST API."""
+        """Sync trade history to Pulse journal via REST API.
+
+        Raises:
+            RuntimeError: If the API request fails.
+        """
         df = self.get_real_trade_history()
         if df.empty:
             return 0
@@ -286,8 +298,9 @@ class MT5Bridge:
             response = requests.post(url, json=payload, headers=headers, timeout=10)
             response.raise_for_status()
         except requests.RequestException as e:
-            print(f"Failed to sync journal to API: {e}")
-            return 0
+            logger.error("Failed to sync journal to API: %s", e)
+            raise RuntimeError(f"Failed to sync journal to API: {e}")
+
 
         return len(payload)
 
@@ -346,11 +359,12 @@ class MT5Bridge:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     bridge = MT5Bridge()
-    print("MT5 Bridge initialized")
-    print("This bridge provides:")
-    print("- Real trade history with behavioral analysis")
-    print("- Pattern detection (revenge, overconfidence, fatigue, FOMO)")
-    print("- Confluence score validation against outcomes")
-    print("- Weekly behavioral reviews")
-    print("- Direct sync with Pulse signal journal")
+    logger.warning("MT5 Bridge initialized")
+    logger.warning("This bridge provides:")
+    logger.warning("- Real trade history with behavioral analysis")
+    logger.warning("- Pattern detection (revenge, overconfidence, fatigue, FOMO)")
+    logger.warning("- Confluence score validation against outcomes")
+    logger.warning("- Weekly behavioral reviews")
+    logger.warning("- Direct sync with Pulse signal journal")

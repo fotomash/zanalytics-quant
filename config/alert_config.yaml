@@ -1,4 +1,8 @@
 # Alert System Configuration
+
+discord:
+  webhook_url: "${DISCORD_WEBHOOK_URL}"
+
 channels:
   email:
     enabled: true
@@ -9,10 +13,6 @@ channels:
     recipients:
       - "trader@example.com"
       - "risk@example.com"
-  telegram:
-    enabled: true
-    bot_token: ""
-    chat_id: ""
   slack:
     enabled: false
     webhook_url: ""

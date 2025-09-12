@@ -14,15 +14,19 @@ RUN adduser --disabled-password --gecos "" ${APP_USER}
 WORKDIR /app
 
 # Install minimal VCS tool for VCS requirements (e.g., pandas-ta from GitHub)
-RUN apt-get update \
- && apt-get install -y --no-install-recommends git \
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
  && rm -rf /var/lib/apt/lists/*
 
 # 1) Install deps
 COPY requirements.txt /app/requirements.txt
+COPY services/mcp2/requirements.txt /app/services/mcp2/requirements.txt
+COPY backend/django/requirements.txt /app/backend/django/requirements.txt
 ENV PIP_ROOT_USER_ACTION=ignore
 RUN pip install --no-cache-dir --upgrade pip \
- && pip install --no-cache-dir -r /app/requirements.txt
+ && pip install --no-cache-dir -r /app/requirements.txt \
+ && pip install --no-cache-dir -r /app/backend/django/requirements.txt
 
 # 2) Copy your code
 #    Django project is under backend/django/
@@ -30,6 +34,7 @@ COPY backend/django /app/backend/django
 #    Shared modules at repo root (lowercase):
 COPY components /app/components
 COPY utils      /app/utils
+COPY bridge     /app/bridge
 
 # Ensure runtime log directory exists (matches settings.py LOG_DIR)
 RUN mkdir -p /app/backend/django/logs /app/backend/django/staticfiles /app/logs /app/staticfiles \

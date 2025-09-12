@@ -70,10 +70,12 @@ class PulseDetail(views.APIView):
                     return Response(_json.loads(raw))
         except Exception:
             pass
-        data = _load_minute_data(symbol)
         try:
-            m1 = data.get('M1')
-            m15 = data.get('M15')
+            data = _load_minute_data(symbol)
+            m1 = data.get('M1') if data else None
+            m15 = data.get('M15') if data else None
+            if m1 is None and m15 is None:
+                raise ValueError("no minute data")
             struct = structure_gate(m1) if m1 is not None else {"passed": False}
             liq = liquidity_gate(m15) if m15 is not None else {"passed": False}
             imb = imbalance_gate(m1) if m1 is not None else {"passed": False, "entry_zone": [None, None]}
@@ -111,8 +113,10 @@ class PulseDetail(views.APIView):
             except Exception:
                 pass
             return Response(payload)
+        except (ImportError, ValueError):
+            return Response({"error": "minute data unavailable"}, status=503)
         except Exception:
-            return Response({"structure": {"passed": False}, "liquidity": {"passed": False}})
+            return Response({"error": "minute data unavailable"}, status=503)
 
 
 class PulseWeights(views.APIView):
@@ -218,16 +222,24 @@ class BarsEnriched(views.APIView):
         except Exception:
             enrich = True
 
-        data = _load_minute_data(symbol)
+        try:
+            data = _load_minute_data(symbol)
+        except ImportError as e:
+            return Response({"error": str(e)}, status=503)
+        except Exception:
+            return Response({"error": "minute data unavailable"}, status=503)
         df = data.get(tf)
-        if df is None or df.empty:
-            return Response({"items": []})
+        if df is None or getattr(df, "empty", True):
+            return Response({"error": "no data available"}, status=503)
         # Tail to limit
         df = df.tail(max(1, min(limit, 800))).copy()
         # Basic enrichments
         if enrich:
             try:
                 import pandas as _p
+            except Exception:
+                return Response({"error": "pandas library is required for enrichment"}, status=503)
+            try:
                 # pct change
                 df["ret_close_pct"] = _p.to_numeric(df["close"], errors='coerce').pct_change().fillna(0.0)
                 # ATR14 approximation (HL range SMA)
@@ -257,7 +269,7 @@ class BarsEnriched(views.APIView):
                     except Exception:
                         continue
             except Exception:
-                pass
+                return Response({"error": "failed to enrich bars"}, status=503)
         # Serialize
         try:
             items = []
@@ -274,13 +286,13 @@ class BarsEnriched(views.APIView):
                     "low": float(row.get('low') or 0),
                     "close": float(row.get('close') or 0),
                     "volume": float(row.get('volume') or 0),
-                    "ret_close_pct": float(row.get('ret_close_pct')) if 'ret_close_pct' in df.columns else None,
-                    "atr14": float(row.get('atr14')) if 'atr14' in df.columns else None,
-                    "sma20": float(row.get('sma20')) if 'sma20' in df.columns else None,
-                    "sma50": float(row.get('sma50')) if 'sma50' in df.columns else None,
-                    "vwap": float(row.get('vwap')) if 'vwap' in df.columns else None,
-                    "fvg_bull": bool(row.get('fvg_bull')) if 'fvg_bull' in df.columns else False,
-                    "fvg_bear": bool(row.get('fvg_bear')) if 'fvg_bear' in df.columns else False,
+                    "ret_close_pct": float(row.get('ret_close_pct')) if 'ret_close_pct' in df.columns and _p.notna(row.get('ret_close_pct')) else None,
+                    "atr14": float(row.get('atr14')) if 'atr14' in df.columns and _p.notna(row.get('atr14')) else None,
+                    "sma20": float(row.get('sma20')) if 'sma20' in df.columns and _p.notna(row.get('sma20')) else None,
+                    "sma50": float(row.get('sma50')) if 'sma50' in df.columns and _p.notna(row.get('sma50')) else None,
+                    "vwap": float(row.get('vwap')) if 'vwap' in df.columns and _p.notna(row.get('vwap')) else None,
+                    "fvg_bull": bool(row.get('fvg_bull')) if 'fvg_bull' in df.columns and _p.notna(row.get('fvg_bull')) else False,
+                    "fvg_bear": bool(row.get('fvg_bear')) if 'fvg_bear' in df.columns and _p.notna(row.get('fvg_bear')) else False,
                 })
             payload = {"items": items, "symbol": symbol, "timeframe": tf}
             # Helpful links for LLMs/agents (relative paths; no mock data)
@@ -639,48 +651,41 @@ class YFBars(views.APIView):
             return Response({"items": [], "error": str(e)}, status=500)
 
 
-class TelegramHealth(views.APIView):
-    """Lightweight Telegram ping to verify configuration/connectivity.
+class DiscordHealth(views.APIView):
+    """Lightweight Discord webhook ping to verify configuration/connectivity.
 
     GET query params:
       text: optional message text (default: "Pulse ping ✅")
       send: optional bool-like flag (default true). When false, only reports config state.
     """
+
     permission_classes = [AllowAny]
 
     def get(self, request):
-        token = _os.getenv("TELEGRAM_BOT_TOKEN") or ""
-        chat_id = _os.getenv("TELEGRAM_CHAT_ID") or ""
+        webhook = _os.getenv("DISCORD_WEBHOOK_URL") or ""
         text = request.query_params.get("text") or "Pulse ping ✅"
         send_flag = str(request.query_params.get("send") or "true").lower() != "false"
 
-        configured = bool(token and chat_id)
+        configured = bool(webhook)
         if not configured:
             return Response({
                 "configured": False,
                 "sent": False,
-                "status": "missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID",
+                "status": "missing DISCORD_WEBHOOK_URL",
             }, status=200)
 
         if not send_flag:
             return Response({"configured": True, "sent": False})
 
         try:
-            url = f"https://api.telegram.org/bot{token}/sendMessage"
-            data = _json.dumps({
-                "chat_id": chat_id,
-                "text": text,
-                # Avoid parse errors by default; callers can include markup if desired
-                # "parse_mode": "HTML",
-                "disable_web_page_preview": True,
-            }).encode()
-            req = _urlreq.Request(url, data=data, headers={"Content-Type": "application/json"})
+            data = _json.dumps({"content": text}).encode()
+            req = _urlreq.Request(webhook, data=data, headers={"Content-Type": "application/json"})
             with _urlreq.urlopen(req, timeout=5) as resp:
-                ok = (getattr(resp, 'status', 200) == 200)
+                ok = getattr(resp, "status", 204) in (200, 204)
                 return Response({"configured": True, "sent": bool(ok)})
         except _urlerr.HTTPError as e:
             try:
-                body = e.read().decode() if hasattr(e, 'read') else str(e)
+                body = e.read().decode() if hasattr(e, "read") else str(e)
             except Exception:
                 body = str(e)
             return Response({

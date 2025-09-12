@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+pydantic>=2
+redis
+requests
+sqlalchemy
+asyncpg
+aiokafka
+
+httpx
+prometheus-client
+prometheus_client==0.22.1
+aiokafka==0.8.1
+openai>=1.30.0
+tenacity==8.2.3
+sentence-transformers

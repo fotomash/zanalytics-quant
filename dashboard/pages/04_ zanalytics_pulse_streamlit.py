@@ -16,11 +16,14 @@ from dashboard.utils.streamlit_api import (
     start_whisper_sse,
     drain_whisper_sse,
     get_sse_status,
+    stop_whisper_sse,
     fetch_trade_history,
     fetch_trade_history_filtered,
     fetch_symbols,
 )
 from dashboard.components.ui_concentric import concentric_ring
+
+stop_whisper_sse()
 
 # Page configuration
 st.set_page_config(
@@ -471,7 +474,7 @@ bottom_cols = st.columns(4)
 
 with bottom_cols[0]:
     st.markdown("### Trade Quality")
-    q = safe_api_call('GET', 'api/pulse/analytics/trades/quality')
+    q = safe_api_call('GET', 'api/v1/analytics/trades/quality')
     labels = q.get('labels') if isinstance(q, dict) else None
     counts = q.get('counts') if isinstance(q, dict) else None
     if not (isinstance(labels, list) and isinstance(counts, list) and len(labels) == len(counts)):
@@ -494,7 +497,7 @@ st.plotly_chart(fig_quality, use_container_width=True)
 with bottom_cols[1]:
     st.markdown("### Profit Efficiency")
     try:
-        eff = safe_api_call('GET', 'api/pulse/analytics/trades/efficiency')
+        eff = safe_api_call('GET', 'api/v1/analytics/trades/efficiency')
         pct = eff.get('captured_vs_potential_pct') if isinstance(eff, dict) else None
         val = float(pct) if isinstance(pct, (int, float)) else None
         if val is not None and 0.0 <= val <= 1.0:
@@ -521,7 +524,7 @@ with bottom_cols[1]:
 with bottom_cols[2]:
     st.markdown("### Risk Management")
     try:
-        summ = safe_api_call('GET', 'api/pulse/analytics/trades/summary')
+        summ = safe_api_call('GET', 'api/v1/analytics/trades/summary')
         avg_r = summ.get('avg_r') if isinstance(summ, dict) else None
         if isinstance(avg_r, (int, float)):
             st.metric("Avg Risk/Trade", f"{float(avg_r):.2f}R")
@@ -548,6 +551,27 @@ with bottom_cols[3]:
     st.progress(momentum/100)
     st.caption("Maintaining discipline")
 
+# Shared trade filters (used by analytics and history)
+sym_list = fetch_symbols() or []
+sym_opts = ['All'] + sym_list
+sel = st.selectbox("Filter by Symbol", sym_opts)
+sym = None if sel == 'All' else sel
+
+colf1, colf2, colf3, colf4 = st.columns(4)
+with colf1:
+    date_from = st.date_input("From", value=None)
+with colf2:
+    date_to = st.date_input("To", value=None)
+with colf3:
+    pnl_min = st.number_input("Min PnL", value=0.0, step=10.0, format="%f")
+with colf4:
+    pnl_max = st.number_input("Max PnL", value=0.0, step=10.0, format="%f")
+
+df_str_from = date_from.isoformat() if date_from else None
+df_str_to = date_to.isoformat() if date_to else None
+pmin = pnl_min if pnl_min != 0.0 else None
+pmax = pnl_max if pnl_max != 0.0 else None
+
 # Analytics: R distribution and Setups by Quality (uses filters above)
 st.divider()
 ana1, ana2 = st.columns(2)
@@ -563,7 +587,7 @@ qstr = ("?" + "&".join(q_params)) if q_params else ""
 with ana1:
     st.markdown("### R Distribution")
     try:
-        b = safe_api_call('GET', f'api/pulse/analytics/trades/buckets{qstr}')
+        b = safe_api_call('GET', f'api/v1/analytics/trades/buckets{qstr}')
         edges = b.get('edges') if isinstance(b, dict) else None
         counts = b.get('counts') if isinstance(b, dict) else None
         if isinstance(edges, list) and isinstance(counts, list) and len(edges) == len(counts):
@@ -581,7 +605,7 @@ with ana1:
 with ana2:
     st.markdown("### Top Setups by Quality")
     try:
-        s = safe_api_call('GET', f'api/pulse/analytics/trades/setups{qstr}')
+        s = safe_api_call('GET', f'api/v1/analytics/trades/setups{qstr}')
         setups = s.get('setups') if isinstance(s, dict) else []
         if isinstance(setups, list) and setups:
             df_set = pd.DataFrame(setups)
@@ -646,26 +670,6 @@ with st.expander("🫀 Session Vitals (Prototype)", expanded=True):
 
 # Trade History (behavioral analysis)
 st.subheader("Trade History")
-sym_list = fetch_symbols() or []
-sym_opts = ['All'] + sym_list
-sel = st.selectbox("Filter by Symbol", sym_opts)
-sym = None if sel == 'All' else sel
-
-colf1, colf2, colf3, colf4 = st.columns(4)
-with colf1:
-    date_from = st.date_input("From", value=None)
-with colf2:
-    date_to = st.date_input("To", value=None)
-with colf3:
-    pnl_min = st.number_input("Min PnL", value=0.0, step=10.0, format="%f")
-with colf4:
-    pnl_max = st.number_input("Max PnL", value=0.0, step=10.0, format="%f")
-
-df_str_from = date_from.isoformat() if date_from else None
-df_str_to = date_to.isoformat() if date_to else None
-pmin = pnl_min if pnl_min != 0.0 else None
-pmax = pnl_max if pnl_max != 0.0 else None
-
 hist = fetch_trade_history_filtered(symbol=sym, date_from=df_str_from, date_to=df_str_to, pnl_min=pmin, pnl_max=pmax)
 try:
     import pandas as pd

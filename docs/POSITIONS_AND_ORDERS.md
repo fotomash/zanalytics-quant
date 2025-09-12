@@ -13,8 +13,8 @@ Quick reference
 - Close full/partial: POST `/api/v1/positions/close`
   { ticket, fraction? | volume? }
   - Alias: `id`→ticket
-- Modify SL/TP: POST `/api/v1/positions/modify`
-  { ticket, sl?, tp? }
+- Modify SL/TP: POST `/api/v1/positions/modify` or `/api/v1/positions/<ticket>/modify`
+  { ticket?, sl?, tp? }
   - Alias: `id`→ticket
 - Hedge: POST `/api/v1/positions/hedge`
   { ticket, volume? }  (opposite side is inferred from the position)
@@ -48,6 +48,11 @@ Examples
   curl -sX POST "$DJANGO/api/v1/positions/modify" \
     -H 'Content-Type: application/json' \
     -d '{"ticket":302402468,"sl":3625}'
+
+- Modify TP via path
+  curl -sX POST "$DJANGO/api/v1/positions/302402468/modify" \
+    -H 'Content-Type: application/json' \
+    -d '{"tp":3625}'
 
 - Hedge full (uses current position volume)
   curl -sX POST "$DJANGO/api/v1/positions/hedge" \

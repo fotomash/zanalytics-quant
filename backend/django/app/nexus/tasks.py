@@ -83,3 +83,17 @@ def snapshot_sod_equity():
     except Exception as e:
         logger.warning(f"snapshot_sod_equity failed: {e}")
         return False
+
+
+@shared_task(name="nexus.tasks.modify_position_task")
+def modify_position_task(ticket: int, sl: float = None, tp: float = None):
+    """Asynchronously modify SL/TP for a position via the bridge."""
+    from bridge.mt5 import modify_position
+    try:
+        ok, data = modify_position(ticket, sl=sl, tp=tp)
+        if not ok:
+            logger.error(f"Failed to modify position {ticket}: {data}")
+        return ok, data
+    except Exception as e:
+        logger.error(f"Exception in modify_position_task for ticket {ticket}: {e}")
+        return False, str(e)

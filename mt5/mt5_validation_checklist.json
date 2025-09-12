@@ -1,0 +1,34 @@
+{
+  "mt5_data_validation_checklist": {
+    "pre_processing": [
+      "\u2713 Identify data type (tick vs candlestick)",
+      "\u2713 Check delimiter (tab-separated)",
+      "\u2713 Verify column headers match MT5 format",
+      "\u2713 Check for timezone information"
+    ],
+    "tick_data_checks": [
+      "\u2713 Validate FLAGS values (2, 4, 6)",
+      "\u2713 Check for NaN in BID/ASK/LAST",
+      "\u2713 Verify millisecond timestamps",
+      "\u2713 Validate spread calculations"
+    ],
+    "candlestick_checks": [
+      "\u2713 Validate OHLC relationships",
+      "\u2713 Check TICKVOL > 0",
+      "\u2713 Verify VOL (may be 0 for forex)",
+      "\u2713 Validate SPREAD values"
+    ],
+    "volume_selection": [
+      "\u2713 For forex: Use TICKVOL",
+      "\u2713 For stocks/futures: Check VOL first",
+      "\u2713 For tick data: Use VOLUME",
+      "\u2713 Document choice in metadata"
+    ],
+    "common_pitfalls": [
+      "\u274c Don't assume VOL has data for forex",
+      "\u274c Don't confuse TICKVOL with actual volume",
+      "\u274c Don't ignore FLAGS in tick data",
+      "\u274c Don't mix tick and candle processing"
+    ]
+  }
+}

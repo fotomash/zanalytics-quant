@@ -1,0 +1,101 @@
+mt5_data_specification:
+  version: '1.0'
+  description: Comprehensive specification for MT5 data exports covering tick and
+    candlestick formats
+  data_types:
+    tick_data:
+      description: Raw tick-by-tick market data
+      file_pattern: SYMBOL_YYYYMMDD_HHMMSS_YYYYMMDD_HHMMSS.csv
+      columns:
+        <DATE>:
+          type: string
+          format: YYYY.MM.DD
+          description: Date of the tick
+        <TIME>:
+          type: string
+          format: HH:MM:SS.mmm
+          description: Time of the tick with milliseconds
+        <BID>:
+          type: float
+          description: Bid price at tick time
+          nullable: true
+        <ASK>:
+          type: float
+          description: Ask price at tick time
+          nullable: true
+        <LAST>:
+          type: float
+          description: Last traded price
+          nullable: true
+        <VOLUME>:
+          type: float
+          description: Volume of the last trade
+          nullable: true
+          note: Different from tick count - represents actual trade volume
+        <FLAGS>:
+          type: integer
+          description: Tick flags indicating data type
+          values:
+            '2': Bid update
+            '4': Ask update
+            '6': Bid and Ask update
+    candlestick_data:
+      description: Aggregated OHLC candlestick data
+      file_pattern: SYMBOL_TIMEFRAME_YYYYMMDDHHMMSS_YYYYMMDDHHMMSS.csv
+      timeframes:
+      - M1
+      - M5
+      - M15
+      - M30
+      - H1
+      - H4
+      - D1
+      - W1
+      - MN1
+      columns:
+        <DATE>:
+          type: string
+          format: YYYY.MM.DD
+          description: Date of the candle
+        <TIME>:
+          type: string
+          format: HH:MM:SS
+          description: Time of the candle open
+        <OPEN>:
+          type: float
+          description: Opening price of the candle
+        <HIGH>:
+          type: float
+          description: Highest price during the candle
+        <LOW>:
+          type: float
+          description: Lowest price during the candle
+        <CLOSE>:
+          type: float
+          description: Closing price of the candle
+        <TICKVOL>:
+          type: integer
+          description: Number of ticks during the candle period
+          note: Count of price updates, not trade volume
+        <VOL>:
+          type: integer
+          description: Real volume (if available from broker)
+          note: Often 0 for forex pairs, actual trade volume for stocks/futures
+        <SPREAD>:
+          type: integer
+          description: Spread in points at candle close
+  volume_disambiguation:
+    tick_data:
+      <VOLUME>: Actual trade volume for the specific tick/trade
+    candlestick_data:
+      <TICKVOL>: Count of ticks (price updates) in the period
+      <VOL>: Actual traded volume in the period (often 0 for forex)
+  processing_guidelines:
+    volume_selection:
+      forex_pairs: Use <TICKVOL> as primary volume indicator
+      stocks_futures: Use <VOL> if non-zero, otherwise fall back to <TICKVOL>
+      tick_data: Use <VOLUME> for actual trade sizes
+    data_validation:
+      check_nulls: Tick data may have NaN values for BID/ASK/LAST
+      check_flags: Use FLAGS to determine which prices are valid
+      check_spreads: Validate spread ranges for anomaly detection

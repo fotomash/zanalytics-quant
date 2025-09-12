@@ -6,8 +6,6 @@ Converts tick data from Redis streams into OHLCV bars
 
 import redis
 import json
-import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
 import time
 import os
@@ -16,6 +14,8 @@ from confluent_kafka import Consumer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+VERSION_PREFIX = os.getenv("STREAM_VERSION_PREFIX", "v2")
 
 class TickToBarService:
     def __init__(self):
@@ -27,19 +27,22 @@ class TickToBarService:
             decode_responses=True
         )
 
-        # Bar configurations (in seconds)
-        self.timeframes = {
+        # All available timeframe configurations (in seconds)
+        self.available_timeframes = {
             '1m': 60,
             '5m': 300,
             '15m': 900,
             '30m': 1800,
             '1h': 3600,
             '4h': 14400,
-            '1d': 86400
+            '1d': 86400,
         }
 
-        # Storage for accumulating ticks
-        self.tick_buffers = {}
+        # Active timeframes - can be overridden in run()
+        self.timeframes = dict(self.available_timeframes)
+
+        # In-memory bar states {(timeframe, symbol): bar_dict}
+        self.bar_states = {}
 
     def connect(self):
         """Test Redis connection"""
@@ -47,12 +50,25 @@ class TickToBarService:
             self.redis_client.ping()
             logger.info(f"Connected to Redis at {self.redis_host}:{self.redis_port}")
             return True
-        except Exception as e:
-            logger.error(f"Failed to connect to Redis: {e}")
+        except Exception:
+            logger.exception("Failed to connect to Redis")
             return False
 
-    def process_tick(self, symbol, tick_data):
-        """Process a single tick and update bars"""
+    def process_tick(self, symbol, tick_data, topic=None, key=None):
+        """Process a single tick and update bars.
+
+        Parameters
+        ----------
+        symbol: str
+            Symbol for the tick.
+        tick_data: dict
+            Raw tick dictionary.
+        topic: Optional[str]
+            Kafka topic from which the tick was read.
+        key: Optional[str]
+            Kafka key associated with the tick.
+        """
+
         try:
             # Parse tick data
             bid = float(tick_data.get('bid', 0))
@@ -76,12 +92,18 @@ class TickToBarService:
             # Publish to Pulse system
             self._publish_to_pulse(symbol, tick_data)
 
-        except Exception as e:
-            logger.error(f"Error processing tick: {e}")
+        except Exception:
+            logger.exception(
+                "Error processing tick: topic=%s key=%s tick=%s",
+                topic,
+                key,
+                tick_data,
+            )
 
     def _update_bar(self, symbol, timeframe, seconds, dt, price, volume):
         """Update or create a bar for the given timeframe"""
-        # Calculate bar timestamp (floor to timeframe)
+
+        # Determine the start time for the bar by flooring the timestamp
         bar_timestamp = dt.replace(second=0, microsecond=0)
         if timeframe in ['5m', '15m', '30m']:
             minutes = (bar_timestamp.minute // (seconds // 60)) * (seconds // 60)
@@ -92,14 +114,11 @@ class TickToBarService:
         elif timeframe == '1d':
             bar_timestamp = bar_timestamp.replace(hour=0, minute=0)
 
-        # Create bar key
-        bar_key = f"bar:{timeframe}:{symbol}:{bar_timestamp.isoformat()}"
+        state_key = (timeframe, symbol)
+        bar = self.bar_states.get(state_key)
 
-        # Get or create bar
-        bar = self.redis_client.hgetall(bar_key)
-
-        if not bar:
-            # Create new bar
+        if not bar or bar['timestamp'] != bar_timestamp:
+            # Start a new bar
             bar = {
                 'open': price,
                 'high': price,
@@ -107,25 +126,43 @@ class TickToBarService:
                 'close': price,
                 'volume': volume,
                 'tick_count': 1,
-                'timestamp': bar_timestamp.isoformat()
+                'timestamp': bar_timestamp,
             }
         else:
             # Update existing bar
-            bar['high'] = max(float(bar['high']), price)
-            bar['low'] = min(float(bar['low']), price)
+            bar['high'] = max(bar['high'], price)
+            bar['low'] = min(bar['low'], price)
             bar['close'] = price
-            bar['volume'] = float(bar.get('volume', 0)) + volume
-            bar['tick_count'] = int(bar.get('tick_count', 0)) + 1
+            bar['volume'] += volume
+            bar['tick_count'] += 1
 
-        # Save bar to Redis
-        self.redis_client.hset(bar_key, mapping=bar)
-        self.redis_client.expire(bar_key, 86400 * 7)  # Keep for 7 days
+        # Persist bar state
+        self.bar_states[state_key] = bar
+        self._persist_bar(symbol, timeframe, bar)
 
-        # Add to stream for real-time updates
+        logger.debug(
+            f"Updated bar {timeframe}:{symbol}:{bar_timestamp.isoformat()}: "
+            f"O={bar['open']:.5f} H={bar['high']:.5f} L={bar['low']:.5f} C={bar['close']:.5f} V={bar['volume']}"
+        )
+
+    def _persist_bar(self, symbol, timeframe, bar):
+        """Persist the bar to Redis hash and stream"""
+        bar_data = {
+            'open': bar['open'],
+            'high': bar['high'],
+            'low': bar['low'],
+            'close': bar['close'],
+            'volume': bar['volume'],
+            'tick_count': bar['tick_count'],
+            'timestamp': bar['timestamp'].isoformat(),
+        }
+
+        bar_key = f"bar:{timeframe}:{symbol}:{bar_data['timestamp']}"
+        self.redis_client.hset(bar_key, mapping=bar_data)
+        self.redis_client.expire(bar_key, 86400 * 7)
+
         stream_key = f"stream:bar:{timeframe}:{symbol}"
-        self.redis_client.xadd(stream_key, bar, maxlen=1000)
-
-        logger.debug(f"Updated bar {bar_key}: O={bar['open']:.5f} H={bar['high']:.5f} L={bar['low']:.5f} C={bar['close']:.5f} V={bar['volume']}")
+        self.redis_client.xadd(stream_key, bar_data, maxlen=1000)
 
     def _publish_to_pulse(self, symbol, tick_data):
         """Publish tick to Pulse system for analysis"""
@@ -138,8 +175,8 @@ class TickToBarService:
             channel = f"pulse:ticks:{symbol}"
             self.redis_client.publish(channel, json.dumps(tick_data))
 
-        except Exception as e:
-            logger.error(f"Failed to publish to Pulse: {e}")
+        except Exception:
+            logger.exception("Failed to publish to Pulse: symbol=%s tick=%s", symbol, tick_data)
 
     def listen_for_ticks(self, symbols=None):
         """Listen for tick data from multiple sources"""
@@ -149,7 +186,7 @@ class TickToBarService:
         logger.info(f"Starting tick listener for symbols: {symbols}")
 
         # Create stream keys
-        streams = {f"tick:{symbol}": '0' for symbol in symbols}
+        streams = {f"{VERSION_PREFIX}:ticks:{symbol}": '0' for symbol in symbols}
 
         while True:
             try:
@@ -157,7 +194,7 @@ class TickToBarService:
                 messages = self.redis_client.xread(streams, block=1000, count=100)
 
                 for stream_name, stream_messages in messages:
-                    symbol = stream_name.split(':')[1]
+                    symbol = stream_name.split(':')[-1]
 
                     for message_id, data in stream_messages:
                         logger.debug(f"Processing tick for {symbol}: {data}")
@@ -169,8 +206,8 @@ class TickToBarService:
             except KeyboardInterrupt:
                 logger.info("Shutting down tick-to-bar service...")
                 break
-            except Exception as e:
-                logger.error(f"Error in tick listener: {e}")
+            except Exception:
+                logger.exception("Error in tick listener")
                 time.sleep(1)
 
     def listen_for_ticks_kafka(self, symbols=None):
@@ -191,25 +228,57 @@ class TickToBarService:
                 if msg.error():
                     logger.error(f"Kafka error: {msg.error()}")
                     continue
-                data = json.loads(msg.value())
-                symbol = data.get("symbol")
-                if symbol:
-                    self.process_tick(symbol, data)
+                raw_value = msg.value()
+                try:
+                    data = json.loads(raw_value)
+                    symbol = data.get("symbol")
+                    if symbol:
+                        self.process_tick(
+                            symbol,
+                            data,
+                            topic=msg.topic(),
+                            key=msg.key(),
+                        )
+                except Exception:
+                    logger.exception(
+                        "Failed processing Kafka message: topic=%s key=%s tick=%s",
+                        msg.topic(),
+                        msg.key(),
+                        raw_value,
+                    )
         except KeyboardInterrupt:
             logger.info("Shutting down tick-to-bar service...")
         finally:
             consumer.close()
 
-    def run(self):
-        """Main service loop"""
+    def run(self, symbols=None, timeframes=None):
+        """Main service loop.
+
+        Parameters
+        ----------
+        symbols : Optional[List[str]]
+            Symbols to subscribe to. Defaults to environment variable ``SYMBOLS``.
+        timeframes : Optional[List[str]]
+            List of timeframe names (e.g., ["1m", "5m"]) to aggregate.
+            If omitted, all available timeframes are used.
+        """
+
         logger.info("Starting Tick-to-Bar Service...")
+
+        if timeframes:
+            self.timeframes = {
+                tf: self.available_timeframes[tf]
+                for tf in timeframes
+                if tf in self.available_timeframes
+            }
+            logger.info(f"Configured timeframes: {list(self.timeframes.keys())}")
 
         if not self.connect():
             logger.error("Cannot start service without Redis connection")
             return
 
-        # Get symbols from environment or use defaults
-        symbols = os.getenv('SYMBOLS', 'EURUSD,GBPUSD,XAUUSD').split(',')
+        if symbols is None:
+            symbols = os.getenv('SYMBOLS', 'EURUSD,GBPUSD,XAUUSD').split(',')
 
         # Start listening via Kafka
         self.listen_for_ticks_kafka(symbols)

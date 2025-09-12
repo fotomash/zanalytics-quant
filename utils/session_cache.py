@@ -3,19 +3,21 @@ import os
 from datetime import timedelta
 from typing import Any, Dict
 
-import redis  # type: ignore
+import logging
 import requests
+
+from utils.redis_client import get_redis_connection
 
 
 # Config
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 TTL_DEFAULTS: Dict[str, int] = {
     "session_boot": int(os.getenv("SESSION_BOOT_TTL", "30")),
     "trades_recent": int(os.getenv("TRADES_RECENT_TTL", "15")),
     "risk_status": int(os.getenv("RISK_STATUS_TTL", "20")),
 }
 
-r = redis.Redis.from_url(REDIS_URL)
+logger = logging.getLogger(__name__)
+r = get_redis_connection()
 
 
 def _get_cache_key(api_type: str, user_id: str = "default") -> str:
@@ -33,7 +35,7 @@ def _fetch_with_cache(api_url: str, token: str | None, api_type: str, payload: D
         if cached:
             return json.loads(cached)
     except Exception:
-        pass
+        logger.warning("Error retrieving cache key %s", cache_key, exc_info=True)
 
     # 2) API call
     headers = {"Content-Type": "application/json"}
@@ -52,7 +54,7 @@ def _fetch_with_cache(api_url: str, token: str | None, api_type: str, payload: D
     try:
         r.setex(cache_key, timedelta(seconds=ttl), json.dumps(data))
     except Exception:
-        pass
+        logger.warning("Error setting cache key %s", cache_key, exc_info=True)
 
     return data
 

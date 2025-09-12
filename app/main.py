@@ -1,13 +1,17 @@
 import os
 import json
+import time
+import asyncio
 import uvicorn
 import logging
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 
-from fastapi import FastAPI, Depends, HTTPException, Body, Query
+from fastapi import FastAPI, Depends, HTTPException, Body, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, conlist, confloat
+from prometheus_client import Counter, Histogram, CONTENT_TYPE_LATEST, generate_latest
+from api.trade import router as trade_router
 
 try:
     from pulse_kernel import PulseKernel
@@ -18,6 +22,18 @@ logger = logging.getLogger("pulse-api")
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
     format='%(asctime)s | %(levelname)s | %(name)s | %(message)s'
+)
+
+# Prometheus metrics
+REQUEST_COUNT = Counter(
+    "pulse_api_requests_total",
+    "Total HTTP requests",
+    ["method", "endpoint", "http_status"],
+)
+REQUEST_LATENCY = Histogram(
+    "pulse_api_request_latency_seconds",
+    "HTTP request latency in seconds",
+    ["method", "endpoint"],
 )
 
 
@@ -75,15 +91,18 @@ class TopSignal(BaseModel):
 
 
 class TopSignalsResponse(BaseModel):
-    items: conlist(TopSignal, min_items=0, max_items=25)
+    items: conlist(TopSignal, min_length=0, max_length=25)
 
 
-class PulseRuntime:
-    _instance = None
+    class PulseRuntime:
+        _instance = None
 
-    def __init__(self):
-        self.kernel = PulseKernel(config_path=os.getenv("PULSE_CONFIG", "pulse_config.yaml"))
-        logger.info("PulseRuntime initialized")
+        def __init__(self):
+            cfg_path = os.getenv("PULSE_CONFIG", "pulse_config.yaml")
+            if not os.path.exists(cfg_path):
+                logger.warning("Pulse config file %s not found; using defaults", cfg_path)
+            self.kernel = PulseKernel(config_path=cfg_path)
+            logger.info("PulseRuntime initialized")
 
     @classmethod
     def instance(cls):
@@ -111,6 +130,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(trade_router)
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    """Expose Prometheus metrics."""
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.middleware("http")
+async def observe_requests(request: Request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    latency = time.time() - start
+    path = request.url.path
+    REQUEST_COUNT.labels(request.method, path, str(response.status_code)).inc()
+    REQUEST_LATENCY.labels(request.method, path).observe(latency)
+    return response
 
 
 @app.get("/pulse/health")
@@ -200,10 +238,42 @@ async def top_signals(symbols: Optional[str] = Query(default=None), rt: PulseRun
     return TopSignalsResponse(items=scored[: min(10, len(scored))])
 
 
-if __name__ == "__main__":
-    uvicorn.run(
+async def run_loop() -> None:
+    """Run the Pulse kernel loop in the background."""
+    rt = PulseRuntime.instance()
+    run_fn = getattr(rt.kernel, "run", None)
+    if run_fn is None:
+        return
+    if asyncio.iscoroutinefunction(run_fn):
+        await run_fn()
+    else:
+        await asyncio.to_thread(run_fn)
+
+
+async def _main() -> None:
+    config = uvicorn.Config(
         "main:app",
         host=os.getenv("HOST", "0.0.0.0"),
         port=int(os.getenv("PORT", "8000")),
-        reload=bool(int(os.getenv("RELOAD", "0")))
+        reload=bool(int(os.getenv("RELOAD", "0"))),
     )
+    server = uvicorn.Server(config)
+    server_task = asyncio.create_task(server.serve())
+    loop_task = asyncio.create_task(run_loop())
+    done, pending = await asyncio.wait(
+        {server_task, loop_task}, return_when=asyncio.FIRST_EXCEPTION
+    )
+    for task in pending:
+        task.cancel()
+    await asyncio.gather(*pending, return_exceptions=True)
+    for task in done:
+        exc = task.exception()
+        if exc:
+            raise exc
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(_main())
+    except Exception:
+        logger.exception("Application terminated")

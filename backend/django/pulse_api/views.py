@@ -32,6 +32,7 @@ except Exception:
 
 logger = logging.getLogger(__name__)
 
+VERSION_PREFIX = os.getenv("STREAM_VERSION_PREFIX", "v2")
 # Initialize risk enforcer
 if RISK_ENFORCER_AVAILABLE:
     risk_enforcer = EnhancedRiskEnforcer()
@@ -88,9 +89,15 @@ def score_peek(request):
     """Get current confluence score with explainable reasons"""
     try:
         payload = json.loads(request.body or "{}")
-        bars = payload.get("bars", [])
+        bars = payload.get("bars")
         if not bars:
-            return HttpResponseBadRequest("'bars' field required")
+            return JsonResponse(
+                {
+                    "error": "'bars' field required",
+                    "timestamp": datetime.now().isoformat(),
+                },
+                status=400,
+            )
 
         df = pd.DataFrame(bars)
         result = compute_confluence(df)
@@ -115,7 +122,7 @@ def score_post(request):
 def tick_buffer(request):
     """Fetch the last ticks for a symbol from Redis."""
     symbol = request.GET.get("symbol", "EURUSD").upper()
-    key = f"ticks:{symbol}:live"
+    key = f"{VERSION_PREFIX}:ticks:{symbol}:live"
     raw = redis_client.lrange(key, -5, -1)
     ticks = [json.loads(x) for x in raw]
     return Response({"symbol": symbol, "ticks": ticks, "source": "Redis"})

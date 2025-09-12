@@ -79,30 +79,52 @@ class MicrostructureAnalyzer:
         # Create a new DataFrame to store results, aligned with m1_df
         aggregated_data = pd.DataFrame(index=m1_df.index)
         
-        # Calculate metrics for each M1 bar
-        bar_deltas = []
-        tick_counts = []
-        avg_spreads = []
-        
-        # Use resample for efficient aggregation
+        # Ensure ticks_df index is datetime for resample
+        if not isinstance(ticks_df.index, pd.DatetimeIndex):
+            # Prefer an existing datetime-like column if present
+            for col in ("timestamp", "datetime", "ts"):
+                if col in ticks_df.columns:
+                    ticks_df = ticks_df.set_index(pd.to_datetime(ticks_df[col]))
+                    break
+            else:
+                # As a last resort, attempt to convert the existing index
+                ticks_df.index = pd.to_datetime(ticks_df.index)
+        # Normalize tick index using timestamp-like columns if available
+        dt_col = next((col for col in ("timestamp", "datetime", "ts") if col in ticks_df.columns), None)
+        if dt_col:
+            ticks_df.index = pd.to_datetime(ticks_df[dt_col])
+            ticks_df.drop(columns=[dt_col], inplace=True)
+        else:
+            ticks_df.index = pd.to_datetime(ticks_df.index)
+
+        # Sort to ensure proper chronological resampling
+        ticks_df = ticks_df.sort_index()
+
+        # Ensure spread column exists
+        if 'spread' not in ticks_df.columns:
+            if {'ask', 'bid'}.issubset(ticks_df.columns):
+                ticks_df['spread'] = (ticks_df['ask'] - ticks_df['bid']).abs()
+            else:
+                ticks_df['spread'] = 0.0
+
+        # Ensure m1_df index is datetime
+        if not isinstance(m1_df.index, pd.DatetimeIndex):
+            m1_df.index = pd.to_datetime(m1_df.index)
+
+        # Create a new DataFrame to store results, aligned with m1_df
+        aggregated_data = pd.DataFrame(index=m1_df.index)
+
+        # Use resample for efficient aggregation on the normalized index
         resampler = ticks_df.resample('1Min')
-        
-        delta_sum = resampler['delta'].sum()
-        tick_count = resampler.size()
-        avg_spread = resampler['spread'].mean()
-        
+
         # Align the resampled data with the M1 bar index
-        aggregated_data['delta'] = delta_sum.reindex(m1_df.index, fill_value=0)
-        aggregated_data['tick_count'] = tick_count.reindex(m1_df.index, fill_value=0)
-        aggregated_data['avg_spread'] = avg_spread.reindex(m1_df.index).ffill() # Forward fill for bars with no ticks
-        
+        aggregated_data['delta'] = resampler['delta'].sum().reindex(m1_df.index, fill_value=0)
+        aggregated_data['tick_count'] = resampler.size().reindex(m1_df.index, fill_value=0)
+        aggregated_data['avg_spread'] = (
+            resampler['spread'].mean().reindex(m1_df.index).ffill()
+        )  # Forward fill for bars with no ticks
+
         # Calculate Cumulative Delta within each bar
         aggregated_data['cumulative_delta'] = aggregated_data['delta'].cumsum()
-        
+
         return aggregated_data
-'''
-
-with open('zanflow_dashboard/utils/microstructure_analyzer.py', 'w') as f:
-    f.write(microstructure_analyzer)
-
-print("1. Successfully created 'zanflow_dashboard/utils/microstructure_analyzer.py'.")

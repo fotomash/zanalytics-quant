@@ -10,15 +10,22 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import os
+import sys
 from pathlib import Path
-import os  # Added for environment variables
-from dotenv import load_dotenv  # Optional: If using a .env file
+from dotenv import load_dotenv
 
 # Load environment variables from .env file if present
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent  # backend/django
+
+# Add repository root to Python path so top-level packages (e.g., 'bridge') resolve in Django app
+# Repo root is two levels up from BASE_DIR (…/repo)
+REPO_ROOT = BASE_DIR.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 # Ensure log directory exists
 os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)

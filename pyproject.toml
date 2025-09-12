@@ -16,9 +16,14 @@ dependencies = [
   "redis>=4.5",
 ]
 
+[project.optional-dependencies]
+lint = [
+  "pydocstyle",
+]
+
 [tool.setuptools]
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["pulse*"]
+include = ["pulse*", "api_integration*"]
 

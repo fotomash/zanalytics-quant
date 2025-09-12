@@ -70,7 +70,7 @@ REDIS_PORT = 6379
 #### Start Services
 ```bash
 # Start all required services
-docker-compose up -d mt5 redis django streamlit
+docker compose up -d mt5 redis django streamlit
 ```
 
 #### Access Dashboard
@@ -118,7 +118,7 @@ Update the `phase_colors` in the config or modify the `create_wyckoff_chart()` f
 
 ### No Data Displayed
 - Check MT5 terminal is running
-- Verify API services are up: `docker-compose ps`
+- Verify API services are up: `docker compose ps`
 - Ensure market is open for selected symbol
 
 ### Slow Performance
@@ -129,7 +129,7 @@ Update the `phase_colors` in the config or modify the `create_wyckoff_chart()` f
 ### Connection Errors
 - Check firewall settings
 - Verify Docker network configuration
-- Review API logs: `docker-compose logs mt5`
+- Review API logs: `docker compose logs mt5`
 
 ## Performance Metrics
 
@@ -144,3 +144,5 @@ Update the `phase_colors` in the config or modify the `create_wyckoff_chart()` f
 ## Support
 
 For issues or questions, refer to the main Zanalytics documentation or contact the development team.
+
+Return to [main README](README.md)

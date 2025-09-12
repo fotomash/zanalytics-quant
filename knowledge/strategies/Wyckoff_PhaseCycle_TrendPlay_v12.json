@@ -1,0 +1,82 @@
+{
+  "strategy_name": "Wyckoff_PhaseCycle_TrendPlay_v12",
+  "aliases": [
+    "Wyckoff SOS/SOW Entry",
+    "Phase D/E Accumulation/Distribution Trend Play",
+    "Wyckoff_Accumulation_Spring_FVG_Entry_v12",
+    "Wyckoff_PhaseDriven_Continuation_Breakout_v12"
+  ],
+  "entry_pattern": "Identifies completed Wyckoff Accumulation/Distribution. Phase C: Entry after Spring/UTAD + Secondary Test (ST) + LTF CHoCH, into FVG/OB. Phase D/E: Entry on low-volume pullback to Last Point of Support/Supply (LPS/LPSY) after Sign of Strength/Weakness (SOS/SOW), or on BoS retest.",
+  "entry_conditions": [
+    "Clear HTF Wyckoff schematic (Accumulation/Distribution, Phase C/D/E events).",
+    "Phase C: Valid Spring/UTAD (sweep + rejection + volume) & successful low-volume ST & LTF CHoCH.",
+    "Phase D/E: Valid SOS/SOW (breakout + volume) & low-volume pullback to LPS/LPSY.",
+    "Entry at fresh FVG/OB (Phase C) or confirmed LPS/LPSY.",
+    "Volume confirming subsequent Markup/Markdown phase."
+  ],
+  "timeframe_mapping": {
+    "htf_context_accumulation_distribution_tr": [
+      "H4",
+      "H1"
+    ],
+    "setup_tf_spring_st_sos_sow_lps_lpsy_choch_bos": [
+      "M15",
+      "M5"
+    ],
+    "entry_tf_precision_fvg_ob_test_volume": [
+      "M1",
+      "Tick"
+    ]
+  },
+  "confluence_conditions_indicators": [
+    "Wyckoff Phase Confirmation",
+    "Volume Signatures (Spring/UTAD rejection, ST low volume, SOS/SOW high volume, LPS/LPSY test low volume)",
+    "CHoCH (LTF)",
+    "BoS (Setup TF)",
+    "Fresh FVG/OB or Valid LPS/LPSY",
+    "Session Timing (London/NY often decisive for phase transitions)"
+  ],
+  "risk_model": {
+    "type": "Adaptive, Structure-Based (Wyckoff specific)",
+    "sl_description": "Below Spring low/ST low (Phase C) or below LPS/above LPSY (Phase D/E), + adaptive buffer (ATR, tick volatility, spread).",
+    "tp_description": "Initial: TR resistance/support (creek/ice). Subsequent: P&F projections from TR, or opposing HTF POI/liquidity.",
+    "min_rr": 2.0,
+    "module": "RiskManager.py"
+  },
+  "execution_flow_ispts": [
+    "Context (ContextAnalyzer.py with WyckoffEngine.py)",
+    "Catalyst (LiquidityEngine.py for Spring/UTAD or StructureValidator.py for SOS/SOW)",
+    "Confirmation (StructureValidator.py for CHoCH or test validation)",
+    "Entry (FvgLocator.py/PoiIdentifier.py for FVG/OB/LPS/LPSY -> EntryExecutorSMC.py)",
+    "Risk (RiskManager.py)",
+    "Confluence (ConfluenceStacker.py -> PredictiveScorer.py - Observational)"
+  ],
+  "scoring": {
+    "enabled": true,
+    "type": "Observational Maturity Score",
+    "module": "PredictiveScorer.py",
+    "description": "Score based on clarity of Wyckoff events/phases, volume signatures, CHoCH/BoS strength, FVG/POI/LPS/LPSY quality. Tick-level micro-Wyckoff patterns can enhance."
+  },
+  "fallback_logic": {
+    "enabled": true,
+    "description": "If ST fails, CHoCH doesn't occur, LPS/LPSY fails, or markup/markdown lacks volume, agent monitors for re-tests, potential breakdown, or awaits stronger BoS."
+  },
+  "modules_involved": [
+    "ContextAnalyzer.py",
+    "WyckoffEngine.py (sub-logic or separate)",
+    "LiquidityEngine.py",
+    "Tick_Processor.py",
+    "StructureValidator.py",
+    "VolumeProfileEngine.py (Conceptual Utility)",
+    "FvgLocator.py",
+    "PoiIdentifier.py",
+    "EntryExecutorSMC.py",
+    "RiskManager.py",
+    "PredictiveScorer.py",
+    "JournalLogger.py"
+  ],
+  "agent_profiles_conceptual": [
+    "Wyckoff-specialist agent YAMLs based on new.zip, StrategyPassV3_Tier3.zip"
+  ],
+  "memory_merge_flag": true
+}

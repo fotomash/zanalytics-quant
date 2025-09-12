@@ -1,0 +1,485 @@
+position_modify_debug_ticket.json:2:  "ticket": 302542842,
+position_modify_debug_ticket.json:12:        "ticket": 302542842,
+position_modify_debug_ticket.json:22:        "ticket": 302542842,
+position_modify_debug_ticket.json:30:      "type": "position_modify_by_ticket",
+position_modify_debug_ticket.json:32:        "ticket": 302542842,
+position_modify_debug_ticket.json:42:        "ticket": 302542842,
+position_modify_debug_ticket.json:52:        "ticket": 302542842,
+_schema/GPT_Instructions_1.1.md:81:- GET `/api/v1/positions/{ticket}/protect`
+mt5_gateway/app.py:80:                    "ticket": int(getattr(p, "ticket", 0)),
+mt5_gateway/app.py:94:def _find_pos(ticket: int):
+mt5_gateway/app.py:99:        if int(p.ticket) == int(ticket):
+mt5_gateway/app.py:126:    # ORDER_TYPE_BUY / ORDER_TYPE_SELL
+mt5_gateway/app.py:127:    return mt5.ORDER_TYPE_BUY if position_type == mt5.POSITION_TYPE_SELL else mt5.ORDER_TYPE_SELL
+mt5_gateway/app.py:134:    price = tick.ask if side == mt5.ORDER_TYPE_BUY else tick.bid
+mt5_gateway/app.py:136:        "action": mt5.TRADE_ACTION_DEAL,
+mt5_gateway/app.py:156:    ticket: int
+mt5_gateway/app.py:165:    pos = _find_pos(body.ticket)
+mt5_gateway/app.py:182:                   comment=body.comment or f"partial_close_v2 ticket {body.ticket}",
+mt5_gateway/app.py:183:                   position=body.ticket)
+mt5_gateway/app.py:188:    ticket: int
+mt5_gateway/app.py:198:    pos = _find_pos(body.ticket)
+mt5_gateway/app.py:211:                   comment=body.comment or f"partial_close ticket {body.ticket}",
+mt5_gateway/app.py:212:                   position=body.ticket)
+mt5_gateway/app.py:217:    ticket: int
+mt5_gateway/app.py:224:    pos = _find_pos(body.ticket)
+mt5_gateway/app.py:231:                   comment=body.comment or f"close_position ticket {body.ticket}",
+mt5_gateway/app.py:232:                   position=body.ticket)
+mt5_gateway/app.py:247:    side = mt5.ORDER_TYPE_BUY if body.type.upper() == "BUY" else mt5.ORDER_TYPE_SELL
+dashboard/pages/17_risk_manager_mock.py:164:                'ticket': 1000000 + i,
+dashboard/pages/17_risk_manager_mock.py:205:                cols = [c for c in ["time","ticket","symbol","type","volume","price","price_open","price_current","profit","commission","swap","comment"] if c in df.columns]
+dashboard/pages/17_risk_manager_mock.py:216:                "ticket": 1000000 + i,
+dashboard/pages/17_risk_manager_mock.py:540:        display_cols = [c for c in ["time","ticket","symbol","type","volume","price","price_open","price_current","profit","commission","swap","comment"] if c in recent_trades.columns]
+mt5_bridge.py:228:                    "ticket": int(trade["ticket"]),
+mt5_bridge.py:246:                e.get("data", {}).get("ticket") == entry["data"]["ticket"]
+mt5_bridge.py:265:                "ticket": int(trade["ticket"]),
+README.md:165:- Put verbs in body: `{ "type": "position_close", "payload": { ... } }`
+core/journal_sync.py:38:            "ticket": deal.ticket,
+docs/JOURNALING.md:11:- Recommended `meta` fields: ticket, symbol, side, volume_before, volume_action, volume_remaining, action_price, pnl_action, sl, tp, reason, session, htf_bias, confluence.
+docs/JOURNALING.md:32:  "tags": ["position_close", "risk_action", "partial"],
+docs/JOURNALING.md:34:    "ticket": 302402468,
+bridge/mt5.py:12:def modify_position(ticket: int, sl: Optional[float] = None, tp: Optional[float] = None) -> Tuple[bool, Dict[str, Any]]:
+bridge/mt5.py:18:    # The MT5 API requires the symbol for the ticket. Fetch the current
+bridge/mt5.py:19:    # positions and locate the matching ticket to obtain its symbol.
+bridge/mt5.py:26:                if int(p.get("ticket")) == int(ticket):
+bridge/mt5.py:32:            return False, {"error": f"position {ticket} not found"}
+bridge/mt5.py:36:    payload: Dict[str, Any] = {"ticket": int(ticket), "symbol": symbol}
+dashboard/pages/20_advanced_risk_manager copy.py:775:                keep = [c for c in ["time","ticket","symbol","type","volume","price","price_open","price_current","profit","commission","swap","comment"] if c in df.columns]
+dashboard/pages/20_advanced_risk_manager copy.py:2263:                    'ticket': msg.get('ticket'),
+redis_architecture/tasks.py:109:                    'ticket': pos['ticket'],
+redis_architecture/tasks.py:112:                    'message': f"Position {pos['ticket']} on {pos['symbol']} is down {profit_pct:.2f}%"
+redis_architecture/tasks.py:119:                    'ticket': pos['ticket'],
+redis_architecture/tasks.py:122:                    'message': f"Position {pos['ticket']} on {pos['symbol']} is up {profit_pct:.2f}%"
+redis_architecture/mt5_redis_integration.py:136:                'ticket': pos.ticket,
+redis_architecture/unified_dashboard.py:92:            st.dataframe(df_positions[['ticket', 'symbol', 'type', 'volume', 'price_open', 'price_current', 'profit']], use_container_width=True)
+mt5_bridge_production.py:357:        # Track existing tickets to avoid duplicates
+mt5_bridge_production.py:358:        existing_tickets = {
+mt5_bridge_production.py:359:            entry['data'].get('ticket')
+mt5_bridge_production.py:361:            if entry.get('type') == 'mt5_trade' and 'ticket' in entry.get('data', {})
+mt5_bridge_production.py:368:            ticket = int(trade.get('ticket', 0))
+mt5_bridge_production.py:371:            if ticket in existing_tickets:
+mt5_bridge_production.py:378:                    "ticket": ticket,
+mt5_bridge_production.py:416:                "ticket": int(trade.get("ticket", 0)),
+dashboard/pages/01_Pulse_Dashboard.py:258:                ticket = int(p.get('ticket'))
+dashboard/pages/01_Pulse_Dashboard.py:260:                if c1.button('Close', key=f"close_{ticket}", use_container_width=True, disabled=not st.session_state.enable_actions):
+dashboard/pages/01_Pulse_Dashboard.py:263:                            {'type': 'position_close', 'payload': {'ticket': ticket}},
+dashboard/pages/01_Pulse_Dashboard.py:264:                            idempotency_key=f"close-{ticket}-{uuid.uuid4().hex[:8]}",
+dashboard/pages/01_Pulse_Dashboard.py:267:                if c2.button('Partial 50%', key=f"p50_{ticket}", use_container_width=True, disabled=not st.session_state.enable_actions):
+dashboard/pages/01_Pulse_Dashboard.py:270:                            {'type': 'position_close', 'payload': {'ticket': ticket, 'fraction': 0.5}},
+dashboard/pages/01_Pulse_Dashboard.py:271:                            idempotency_key=f"p50-{ticket}-{uuid.uuid4().hex[:8]}",
+LLM/whisperer_cookbook.yaml:68:      steps: ["GET /api/v1/positions/{ticket}/protect", "Analyze give-back from guide", "Suggest partials"]
+docs/ACTIONS_BUS.md:44:  - `position_close` → full/partial close (payload: {ticket, fraction? | volume?})
+docs/ACTIONS_BUS.md:45:  - `position_modify` → modify SL/TP (payload: {ticket, sl?, tp?})
+docs/ACTIONS_BUS.md:46:  - `position_hedge` → open opposite-side order (payload: {ticket, volume?})
+docs/ACTIONS_BUS.md:56:    -d '{"type":"position_close","payload":{"ticket":302402468,"fraction":0.5}}'
+docs/ACTIONS_BUS.md:61:    -d '{"type":"position_hedge","payload":{"ticket":302402468,"volume":0.10}}'
+docs/custom_gpt_instructions.md:81:- GET `/api/v1/positions/{ticket}/protect`
+services/pulse_bot/bot.py:78:        "/protect_be <ticket> – move SL to BE\n"
+services/pulse_bot/bot.py:79:        "/protect_trail <ticket> [ratio] – trail SL to lock ratio (default 0.5)"
+services/pulse_bot/bot.py:162:def _protect_call(action: str, ticket: int, symbol: str = None, lock_ratio: float = 0.5) -> str:
+services/pulse_bot/bot.py:168:        payload = {"action": action, "ticket": int(ticket)}
+services/pulse_bot/bot.py:186:        await msg.answer("Usage: /protect_be <ticket>")
+services/pulse_bot/bot.py:188:    ticket = int(parts[1])
+services/pulse_bot/bot.py:189:    resp = _protect_call("protect_breakeven", ticket)
+services/pulse_bot/bot.py:198:        await msg.answer("Usage: /protect_trail <ticket> [ratio]")
+services/pulse_bot/bot.py:200:    ticket = int(parts[1])
+services/pulse_bot/bot.py:208:    resp = _protect_call("protect_trail_50", ticket, lock_ratio=ratio)
+tests/test_positions_modify.py:31:    ticket = 123
+tests/test_positions_modify.py:36:        return DummyResp([{ "ticket": ticket, "symbol": "EURUSD" }])
+tests/test_positions_modify.py:40:        return DummyResp({"ok": True, "result": {"ticket": ticket}})
+tests/test_positions_modify.py:51:            resp = await client.post(f"/api/v1/positions/{ticket}/modify", json={"sl": 1.234})
+docs/gpt_llm/GPT_Instructions_1.1.md:20:- Position protection: `/api/v1/positions/{ticket}/protect` (+ price confirm).
+dashboard/pages/20_advanced_risk_manager.py:775:                keep = [c for c in ["time","ticket","symbol","type","volume","price","price_open","price_current","profit","commission","swap","comment"] if c in df.columns]
+dashboard/pages/20_advanced_risk_manager.py:2263:                    'ticket': msg.get('ticket'),
+docs/schemas/journal_entry.schema.json:25:      "description": "Trade ticket ID"
+docs/schemas/journal_entry.schema.json:44:        "ticket": { "type": "integer" },
+docs/gpt_llm/whisperer_zanflow_pack/strategy/zanflow_structural_flow.json:129:      "checkpoint": "position_closed"
+docs/VERBS_CATALOG.md:13:- Positions: position_open, position_close, position_modify, position_hedge
+docs/VERBS_CATALOG.md:35:position_close
+docs/VERBS_CATALOG.md:37:  - ticket: integer
+docs/VERBS_CATALOG.md:46:{ "type": "position_close", "payload": { "ticket": 302402468, "fraction": 0.5 } }
+docs/VERBS_CATALOG.md:51:  - ticket: integer
+docs/VERBS_CATALOG.md:58:{ "type": "position_modify", "payload": { "ticket": 302402468, "sl": 3625 } }
+docs/VERBS_CATALOG.md:63:  - ticket: integer
+docs/VERBS_CATALOG.md:71:{ "type": "position_hedge", "payload": { "ticket": 302402468, "volume": 0.10 } }
+docs/POSITIONS_AND_ORDERS.md:14:  { ticket, fraction? | volume? }
+docs/POSITIONS_AND_ORDERS.md:15:  - Alias: `id`→ticket
+docs/POSITIONS_AND_ORDERS.md:16:- Modify SL/TP: POST `/api/v1/positions/modify` or `/api/v1/positions/<ticket>/modify`
+docs/POSITIONS_AND_ORDERS.md:17:  { ticket?, sl?, tp? }
+docs/POSITIONS_AND_ORDERS.md:18:  - Alias: `id`→ticket
+docs/POSITIONS_AND_ORDERS.md:20:  { ticket, volume? }  (opposite side is inferred from the position)
+docs/POSITIONS_AND_ORDERS.md:23:- `position_open`, `position_close`, `position_modify`, `position_hedge`
+docs/POSITIONS_AND_ORDERS.md:32:- Bridge endpoint `/partial_close_v2` can compute volume from fraction and ticket.
+docs/POSITIONS_AND_ORDERS.md:35:- Bridge: `POST /scale_position { ticket, additional_volume }`
+docs/POSITIONS_AND_ORDERS.md:38:- `POST /hedge { ticket, volume }` or `{ symbol, type: BUY|SELL, volume }`.
+docs/POSITIONS_AND_ORDERS.md:45:    -d '{"ticket":302402468,"fraction":0.25}'
+docs/POSITIONS_AND_ORDERS.md:50:    -d '{"ticket":302402468,"sl":3625}'
+docs/POSITIONS_AND_ORDERS.md:60:    -d '{"ticket":302402468}'
+docs/gpt_llm/whisperer_zanflow_pack/README.md:37:- Protect: `GET /api/v1/positions/{ticket}/protect`
+dashboard/pages/16_risk_manager.py:609:    Clean recent trades for UI display: hide ticket/order IDs, keep human fields only.
+dashboard/pages/16_risk_manager.py:1012:                cols = [c for c in ["time","ticket","symbol","type","volume","price","price_open","price_current","profit","commission","swap","comment"] if c in df.columns]
+dashboard/pages/16_risk_manager.py:1425:        # Recent trades table (no ticket/order ids)
+dashboard/pages/16_risk_manager.py:1828:            cols = [c for c in ["time","ticket","symbol","type","volume","price","price_open","price_current","profit","commission","swap","comment"] if c in df.columns]
+dashboard/pages/30_ unified_dashboard.py:151:            st.dataframe(df_positions[['ticket', 'symbol', 'type', 'volume', 'price_open', 'price_current', 'profit']], use_container_width=True)
+_new/mt5_bridge.py:222:                    "ticket": int(trade['ticket']),
+_new/mt5_bridge.py:240:            if not any(e.get('data', {}).get('ticket') == entry['data']['ticket'] for e in journal):
+dashboard/pages/12_PULSE_Flow.py:530:            c = [x for x in ["ticket","symbol","type","volume","price_open","sl","tp","profit"] if x in dfp.columns]
+_new/mt5_bridge_production.py:347:        # Track existing tickets to avoid duplicates
+_new/mt5_bridge_production.py:348:        existing_tickets = {
+_new/mt5_bridge_production.py:349:            entry['data'].get('ticket')
+_new/mt5_bridge_production.py:351:            if entry.get('type') == 'mt5_trade' and 'ticket' in entry.get('data', {})
+_new/mt5_bridge_production.py:358:            ticket = int(trade.get('ticket', 0))
+_new/mt5_bridge_production.py:361:            if ticket in existing_tickets:
+_new/mt5_bridge_production.py:368:                    "ticket": ticket,
+backend/django/app/nexus/views.py:25:from .orders_service import modify_sl_tp as modify_sl_tp_ticket
+backend/django/app/nexus/views.py:176:        ticket = data.get('ticket')
+backend/django/app/nexus/views.py:177:        if ticket is None:
+backend/django/app/nexus/views.py:178:            return Response({'error': 'Missing field: ticket'}, status=status.HTTP_400_BAD_REQUEST)
+backend/django/app/nexus/views.py:185:        ok, modify_response = modify_sl_tp_ticket(int(ticket), sl=sl, tp=tp)
+backend/django/app/nexus/views.py:543:      - ticket: optional (preferred)
+backend/django/app/nexus/views.py:544:      - symbol: optional (fallback if ticket omitted and only one position on symbol)
+backend/django/app/nexus/views.py:567:        ticket = data.get('ticket')
+backend/django/app/nexus/views.py:596:        if ticket is not None:
+backend/django/app/nexus/views.py:598:                tid = int(ticket)
+backend/django/app/nexus/views.py:600:                return Response({"error": "Invalid ticket"}, status=status.HTTP_400_BAD_REQUEST)
+backend/django/app/nexus/views.py:602:                if int(p.get('ticket', -1)) == tid:
+backend/django/app/nexus/views.py:611:                return Response({"error": "Multiple positions for symbol; specify ticket"}, status=status.HTTP_400_BAD_REQUEST)
+backend/django/app/nexus/views.py:613:            return Response({"error": "ticket or symbol required"}, status=status.HTTP_400_BAD_REQUEST)
+backend/django/app/nexus/views.py:649:            pobj.ticket = int(pos.get('ticket'))
+backend/django/app/nexus/views.py:656:            return Response({"ok": True, "ticket": pobj.ticket, "new_sl": new_sl, "action": action})
+backend/django/app/nexus/views.py:665:      - ticket (int)
+backend/django/app/nexus/views.py:685:            ticket = int(data.get('ticket'))
+backend/django/app/nexus/views.py:689:            return Response({"error": "ticket, symbol, fraction required"}, status=status.HTTP_400_BAD_REQUEST)
+backend/django/app/nexus/views.py:692:            r = requests.post(f"{mt5_base.rstrip('/')}/partial_close", json={'ticket': ticket, 'symbol': symbol, 'fraction': fraction}, timeout=6.0)
+backend/django/app/nexus/views.py:1082:                                'id': it.get('ticket') or it.get('position') or it.get('order') or None,
+backend/django/app/nexus/views.py:1319:            if not payload and typ in ('position_close', 'position_modify', 'position_open', 'position_hedge'):
+backend/django/app/nexus/views.py:1322:                for k in ('ticket', 'fraction', 'volume', 'sl', 'tp', 'symbol', 'side', 'comment'):
+backend/django/app/nexus/views.py:1532:            if typ == 'position_close':
+backend/django/app/nexus/views.py:1533:                # { ticket, fraction?, volume? }
+backend/django/app/nexus/views.py:1538:                ticket = payload.get('ticket')
+backend/django/app/nexus/views.py:1539:                if ticket is None:
+backend/django/app/nexus/views.py:1540:                    return Response({'error': 'ticket required'}, status=400)
+backend/django/app/nexus/views.py:1542:                    pos = get_position(ticket)
+backend/django/app/nexus/views.py:1548:                    int(ticket), fraction=payload.get('fraction'), volume=payload.get('volume'),
+backend/django/app/nexus/views.py:1553:                # { ticket, sl?, tp? }
+backend/django/app/nexus/views.py:1558:                ticket = payload.get('ticket')
+backend/django/app/nexus/views.py:1559:                if ticket is None:
+backend/django/app/nexus/views.py:1560:                    return Response({'error': 'ticket required'}, status=400)
+backend/django/app/nexus/views.py:1567:                modify_position_task.delay(int(ticket), sl=sl, tp=tp)
+backend/django/app/nexus/views.py:1569:                return Response({'status': 'accepted', 'ticket': ticket}, status=status.HTTP_202_ACCEPTED)
+backend/django/app/nexus/views.py:1571:                # { ticket, volume? }
+backend/django/app/nexus/views.py:1576:                ticket = payload.get('ticket')
+backend/django/app/nexus/views.py:1577:                if ticket is None:
+backend/django/app/nexus/views.py:1578:                    return Response({'error': 'ticket required'}, status=400)
+backend/django/app/nexus/views.py:1579:                pos = get_position(ticket)
+backend/django/app/nexus/views.py:1581:                    return Response({'error': f'position {ticket} not found'}, status=404)
+backend/django/app/nexus/views.py:1590:                                              comment=f'hedge ticket={ticket}',
+backend/django/app/nexus/views.py:2522:    Note: underlying modify helper expects trade id and ticket; if id is unknown, this may not persist a mutation record.
+backend/django/app/nexus/views.py:2528:        ticket = data.get('ticket')
+backend/django/app/nexus/views.py:2529:        if ticket is None:
+backend/django/app/nexus/views.py:2530:            return Response({'error': 'ticket required'}, status=400)
+backend/django/app/nexus/views.py:2535:            ok, data = modify_sl_tp_ticket(int(ticket), sl=sl, tp=tp)
+backend/django/app/nexus/views.py:2548:            ticket = int(data.get('ticket'))
+backend/django/app/nexus/views.py:2550:            return Response({'error': 'ticket required'}, status=400)
+backend/django/app/nexus/views.py:2566:                            if int(p.get('ticket') or p.get('Ticket') or -1) == int(tkt):
+backend/django/app/nexus/views.py:2575:            payload = {'ticket': ticket}
+backend/django/app/nexus/views.py:2588:                pos = _fetch_position(ticket)
+backend/django/app/nexus/views.py:2620:            pos = _fetch_position(ticket)
+backend/django/app/nexus/views.py:2637:                    rl = requests.post(f"{base}/partial_close", json={'ticket': int(ticket), 'symbol': symbol, 'fraction': float(frac)}, timeout=6.0)
+backend/django/app/nexus/views.py:2649:                        'ticket': int(pos.get('ticket') or pos.get('Ticket') or ticket),
+backend/django/app/nexus/views.py:2662:                pos2 = _fetch_position(ticket)
+backend/django/app/nexus/views.py:3093:    """Suggest protection options for an open position (ticket).
+backend/django/app/nexus/views.py:3099:    def get(self, request, ticket: int):
+backend/django/app/nexus/views.py:3106:            ps = [p for p in data if int(p.get('ticket', -1)) == int(ticket)] if isinstance(data, list) else []
+backend/django/app/nexus/views.py:3118:            actions.append({'label': 'Move SL to BE', 'action': 'protect_breakeven', 'params': {'ticket': ticket, 'symbol': sym}})
+backend/django/app/nexus/views.py:3126:                actions.append({'label': 'Trail 50%', 'action': 'protect_trail_50', 'params': {'ticket': ticket, 'symbol': sym, 'lock_ratio': 0.5, 'suggested_sl': round(lock, 5)}})
+backend/django/app/nexus/views.py:3127:                actions.append({'label': 'Partial 25%', 'action': 'partial_close_25', 'params': {'ticket': ticket, 'symbol': sym, 'fraction': 0.25}})
+backend/django/app/nexus/views.py:3128:                actions.append({'label': 'Partial 50%', 'action': 'partial_close_50', 'params': {'ticket': ticket, 'symbol': sym, 'fraction': 0.50}})
+backend/django/app/nexus/views.py:3142:                        actions.append({'label': 'Trail SL (ATR14)', 'action': 'protect_trail_atr', 'params': {'ticket': ticket, 'symbol': sym, 'atr14': round(atr14, 5), 'suggested_sl': round(lock, 5)}})
+backend/django/app/nexus/views.py:3153:                    actions.append({'label': 'Structure SL (CHoCH)', 'action': 'protect_structure_sl', 'params': {'ticket': ticket, 'symbol': sym, 'suggested_sl': round(sl, 5)}})
+backend/django/app/nexus/orders_service.py:53:def modify_sl_tp(ticket: int, sl: float | None = None, tp: float | None = None, *, idempotency_key: Optional[str] = None) -> Tuple[bool, Dict[str, Any]]:
+backend/django/app/nexus/orders_service.py:54:    payload: Dict[str, Any] = {"ticket": int(ticket)}
+backend/django/app/nexus/orders_service.py:62:def close_position_partial_or_full(ticket: int, *, fraction: float | None = None, volume: float | None = None,
+backend/django/app/nexus/orders_service.py:64:    payload: Dict[str, Any] = {"ticket": int(ticket)}
+backend/django/app/nexus/orders_service.py:73:def get_position(ticket: int) -> Dict[str, Any]:
+backend/django/app/nexus/orders_service.py:80:                if int(p.get("ticket")) == int(ticket):
+dashboard/pages/19_advanced_risk_manager.py:935:                keep = [c for c in ["time","ticket","symbol","type","volume","price","price_open","price_current","profit","commission","swap","comment"] if c in df.columns]
+dashboard/pages/19_advanced_risk_manager.py:2309:                    'ticket': msg.get('ticket'),
+backend/django/app/nexus/urls.py:145:    path('positions/<int:ticket>/modify', PositionsModifyByTicketView.as_view(), name='positions-modify-ticket'),
+backend/django/app/nexus/urls.py:165:    path('positions/<int:ticket>/protect', PositionProtectOptionsView.as_view(), name='position-protect-options'),
+openapi.yaml:267:              required: [ticket]
+openapi.yaml:269:                ticket: { type: integer }
+openapi.yaml:283:              required: [ticket]
+openapi.yaml:285:                ticket: { type: integer }
+openapi.yaml:319:              required: [ticket]
+openapi.yaml:321:                ticket: { type: integer }
+openapi.yaml:337:              required: [ticket]
+openapi.yaml:339:                ticket: { type: integer }
+openapi.yaml:345:  /api/v1/positions/{ticket}/modify:
+openapi.yaml:347:      summary: Modify SL/TP for an existing position by ticket in path
+openapi.yaml:351:          name: ticket
+openapi.yaml:376:              required: [ticket]
+openapi.yaml:378:                ticket: { type: integer }
+openapi.yaml:634:  /api/v1/positions/{ticket}/protect:
+openapi.yaml:640:          name: ticket
+tree.md:117:ticket.py
+dashboard/_mix/unified_dashboard.py:92:            st.dataframe(df_positions[['ticket', 'symbol', 'type', 'volume', 'price_open', 'price_current', 'profit']], use_container_width=True)
+dashboard/_mix/19_advanced_risk_manager.py:729:            display_cols = ['ticket', 'symbol', 'type', 'volume', 'price_open', 
+openapi.actions.yaml:182:              position_close_half:
+openapi.actions.yaml:185:                  type: position_close
+openapi.actions.yaml:187:                    ticket: 302402468
+openapi.actions.yaml:194:                    ticket: 302402468
+openapi.actions.yaml:211:                    ticket: 302402468
+openapi.actions.yaml:269:                  ticket: 302402468
+openapi.actions.yaml:274:                  ticket: 302402468
+openapi.actions.yaml:300:                  ticket: 302402468
+openapi.actions.yaml:304:                  ticket: 302402468
+openapi.actions.yaml:331:                  ticket: 302402468
+openapi.actions.yaml:336:                  ticket: 302402468
+openapi.actions.yaml:350:  /api/v1/positions/{ticket}/modify:
+openapi.actions.yaml:352:      summary: Modify an existing open position by ticket (SL/TP)
+openapi.actions.yaml:356:          name: ticket
+openapi.actions.yaml:424:          position_close: '#/components/schemas/PositionCloseRequest'
+openapi.actions.yaml:477:              position_close,
+openapi.actions.yaml:514:        type: { type: string, const: position_close }
+openapi.actions.yaml:678:      required: [ticket]
+openapi.actions.yaml:680:        ticket: { type: integer }
+openapi.actions.yaml:690:      required: [ticket]
+openapi.actions.yaml:692:        ticket: { type: integer }
+openapi.actions.yaml:701:      required: [ticket]
+openapi.actions.yaml:703:        ticket: { type: integer }
+actions/OPENAI_ACTIONS.yaml:101:            - position_close
+actions/OPENAI_ACTIONS.yaml:129:  - name: position_close
+actions/OPENAI_ACTIONS.yaml:136:        ticket:
+actions/OPENAI_ACTIONS.yaml:138:          description: Trade ticket ID to close
+actions/OPENAI_ACTIONS.yaml:147:      required: [ticket]
+actions/OPENAI_ACTIONS.yaml:156:        ticket:
+actions/OPENAI_ACTIONS.yaml:158:          description: Trade ticket ID
+actions/OPENAI_ACTIONS.yaml:165:      required: [ticket]
+actions/OPENAI_ACTIONS.yaml:167:  - name: position_modify_by_ticket
+actions/OPENAI_ACTIONS.yaml:168:    description: Modify SL/TP for an existing position by ticket path
+actions/OPENAI_ACTIONS.yaml:169:    endpoint: /api/v1/positions/{ticket}/modify
+actions/OPENAI_ACTIONS.yaml:174:        ticket:
+actions/OPENAI_ACTIONS.yaml:176:          description: Trade ticket ID (path parameter)
+actions/OPENAI_ACTIONS.yaml:183:      required: [ticket]
+actions/OPENAI_ACTIONS.yaml:192:        ticket:
+actions/OPENAI_ACTIONS.yaml:194:          description: Trade ticket ID to hedge
+actions/OPENAI_ACTIONS.yaml:198:      required: [ticket]
+backend/django/app/nexus/views_positions.py:63:    Body: { ticket: int, fraction?: float, volume?: float }
+backend/django/app/nexus/views_positions.py:69:        ticket = _alias(payload, "ticket", "id")
+backend/django/app/nexus/views_positions.py:70:        if ticket is None:
+backend/django/app/nexus/views_positions.py:71:            return Response({"error": "ticket required"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+backend/django/app/nexus/views_positions.py:74:        pos = get_position(ticket)
+backend/django/app/nexus/views_positions.py:76:            return Response({"error": f"position {ticket} not found"}, status=status.HTTP_404_NOT_FOUND)
+backend/django/app/nexus/views_positions.py:81:            ticket=int(ticket),
+backend/django/app/nexus/views_positions.py:107:                    "ticket": int(ticket),
+backend/django/app/nexus/views_positions.py:119:                text=(f"Closed {float(fraction)*100:.0f}% of {pos.get('symbol')}" if fraction is not None else f"Closed ticket={ticket}"),
+backend/django/app/nexus/views_positions.py:121:                trade_id=int(ticket),
+backend/django/app/nexus/views_positions.py:122:                tags=["position_close", "partial" if action == "PARTIAL_CLOSE" else "full"],
+backend/django/app/nexus/views_positions.py:131:    Body: { ticket: int, sl?: float, tp?: float }
+backend/django/app/nexus/views_positions.py:136:        ticket = _alias(payload, "ticket", "id")
+backend/django/app/nexus/views_positions.py:137:        if ticket is None:
+backend/django/app/nexus/views_positions.py:138:            return Response({"error": "ticket required"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+backend/django/app/nexus/views_positions.py:143:        ok, data = modify_position(ticket=int(ticket), sl=sl, tp=tp)
+backend/django/app/nexus/views_positions.py:146:                "ticket": int(ticket),
+backend/django/app/nexus/views_positions.py:153:                text=f"Modify SL/TP ticket={ticket}",
+backend/django/app/nexus/views_positions.py:155:                trade_id=int(ticket),
+backend/django/app/nexus/views_positions.py:163:    """POST /api/v1/positions/<ticket>/modify"""
+backend/django/app/nexus/views_positions.py:165:    def post(self, request, ticket: int):
+backend/django/app/nexus/views_positions.py:171:        ok, data = modify_position(ticket=int(ticket), sl=sl, tp=tp)
+backend/django/app/nexus/views_positions.py:174:                "ticket": int(ticket),
+backend/django/app/nexus/views_positions.py:181:                text=f"Modify SL/TP ticket={ticket}",
+backend/django/app/nexus/views_positions.py:183:                trade_id=int(ticket),
+backend/django/app/nexus/views_positions.py:193:    Body: { ticket: int, volume?: float }
+backend/django/app/nexus/views_positions.py:200:        ticket = payload.get("ticket")
+backend/django/app/nexus/views_positions.py:201:        if ticket is None:
+backend/django/app/nexus/views_positions.py:202:            return Response({"error": "ticket required"}, status=status.HTTP_400_BAD_REQUEST)
+backend/django/app/nexus/views_positions.py:204:        pos = get_position(ticket)
+backend/django/app/nexus/views_positions.py:206:            return Response({"error": f"position {ticket} not found"}, status=status.HTTP_404_NOT_FOUND)
+backend/django/app/nexus/views_positions.py:222:            comment=f"hedge ticket={ticket}",
+backend/django/app/nexus/views_positions.py:232:                "ticket": int(ticket),
+backend/django/app/nexus/views_positions.py:238:            journal_append(kind="HEDGE", text=f"Hedged ticket={ticket}", meta=meta, trade_id=int(ticket), tags=["hedge"])            
+knowledge/kb_001.txt:74:Support ticket reduction: 60%
+backend/django/app/nexus/management/commands/sync_mt5_trades.py:80:        # Group by position id when available; else by ticket
+backend/django/app/nexus/management/commands/sync_mt5_trades.py:83:            key = str(d.get("position") or d.get("ticket") or d.get("order") or "")
+backend/django/app/nexus/management/commands/sync_mt5_trades.py:152:                # Create or update by transaction_broker_id (use position id / ticket)
+api_integration/django_api_client.py:196:    def modify_sl_tp(self, ticket, sl=None, tp=None) -> Dict:
+api_integration/django_api_client.py:201:            ticket: The position ticket
+api_integration/django_api_client.py:209:            data = {'ticket': ticket}
+backend/mt5/app/lib.py:21:    if 'type' not in position or 'ticket' not in position:
+backend/mt5/app/lib.py:22:        logger.error("Position dictionary missing 'type' or 'ticket' keys.")
+backend/mt5/app/lib.py:26:        0: mt5.ORDER_TYPE_BUY,
+backend/mt5/app/lib.py:27:        1: mt5.ORDER_TYPE_SELL
+backend/mt5/app/lib.py:51:        "action": mt5.TRADE_ACTION_DEAL,
+backend/mt5/app/lib.py:52:        "position": position['ticket'],  # select the position you want to close
+backend/mt5/app/lib.py:67:        logger.error(f"Failed to close position {position['ticket']}: {order_result.comment}")
+backend/mt5/app/lib.py:70:    logger.info(f"Position {position['ticket']} closed successfully.")
+backend/mt5/app/lib.py:76:        'BUY': mt5.ORDER_TYPE_BUY,
+backend/mt5/app/lib.py:77:        'SELL': mt5.ORDER_TYPE_SELL
+backend/mt5/app/lib.py:110:                logger.error(f"Failed to close position {position['ticket']}.")
+backend/mt5/app/lib.py:142:        return pd.DataFrame(columns=['ticket', 'time', 'time_msc', 'time_update', 'time_update_msc', 'type',
+backend/mt5/app/lib.py:147:def get_deal_from_ticket(ticket, from_date=None, to_date=None):
+backend/mt5/app/lib.py:148:    if not isinstance(ticket, int):
+backend/mt5/app/lib.py:162:    deals = mt5.history_deals_get(from_timestamp, to_timestamp, position=ticket)
+backend/mt5/app/lib.py:164:        logger.error(f"No deal history found for position ticket {ticket} between {from_date} and {to_date}.")
+backend/mt5/app/lib.py:172:        logger.error(f"Inconsistent symbols found in deals for position ticket {ticket}.")
+backend/mt5/app/lib.py:178:            'ticket': ticket,
+backend/mt5/app/lib.py:196:def get_order_from_ticket(ticket):
+backend/mt5/app/lib.py:197:    if not isinstance(ticket, int):
+backend/mt5/app/lib.py:202:    order = mt5.history_orders_get(ticket=ticket)
+backend/mt5/app/lib.py:204:        logger.error(f"No order history found for ticket {ticket}")
+backend/django/app/utils/api/positions.py:20:    'ticket', 'time', 'time_msc', 'time_update', 'time_update_msc', 'type',
+backend/mt5/app/routes/history.py:6:from lib import get_deal_from_ticket, get_order_from_ticket
+backend/mt5/app/routes/history.py:11:@history_bp.route('/get_deal_from_ticket', methods=['GET'])
+backend/mt5/app/routes/history.py:16:            'name': 'ticket',
+backend/mt5/app/routes/history.py:29:                    'ticket': {'type': 'integer'},
+backend/mt5/app/routes/history.py:45:            'description': 'Invalid ticket format.'
+backend/mt5/app/routes/history.py:55:def get_deal_from_ticket_endpoint():
+backend/mt5/app/routes/history.py:59:    description: Retrieve deal information associated with a specific ticket number.
+backend/mt5/app/routes/history.py:62:        ticket = request.args.get('ticket')
+backend/mt5/app/routes/history.py:63:        if not ticket:
+backend/mt5/app/routes/history.py:66:        ticket = int(ticket)
+backend/mt5/app/routes/history.py:67:        deal = get_deal_from_ticket(ticket)
+backend/mt5/app/routes/history.py:74:        return jsonify({"error": "Invalid ticket format"}), 400
+backend/mt5/app/routes/history.py:76:        logger.error(f"Error in get_deal_from_ticket: {str(e)}")
+backend/mt5/app/routes/history.py:79:@history_bp.route('/get_order_from_ticket', methods=['GET'])
+backend/mt5/app/routes/history.py:84:            'name': 'ticket',
+backend/mt5/app/routes/history.py:103:            'description': 'Invalid ticket format.'
+backend/mt5/app/routes/history.py:113:def get_order_from_ticket_endpoint():
+backend/mt5/app/routes/history.py:117:    description: Retrieve order information associated with a specific ticket number.
+backend/mt5/app/routes/history.py:120:        ticket = request.args.get('ticket')
+backend/mt5/app/routes/history.py:121:        if not ticket:
+backend/mt5/app/routes/history.py:124:        ticket = int(ticket)
+backend/mt5/app/routes/history.py:125:        order = get_order_from_ticket(ticket)
+backend/mt5/app/routes/history.py:132:        return jsonify({"error": "Invalid ticket format"}), 400
+backend/mt5/app/routes/history.py:134:        logger.error(f"Error in get_order_from_ticket: {str(e)}")
+backend/mt5/app/routes/history.py:226:            'name': 'ticket',
+backend/mt5/app/routes/history.py:245:            'description': 'Invalid ticket format or missing parameter.'
+backend/mt5/app/routes/history.py:259:    description: Retrieve historical orders associated with a specific ticket number.
+backend/mt5/app/routes/history.py:262:        ticket = request.args.get('ticket')
+backend/mt5/app/routes/history.py:263:        if not ticket:
+backend/mt5/app/routes/history.py:266:        ticket = int(ticket)
+backend/mt5/app/routes/history.py:267:        orders = mt5.history_orders_get(ticket=ticket)
+backend/mt5/app/routes/history.py:275:        return jsonify({"error": "Invalid ticket format"}), 400
+backend/django/app/utils/api/order.py:79:            "ticket": position.ticket,
+backend/django/app/utils/api/order.py:106:        error_msg = f"HTTP error sending modify SL/TP for {position.ticket}: {e.response.text}"
+backend/django/app/utils/api/order.py:110:        error_msg = f"Timeout sending modify SL/TP for {position.ticket}"
+backend/django/app/utils/api/order.py:115:        error_msg = f"Exception sending modify SL/TP for {position.ticket}: {str(e)}\n{traceback.format_exc()}"
+backend/django/app/utils/api/ticket.py:36:def history_orders_get(ticket: int) -> Dict:
+backend/django/app/utils/api/ticket.py:38:        params = {'ticket': ticket}
+backend/django/app/utils/api/ticket.py:46:        error_msg = f"Exception fetching history orders for ticket {ticket}: {e}\n{traceback.format_exc()}"
+backend/django/app/utils/api/ticket.py:49:def get_deal_from_ticket(ticket: int, from_date: datetime, to_date: datetime) -> Dict:
+backend/django/app/utils/api/ticket.py:55:    deals = history_deals_get(from_timestamp, to_timestamp, position=ticket)
+backend/django/app/utils/api/ticket.py:57:        error_msg = f"No deal history found for position ticket {ticket} between {from_date} and {to_date}."
+backend/django/app/utils/api/ticket.py:66:        error_msg = f"Inconsistent symbols found in deals for position ticket {ticket}."
+backend/django/app/utils/api/ticket.py:73:            'ticket': ticket,
+backend/django/app/utils/api/ticket.py:91:def get_order_from_ticket(ticket: int) -> Dict:
+backend/django/app/utils/api/ticket.py:93:    orders = history_orders_get(ticket=ticket)
+backend/django/app/utils/api/ticket.py:95:        error_msg = f"No order history found for ticket {ticket}"
+backend/mt5/app/routes/position.py:25:                            'ticket': {'type': 'integer'},
+backend/mt5/app/routes/position.py:29:                        'required': ['type', 'ticket', 'symbol', 'volume']
+backend/mt5/app/routes/position.py:223:            "action": mt5.TRADE_ACTION_SLTP,
+backend/mt5/app/routes/position.py:262:                                'ticket': {'type': 'integer'},
+backend/mt5/app/app.py:101:            if t in (mt5.ORDER_TYPE_BUY, mt5.ORDER_TYPE_SELL):
+backend/mt5/app/app.py:107:                return mt5.ORDER_TYPE_BUY
+backend/mt5/app/app.py:109:                return mt5.ORDER_TYPE_SELL
+backend/mt5/app/app.py:125:    price = tick.ask if order_type == mt5.ORDER_TYPE_BUY else tick.bid
+backend/mt5/app/app.py:127:        'action': mt5.TRADE_ACTION_DEAL,
+backend/mt5/app/app.py:141:def _find_position(ticket: int):
+backend/mt5/app/app.py:145:            if int(p.ticket) == int(ticket):
+backend/mt5/app/app.py:167:        ticket = int(d.get('ticket'))
+backend/mt5/app/app.py:169:        return jsonify({'error': 'ticket required'}), 400
+backend/mt5/app/app.py:170:    pos = _find_position(ticket)
+backend/mt5/app/app.py:191:    opposite = mt5.ORDER_TYPE_SELL if int(pos.type) == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
+backend/mt5/app/app.py:197:        ticket = int(d.get('ticket'))
+backend/mt5/app/app.py:201:        return jsonify({'error': 'ticket, symbol, fraction required'}), 400
+backend/mt5/app/app.py:204:    pos = _find_position(ticket)
+backend/mt5/app/app.py:207:    opposite = mt5.ORDER_TYPE_SELL if int(pos.type) == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
+backend/mt5/app/app.py:215:        ticket = int(p.get('ticket'))
+backend/mt5/app/app.py:221:    opposite = mt5.ORDER_TYPE_SELL if ptype == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
+backend/django/app/utils/db/get.py:9:def get_trade_with_mutations(ticket: int) -> Optional[Dict[str, Any]]:
+backend/django/app/utils/db/get.py:11:        trade = Trade.objects.filter(transaction_broker_id=ticket).first()
+backend/django/app/utils/db/get.py:13:            logger.error(f"No trade found with ticket {ticket}")
+backend/mt5/app/routes/order.py:10:    Returns mt5.ORDER_TYPE_BUY or mt5.ORDER_TYPE_SELL, or None if invalid.
+backend/mt5/app/routes/order.py:14:            if t in (mt5.ORDER_TYPE_BUY, mt5.ORDER_TYPE_SELL):
+backend/mt5/app/routes/order.py:20:                return mt5.ORDER_TYPE_BUY
+backend/mt5/app/routes/order.py:22:                return mt5.ORDER_TYPE_SELL
+backend/mt5/app/routes/order.py:126:            "action": mt5.TRADE_ACTION_DEAL,
+backend/mt5/app/routes/order.py:143:        if order_type == mt5.ORDER_TYPE_BUY:
+backend/mt5/app/routes/order.py:145:        elif order_type == mt5.ORDER_TYPE_SELL:
+backend/mt5/app/routes/order.py:191:                    'ticket': {'type': 'integer'},
+backend/mt5/app/routes/order.py:196:                'required': ['ticket', 'symbol']
+backend/mt5/app/routes/order.py:211:    Modify SL/TP of an open position via TRADE_ACTION_SLTP.
+backend/mt5/app/routes/order.py:215:        ticket = data.get('ticket')
+backend/mt5/app/routes/order.py:219:        if ticket is None or not symbol:
+backend/mt5/app/routes/order.py:220:            return jsonify({"error": "ticket and symbol required"}), 400
+backend/mt5/app/routes/order.py:223:            'action': mt5.TRADE_ACTION_SLTP,
+backend/mt5/app/routes/order.py:224:            'position': int(ticket),
+backend/mt5/app/routes/order.py:259:                'ticket': {'type': 'integer'},
+backend/mt5/app/routes/order.py:263:            'required': ['ticket', 'symbol', 'fraction']
+backend/mt5/app/routes/order.py:270:        ticket = int(data.get('ticket'))
+backend/mt5/app/routes/order.py:280:                if int(p.ticket) == ticket:
+backend/mt5/app/routes/order.py:291:        opposite = mt5.ORDER_TYPE_SELL if int(pos.type) == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
+backend/mt5/app/routes/order.py:292:        price = tick.bid if opposite == mt5.ORDER_TYPE_SELL else tick.ask
+backend/mt5/app/routes/order.py:294:            'action': mt5.TRADE_ACTION_DEAL,
+backend/mt5/app/routes/order.py:295:            'position': ticket,
+backend/mt5/app/routes/order.py:322:        ticket = int(data.get('ticket'))
+backend/mt5/app/routes/order.py:325:        if ticket is None:
+backend/mt5/app/routes/order.py:326:            return jsonify({'error': 'ticket required'}), 400
+backend/mt5/app/routes/order.py:327:        # Locate position by ticket
+backend/mt5/app/routes/order.py:331:            if int(p.ticket) == int(ticket):
+backend/mt5/app/routes/order.py:362:        opposite = mt5.ORDER_TYPE_SELL if int(pos.type) == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
+backend/mt5/app/routes/order.py:363:        price = tick.bid if opposite == mt5.ORDER_TYPE_SELL else tick.ask
+backend/mt5/app/routes/order.py:365:            'action': mt5.TRADE_ACTION_DEAL,
+backend/mt5/app/routes/order.py:366:            'position': int(ticket),
+backend/mt5/app/routes/order.py:389:    Body: { ticket: int, additional_volume: float }
+backend/mt5/app/routes/order.py:393:        ticket = int(data.get('ticket'))
+backend/mt5/app/routes/order.py:400:            if int(p.ticket) == int(ticket):
+backend/mt5/app/routes/order.py:405:        order_type = mt5.ORDER_TYPE_BUY if int(pos.type) == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_SELL
+backend/mt5/app/routes/order.py:409:        price = tick.ask if order_type == mt5.ORDER_TYPE_BUY else tick.bid
+backend/mt5/app/routes/order.py:411:            'action': mt5.TRADE_ACTION_DEAL,
+backend/mt5/app/routes/order.py:434:    Body: either { ticket: int, volume: float } or { symbol: str, volume: float, type: 'BUY'|'SELL' }.
+backend/mt5/app/routes/order.py:435:    If ticket is provided, side is inferred as the opposite of the ticket's position.
+backend/mt5/app/routes/order.py:439:        ticket = data.get('ticket')
+backend/mt5/app/routes/order.py:444:        if ticket is not None:
+backend/mt5/app/routes/order.py:449:                if int(p.ticket) == int(ticket):
+backend/mt5/app/routes/order.py:455:            side = mt5.ORDER_TYPE_SELL if int(pos.type) == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
+backend/mt5/app/routes/order.py:458:                return jsonify({'error': 'symbol or ticket required'}), 400
+backend/mt5/app/routes/order.py:466:        price = tick.bid if side == mt5.ORDER_TYPE_SELL else tick.ask
+backend/mt5/app/routes/order.py:468:            'action': mt5.TRADE_ACTION_DEAL,
+backend/django/app/utils/db/close.py:8:def close_trade(ticket, close_time, close_price, pnl, pnl_excluding_commission, closing_reason, closed_deal):
+backend/django/app/utils/db/close.py:11:            trade = Trade.objects.get(transaction_broker_id=ticket)
+backend/django/app/utils/db/close.py:13:            error_msg = f"No Trade found with transaction_broker_id {ticket}"
+backend/django/app/utils/db/mutation.py:15:            trade = Trade.objects.get(transaction_broker_id=position.ticket)
+backend/django/app/utils/db/mutation.py:26:        error_msg = f"No Trade found with transaction_broker_id {position.ticket}"
+backend/django/app/nexus/tasks.py:89:def modify_position_task(ticket: int, sl: float = None, tp: float = None):
+backend/django/app/nexus/tasks.py:93:        ok, data = modify_position(ticket, sl=sl, tp=tp)
+backend/django/app/nexus/tasks.py:95:            logger.error(f"Failed to modify position {ticket}: {data}")
+backend/django/app/nexus/tasks.py:98:        logger.error(f"Exception in modify_position_task for ticket {ticket}: {e}")
+ZANALYTICS_PULSE_STAKEHOLDER_UPDATE.md:141:- Support ticket reduction: 60%
+backend/django/app/quant/algorithms/mean_reversion/trailing.py:27:from app.utils.api.ticket import get_order_from_ticket, get_deal_from_ticket
+backend/django/app/quant/algorithms/mean_reversion/trailing.py:67:            # Check if the position ticket exists in trades dict
+backend/django/app/quant/algorithms/mean_reversion/trailing.py:68:            trade_with_mutations = get_trade_with_mutations(position.ticket)
+backend/django/app/quant/algorithms/mean_reversion/trailing.py:71:                error_msg = f"No trade found with ticket {position.ticket}"
+backend/django/app/quant/algorithms/mean_reversion/trailing.py:190:                        logger.info(f"Processed trailing_step for position {position.ticket} in {trailing_duration:.4f} seconds.")
+backend/django/app/quant/algorithms/mean_reversion/trailing.py:194:                        # print(f"Warning: Stop Loss is None for position {position.ticket}")
+backend/django/app/quant/algorithms/mean_reversion/trailing.py:196:                    # print(f"Warning: Profit or trigger PNL is None for position {position.ticket}")
+backend/django/app/quant/algorithms/mean_reversion/trailing.py:201:            logger.info(f"Processed position {position.ticket} in {position_duration:.4f} seconds.")
+backend/django/app/quant/algorithms/close/close.py:9:from app.utils.api.ticket import get_order_from_ticket, get_deal_from_ticket
+backend/django/app/quant/algorithms/close/close.py:32:                'ticket', 'time', 'time_msc', 'time_update', 'time_update_msc', 'type',
+backend/django/app/quant/algorithms/close/close.py:42:        current_tickets = set(positions['ticket'].values)
+backend/django/app/quant/algorithms/close/close.py:43:        cached_tickets = set(cached_positions.keys())
+backend/django/app/quant/algorithms/close/close.py:45:        # Identify closed tickets
+backend/django/app/quant/algorithms/close/close.py:46:        closed_tickets = cached_tickets - current_tickets
+backend/django/app/quant/algorithms/close/close.py:48:        for ticket in closed_tickets:
+backend/django/app/quant/algorithms/close/close.py:49:            position = cached_positions.pop(ticket)
+backend/django/app/quant/algorithms/close/close.py:54:                closed_order = get_order_from_ticket(ticket)
+backend/django/app/quant/algorithms/close/close.py:55:                closed_deal = get_deal_from_ticket(ticket)
+backend/django/app/quant/algorithms/close/close.py:58:                    error_msg = f"Failed to retrieve deal for closed ticket {ticket}."
+backend/django/app/quant/algorithms/close/close.py:61:                        "ticket": ticket,
+backend/django/app/quant/algorithms/close/close.py:74:                closed_trade = close_trade(position.ticket, close_time, close_price, pnl, pnl_excluding_commission, closing_reason, closed_deal)
+backend/django/app/quant/algorithms/close/close.py:83:                    error_msg = f"Failed to close trade {ticket}."
+backend/django/app/quant/algorithms/close/close.py:84:                    logger.error({"error": error_msg, "ticket": ticket})
+backend/django/app/quant/algorithms/close/close.py:87:                error_msg = f"Error processing closed ticket {ticket}: {e}\n{traceback.format_exc()}"
+backend/django/app/quant/algorithms/close/close.py:88:                logger.error({"error": error_msg, "ticket": ticket})
+backend/django/app/quant/algorithms/close/close.py:92:            cached_positions[position.ticket] = position

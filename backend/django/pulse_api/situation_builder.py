@@ -1,14 +1,13 @@
-from datetime import datetime
 import os
 import requests
 import pandas as pd
-from zoneinfo import ZoneInfo
+from utils.time_utils import localize_tz
 
 MT5_URL = os.getenv("MT5_URL", "http://mt5:5001")
 
 
 def _now_ctx():
-    ny = datetime.now(ZoneInfo("America/New_York"))
+    ny = localize_tz(pd.Timestamp.utcnow())
     session = "LONDON" if 7 <= ny.hour <= 13 else "OTHER"
     return {
         "session": session,
@@ -53,7 +52,7 @@ def build_situation(symbol: str):
 
     return {
         "asset": symbol,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": localize_tz(pd.Timestamp.utcnow()).isoformat(),
         "time_context": _now_ctx(),
         "macro_context": {},
         "price_data": {"symbol": symbol, "Close": price} if price is not None else {},

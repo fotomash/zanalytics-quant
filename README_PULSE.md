@@ -51,11 +51,12 @@ Key paths:
 - `GET /api/v1/mirror/state` – Behavioral mirror state (discipline, patience, efficiency, conviction, pnl_norm)
 - `GET /api/v1/discipline/summary` – Today/yesterday/7‑day discipline + events
 - `GET /api/v1/profit-horizon?limit=20` – Profit Horizon data (ghost bars)
-- `GET /api/v1/account/positions` – Normalized open positions from MT5 bridge (safe fallback [])
+- `GET /api/v1/account/positions` – Normalized open positions from MT5 bridge (returns error payload if bridge unavailable)
 - `GET /api/pulse/whispers` – Latest whispers
 - `POST /api/pulse/whisper/ack` – Acknowledge a whisper
 - `POST /api/pulse/whisper/act` – Journal act intent
 - `GET /api/pulse/whispers/log` – Human-readable whisper timeline
+- `POST /score/peek` – Preview a confluence score; requires JSON `{"bars": [...]}`
 
 Optional market utilities:
 
@@ -76,3 +77,5 @@ Optional market utilities:
 
 Proprietary – © Zanalytics.
 
+
+Return to [main README](README.md)

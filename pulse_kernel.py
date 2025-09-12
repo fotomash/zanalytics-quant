@@ -12,12 +12,15 @@ import asyncio
 import json
 import time
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import redis
 import logging
 from redis.exceptions import RedisError
 from confluent_kafka import Producer
 from tenacity import retry, stop_after_attempt, wait_exponential
+import yaml
+from core.confidence_tracer import ConfidenceTracer
+from core.semantic_mapping_service import SemanticMappingService
 try:
     from whisper_engine import WhisperEngine, State, serialize_whispers
 except Exception:
@@ -57,7 +60,12 @@ class PulseKernel:
         # Initialize components
         self.risk_enforcer = RiskEnforcer()
         self.journal = None  # Placeholder for JournalEngine
-        
+
+        # Agent routing and confidence tracking
+        self.semantic_service = SemanticMappingService()
+        self.confidence_tracer = ConfidenceTracer()
+        self.agent_registry: Dict[str, Dict[str, Any]] = {}
+
         # State management
         self.active_signals = {}
         self.daily_stats = self._init_daily_stats()
@@ -66,7 +74,6 @@ class PulseKernel:
         self.whisper = None
         if WhisperEngine is not None:
             try:
-                import yaml
                 cfg = yaml.safe_load(open(config_path)) if os.path.exists(config_path) else {}
             except Exception:
                 cfg = {}
@@ -109,8 +116,7 @@ class PulseKernel:
 
     def _load_config(self, config_path: str) -> Dict:
         """Load configuration from YAML file"""
-        # In production, use proper YAML loading
-        return {
+        default_cfg = {
             'redis': {'host': 'redis_service', 'port': 6379, 'db': 0},
             'risk_limits': {
                 'daily_loss_limit': 500,
@@ -124,6 +130,13 @@ class PulseKernel:
                 'fatigue_hour': 22
             }
         }
+        try:
+            return yaml.safe_load(open(config_path)) or default_cfg
+        except FileNotFoundError:
+            logger.warning(f"Config file {config_path} not found. Using defaults.")
+        except yaml.YAMLError as e:
+            logger.error(f"Error parsing config file {config_path}: {e}")
+        return default_cfg
     
     def _init_daily_stats(self) -> Dict:
         """Initialize daily statistics"""
@@ -136,6 +149,54 @@ class PulseKernel:
             'violations': [],
             'last_trade_time': None
         }
+
+    # ------------------------------------------------------------------
+    # Agent execution utilities
+    # ------------------------------------------------------------------
+    def _get_agent_callable(self, agent_id: str):
+        """Return the callable entry point for ``agent_id``."""
+        cfg = self.agent_registry.get(agent_id)
+        if cfg is None:
+            return None
+        if callable(cfg):
+            return cfg
+        entry_points = cfg.get("entry_points", {}) if isinstance(cfg, dict) else {}
+        func = (
+            entry_points.get("on_message")
+            or entry_points.get("run")
+            or entry_points.get("call")
+            or next(iter(entry_points.values()), None)
+        )
+        return func if callable(func) else None
+
+    def run(self, request: Any, *args: Any, threshold: float = 0.5, **kwargs: Any) -> Any:
+        """Route ``request`` to agents and execute with confidence fallbacks."""
+
+        primary, fallbacks = self.semantic_service.route(request)
+        if primary is None:
+            logger.warning("No agent mapping for %s", request)
+            return None
+        candidates = [primary, *fallbacks]
+        logger.info("Routing request via agents: %s", candidates)
+        best_result: Any = None
+        best_score = float("-inf")
+        for agent_id in candidates:
+            handler = self._get_agent_callable(agent_id)
+            if handler is None:
+                logger.warning("No handler for agent %s", agent_id)
+                continue
+            try:
+                result = handler(request, *args, **kwargs)
+            except Exception:  # pragma: no cover - defensive
+                logger.exception("Agent %s failed for request %s", agent_id, request)
+                continue
+            score = self.confidence_tracer.trace(result)
+            logger.info("Agent %s produced confidence %.3f", agent_id, score)
+            if score > best_score:
+                best_score, best_result = score, result
+            if score >= threshold:
+                break
+        return best_result
     
     async def on_frame(self, data: Dict) -> Dict:
         """
@@ -348,19 +409,34 @@ class PulseKernel:
         except RedisError:
             logger.warning("Redis publish failed")
         
-        # Send to Telegram if significant
+        # Send to Discord if significant
         if decision['action'] in ['signal', 'blocked', 'warning']:
-            await self._send_telegram_alert(decision)
-    
-    async def _send_telegram_alert(self, decision: Dict):
-        """Send alert to Telegram bot"""
-        # Telegram integration would go here
+            await self._send_discord_alert(decision)
+
+    async def _send_discord_alert(self, decision: Dict):
+        """Send alert to Discord bot"""
+        # Discord integration would go here
         pass
 
     def flush_and_close(self) -> None:
-        """Cleanup method to ensure Kafka producer flushes messages."""
-        self.kafka_producer.flush()
-        self.kafka_producer.close()
+        """Cleanup method to ensure Kafka and Redis resources are released."""
+        try:
+            # Flush pending Kafka messages and close the producer
+            self.kafka_producer.flush()
+        finally:
+            try:
+                self.kafka_producer.close()
+            except Exception:
+                pass
+
+        # Close Redis connection pool
+        try:
+            self.redis_client.close()
+        except Exception:
+            try:
+                self.redis_client.connection_pool.disconnect()
+            except Exception:
+                pass
 
     def get_status(self) -> Dict:
         """Get current system status"""

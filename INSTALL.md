@@ -10,7 +10,7 @@ Use this checklist to upload and enable the Whisperer pack for GPT.
 
 2) Configure Actions (OpenAPI)
 - Add an Action with manifest: openapi.actions.yaml
-- Server base URL: your Django host (e.g., https://django2.zanalytics.app)
+- Server base URL: your Django host (e.g., https://mcp2.zanalytics.app)
 - Endpoints exposed via Actions Bus:
   - POST /api/v1/actions/query with verbs: session_boot, trades_recent, trades_history_mt5, whisper_suggest
 

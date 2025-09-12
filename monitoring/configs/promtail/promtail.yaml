@@ -26,6 +26,14 @@ scrape_configs:
         target_label: 'logstream'
       - source_labels: ['__meta_docker_container_label_logging_jobname']
         target_label: 'job'
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/mcp'
+        target_label: 'job'
+        replacement: 'mcp'
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/mcp'
+        target_label: 'service'
+        replacement: 'mcp'
     pipeline_stages:
       - cri: {}
       - multiline:
@@ -36,4 +44,6 @@ scrape_configs:
           expressions:
             #message: message
             level: level
+            agent: agent
+            handover: handover
             #output: 'message'

@@ -7,15 +7,17 @@ from typing import List, Dict, Optional
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-import redis
 from celery import shared_task
+import logging
 
 from utils.data_processor import resample_ticks_to_bars
 from journal_engine import log_event, check_tick_gaps
+from utils.redis_client import get_redis_connection
 
 COLD_ROOT = os.environ.get("COLD_ROOT", "/app/data/cold")
-REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-redis_client = redis.Redis.from_url(REDIS_URL)
+redis_client = get_redis_connection()
+
+logger = logging.getLogger(__name__)
 
 @shared_task(bind=True, max_retries=3)
 def flush_and_aggregate(self, symbol: str, raw_ticks: Optional[List[Dict]] = None):
@@ -27,30 +29,31 @@ def flush_and_aggregate(self, symbol: str, raw_ticks: Optional[List[Dict]] = Non
             raw_ticks = [json.loads(t) for t in cache]
             if cache:
                 redis_client.delete(hot_key)
-        df = enrich_and_dedupe(raw_ticks or [])
-        if df.empty:
+        enriched_ticks = enrich_and_dedupe(raw_ticks or [])
+        if enriched_ticks.empty:
+            logger.debug("No ticks to process for %s", symbol)
             return {"status": "skipped", "reason": "no data"}
 
-        check_tick_gaps(symbol, df)
-        bars = resample_ticks_to_bars(df, freqs=["1T", "5T", "15T"])
+        check_tick_gaps(symbol, enriched_ticks)
+        bars = resample_ticks_to_bars(enriched_ticks, freqs=["1T", "5T", "15T"])
 
         now = datetime.now(timezone.utc)
         path = f"{COLD_ROOT}/{symbol}/{now.year}/{now.month:02d}"
         os.makedirs(path, exist_ok=True)
         file = f"{path}/{now.day:02d}.parquet"
 
-        table = pa.Table.from_pandas(df, preserve_index=False)
+        table = pa.Table.from_pandas(enriched_ticks, preserve_index=False)
         pq.write_table(table, file)
 
         log_event({
             "event": "accumulator_flush",
             "symbol": symbol,
-            "tick_count": len(df),
+            "tick_count": len(enriched_ticks),
             "bar_count": {k: len(v) for k, v in bars.items()},
             "output_file": file,
             "timestamp": now.isoformat(),
         })
-        return {"status": "success", "file": file, "ticks": len(df)}
+        return {"status": "success", "file": file, "ticks": len(enriched_ticks)}
     except Exception as exc:
         self.retry(countdown=60, exc=exc)
 

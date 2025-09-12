@@ -1,0 +1,268 @@
+version: '1.0'
+created_by: Team Brown
+timestamp: '2025-06-07T01:50:00.499500'
+description: LLM-native indicator definitions for Phase 4.3 integration
+indicators:
+  correlation_strength:
+    type: correlation
+    semantic_path: correlation_patterns:strength
+    parameters:
+      window: 20
+      min_pairs: 2
+      calculation: pearson
+    description: Measures correlation strength between asset pairs
+    confidence_scaling: 0-1
+    memory_binding: correlation_engine_state.json#/correlation_matrix
+  regime_shift_detector:
+    type: correlation
+    semantic_path: correlation_patterns:regime_change
+    parameters:
+      lookback: 50
+      sensitivity: 0.3
+      confirmation_bars: 3
+    description: Detects significant changes in correlation regime
+    confidence_scaling: 0-1
+    memory_binding: correlation_engine_state.json#/regime_state
+  decorrelation_alert:
+    type: correlation
+    semantic_path: correlation_patterns:break_event
+    parameters:
+      threshold: 0.5
+      alert_level: high
+    description: Alerts on significant decorrelation events
+    confidence_scaling: 0-1
+    memory_binding: correlation_engine_state.json#/break_events
+  liquidity_depth_ratio:
+    type: liquidity
+    semantic_path: liquidity_patterns:depth
+    parameters:
+      bid_levels: 10
+      ask_levels: 10
+      volume_weight: true
+    description: Measures relative liquidity depth on bid/ask sides
+    confidence_scaling: 0-1
+    memory_binding: liquidity_specialist_state.json#/depth_analysis
+  trap_zone_probability:
+    type: liquidity
+    semantic_path: liquidity_patterns:trap_detection
+    parameters:
+      volume_threshold: 1.5
+      price_range: 0.002
+      min_volume: 100000
+    description: Calculates probability of liquidity trap formation
+    confidence_scaling: 0-1
+    memory_binding: liquidity_specialist_state.json#/trap_zones
+  reversal_strength:
+    type: liquidity
+    semantic_path: liquidity_patterns:reversal
+    parameters:
+      confirmation_volume: true
+      structural_alignment: true
+      min_confidence: 0.7
+    description: Measures strength of post-trap reversal potential
+    confidence_scaling: 0-1
+    memory_binding: liquidity_specialist_state.json#/reversal_points
+  market_structure_bias:
+    type: structure
+    semantic_path: structural_patterns:bias
+    parameters:
+      timeframe: H4
+      lookback: 50
+      swing_threshold: 0.001
+    description: Determines overall market structure bias (bullish/bearish)
+    confidence_scaling: -1 to 1
+    memory_binding: structural_analyst_state.json#/market_structure
+  poi_confluence_score:
+    type: structure
+    semantic_path: structural_patterns:poi_strength
+    parameters:
+      confluence_factors:
+      - fib
+      - pivot
+      - volume
+      min_factors: 2
+    description: Scores point of interest based on confluence factors
+    confidence_scaling: 0-1
+    memory_binding: structural_analyst_state.json#/poi_levels
+  flip_zone_validity:
+    type: structure
+    semantic_path: structural_patterns:flip_confirmation
+    parameters:
+      retest_count: 2
+      hold_percentage: 0.8
+    description: Validates support/resistance flip zone strength
+    confidence_scaling: 0-1
+    memory_binding: structural_analyst_state.json#/flip_zones
+  anomaly_zscore:
+    type: statistical
+    semantic_path: statistical_patterns:anomaly_detection
+    parameters:
+      z_threshold: 2.0
+      window: 20
+      method: rolling
+    description: Z-score based anomaly detection for price/volume
+    confidence_scaling: 0-100
+    memory_binding: statistical_engine_state.json#/zscore_history
+  distribution_skew:
+    type: statistical
+    semantic_path: statistical_patterns:distribution_analysis
+    parameters:
+      lookback: 100
+      outlier_removal: true
+    description: Measures distribution skewness for regime detection
+    confidence_scaling: -1 to 1
+    memory_binding: statistical_engine_state.json#/distribution_params
+  volatility_regime:
+    type: statistical
+    semantic_path: statistical_patterns:volatility_state
+    parameters:
+      method: garch
+      periods:
+      - 10
+      - 20
+      - 50
+    description: Identifies current volatility regime
+    confidence_scaling: 0-1
+    memory_binding: statistical_engine_state.json#/volatility_analysis
+  position_risk_score:
+    type: risk
+    semantic_path: risk_patterns:position_analysis
+    parameters:
+      var_confidence: 0.95
+      correlation_adjustment: true
+    description: Calculates risk score for current position
+    confidence_scaling: -1 to 1
+    memory_binding: risk_engine_state.json#/position_sizes
+  portfolio_var:
+    type: risk
+    semantic_path: risk_patterns:portfolio_risk
+    parameters:
+      confidence_level: 0.95
+      time_horizon: 1
+      method: historical
+    description: Value at Risk calculation for portfolio
+    confidence_scaling: 0-100
+    memory_binding: risk_engine_state.json#/var_calculations
+  exposure_concentration:
+    type: risk
+    semantic_path: risk_patterns:concentration_risk
+    parameters:
+      max_single_exposure: 0.3
+      correlation_threshold: 0.7
+    description: Measures concentration risk in portfolio
+    confidence_scaling: 0-1
+    memory_binding: risk_engine_state.json#/exposure_analysis
+  smoothed_delta:
+    type: momentum
+    semantic_path: trend_analysis:delta
+    parameters:
+      window: 14
+      smoothing: ema
+      threshold: 0.02
+    description: Smoothed rate of change to detect directional shifts
+    confidence_scaling: 0-1
+    memory_binding: orchestrator_state.json#/trend_analysis
+  trend_alignment_score:
+    type: trend
+    semantic_path: trend_analysis:alignment
+    parameters:
+      timeframes:
+      - H1
+      - H4
+      - D1
+      alignment_threshold: 0.7
+      multi_timeframe: true
+    description: Measures trend consistency across timeframes
+    confidence_scaling: -1 to 1
+    memory_binding: orchestrator_state.json#/mtf_analysis
+  momentum_divergence:
+    type: momentum
+    semantic_path: trend_analysis:divergence
+    parameters:
+      oscillator: rsi
+      lookback: 14
+      divergence_strength: 0.3
+    description: Detects price/momentum divergences
+    confidence_scaling: 0-1
+    memory_binding: orchestrator_state.json#/divergence_signals
+  volume_profile_poc:
+    type: volume
+    semantic_path: volume_analysis:point_of_control
+    parameters:
+      profile_periods: 100
+      value_area_percentage: 0.7
+    description: Identifies Point of Control in volume profile
+    confidence_scaling: 0-1
+    memory_binding: liquidity_specialist_state.json#/volume_profile
+  volume_breakout:
+    type: volume
+    semantic_path: volume_analysis:breakout_confirmation
+    parameters:
+      multiplier: 1.5
+      lookback: 20
+    description: Confirms breakouts with volume analysis
+    confidence_scaling: 0-1
+    memory_binding: liquidity_specialist_state.json#/volume_analysis
+  market_pressure:
+    type: sentiment
+    semantic_path: sentiment_analysis:pressure
+    parameters:
+      aggregation: weighted
+      sources:
+      - order_flow
+      - positioning
+      - sentiment
+    description: Aggregated market pressure indicator
+    confidence_scaling: -1 to 1
+    memory_binding: system_pressure.json#/pressure_index
+indicator_groups:
+  correlation_suite:
+  - correlation_strength
+  - regime_shift_detector
+  - decorrelation_alert
+  liquidity_suite:
+  - liquidity_depth_ratio
+  - trap_zone_probability
+  - reversal_strength
+  structure_suite:
+  - market_structure_bias
+  - poi_confluence_score
+  - flip_zone_validity
+  risk_suite:
+  - position_risk_score
+  - portfolio_var
+  - exposure_concentration
+calculation_hints:
+  performance_optimizations:
+    cache_calculations: true
+    batch_processing: true
+    parallel_computation:
+    - correlation_matrix
+    - var_calculations
+    update_frequency:
+      real_time:
+      - liquidity_depth_ratio
+      - market_pressure
+      periodic:
+      - correlation_strength
+      - portfolio_var
+      on_demand:
+      - regime_shift_detector
+      - anomaly_zscore
+  llm_interpretation:
+    natural_language_mappings:
+      high correlation: correlation_strength > 0.7
+      liquidity trap: trap_zone_probability > 0.75
+      bearish structure: market_structure_bias < -0.3
+      high risk: position_risk_score > 0.8
+    confidence_thresholds:
+      low: 0.3
+      medium: 0.6
+      high: 0.8
+      very_high: 0.9
+integration_notes:
+  schema_compatibility: Aligned with mapping_interface_v2.yaml
+  normalization_ready: All confidence scales documented for normalization layer
+  memory_bindings: Direct paths to agent memory state files
+  team_red_compatible: Includes smoothed_delta and trend_alignment_score from Red's
+    specs

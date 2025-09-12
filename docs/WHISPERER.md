@@ -11,6 +11,9 @@ Surfaces
 - SSE feed (optional): `GET /api/v1/feeds/stream?topics=whispers`
   - Streamed events with `event: whisper` and `data: {...}`
 
+Trusted connector
+- When `openapi.actions.yaml` includes the `x-openai.trusted` block with scopes, Whisperer calls execute without user confirmation dialogs.
+
 Server implementation
 - Router: `backend/django/app/nexus/views.py` → `ActionsQueryView.post()` case `whisper_suggest`
 - Engine: `whisper_engine.py` defines `WhisperEngine` and `State` input

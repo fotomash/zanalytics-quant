@@ -22,9 +22,10 @@ def close_position(position, deviation=20, magic=0, comment='', type_filling=mt5
         logger.error("Position dictionary missing 'type' or 'ticket' keys.")
         return None
 
+    # To close a position, send a DEAL with the opposite side
     order_type_dict = {
-        0: mt5.ORDER_TYPE_BUY,
-        1: mt5.ORDER_TYPE_SELL
+        0: mt5.ORDER_TYPE_SELL,  # Close BUY with SELL
+        1: mt5.ORDER_TYPE_BUY,   # Close SELL with BUY
     }
 
     position_type = position['type']
@@ -32,30 +33,23 @@ def close_position(position, deviation=20, magic=0, comment='', type_filling=mt5
         logger.error(f"Unknown position type: {position_type}")
         return None
 
+    # Price is required for DEAL action
     tick = mt5.symbol_info_tick(position['symbol'])
     if tick is None:
-        logger.error(f"Failed to get tick for symbol: {position['symbol']}")
+        logger.error(f"No tick for symbol {position['symbol']}")
         return None
-
-    price_dict = {
-        0: tick.ask,  # Buy order uses Ask price
-        1: tick.bid   # Sell order uses Bid price
-    }
-
-    price = price_dict[position_type]
-    if price == 0.0:
-        logger.error(f"Invalid price retrieved for symbol: {position['symbol']}")
-        return None
+    side = order_type_dict[position_type]
+    price = tick.bid if side == mt5.ORDER_TYPE_SELL else tick.ask
 
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
-        "position": position['ticket'],  # select the position you want to close
+        "position": position['ticket'],
         "symbol": position['symbol'],
-        "volume": position['volume'],  # FLOAT
-        "type": order_type_dict[position_type],
-        "price": price,
-        "deviation": deviation,  # INTEGER
-        "magic": magic,          # INTEGER
+        "volume": position['volume'],
+        "type": side,
+        "price": float(price),
+        "deviation": deviation,
+        "magic": magic,
         "comment": comment,
         "type_time": mt5.ORDER_TIME_GTC,
         "type_filling": type_filling,

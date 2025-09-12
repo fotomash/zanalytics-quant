@@ -7,8 +7,22 @@ info:
     Authentication is not required; an optional `X-Pulse-Key` header may be
     enabled later without breaking this contract.
 servers:
-  - url: https://django2.zanalytics.app
+  - url: https://mcp2.zanalytics.app
 paths:
+  /api/v1/ping/:
+    get:
+      summary: Health check
+      operationId: ping
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
   /api/v1/market/mini:
     get:
       summary: Market header mini payload
@@ -156,7 +170,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PulseDetailResponse'
 
-  # /api/v1/health/telegram intentionally omitted from Actions surface to keep op-count < 30
+  # /api/v1/health/discord intentionally omitted from Actions surface to keep op-count < 30
   
   /api/v1/account/positions:
     get:
@@ -171,6 +185,15 @@ paths:
                 type: array
                 items:
                   type: object
+        '503':
+          description: MT5 bridge unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
   
   /api/v1/account/info:
     get:
@@ -193,6 +216,15 @@ paths:
                   login: { type: string, nullable: true }
                   server: { type: string, nullable: true }
                   currency: { type: string, nullable: true }
+        '503':
+          description: MT5 bridge unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
   
   /api/v1/journal/recent:
     get:
@@ -337,6 +369,27 @@ paths:
               required: [ticket]
               properties:
                 ticket: { type: integer }
+                sl: { type: number, nullable: true }
+                tp: { type: number, nullable: true }
+      responses:
+        '200': { description: OK }
+
+  /api/v1/positions/{ticket}/modify:
+    post:
+      summary: Modify SL/TP for an existing position by ticket in path
+      operationId: postPositionsModifyByTicket
+      parameters:
+        - in: path
+          name: ticket
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
                 sl: { type: number, nullable: true }
                 tp: { type: number, nullable: true }
       responses:
@@ -715,6 +768,59 @@ paths:
                 id: { type: string }
                 action: { type: string }
       responses: { '200': { description: OK } }
+
+  /score/peek:
+    post:
+      summary: Preview confluence score from recent bars
+      operationId: postScorePeek
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bars:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      ts: { type: string, format: date-time }
+                      open: { type: number }
+                      high: { type: number }
+                      low: { type: number }
+                      close: { type: number }
+            example:
+              bars:
+                - ts: "2024-05-24T12:00:00Z"
+                  open: 1.2345
+                  high: 1.2350
+                  low: 1.2330
+                  close: 1.2340
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  score: { type: number }
+                  reasons:
+                    type: array
+                    items: { type: string }
+                  components:
+                    type: object
+                    additionalProperties: { type: number }
+              example:
+                score: 72
+                reasons:
+                  - "Wyckoff upthrust"
+                  - "Liquidity drop"
+                components:
+                  smc: 70
+                  wyckoff: 65
+                  technical: 80
   
   
 components:

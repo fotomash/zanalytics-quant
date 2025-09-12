@@ -1,0 +1,394 @@
+{
+  "version": "1.0",
+  "created_by": "Team Brown",
+  "timestamp": "2025-06-07T02:20:44.120385",
+  "description": "Confidence tracing matrix for simulation validation",
+  "trace_configuration": {
+    "enabled_agents": [
+      "correlation_engine",
+      "statistical_engine",
+      "risk_engine",
+      "liquidity_specialist",
+      "structural_analyst",
+      "orchestrator"
+    ],
+    "trace_points": [
+      "raw_calculation",
+      "simulation_adjustment",
+      "normalization",
+      "ensemble_contribution",
+      "final_output"
+    ],
+    "simulation_modes": [
+      "instant_tick",
+      "accelerated",
+      "realtime"
+    ]
+  },
+  "confidence_flow_matrix": {
+    "correlation_engine": {
+      "instant_tick": {
+        "raw_calculation": {
+          "method": "pearson_correlation",
+          "typical_range": [
+            0.0,
+            1.0
+          ],
+          "base_confidence": 0.7
+        },
+        "simulation_adjustment": {
+          "factor": 1.0,
+          "reason": "Deterministic correlations in instant mode",
+          "adjusted_range": [
+            0.7,
+            0.9
+          ]
+        },
+        "normalization": {
+          "method": "standard_0_1",
+          "transform": "identity"
+        },
+        "ensemble_contribution": {
+          "weight": 0.25,
+          "priority": 1
+        },
+        "final_output": {
+          "expected_range": [
+            0.7,
+            0.9
+          ],
+          "stability_threshold": 0.05
+        }
+      },
+      "accelerated": {
+        "raw_calculation": {
+          "method": "pearson_correlation",
+          "typical_range": [
+            0.0,
+            1.0
+          ],
+          "base_confidence": 0.65
+        },
+        "simulation_adjustment": {
+          "factor": 0.95,
+          "reason": "Slight uncertainty from time compression",
+          "adjusted_range": [
+            0.6,
+            0.85
+          ]
+        },
+        "normalization": {
+          "method": "standard_0_1",
+          "transform": "identity"
+        },
+        "ensemble_contribution": {
+          "weight": 0.25,
+          "priority": 1
+        },
+        "final_output": {
+          "expected_range": [
+            0.6,
+            0.85
+          ],
+          "stability_threshold": 0.1
+        }
+      }
+    },
+    "statistical_engine": {
+      "instant_tick": {
+        "raw_calculation": {
+          "method": "zscore_anomaly_detection",
+          "typical_range": [
+            0,
+            100
+          ],
+          "base_confidence": 60
+        },
+        "simulation_adjustment": {
+          "factor": 0.8,
+          "reason": "Reduced statistical significance in compressed time",
+          "adjusted_range": [
+            40,
+            80
+          ]
+        },
+        "normalization": {
+          "method": "divide_100",
+          "transform": "x/100"
+        },
+        "ensemble_contribution": {
+          "weight": 0.2,
+          "priority": 2
+        },
+        "final_output": {
+          "expected_range": [
+            0.4,
+            0.8
+          ],
+          "stability_threshold": 0.15
+        }
+      },
+      "accelerated": {
+        "raw_calculation": {
+          "method": "zscore_anomaly_detection",
+          "typical_range": [
+            0,
+            100
+          ],
+          "base_confidence": 65
+        },
+        "simulation_adjustment": {
+          "factor": 0.9,
+          "reason": "Moderate statistical confidence",
+          "adjusted_range": [
+            50,
+            85
+          ]
+        },
+        "normalization": {
+          "method": "divide_100",
+          "transform": "x/100"
+        },
+        "ensemble_contribution": {
+          "weight": 0.2,
+          "priority": 2
+        },
+        "final_output": {
+          "expected_range": [
+            0.5,
+            0.85
+          ],
+          "stability_threshold": 0.1
+        }
+      }
+    },
+    "risk_engine": {
+      "instant_tick": {
+        "raw_calculation": {
+          "method": "var_calculation",
+          "typical_range": [
+            -1.0,
+            1.0
+          ],
+          "base_confidence": 0.5
+        },
+        "simulation_adjustment": {
+          "factor": 1.2,
+          "reason": "Conservative risk assessment in simulation",
+          "adjusted_range": [
+            -0.8,
+            0.8
+          ]
+        },
+        "normalization": {
+          "method": "shift_scale",
+          "transform": "(x+1)/2"
+        },
+        "ensemble_contribution": {
+          "weight": 0.3,
+          "priority": 1
+        },
+        "final_output": {
+          "expected_range": [
+            0.1,
+            0.9
+          ],
+          "stability_threshold": 0.05
+        }
+      },
+      "accelerated": {
+        "raw_calculation": {
+          "method": "var_calculation",
+          "typical_range": [
+            -1.0,
+            1.0
+          ],
+          "base_confidence": 0.4
+        },
+        "simulation_adjustment": {
+          "factor": 1.1,
+          "reason": "Slightly conservative in accelerated mode",
+          "adjusted_range": [
+            -0.9,
+            0.9
+          ]
+        },
+        "normalization": {
+          "method": "shift_scale",
+          "transform": "(x+1)/2"
+        },
+        "ensemble_contribution": {
+          "weight": 0.3,
+          "priority": 1
+        },
+        "final_output": {
+          "expected_range": [
+            0.05,
+            0.95
+          ],
+          "stability_threshold": 0.08
+        }
+      }
+    },
+    "liquidity_specialist": {
+      "instant_tick": {
+        "raw_calculation": {
+          "method": "liquidity_depth_analysis",
+          "typical_range": [
+            0.0,
+            1.0
+          ],
+          "base_confidence": 0.5
+        },
+        "simulation_adjustment": {
+          "factor": 0.7,
+          "reason": "Limited microstructure in simulation",
+          "adjusted_range": [
+            0.3,
+            0.7
+          ]
+        },
+        "normalization": {
+          "method": "standard_0_1",
+          "transform": "identity"
+        },
+        "ensemble_contribution": {
+          "weight": 0.15,
+          "priority": 3
+        },
+        "final_output": {
+          "expected_range": [
+            0.3,
+            0.7
+          ],
+          "stability_threshold": 0.2
+        }
+      },
+      "accelerated": {
+        "raw_calculation": {
+          "method": "liquidity_depth_analysis",
+          "typical_range": [
+            0.0,
+            1.0
+          ],
+          "base_confidence": 0.55
+        },
+        "simulation_adjustment": {
+          "factor": 0.85,
+          "reason": "Partial microstructure available",
+          "adjusted_range": [
+            0.4,
+            0.75
+          ]
+        },
+        "normalization": {
+          "method": "standard_0_1",
+          "transform": "identity"
+        },
+        "ensemble_contribution": {
+          "weight": 0.15,
+          "priority": 3
+        },
+        "final_output": {
+          "expected_range": [
+            0.4,
+            0.75
+          ],
+          "stability_threshold": 0.15
+        }
+      }
+    }
+  },
+  "trace_validation_rules": {
+    "confidence_bounds": {
+      "description": "All normalized confidence values must be in [0,1]",
+      "validation": "0.0 <= confidence <= 1.0",
+      "action_on_violation": "clamp_to_bounds"
+    },
+    "ensemble_weights": {
+      "description": "Ensemble weights must sum to 1.0",
+      "validation": "sum(weights) == 1.0",
+      "tolerance": 0.001,
+      "action_on_violation": "normalize_weights"
+    },
+    "temporal_consistency": {
+      "description": "Confidence should not change drastically between steps",
+      "validation": "abs(conf[t] - conf[t-1]) < threshold",
+      "thresholds": {
+        "instant_tick": 0.3,
+        "accelerated": 0.4,
+        "realtime": 0.5
+      }
+    },
+    "simulation_mode_consistency": {
+      "description": "Same agent should have consistent behavior within mode",
+      "validation": "variance(confidence_per_mode) < threshold",
+      "threshold": 0.1
+    }
+  },
+  "trace_aggregation_metrics": {
+    "per_agent": {
+      "mean_confidence": "average confidence across all trace points",
+      "confidence_variance": "variance of confidence values",
+      "stability_score": "1 - (variance / mean)",
+      "adjustment_impact": "abs(adjusted - raw) / raw"
+    },
+    "per_simulation_mode": {
+      "global_confidence_mean": "average across all agents",
+      "mode_stability": "average stability score",
+      "convergence_rate": "steps to stable confidence",
+      "outlier_frequency": "percentage of out-of-bound values"
+    },
+    "ensemble_metrics": {
+      "contribution_balance": "std_dev of agent weights",
+      "decision_confidence": "final ensemble confidence",
+      "agreement_score": "percentage of agents above threshold",
+      "diversity_index": "1 - correlation between agent confidences"
+    }
+  },
+  "example_traces": [
+    {
+      "simulation_mode": "instant_tick",
+      "step": 1000,
+      "agent": "correlation_engine",
+      "trace": {
+        "raw_calculation": 0.82,
+        "simulation_adjustment": 0.82,
+        "normalization": 0.82,
+        "ensemble_contribution": 0.205,
+        "final_output": 0.82
+      }
+    },
+    {
+      "simulation_mode": "instant_tick",
+      "step": 1000,
+      "agent": "statistical_engine",
+      "trace": {
+        "raw_calculation": 75,
+        "simulation_adjustment": 60,
+        "normalization": 0.6,
+        "ensemble_contribution": 0.12,
+        "final_output": 0.6
+      }
+    },
+    {
+      "simulation_mode": "accelerated",
+      "step": 5000,
+      "agent": "risk_engine",
+      "trace": {
+        "raw_calculation": 0.3,
+        "simulation_adjustment": 0.33,
+        "normalization": 0.665,
+        "ensemble_contribution": 0.1995,
+        "final_output": 0.665
+      }
+    }
+  ],
+  "usage_instructions": {
+    "trace_collection": "Enable via simulation_hooks.confidence_trace_hooks in schema",
+    "real_time_monitoring": "Subscribe to confidence_trace_stream endpoint",
+    "batch_analysis": "Process confidence_traces.jsonl after simulation",
+    "validation": "Run validate_confidence_traces.py with this matrix",
+    "reporting": "Generate confidence_stability_report.html from traces"
+  }
+}

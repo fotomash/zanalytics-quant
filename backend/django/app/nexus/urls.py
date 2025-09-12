@@ -48,17 +48,22 @@ from .views import (
     ActionsQueryView,
     ActionsReadView,
     ActionsMutateView,
+
     ActionsSpecView,
+    PingView,
     JournalEntryPostView,
     SessionSetFocusView,
     PositionProtectOptionsView,
     UserPrefsView,
     StateSnapshotView,
+    HistoryDealsProxyView,
+    HistoryOrdersProxyView,
 )
 from .views_positions import (
     PositionsOpenView,
     PositionsCloseView,
     PositionsModifyView,
+    PositionsModifyByTicketView,
     PositionsHedgeView,
 )
 from .playbook_stub_views import (
@@ -107,6 +112,8 @@ urlpatterns = [
     # Router-backed resources
     path('', include(router.urls)),
 
+    path('ping/', PingView.as_view(), name='ping'),
+
     # Minimal pulse endpoints under /api/v1/
     path('pulse/health', pulse_health, name='pulse-health-v1'),
     path('pulse/risk/summary', pulse_risk_summary, name='pulse-risk-summary-v1'),
@@ -128,6 +135,8 @@ urlpatterns = [
     path('profit-horizon', ProfitHorizonView.as_view(), name='profit-horizon'),
     path('trades/history', TradeHistoryView.as_view(), name='trades-history'),
     path('trades/recent', TradesRecentView.as_view(), name='trades-recent'),
+    path('history_deals_get', HistoryDealsProxyView.as_view(), name='history-deals-get'),
+    path('history_orders_get', HistoryOrdersProxyView.as_view(), name='history-orders-get'),
     path('mirror/state', MirrorStateView.as_view(), name='mirror-state'),
     path('market/mini', MarketMiniView.as_view(), name='market-mini'),
     path('market/fetch', MarketFetchView.as_view(), name='market-fetch'),
@@ -138,6 +147,7 @@ urlpatterns = [
     # LLM-friendly aliases
     path('positions/close', PositionsCloseView.as_view(), name='positions-close'),
     path('positions/modify', PositionsModifyView.as_view(), name='positions-modify'),
+    path('positions/<int:ticket>/modify', PositionsModifyByTicketView.as_view(), name='positions-modify-ticket'),
     path('positions/hedge', PositionsHedgeView.as_view(), name='positions-hedge'),
     path('account/info', AccountInfoView.as_view(), name='account-info'),
     path('journal/append', JournalAppendView.as_view(), name='journal-append'),
@@ -160,6 +170,7 @@ urlpatterns = [
     path('positions/<int:ticket>/protect', PositionProtectOptionsView.as_view(), name='position-protect-options'),
     # Include pulse module endpoints
     path('', include('app.nexus.pulse.urls')),
+    path('analytics/', include('app.nexus.pulse.analytics_urls')),
     # User prefs (unauthenticated, minimal)
     path('user/prefs', UserPrefsView.as_view(), name='user-prefs'),
     # Playbook stubs
@@ -174,6 +185,13 @@ urlpatterns = [
     # Read action descriptors
     path('actions/read', ActionsReadView.as_view(), name='actions-read'),
     path('actions/mutate', ActionsMutateView.as_view(), name='actions-mutate'),
+
+
+    path('actions/mutate', ActionsMutateView.as_view(), name='actions-mutate'),
+
+    # Read-only alias to avoid runtime consent prompts for GET
+    path('actions/read', ActionsQueryView.as_view(), name='actions-read'),
+
     # Serve slim OpenAPI for Actions
     path('openapi.actions.yaml', ActionsSpecView.as_view(), name='actions-openapi-spec'),
 ]

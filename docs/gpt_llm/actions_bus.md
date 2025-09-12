@@ -2,7 +2,7 @@
 
 Purpose: expose a compact set of LLM/agent operations via one endpoint to keep the main OpenAPI under the 30‑operation cap.
 
-Base: `https://django2.zanalytics.app`
+Base: `https://mcp2.zanalytics.app`
 
 Endpoint: `POST /api/v1/actions/query`
 

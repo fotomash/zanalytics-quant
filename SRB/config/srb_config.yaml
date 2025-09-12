@@ -1,0 +1,42 @@
+srb_system:
+  data_structures:
+    tick_data:
+      compression: snappy
+      format: parquet
+      partitioning:
+      - year
+      - month
+      - day
+      - symbol
+      schema:
+        ask: float64
+        ask_volume: float64
+        bid: float64
+        bid_volume: float64
+        symbol: string
+        timestamp: int64
+    timeframes:
+      H1:
+        aggregation: M15
+        retention_days: 730
+      M1:
+        aggregation: tick
+        retention_days: 30
+      M15:
+        aggregation: M5
+        retention_days: 180
+      M5:
+        aggregation: M1
+        retention_days: 90
+  mode: hybrid
+  session_memory:
+    checkpoint_interval: 3600
+    compression: zstd
+    delta_format: json
+    max_delta_size: 10MB
+  snapshot_export:
+    compression: zstd
+    format: parquet
+    include_vectors: true
+    merge_strategy: time_based
+  version: '1.0'

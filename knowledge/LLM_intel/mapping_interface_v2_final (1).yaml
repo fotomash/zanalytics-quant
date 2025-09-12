@@ -1,0 +1,267 @@
+version: 2.0-final
+created_by: Team Brown
+timestamp: '2025-06-07T02:28:50.353406'
+description: Final enhanced semantic mapping interface with all patches applied
+semantic_bindings:
+  enhanced_triggers:
+    correlation_patterns:
+      triggers:
+      - correlation
+      - relationship
+      - regime
+      - decorrelation
+      agents:
+        primary: correlation_engine
+        fallback:
+        - statistical_engine
+        - macro_sentinel
+      memory_bindings:
+        correlation_matrix: memory/correlation_engine_state.json#/correlation_matrix
+        regime_state: memory/correlation_engine_state.json#/regime_state
+        break_events: memory/correlation_engine_state.json#/break_events
+      confidence_normalization: standard_0_1
+    liquidity_patterns:
+      triggers:
+      - liquidity
+      - trap
+      - reversal
+      - volume
+      - depth
+      agents:
+        primary: liquidity_specialist
+        fallback:
+        - risk_engine
+        - statistical_engine
+      memory_bindings:
+        liquidity_pools: memory/liquidity_specialist_state.json#/liquidity_pools
+        trap_zones: memory/liquidity_specialist_state.json#/trap_zones
+        reversal_points: memory/liquidity_specialist_state.json#/reversal_points
+      confidence_normalization: standard_0_1
+    structural_patterns:
+      triggers:
+      - structure
+      - poi
+      - flip
+      - level
+      - breakout
+      agents:
+        primary: structural_analyst
+        fallback:
+        - correlation_engine
+        - macro_sentinel
+      memory_bindings:
+        market_structure: memory/structural_analyst_state.json#/market_structure
+        poi_levels: memory/structural_analyst_state.json#/poi_levels
+        flip_zones: memory/structural_analyst_state.json#/flip_zones
+      confidence_normalization: standard_0_1
+    statistical_patterns:
+      triggers:
+      - anomaly
+      - outlier
+      - statistical
+      - zscore
+      - distribution
+      agents:
+        primary: statistical_engine
+        fallback:
+        - risk_engine
+        - orchestrator
+      memory_bindings:
+        anomaly_log: memory/statistical_engine_state.json#/anomaly_log
+        zscore_history: memory/statistical_engine_state.json#/zscore_history
+        distribution_params: memory/statistical_engine_state.json#/distribution_params
+      confidence_normalization: divide_100
+    risk_patterns:
+      triggers:
+      - risk
+      - position
+      - size
+      - var
+      - portfolio
+      - exposure
+      agents:
+        primary: risk_engine
+        fallback:
+        - orchestrator
+      memory_bindings:
+        risk_limits: memory/risk_engine_state.json#/risk_limits
+        position_sizes: memory/risk_engine_state.json#/position_sizes
+        var_calculations: memory/risk_engine_state.json#/var_calculations
+      confidence_normalization: shift_scale
+    volume_patterns:
+      triggers:
+      - volume
+      - poc
+      - point of control
+      - breakout volume
+      - volume profile
+      agents:
+        primary: liquidity_specialist
+        fallback:
+        - statistical_engine
+        - orchestrator
+      memory_bindings:
+        volume_profile: memory/liquidity_specialist_state.json#/volume_profile
+        volume_analysis: memory/liquidity_specialist_state.json#/volume_analysis
+        poc_levels: memory/liquidity_specialist_state.json#/volume_profile/poc
+      confidence_normalization: standard_0_1
+    sentiment_patterns:
+      triggers:
+      - sentiment
+      - pressure
+      - market pressure
+      - positioning
+      - crowd
+      agents:
+        primary: orchestrator
+        fallback:
+        - risk_engine
+        - macro_sentinel
+      memory_bindings:
+        pressure_index: memory/system_pressure.json#/pressure_index
+        sentiment_state: memory/sentiment_state.json#/current_sentiment
+        market_positioning: memory/orchestrator_state.json#/market_positioning
+      confidence_normalization: shift_scale
+    volatility_patterns:
+      triggers:
+      - volatility
+      - vol regime
+      - volatility state
+      - garch
+      - vol clustering
+      agents:
+        primary: statistical_engine
+        fallback:
+        - risk_engine
+        - correlation_engine
+      memory_bindings:
+        volatility_state: memory/statistical_engine_state.json#/volatility_analysis
+        regime_params: memory/statistical_engine_state.json#/volatility_regime
+        garch_model: memory/statistical_engine_state.json#/garch_parameters
+      confidence_normalization: standard_0_1
+    divergence_patterns:
+      triggers:
+      - divergence
+      - momentum divergence
+      - price divergence
+      - correlation divergence
+      agents:
+        primary: correlation_engine
+        fallback:
+        - structural_analyst
+        - orchestrator
+      memory_bindings:
+        divergence_signals: memory/orchestrator_state.json#/divergence_signals
+        correlation_breaks: memory/correlation_engine_state.json#/break_events
+        divergence_history: memory/correlation_engine_state.json#/divergence_log
+      confidence_normalization: standard_0_1
+  routing_intelligence:
+    primary_selection:
+      method: highest_confidence_with_threshold
+      min_confidence: 0.6
+      tie_breaker: priority_rank
+    pattern_priorities:
+      correlation_patterns: 1
+      risk_patterns: 1
+      structural_patterns: 2
+      statistical_patterns: 2
+      liquidity_patterns: 3
+      volatility_patterns: 3
+      divergence_patterns: 3
+      volume_patterns: 4
+      sentiment_patterns: 5
+    fallback_chain:
+      max_attempts: 3
+      timeout_ms: 5000
+      context_preservation: true
+      loop_detection:
+        enabled: true
+        max_hops: 5
+        break_strategy: return_to_orchestrator
+    ensemble_mode:
+      activation_threshold: 0.75
+      aggregation: weighted_average
+      weights:
+        correlation_engine: 0.25
+        statistical_engine: 0.25
+        risk_engine: 0.15
+        liquidity_specialist: 0.2
+        structural_analyst: 0.1
+        orchestrator: 0.05
+  memory_operations:
+    read_patterns:
+      cache_strategy: lru
+      cache_ttl_seconds: 300
+      batch_enabled: true
+      max_batch_size: 100
+    write_patterns:
+      versioning: true
+      conflict_resolution: last_write_wins
+      validation: schema_enforced
+      transaction_log: true
+    query_patterns:
+      index_fields:
+      - timestamp
+      - agent_id
+      - severity
+      - confidence
+      max_results: 1000
+      pagination: true
+      filter_syntax: jsonpath
+  schema_evolution:
+    version_negotiation: true
+    backward_compatibility: 3_versions
+    migration_strategy: lazy_upgrade
+    deprecation_warnings: true
+  semantic_path_mappings:
+    correlation_patterns:strength: correlation_patterns
+    correlation_patterns:regime_change: correlation_patterns
+    correlation_patterns:break_event: correlation_patterns
+    liquidity_patterns:depth: liquidity_patterns
+    liquidity_patterns:trap_detection: liquidity_patterns
+    liquidity_patterns:reversal: liquidity_patterns
+    structural_patterns:bias: structural_patterns
+    structural_patterns:poi_strength: structural_patterns
+    structural_patterns:flip_confirmation: structural_patterns
+    statistical_patterns:anomaly_detection: statistical_patterns
+    statistical_patterns:distribution_analysis: statistical_patterns
+    statistical_patterns:volatility_state: volatility_patterns
+    risk_patterns:position_analysis: risk_patterns
+    risk_patterns:portfolio_risk: risk_patterns
+    risk_patterns:concentration_risk: risk_patterns
+    trend_analysis:delta: correlation_patterns
+    trend_analysis:alignment: correlation_patterns
+    trend_analysis:divergence: divergence_patterns
+    volume_analysis:point_of_control: volume_patterns
+    volume_analysis:breakout_confirmation: volume_patterns
+    sentiment_analysis:pressure: sentiment_patterns
+performance_targets:
+  routing_latency_ms: 50
+  memory_read_ms: 10
+  memory_write_ms: 20
+  ensemble_calculation_ms: 100
+  cache_hit_rate: 0.8
+monitoring_hooks:
+  metrics:
+  - routing_decisions
+  - confidence_scores
+  - fallback_triggers
+  - cache_performance
+  - schema_mismatches
+  - pattern_coverage
+  telemetry_endpoint: /metrics/phase4
+  alert_thresholds:
+    error_rate: 0.05
+    latency_p99: 200
+    memory_usage_mb: 2048
+    pattern_miss_rate: 0.1
+patch_history:
+- version: '2.0'
+  date: '2025-06-07T18:00:00Z'
+  description: Initial v2 release
+- version: 2.0-patch
+  date: '2025-06-07T19:15:00Z'
+  description: Added volume, sentiment, volatility, and divergence patterns
+- version: 2.0-final
+  date: '2025-06-07T19:20:00Z'
+  description: Merged patch with confidence trace validation

@@ -1,0 +1,9 @@
+schema_version: 1
+name_for_human: "Zanalytics MCP Actions"
+name_for_model: "zanalytics_mcp_actions"
+description_for_human: "Interact with Zanalytics Pulse actions"
+description_for_model: "Access Zanalytics Pulse actions"
+api:
+  type: openapi
+  url: https://mcp2.zanalytics.app/openapi.actions.yaml
+  is_user_authenticated: false

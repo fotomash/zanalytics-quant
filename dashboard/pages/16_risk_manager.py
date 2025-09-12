@@ -19,6 +19,9 @@ from dashboard.utils.user_prefs import render_favorite_selector
 from dashboard.utils.streamlit_api import safe_api_call
 from dashboard.utils.streamlit_api import render_analytics_filters
 import base64
+from pathlib import Path
+import yaml
+from dashboard.components.confluence_display import render_confluence_gates
 
 # Safe MT5 import
 try:
@@ -31,6 +34,12 @@ except ImportError:
 # Load environment variables
 
 load_dotenv()
+
+try:
+    with open(Path(__file__).resolve().parents[2] / "pulse_dashboard_config.yaml") as f:
+        CONFLUENCE_WEIGHTS = yaml.safe_load(f).get("confluence_weights", {}) or {}
+except Exception:
+    CONFLUENCE_WEIGHTS = {}
 
 # Optional baseline equity override (defaults to 200,000 if not provided)
 # You can override via MT5_BASELINE_EQUITY or PULSE_BASELINE_EQUITY in .env
@@ -137,7 +146,7 @@ _sym16, _df16, _dt16, _qs16 = render_analytics_filters(key_prefix='risk16')
 # Trade Analytics (compact)
 st.subheader("📊 Trade Analytics")
 try:
-    q = safe_api_call('GET', f'api/pulse/analytics/trades/quality{_qs16}')
+    q = safe_api_call('GET', f'api/v1/analytics/trades/quality{_qs16}')
     labels = q.get('labels') if isinstance(q, dict) else None
     counts = q.get('counts') if isinstance(q, dict) else None
     if isinstance(labels, list) and isinstance(counts, list) and len(labels)==len(counts):
@@ -152,7 +161,7 @@ except Exception:
 c1, c2, c3 = st.columns(3)
 with c1:
     try:
-        eff = safe_api_call('GET', f'api/pulse/analytics/trades/efficiency{_qs16}')
+        eff = safe_api_call('GET', f'api/v1/analytics/trades/efficiency{_qs16}')
         pct = eff.get('captured_vs_potential_pct') if isinstance(eff, dict) else None
         v = float(pct) if isinstance(pct,(int,float)) else 0.0
         st.metric('Captured vs Potential', f'{v*100:.0f}%')
@@ -162,14 +171,14 @@ with c1:
         st.progress(0.0)
 with c2:
     try:
-        summ = safe_api_call('GET', f'api/pulse/analytics/trades/summary{_qs16}')
+        summ = safe_api_call('GET', f'api/v1/analytics/trades/summary{_qs16}')
         wr = float(summ.get('win_rate') or 0.0)
         st.metric('Win Rate', f'{wr*100:.0f}%')
     except Exception:
         st.metric('Win Rate', '—')
 with c3:
     try:
-        summ = summ if 'summ' in locals() and isinstance(summ, dict) else safe_api_call('GET', f'api/pulse/analytics/trades/summary{_qs16}')
+        summ = summ if 'summ' in locals() and isinstance(summ, dict) else safe_api_call('GET', f'api/v1/analytics/trades/summary{_qs16}')
         er = float(summ.get('expectancy_r') or 0.0)
         st.metric('Expectancy (R)', f'{er:.2f}')
     except Exception:
@@ -178,7 +187,7 @@ with c3:
 c4, c5 = st.columns(2)
 with c4:
     try:
-        b = safe_api_call('GET', f'api/pulse/analytics/trades/buckets{_qs16}')
+        b = safe_api_call('GET', f'api/v1/analytics/trades/buckets{_qs16}')
         edges = b.get('edges') if isinstance(b, dict) else []
         counts = b.get('counts') if isinstance(b, dict) else []
         if isinstance(edges,list) and isinstance(counts,list) and len(edges)==len(counts):
@@ -193,7 +202,7 @@ with c4:
         st.info('Distribution unavailable')
 with c5:
     try:
-        s = safe_api_call('GET', f'api/pulse/analytics/trades/setups{_qs16}')
+        s = safe_api_call('GET', f'api/v1/analytics/trades/setups{_qs16}')
         setups = s.get('setups') if isinstance(s, dict) else []
         if isinstance(setups, list) and setups:
             df_set = pd.DataFrame(setups)
@@ -1098,15 +1107,13 @@ def render_pulse_tiles(pulse_manager: PulseRiskManager):
             confluence_data = {}
         score = confluence_data.get("score", 0)
         grade = confluence_data.get("grade", "Unknown")
-        
-        st.markdown(f"""
-        <div class="pulse-tile">
-            <h4>Confluence Score</h4>
-            <h2>{score}/100</h2>
-            <p>Grade: {grade}</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
+
+        render_confluence_gates(
+            confluence_data.get("component_scores", {}),
+            CONFLUENCE_WEIGHTS,
+        )
+        st.caption(f"Grade: {grade}")
+
         if st.button("🔍 Explain Score", key="explain_confluence"):
             with st.expander("Score Breakdown", expanded=True):
                 reasons = confluence_data.get("reasons", [])

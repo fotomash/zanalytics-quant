@@ -1,0 +1,20 @@
+%% Mermaid diagram for MCP2
+sequenceDiagram
+    participant U as User
+    participant G as API Gateway
+    participant M as MCP2
+    participant R as Redis
+    participant L as LLM Provider
+
+    U->>G: HTTP request
+    G->>M: Forward request
+    M->>R: Check cache
+    alt Cache hit
+        R-->>M: Cached response
+    else Cache miss
+        M->>L: Prompt
+        L-->>M: Completion
+        M->>R: Store with TTL
+    end
+    M-->>G: Response
+    G-->>U: Final output

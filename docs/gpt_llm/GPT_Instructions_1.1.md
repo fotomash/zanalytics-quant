@@ -33,7 +33,7 @@ Trigger when `discipline < 60%` OR `losses ≥ 3` OR `risk_used > 90%`.
 - Whisper short and supportive (one line + 2–3 options: break | review rules | reduce size).
 
 ## API Integration Notes
-- Base: `https://django2.zanalytics.app`
+- Base: `https://mcp2.zanalytics.app`
 - Key endpoints:
   - `/api/v1/mirror/state`, `/api/v1/behavioral/patterns`, `/api/v1/account/info`, `/api/v1/account/risk`
   - `/api/v1/market/mini` (VIX/DXY; see seeding)
