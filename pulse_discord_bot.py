@@ -89,6 +89,8 @@ async def pulse(ctx, *, query: str | None = None):
 This lightweight bot demonstrates basic Discord integration for the Pulse
 stack.  For production deployments with full command support, use
 ``services/pulse_bot/bot.py``.
+
+The bot expects a ``DISCORD_BOT_TOKEN`` environment variable for authentication.
 """
 
 from __future__ import annotations
@@ -123,6 +125,29 @@ try:
 except Exception:  # pragma: no cover - redis optional
     aioredis = None  # type: ignore
 
+
+# ---------------------------------------------------------------------------
+# Environment variables
+# ---------------------------------------------------------------------------
+DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+MCP_MEMORY_API_URL = os.getenv("MCP_MEMORY_API_URL", "http://memory.api")
+MCP_MEMORY_API_KEY = os.getenv("MCP_MEMORY_API_KEY")
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+CACHE_TTL = int(os.getenv("PULSE_CACHE_TTL", "60"))
+
+missing = [
+    name
+    for name, value in [
+        ("DISCORD_BOT_TOKEN", DISCORD_BOT_TOKEN),
+        ("MCP_MEMORY_API_URL", MCP_MEMORY_API_URL),
+        ("MCP_MEMORY_API_KEY", MCP_MEMORY_API_KEY),
+    ]
+    if not value
+]
+if missing:
+    raise RuntimeError(
+        "Missing required environment variables: " + ", ".join(missing)
+    )
 # ---------------------------------------------------------------------------
 # Environment variables
 # ---------------------------------------------------------------------------
@@ -138,6 +163,7 @@ logger = logging.getLogger("pulse_discord_bot")
 _redis: Optional["redis.Redis"] = None
 
 
+_redis: Optional[aioredis.Redis] = None  # type: ignore[name-defined]
 async def get_redis() -> Optional["redis.Redis"]:
     """Lazily initialize Redis connection if possible."""
 
@@ -149,6 +175,7 @@ async def get_redis() -> Optional["redis.Redis"]:
     return _redis
 
 
+
 async def record_interaction(payload: Dict[str, Any]) -> None:
     """Persist the interaction to the memory API."""
 async def get_redis() -> Optional[aioredis.Redis]:
@@ -156,7 +183,7 @@ async def get_redis() -> Optional[aioredis.Redis]:
     global _redis
     if _redis is None and aioredis:
         try:
-            _redis = await aioredis.from_url(
+            _redis = await aioredis.from_url(  # type: ignore[attr-defined]
                 REDIS_URL, encoding="utf-8", decode_responses=True
             )
         except Exception:  # pragma: no cover - best effort only
@@ -178,6 +205,7 @@ async def record_interaction(payload: dict) -> None:
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code in {401, 403}:
             logger.error(
+                "Authentication failed persisting interaction - check MCP_MEMORY_API_KEY"
                 "Memory API authentication failed; check MCP_MEMORY_API_KEY"
             )
         else:
@@ -256,11 +284,18 @@ else:  # fallback for tests where discord is stubbed
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code in {401, 403}:
+                logger.error(
+                    "Authentication failed querying memory API - check MCP_MEMORY_API_KEY"
+                )
+                raise RuntimeError(
+                    "Authentication with memory API failed: invalid or missing MCP_MEMORY_API_KEY"
+                ) from exc
                 msg = "Memory API authentication failed; check MCP_MEMORY_API_KEY"
                 logger.error(msg)
                 raise RuntimeError(msg) from exc
             raise
         data = resp.json()
+
     text = data.get("response") or data.get("result") or str(data)
 
     if r:
@@ -286,7 +321,8 @@ async def on_command_error(ctx: commands.Context, error: Exception) -> None:
 
 @bot.command(name="pulse")
 async def pulse(ctx: commands.Context, *, query: str = "") -> None:
-    """Respond to !pulse commands by querying the memory API."""
+    """Handle the !pulse command by querying the memory API."""
+
     if not query:
         await ctx.send("Usage: !pulse <query>")
         return
@@ -335,6 +371,10 @@ async def main() -> None:  # pragma: no cover - manual invocation
     await bot.start(DISCORD_BOT_TOKEN)
 
 
+if __name__ == "__main__":  # pragma: no cover - CLI entry point
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:  # pragma: no cover - shutdown path
 if __name__ == "__main__":  # pragma: no cover - manual execution
     try:
         asyncio.run(main())
