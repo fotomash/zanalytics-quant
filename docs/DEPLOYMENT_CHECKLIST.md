@@ -1,4 +1,4 @@
-# Deployment Checklist (Django + Celery + Pulse Kernel + Dashboard)
+# Deployment Checklist (Django + Celery + `pulse-api` + Dashboard)
 
 ## Core services
 
@@ -6,7 +6,7 @@
 - Redis (port 6379) — required for Celery + SSE pub/sub
 - Celery worker — imports `app.celery`
 - Celery beat — schedules SoD snapshot at 23:00
-- Pulse Kernel (FastAPI, optional) — `services/pulse_api/main.py`
+- `pulse-api` service (FastAPI) — `services/pulse_api/main.py`
 - Dashboard (Streamlit) — depends on Django health
 
 ## docker compose
@@ -16,7 +16,7 @@
   - `entrypoint`: `celery -A app worker|beat`
   - `PYTHONPATH` includes: `/app/backend/django:/app/agents:/app:/app/components:/app/utils:/app/backend`
   - mount `./agents:/app/agents`
-- Pulse Kernel:
+- `pulse-api` service:
   - Command: `python -m uvicorn services.pulse_api.main:app --host 0.0.0.0 --port 8000`
   - Health: `/pulse/health`
 
