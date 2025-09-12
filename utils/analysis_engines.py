@@ -7,37 +7,27 @@ construct payloads for the enrichment service.
 
 from datetime import datetime
 
-from components import confluence_engine, advanced_stoploss_lots_engine
+from components import advanced_stoploss_lots_engine, confluence_engine
+from core.predictive_scorer import PredictiveScorer
 from schemas.payloads import (
+    ISPTSPipelineResult,
     MarketContext,
-    TechnicalIndicators,
-    SMCAnalysis,
-    WyckoffAnalysis,
     MicrostructureAnalysis,
+    PredictiveAnalysisResult,
+    SMCAnalysis,
+    TechnicalIndicators,
     UnifiedAnalysisPayloadV1,
+    WyckoffAnalysis,
+)
+from schemas.predictive_schemas import (
+    ConflictDetectionResult,
+    PredictiveScorerResult,
 )
 
 
 def build_unified_analysis(tick: dict) -> "UnifiedAnalysisPayloadV1":
-    """Run core analyzers and validate against the v1 unified analysis payload."""
-
-    from datetime import datetime
-    from components import advanced_stoploss_lots_engine, confluence_engine
-    from core.predictive_scorer import PredictiveScorer
-    from schemas.payloads import (
-        ISPTSPipelineResult,
-        MarketContext,
-        MicrostructureAnalysis,
-        PredictiveAnalysisResult,
-        SMCAnalysis,
-        TechnicalIndicators,
-        UnifiedAnalysisPayloadV1,
-        WyckoffAnalysis,
-    )
-    from schemas.predictive_schemas import (
-        ConflictDetectionResult,
-        PredictiveScorerResult,
-    )
+    """Run core analyzers and validate against the v1 unified analysis
+    payload."""
 
     confluence = confluence_engine.compute_confluence_indicators_df(tick)
     risk = advanced_stoploss_lots_engine.compute_risk_snapshot(tick)
