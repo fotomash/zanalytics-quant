@@ -1041,6 +1041,8 @@ services:
     depends_on:
       kafka:
         condition: service_started
+      qdrant:
+        condition: service_started
     healthcheck:
       test: ["CMD", "python", "healthcheck.py"]
       interval: 30s
