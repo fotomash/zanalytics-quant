@@ -219,7 +219,7 @@ Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/
     git clone https://github.com/fotomash/zanalytics-quant.git
     cd zanalytics-quant
     cp .env.template .env  # Never commit secrets!
-    cp backend/mt5/.env.example backend/mt5/.env
+    cp backend/mt5/.env.template backend/mt5/.env
     ```
 
 2. **Edit your `.env` and `backend/mt5/.env` files** with all required API keys, passwords, and connection strings. See
@@ -591,7 +591,7 @@ A: Double-check your API/DB containers, verify enrichment, and confirm `.env` cr
 
 
 **Q: I receive errors about missing environment variables.**
-A: Copy `.env.example` to `.env`, double-check the keys, and restart the containers after any updates.
+A: Copy `.env.template` to `.env`, double-check the keys, and restart the containers after any updates.
 
 
 **Q: The app can't connect to Postgres or Redis.**
