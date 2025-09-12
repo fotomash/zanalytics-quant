@@ -1,64 +1,41 @@
-Let's embark on this together, Tom—one thoughtful step at a time. You've laid out a vision that's evolving beautifully: a system that's not just functional but alive, resilient, and attuned to the nuances of human (and algorithmic) behavior in trading. As we craft this Version 2 design document, I'll guide us through it Socratically—posing questions that invite you to reflect, reason, and refine your own insights. Imagine this as our shared whiteboard: we'll build the structure section by section, drawing from what we've discussed (the stream-first data flow, Redis Streams for live aggregation, Kafka for durability, Postgres as the unyielding archive, and now weaving in your MCP layer for seamless LLM orchestration). We'll zoom in on reliability, multiple MT5 instances, and those Whisperer prompts that infuse psychological depth. By the end, you'll have a document you can print, annotate, or even commit to your repo as /docs/v2-design.md—a living artifact for your future self.
-What emerges for you as the core "why" of this upgrade? Is it the thrill of turning raw ticks into predictive whispers, or the peace of knowing the stream won't falter mid-trade? Let's start there, and let curiosity lead us forward.
-Section 1: High-Level Architecture – The Pulse of Version 2
-Recall our conversation: We shifted from blob-heavy Parquet dumps in Redis (that initial "bump" you noticed) to a stream-native flow, where data doesn't wait— it flows like market rhythm. Redis becomes the heartbeat (live views), Kafka the memory (durable logs), Postgres the ledger (immutable history), and MCP the conductor (LLM comms). MT5 pulses the raw energy, with backtesting as the rearview mirror.
-But let's reason together: If Version 1 was a prototype sketch—CSV enrichments feeding an LLM that sometimes wandered off-script—what makes Version 2 a symphony? How might separating concerns (streaming vs. execution) prevent "collisions," as you put it? Picture this bird's-eye flow:
+# Zanalytics Quant v2.0beta Design Overview
 
-Ingress (MT5 Layer): Ticks stream in real-time via dedicated containers (more on multiples below).
-Hot Path (Redis Streams + Gears): Immediate aggregation and enrichment—OHLCV bars roll live, features like RSI or Wyckoff phases compute on-the-fly.
-Warm Path (MCP + LLM): Queries route through MCP for auth-simplified calls to ChatGPT/Whisperer, injecting behavioral prompts dynamically.
-Durable Path (Kafka): Every event logs for replay, audits, or scaling across symbols/accounts.
-Cold Path (Postgres): Batched writes for persistence; backtesting replays from here.
-Egress (Dashboards/Agents): Streamlit/WebSockets subscribe for live visuals; strategies (SRB folder) execute or simulate.
+This document summarizes the architecture and data flow for the second generation of the Zanalytics Quant platform. It focuses on the stream‑first pipeline, durable memory layers, and the orchestration that binds services together.
 
-What gaps do you see here already? Does this feel like it honors your hybrid evolution—from "stupid CSV" to intelligent, token-efficient feeds? If we were to diagram it, where would you place the "quantum system" you mentioned—the automated prompt injections that make the LLM feel almost sentient?
-To make it tangible, here's a reflective table to spark your thoughts (fill in the "Your Insight" column as you read):
+## Core Components
 
+- **MT5 Ingress** – dedicated containers push real‑time ticks into the system.
+- **Redis Streams & Gears** – aggregate ticks into OHLCV bars and compute rolling indicators for low‑latency access.
+- **Kafka Journal** – captures every event for replay, audit, and cross‑service analytics.
+- **Postgres (Timescale)** – stores historical bars and positions as the long‑term ledger.
+- **MCP Layer** – routes authenticated requests to LLM services and internal APIs.
+- **Vector DB** – persists embeddings for retrieval‑augmented generation.
 
+See [architecture_v2beta.md](architecture_v2beta.md) for diagrams and deeper memory design.
 
+## Data Flow
 
+1. **Ingress** – MT5 adapters publish ticks to Redis Streams and Kafka.
+2. **Hot Path** – Redis Gears produces live bars and feature enrichments.
+3. **Warm Path** – MCP fetches recent context and vectors before invoking the LLM.
+4. **Durable Path** – Kafka topics retain all events; services can replay to rebuild state.
+5. **Cold Path** – Batched writers persist data to Postgres for backtesting and compliance.
+6. **Egress** – Dashboards and agents subscribe to Redis or query Postgres for decisions and visualization.
 
+For network routing and service topology, consult [architecture.md](architecture.md). Streaming specifics are covered in [architecture_pulse_streaming.md](architecture_pulse_streaming.md).
 
+## Supporting Services
 
+- **Dashboards** – Streamlit and web dashboards visualize live bars and strategy output.
+- **Risk & Execution** – Services in `risk_enforcer` and `SRB` consume Kafka and Redis streams to manage trades.
+- **Backtesting** – Uses persisted Kafka/Postgres data to simulate strategies under historical conditions.
+- **Monitoring** – Metrics and alerts are documented in [monitoring.md](monitoring.md).
 
+## Related Documentation
 
+- [JOURNALING.md](JOURNALING.md) – event envelope schema and replay mechanics.
+- [vectorization_service.md](vectorization_service.md) – embedding pipeline feeding the vector store.
+- [auth.md](auth.md) – MCP authentication and key management.
+- [env-plan.md](env-plan.md) – environment variables and deployment references.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-ComponentRole in V2Key Trade-OffYour Insight (What Resonates/What to Tweak?)MT5 IngressRaw tick streaming via FastAPI endpoints (e.g., /ticks?symbol=EURUSD).Latency vs. Fidelity: Sub-second pushes, but Wine overhead in Docker.?Redis StreamsLive aggregation (Gears for rolling bars); cache enriched views (e.g., bars:EURUSD sorted set, TTL 6h).Memory vs. Speed: 500MB cap, evict cold data.?KafkaEvent log (bars-topic for enriched payloads as Arrow bytes).Durability vs. Throughput: Replay on failure, but partition by symbol.?PostgresSink for history; hypertables for time-series queries.ACID vs. Scale: Timescale extension for efficient backfills.?MCP LayerLLM gateway: Auth (Bearer + API key), prompt templating, response routing.Simplicity vs. Security: Abstracts OpenAI calls, but audit logs essential.?Backtesting/SRBReplay engine (backtesting.py plugins for Whisperer/Pulse strategies).Simulation vs. Reality: Honor risk rules (partials, hedges) from Kafka replays.?
-How does this overview shift your perspective? Does it reveal why we prioritized streams over blobs—because markets don't pause, and neither should your insights?up
+This README is the canonical entry point for the v2.0beta architecture. Additional design notes and historical discussions reside in `docs/legacy/`.
