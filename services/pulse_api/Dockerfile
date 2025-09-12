@@ -2,14 +2,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install dependencies only for the Pulse API service
-COPY services/pulse_api/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
+# Copy requirements and install dependencies
+COPY services/pulse_api/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && rm requirements.txt
 
-# Copy only the files needed to run the Pulse API
+# Copy application code
 COPY services/pulse_api /app/services/pulse_api
 COPY pulse_kernel.py pulse_config.yaml /app/
 
-EXPOSE 8080
+EXPOSE 8000
 
-CMD ["uvicorn", "services.pulse_api.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["python", "-m", "uvicorn", "services.pulse_api.main:app", "--host", "0.0.0.0", "--port", "8000"]

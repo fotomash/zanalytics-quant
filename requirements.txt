@@ -8,7 +8,6 @@ PyYAML==6.0.2
 
 # pydantic for cross-service schema validation
 pydantic==2.7.4
-httpx==0.28.1
 
 streamlit==1.36.0
 plotly==5.22.0
