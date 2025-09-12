@@ -32,7 +32,9 @@ def create_behavioral_donut(value: float, title: str, color: str, max_value: flo
                 "bgcolor": "rgba(0,0,0,0)",
                 "bordercolor": "rgba(0,0,0,0)",
             },
-__all__ = ["create_metric_donut"]
+        )
+    )
+
 
 
 def create_metric_donut(value, title, color, suffix="%", max_value=100):
