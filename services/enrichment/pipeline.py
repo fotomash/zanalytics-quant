@@ -23,6 +23,7 @@ from typing import Any, Dict, Iterable, Optional
 # ``services.enrichment.modules`` and expose a ``run`` callable.
 MODULE_ORDER: Iterable[str] = (
     "structure_validator",
+    "technical_indicators",
     "liquidity_engine",
     "context_analyzer",
     "fvg_locator",
