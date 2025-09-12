@@ -4,6 +4,8 @@ The vectorized implementations of the `StructureProcessor` order block and
 fair value gap detectors use NumPy arrays and achieve sub-millisecond
 latency for typical batch sizes.
 
+For consistent evaluations, tick data fed into these processors is reconstructed through Kafka log replay. The log's preserved ordering recreates the original tick sequence so benchmarking and simulations run deterministically across repeated runs.
+
 Benchmark executed on 1000 synthetic rows:
 
 ```
