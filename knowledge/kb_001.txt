@@ -289,6 +289,7 @@ output
 
 Copy
 
+[DEPRECATED: Telegram flowchart removed – see Discord flowchart below]
 [DEPRECATED: Telegram flowchart removed; see Discord flowchart]
 
 python
@@ -1491,6 +1492,7 @@ Risk warnings and behavioral nudges
 Command structure (/status, /score, /journal, etc.)
 Conversation examples for pre/post trade
 Daily summaries and pattern recognition alerts
+2. 🔄 [DEPRECATED] Telegram Flowchart (replaced by Discord version)
 2. 🔄 [DEPRECATED] Telegram Flowchart (moved to legacy)
 
 3. 🎨 Streamlit UI Design
