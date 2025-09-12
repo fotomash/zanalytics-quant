@@ -407,7 +407,7 @@ Examples of real-time viewing, enrichment jobs, and troubleshooting. [docs/user_
 
 ## Data Enrichment & Customization
 
-Extend scripts in `utils/` to build custom features and dashboards. [Workflow](docs/data_enrichment_customization.md).
+Extend scripts in `utils/` to build custom features and dashboards. The default enrichment labels each tick with its Wyckoff phase, computes an aggregated confidence score, emits a nudge string, and generates an embedding vector. [Workflow](docs/data_enrichment_customization.md).
 
 ## Session Manifest Prompts
 
@@ -486,7 +486,7 @@ Current limitations and extension tips: [docs/known_issues_best_practices.md](do
 
 ## Future Directions & Next Steps
 
-Planned improvements include live data ingestion, Redis-first caching, decoupled enrichment, and OAuth2 security. [Full roadmap](docs/future_directions.md).
+Planned improvements include live data ingestion, Redis-first caching, decoupled enrichment, OAuth2 security, and adding full technical indicators and options Greek calculations. [Full roadmap](docs/future_directions.md).
 
 ---
 

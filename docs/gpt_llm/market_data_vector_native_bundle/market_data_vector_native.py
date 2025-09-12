@@ -1,4 +1,5 @@
 # market_data_vector_native.py
+# Prototype for future use; includes technical indicators and is not part of current capabilities.
 
 import pandas as pd
 import numpy as np
@@ -85,14 +86,8 @@ class MarketDataVectorNative:
             })
             price_data[self.asset_names[asset]] = df['close']
 
-        # Create markdown table
-        md_table = "| Asset | Price | Change % | RSI | MACD Signal | Recommendation | Volatility |
-"
-        md_table += "|-------|-------|----------|-----|-------------|----------------|------------|
-"
-        for d in market_data:
-            md_table += f"| {d['asset']} | ${d['price']:,} | {d['change_percent']}% | {d['rsi']} | {d['macd_signal']} | {d['recommendation']} | {d['volatility']}% |
-"
+        # Create markdown table (future work: include technical indicators)
+        md_table = ""
 
         # Correlation heatmap
         df_prices = pd.DataFrame(price_data)

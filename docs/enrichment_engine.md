@@ -4,9 +4,8 @@ The enrichment engine augments raw market data with derived signals and metadata
 It consumes tick and bar streams, runs them through a configurable processor
 pipeline, and publishes enriched events for downstream services. The reference
 implementation in `utils/enrich.py` currently adds only four attributes:
-Wyckoff phase detection, an aggregated confidence score, a human-readable
-nudge, and an embedding vector. Technical indicators and options Greeks are
-not part of the core engine and are tracked as future work.
+Wyckoff phase detection, an aggregated confidence score, a human-readable nudge
+string, and an embedding vector.
 
 ## Architecture
 
@@ -107,3 +106,8 @@ without redeployment.
 
 For operational metrics and monitoring details see the
 [Operations Guide](operations.md).
+
+## Future Work
+
+Full technical indicator libraries and options Greek calculations remain out of
+scope for the core engine and are planned for later phases.
