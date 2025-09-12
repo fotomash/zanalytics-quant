@@ -57,3 +57,5 @@ def test_zigzag_and_elliott_wave():
     assert result["pivots"]["troughs"] == [1, 3, 5, 7, 9]
     assert result["elliott_wave"]["label"] == "impulse_bullish"
     assert result["elliott_wave"]["score"] > 0.5
+    assert "ewt_forecast" in result
+    assert isinstance(result["ewt_forecast"], str)
