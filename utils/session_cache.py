@@ -4,12 +4,12 @@ from datetime import timedelta
 from typing import Any, Dict
 
 import logging
-import redis  # type: ignore
 import requests
+
+from utils.redis_client import get_redis_connection
 
 
 # Config
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 TTL_DEFAULTS: Dict[str, int] = {
     "session_boot": int(os.getenv("SESSION_BOOT_TTL", "30")),
     "trades_recent": int(os.getenv("TRADES_RECENT_TTL", "15")),
@@ -17,7 +17,7 @@ TTL_DEFAULTS: Dict[str, int] = {
 }
 
 logger = logging.getLogger(__name__)
-r = redis.Redis.from_url(REDIS_URL)
+r = get_redis_connection()
 
 
 def _get_cache_key(api_type: str, user_id: str = "default") -> str:

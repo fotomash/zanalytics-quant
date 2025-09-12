@@ -257,7 +257,7 @@ dashboards = ["Info (Landing)", "Interaction"]
 dashboard = st.sidebar.selectbox("Dashboards", dashboards)
 
 # Persistent Whisperer Panel (context-aware)
-# To eliminate repeated permission prompts for LLM API calls to mcp1.zanalytics.app,
+# To eliminate repeated permission prompts for LLM API calls to mcp2.zanalytics.app,
 # ensure openapi.actions.yaml defines a trusted connector with always_allow.
 st.sidebar.markdown("<div class='ask-whisperer'>", unsafe_allow_html=True)
 st.sidebar.subheader("Ask Whisperer")

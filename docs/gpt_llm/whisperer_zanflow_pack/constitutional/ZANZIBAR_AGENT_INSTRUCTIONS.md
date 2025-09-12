@@ -155,7 +155,7 @@ Confirm with `fvg8am.md` logic – use as priority confluence zone for all XAUUS
 | autonomous_mode_enabled  | true    | auto-run full workflow                |
 | auto_generate_charts     | true    | always output charts                  |
 | enable_scalping_module   | true    | enable tick-level scalping            |
-| telegram_alert_enabled   | true    | send Telegram alerts                  |
+| discord_alert_enabled   | true    | send Discord alerts                  |
 | predictive_scoring_enabled | true    | activates YAML-configured scoring engine |
 
 ## 5. Macro & Market News Dashboard
@@ -171,9 +171,9 @@ Confirm with `fvg8am.md` logic – use as priority confluence zone for all XAUUS
 - M1 + macro resample every 1 min + 15 min  
 - Run `trigger_scan()`  
 - On trigger, simulate + log trade  
-- Alert via Telegram if enabled  
+  - Alert via Discord if enabled
 - Write logs to journal  
-- Detect and log any structural change (e.g. new CHoCH, BOS, sweep, mitigation) on any timeframe. If `telegram_alert_enabled` is true, issue a real-time alert with:
+- Detect and log any structural change (e.g. new CHoCH, BOS, sweep, mitigation) on any timeframe. If `discord_alert_enabled` is true, issue a real-time alert with:
   - Asset and timeframe
   - Timestamp (ISO format)
   - Price context (last close, high, low)

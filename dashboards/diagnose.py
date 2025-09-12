@@ -66,7 +66,7 @@ with st.expander("MCP health"):
     st.code(
         json.dumps(
             {
-                "endpoint": "https://mcp1.zanalytics.app/mcp",
+                "endpoint": "https://mcp2.zanalytics.app/mcp",
                 "method": "GET",
                 "payload": None,
                 "expected_events": ["open", "heartbeat"],
@@ -76,7 +76,7 @@ with st.expander("MCP health"):
         language="json",
     )
     if st.button("Stream MCP"):
-        output = run_cmd(["curl", "-N", "--max-time", "5", "https://mcp1.zanalytics.app/mcp"])
+        output = run_cmd(["curl", "-N", "--max-time", "5", "https://mcp2.zanalytics.app/mcp"])
         st.code(output)
 
 with st.expander("Exec payload sender"):
@@ -85,7 +85,7 @@ with st.expander("Exec payload sender"):
     st.code(
         json.dumps(
             {
-                "endpoint": "https://mcp1.zanalytics.app/exec/example",
+                "endpoint": "https://mcp2.zanalytics.app/exec/example",
                 "method": "POST",
                 "payload": example_payload,
                 "expected_events": ["proxy_response"],
@@ -101,7 +101,7 @@ with st.expander("Exec payload sender"):
                 "-s",
                 "-X",
                 "POST",
-                "https://mcp1.zanalytics.app/exec/example",
+                "https://mcp2.zanalytics.app/exec/example",
                 "-H",
                 "Content-Type: application/json",
                 "-d",
@@ -134,7 +134,7 @@ with st.expander("Tracker sync"):
         st.code(f"{datetime.utcnow().isoformat()}Z\n\n{tracker}")
 
 if st.button("Swagger Link"):
-    st.markdown("[OpenAPI docs](https://mcp1.zanalytics.app/docs)")
+    st.markdown("[OpenAPI docs](https://mcp2.zanalytics.app/docs)")
 
 time.sleep(10)
 st.experimental_rerun()

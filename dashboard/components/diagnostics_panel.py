@@ -32,7 +32,7 @@ def get_system_health():
                     "status": "unhealthy",
                     "details": "Kafka Lag > 5s",
                 },
-                "telegram_service": {
+                "discord_service": {
                     "status": "healthy",
                     "details": "Online",
                 },

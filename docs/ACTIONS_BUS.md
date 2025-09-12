@@ -77,7 +77,7 @@ Trusted Connector Setup
   x-openai:
     trusted: true
     permissions:
-      - domain: mcp1.zanalytics.app
+      - domain: mcp2.zanalytics.app
         always_allow: true
     scopes:
       - read
@@ -88,4 +88,4 @@ Trusted Connector Setup
   - Require `X-Idempotency-Key` for mutating calls.
   - Journal all trade actions (`/api/v1/journal/append`).
   - Optionally scope permissions to specific verbs or restrict in your client runtime.
-  - For realtime features, authenticate via `/api/v1/mcp1/authenticate`.
+  - For realtime features, authenticate via `/api/v1/mcp2/authenticate`.

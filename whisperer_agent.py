@@ -17,7 +17,7 @@ from whisper_engine import State
 
 # Default MCP endpoint if the environment variable is unset.
 MCP_HOST = os.getenv(
-    "MCP_HOST", "https://mcp1.analytics.org/api/v1/whisperer/exec"
+    "MCP_HOST", "https://mcp2.analytics.org/api/v1/whisperer/exec"
 )
 
 app = FastAPI(title="Whisperer MCP")

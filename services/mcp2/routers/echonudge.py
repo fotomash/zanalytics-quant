@@ -118,7 +118,7 @@ async def _maybe_publish_alert(result: dict[str, Any], prompt: str, meta: Option
                 "meta": meta or {},
             }
             # Publish to the same pubsub channel used by pulse bot
-            await redis_client.redis.publish("telegram-alerts", json.dumps(payload))
+            await redis_client.redis.publish("discord-alerts", json.dumps(payload))
             return True
     except Exception:
         logger.exception("EchoNudge alert publish failed")
