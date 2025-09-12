@@ -2,6 +2,7 @@
 
 Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, Postgres, and Streamlit. Now with LLM‑native Actions and safe position control (partials, scaling, hedging).
 
+For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation. Redis cache design and deployment steps live in [redis_architecture/README.md](redis_architecture/README.md). Guidance on MCP memory windows, journaling, and when to split Redis instances is in [docs/mcp_redis.md](docs/mcp_redis.md).
 The v2.0beta release pivots to a memory-centric stack: Redis handles low-latency state, vector search powers recall, and journal replay keeps sessions deterministic.
 - **MCP Redis** maintains real-time caches and streams for the MCP layer. [Learn more](docs/architecture_v2beta.md#mcp-redis).
 - **Journal persistence** writes a durable, replayable audit log. [Learn more](docs/architecture_v2beta.md#journal-persistence).

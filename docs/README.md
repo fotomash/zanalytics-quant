@@ -32,6 +32,7 @@ Current Direction (Active)
 - [Dashboard app](../dashboard/README.md)
 - [Prototype dashboards](../dashboards/README.md)
 - [Monitoring stack](monitoring.md)
+- [MCP Redis memory windows](mcp_redis.md)
 - [MCP2 connector config](connectors/mcp2_connector.yaml) – dev/prod SSE endpoints
 - [MCP2 OpenAI tools manifest](connectors/actions_openai_mcp2.yaml)
 - [MCP2 runbook](runbooks/mcp2.md)
