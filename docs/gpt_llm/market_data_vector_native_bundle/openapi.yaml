@@ -3,13 +3,13 @@ info:
   title: Financial Market Data API
   version: 1.0.0
   description: |
-    Vector-native API for market summary, technical indicators, and asset correlation.
+    Vector-native API for market summary and asset correlation.
 servers:
   - url: https://api.marketdata.example.com/v1
 paths:
   /market/summary:
     get:
-      summary: Market summary with technical indicators and visualizations
+      summary: Market summary with visualizations
       operationId: getMarketSummary
       parameters:
         - name: assets
@@ -60,10 +60,6 @@ components:
           type: number
         change_percent:
           type: number
-        rsi:
-          type: number
-        macd_signal:
-          type: string
         recommendation:
           type: string
         volatility:
@@ -88,3 +84,5 @@ components:
             type: string
         data_refresh:
           type: string
+
+# Future Work: include full technical indicators and options Greeks in the response schema.

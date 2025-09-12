@@ -17,8 +17,6 @@
   - `asset` (string): Asset name and symbol
   - `price` (number): Latest price
   - `change_percent` (number): % change from previous close
-  - `rsi` (number): 14-day RSI
-  - `macd_signal` (string): Bullish/Bearish
   - `recommendation` (string): Buy/Sell
   - `volatility` (number): 30-day annualized volatility (%)
 - `visualization`
@@ -28,3 +26,7 @@
   - `immediate` (array): Immediate follow-up actions
   - `user_options` (array): User-selectable options
   - `data_refresh` (string): Data refresh interval
+
+## Future Work
+
+- Include full technical indicators such as RSI and MACD, along with options Greeks, in the asset summaries.

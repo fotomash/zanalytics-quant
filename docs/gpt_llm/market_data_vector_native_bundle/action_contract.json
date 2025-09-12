@@ -7,7 +7,7 @@
   "paths": {
     "/market/summary": {
       "get": {
-        "summary": "Market summary with technical indicators and visualizations",
+        "summary": "Market summary with visualizations",
         "operationId": "getMarketSummary",
         "parameters": [
           {
@@ -61,8 +61,6 @@
           "asset": { "type": "string" },
           "price": { "type": "number" },
           "change_percent": { "type": "number" },
-          "rsi": { "type": "number" },
-          "macd_signal": { "type": "string" },
           "recommendation": { "type": "string" },
           "volatility": { "type": "number" }
         }

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This bundle provides a vector-native, LLM-action-ready API for market summary, technical indicators, and asset correlation, with both YAML and JSON schemas, and a Python implementation.
+This bundle provides a vector-native, LLM-action-ready API for market summary and asset correlation, with both YAML and JSON schemas, and a Python implementation.
 
 ## Files
 
@@ -34,3 +34,7 @@ print(result["visualization"]["table_markdown"])
 
 - All time series and correlations are computed as vectors
 - Output is suitable for embedding, clustering, and further vector-native analytics
+
+## Future Work
+
+Support for full technical indicators and options Greeks will be added in a future iteration.
