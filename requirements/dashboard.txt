@@ -4,7 +4,7 @@ plotly==5.22.0
 pandas
 numpy
 pytz
-MetaTrader5
+MetaTrader5 ; sys_platform == "win32"
 redis==6.4.0
 pyyaml>=6.0
 requests>=2.31
