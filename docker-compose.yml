@@ -13,6 +13,7 @@ x-common-labels: &default-labels
 x-discord-env: &discord-env
   DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
   DISCORD_CHANNEL_ID: ${DISCORD_CHANNEL_ID:-}
+  DISCORD_CHANNEL_WHITELIST: ${DISCORD_CHANNEL_WHITELIST:-}
 
 
 services:
@@ -274,7 +275,6 @@ services:
     env_file:
       - .env
     environment:
-      <<: *discord-env
       PYTHONPATH: /app:/app/components:/app/utils:/app/backend:/app/agents
       DJANGO_SETTINGS_MODULE: app.settings
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-key-change-me}
@@ -617,7 +617,6 @@ services:
       dockerfile: Dockerfile.tick-to-bar
     command: ["python", "services/tick_to_bar.py"]
     environment:
-      <<: *discord-env
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       SYMBOL: EURUSD
     volumes:
@@ -723,7 +722,6 @@ services:
       DJANGO_API_URL: http://django:8000
       DJANGO_API_TOKEN: ${DJANGO_API_TOKEN:-}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      DISCORD_CHANNEL_WHITELIST: ${DISCORD_CHANNEL_WHITELIST:-}
       MCP_MEMORY_API_KEY: ${MCP_MEMORY_API_KEY:-}
 
     # Canonical Pulse Discord bot entrypoint
