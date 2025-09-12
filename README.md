@@ -1,5 +1,6 @@
 # Zanalytics Quant Platform
 
+
 Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, Postgres, and Streamlit. Now with LLM‑native Actions and safe position control (partials, scaling, hedging).
 
 The v2.0beta release pivots to a memory-centric stack: Redis handles low-latency state, vector search powers recall, and journal replay keeps sessions deterministic. For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation. Redis cache design and deployment steps live in [redis_architecture/README.md](redis_architecture/README.md), and MCP memory windows and journaling guidance are covered in [docs/mcp_redis.md](docs/mcp_redis.md).
@@ -25,12 +26,12 @@ The v2.0beta release pivots to a memory-centric stack: Redis handles low-latency
 - [mt5 vs mt5-api services](#mt5-vs-mt5-api-services)
 - [How It Works (Practical Flow)](#how-it-works-practical-flow)
 - [Data Integrity and Deduplication](#data-integrity-and-deduplication)
-- [MT5 Bridge & Orders (Execution)](#mt5-bridge--orders-execution)
-- [Actions Bus for GPT (≤30 operations)](#actions-bus-for-gpt-%E2%89%A430-operations)
+- [MT5 Bridge & Orders (Execution)](#mt5-bridge-orders-execution)
+- [Actions Bus for GPT (≤30 operations)](#actions-bus-for-gpt-30-operations)
 - [Dashboards & Diagnostics](#dashboards--diagnostics)
 - [Journaling (ZBAR)](#journaling-zbar)
 - [Typical User Scenarios](#typical-user-scenarios)
-- [Data Enrichment & Customization](#data-enrichment--customization)
+- [Data Enrichment & Customization](#data-enrichment-customization)
 - [Session Manifest Prompts](#session-manifest-prompts)
 - [Confidence Trace Matrix](#confidence-trace-matrix)
 - [Example .env Configuration](#example-env-configuration)
@@ -53,6 +54,14 @@ The v2.0beta release pivots to a memory-centric stack: Redis handles low-latency
 - [MCP Scaling Runbook](#mcp-scaling-runbook)
 - [Pulse Dashboard Prototype](#pulse-dashboard-prototype)
 - [Further Reading](#further-reading)
+
+## Memory & Persistence
+
+- **MCP Redis** – low-latency message bus and cache for metrics and session state. [More](docs/architecture_v2beta.md#mcp-redis)
+- **Journal persistence** – append-only log for durable audits and replay. [More](docs/architecture_v2beta.md#journal-persistence)
+- **Vector memory** – embedding store enabling long-term contextual recall. [More](docs/architecture_v2beta.md#vector-memory)
+
+
 ## What's Inside
 - `backend/mt5`: Flask bridge to MetaTrader5 (send orders, partial close, hedge, scale)
 - `backend/django`: REST API, Actions Bus router, positions aliases, journal
@@ -199,6 +208,7 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml up tick-to-b
 Service definition: [docker-compose.override.yml](docker-compose.override.yml).
 
 ---
+
 
 ## Getting Started – Quick Launch
 
