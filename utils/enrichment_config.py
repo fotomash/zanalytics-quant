@@ -82,6 +82,15 @@ class StructureConfig(BaseModel):
     wyckoff: bool = Field(True, description="Enable Wyckoff phase analysis")
 
 
+class AlligatorConfig(BaseModel):
+    """Configuration for Alligator moving averages."""
+
+    enabled: bool = True
+    jaw: int = 13
+    teeth: int = 8
+    lips: int = 5
+
+
 class AdvancedConfig(BaseModel):
     """Advanced enrichment modules."""
 
@@ -89,6 +98,9 @@ class AdvancedConfig(BaseModel):
     context_analyzer: bool = True
     fvg_locator: bool = True
     predictive_scorer: bool = True
+    fractal_detector: bool = True
+    fractal_bars: int = 2
+    alligator: AlligatorConfig = Field(default_factory=AlligatorConfig)
 
 
 class EnrichmentConfig(BaseModel):
@@ -109,6 +121,16 @@ class EnrichmentConfig(BaseModel):
             "context_analyzer": {"enabled": self.advanced.context_analyzer},
             "fvg_locator": {"enabled": self.advanced.fvg_locator},
             "predictive_scorer": {"enabled": self.advanced.predictive_scorer},
+            "fractal_detector": {
+                "enabled": self.advanced.fractal_detector,
+                "bars": self.advanced.fractal_bars,
+            },
+            "alligator": {
+                "enabled": self.advanced.alligator.enabled,
+                "jaw": self.advanced.alligator.jaw,
+                "teeth": self.advanced.alligator.teeth,
+                "lips": self.advanced.alligator.lips,
+            },
         }
 
 
@@ -130,6 +152,7 @@ __all__ = [
     "TechnicalSubGroup",
     "TechnicalConfig",
     "StructureConfig",
+    "AlligatorConfig",
     "AdvancedConfig",
     "EnrichmentConfig",
     "load_enrichment_config",
