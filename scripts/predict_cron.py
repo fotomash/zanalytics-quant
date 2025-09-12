@@ -203,10 +203,15 @@ def predict_silence(redis_client: redis.Redis, key: str = "predict:latest_tick")
     The value stored at ``key`` may be bytes or a string. If bytes are
     retrieved, they are decoded to UTF-8 before being passed to
     :func:`compute_silence_duration`.
+
+    Returns the number of seconds since the last tick. If ``redis_client``
+    has no record for ``key`` (meaning no ticks have been observed yet),
+    ``0.0`` is returned as a sentinel value.
     """
     latest_tick = redis_client.get(key)
     if latest_tick is None:
-        return compute_silence_duration(0.0)
+        # No tick recorded yet; consumers should treat this as "no data"
+        return 0.0
     if isinstance(latest_tick, bytes):
         latest_tick = latest_tick.decode()
     return compute_silence_duration(latest_tick)
