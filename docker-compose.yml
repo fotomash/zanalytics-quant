@@ -735,16 +735,13 @@ services:
       - default
 
   pulse-discord-bot:
-    build:
-      context: .
+    build: ./services/pulse_discord_bot
     container_name: pulse-discord-bot
     working_dir: /app
-    volumes:
-      - .:/app
     env_file:
       - .env
     environment:
-      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - MCP_MEMORY_API_URL=${MCP_MEMORY_API_URL}
       - MCP_MEMORY_API_KEY=${MCP_MEMORY_API_KEY}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}

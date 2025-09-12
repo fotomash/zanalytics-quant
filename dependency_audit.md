@@ -1,0 +1,65 @@
+# Dependency Audit
+
+The following table compares packages from the original `requirements.txt` against those detected by `pipreqs`.
+
+| Package | Used? | Needed? |
+|---|---|---|
+| amqp | No | No |
+| asgiref | No | No |
+| async-timeout | No | No |
+| billiard | No | No |
+| celery | Yes | Yes |
+| certifi | No | No |
+| charset-normalizer | No | No |
+| click | No | No |
+| click-didyoumean | No | No |
+| click-plugins | No | No |
+| click-repl | No | No |
+| colorama | No | No |
+| Django | Yes | Yes |
+| django-cors-headers | No | No |
+| django-extensions | No | No |
+| django-filter | No | No |
+| djangorestframework | No | No |
+| discord.py | No | No |
+| gunicorn | No | No |
+| idna | No | No |
+| kombu | No | No |
+| numpy | Yes | Yes |
+| packaging | No | No |
+| pandas | Yes | Yes |
+| scipy | No | No |
+| scikit-learn | No | No |
+| prompt-toolkit | No | No |
+| python-dateutil | No | No |
+| python-dotenv | No | No |
+| pytz | Yes | Yes |
+| pyarrow | No | No |
+| fastparquet | No | No |
+| requests | Yes | Yes |
+| six | No | No |
+| sqlparse | No | No |
+| typing-extensions | No | No |
+| tzdata | No | No |
+| urllib3 | No | No |
+| vine | No | No |
+| wcwidth | No | No |
+| whitenoise | No | No |
+| PyYAML | Yes | Yes |
+| pydantic | Yes | Yes |
+| httpx | Yes | Yes |
+| fastjsonschema | No | No |
+| streamlit | Yes | Yes |
+| plotly | Yes | Yes |
+| ta | Yes | Yes |
+| slowapi | No | No |
+| redis | Yes | Yes |
+| aioredis | No | No |
+| fakeredis | No | No |
+| asyncpg | No | No |
+| confluent-kafka | No | No |
+| tenacity | Yes | Yes |
+| sentence-transformers | No | No |
+| pinecone-client | No | No |
+| qdrant-client | No | No |
+| prometheus_client | Yes | Yes |

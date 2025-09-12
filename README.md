@@ -1,5 +1,6 @@
 # Zanalytics Quant Platform
 
+
 Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, Postgres, and Streamlit. Now with LLM‑native Actions and safe position control (partials, scaling, hedging).
 
 The v2.0beta release pivots to a memory-centric stack: Redis handles low-latency state, vector search powers recall, and journal replay keeps sessions deterministic. For deeper architecture insights and API details, visit the [docs README](docs/README.md), the central hub for extended documentation. Redis cache design and deployment steps live in [redis_architecture/README.md](redis_architecture/README.md), and MCP memory windows and journaling guidance are covered in [docs/mcp_redis.md](docs/mcp_redis.md).
@@ -25,12 +26,12 @@ The v2.0beta release pivots to a memory-centric stack: Redis handles low-latency
 - [mt5 vs mt5-api services](#mt5-vs-mt5-api-services)
 - [How It Works (Practical Flow)](#how-it-works-practical-flow)
 - [Data Integrity and Deduplication](#data-integrity-and-deduplication)
-- [MT5 Bridge & Orders (Execution)](#mt5-bridge--orders-execution)
-- [Actions Bus for GPT (≤30 operations)](#actions-bus-for-gpt-%E2%89%A430-operations)
+- [MT5 Bridge & Orders (Execution)](#mt5-bridge-orders-execution)
+- [Actions Bus for GPT (≤30 operations)](#actions-bus-for-gpt-30-operations)
 - [Dashboards & Diagnostics](#dashboards--diagnostics)
 - [Journaling (ZBAR)](#journaling-zbar)
 - [Typical User Scenarios](#typical-user-scenarios)
-- [Data Enrichment & Customization](#data-enrichment--customization)
+- [Data Enrichment & Customization](#data-enrichment-customization)
 - [Session Manifest Prompts](#session-manifest-prompts)
 - [Confidence Trace Matrix](#confidence-trace-matrix)
 - [Example .env Configuration](#example-env-configuration)
@@ -53,6 +54,14 @@ The v2.0beta release pivots to a memory-centric stack: Redis handles low-latency
 - [MCP Scaling Runbook](#mcp-scaling-runbook)
 - [Pulse Dashboard Prototype](#pulse-dashboard-prototype)
 - [Further Reading](#further-reading)
+
+## Memory & Persistence
+
+- **MCP Redis** – low-latency message bus and cache for metrics and session state. [More](docs/architecture_v2beta.md#mcp-redis)
+- **Journal persistence** – append-only log for durable audits and replay. [More](docs/architecture_v2beta.md#journal-persistence)
+- **Vector memory** – embedding store enabling long-term contextual recall. [More](docs/architecture_v2beta.md#vector-memory)
+
+
 ## What's Inside
 - `backend/mt5`: Flask bridge to MetaTrader5 (send orders, partial close, hedge, scale)
 - `backend/django`: REST API, Actions Bus router, positions aliases, journal
@@ -75,7 +84,7 @@ graph LR
 ```
 
 - **Redis-backed MCP memory** – Redis stores session context in TTL-managed hashes and streams for fast recall and ephemeral memory.
-- **Vector DB integration** – the [vectorization service](docs/vectorization_service.md) pushes embeddings to external stores (Qdrant, Pinecone, etc.) for semantic retrieval.
+- **Vector DB integration** – the [vectorization service](docs/vectorization_service.md) pushes embeddings to supported stores like Qdrant or FAISS for semantic retrieval. Pinecone is retained only for legacy setups and is unsupported.
 - **Scaling MCP instances** – add MCP pods behind the gateway when Redis memory or vector workloads near capacity.
 - **OpenAI MCP connector** – OpenAI’s MCP connector can plug into the gateway, exposing GPT tooling via the same `/exec` interface.
 
@@ -200,6 +209,7 @@ Service definition: [docker-compose.override.yml](docker-compose.override.yml).
 
 ---
 
+
 ## Getting Started – Quick Launch
 
 Before starting, install the core tooling: [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git), [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/). Optional dependencies include [Wine](https://wiki.winehq.org/Download) for the MT5 bridge on non-Windows hosts and [Traefik](https://doc.traefik.io/traefik/getting-started/install-traefik/) if you plan to use its routing features.
@@ -258,6 +268,10 @@ file out of version control. Never commit secrets to the repository. Docker Comp
 directive and injects those variables into services like `mcp`. For deployments, supply these values through your
 deployment configuration or a dedicated secrets manager—containers no longer mount `.env` directly.
 
+Qdrant (default) and FAISS are the maintained vector backends. See
+[docs/vectorization_service.md](docs/vectorization_service.md) for configuration
+details. Pinecone is considered legacy and unsupported.
+
 Key variables to configure before launching:
 
 - `CUSTOM_USER` and `PASSWORD` – MT5 account credentials.
@@ -269,9 +283,6 @@ Key variables to configure before launching:
 - `DJANGO_SECRET_KEY` – secret key for Django.
 - `MCP2_API_KEY` – secret used by the `mcp` service. Add it to `.env` and Compose
   or CI will inject it; use a 32‑hex‑character value.
-- `PINECONE_URL` and `PINECONE_API_KEY` – connection details for the Pinecone
-  vector store. Set these to point at your Pinecone deployment or leave the URL
-  as `https://localhost:443` to use the local fallback.
 - `VECTOR_DB_URL` – base URL for the vector database service (defaults to the
   bundled Qdrant instance).
 - `QDRANT_API_KEY` – API key for the Qdrant vector store if auth is required.
@@ -280,19 +291,13 @@ Key variables to configure before launching:
 - `REDIS_URL` – connection string for the MCP Redis instance.
 - `REDIS_STREAMS_URL` – optional Redis dedicated to stream operations
   (falls back to `REDIS_URL`).
-- `USE_KAFKA_JOURNAL` – set to `true` to persist journal events in Kafka instead
-  of Redis.
-
-- `VECTOR_DB_URL` and `QDRANT_API_KEY` – base URL and optional API key for the
-  vector database (Qdrant by default).
-- `LOCAL_LLM_MODEL` – model identifier for on-box inference served by Ollama
-  or a similar local runtime.
-- `REDIS_URL` – connection string for Redis used by MCP and other services.
 - `PULSE_JOURNAL_PATH` and `USE_KAFKA_JOURNAL` – directory for Redis-backed
   journal persistence and flag to mirror entries to Kafka.
 - `LOCAL_THRESHOLD` – confidence cutoff for using the local echo model. Ticks
   below this or in spring/distribution phases get a quick `llm_verdict`; others
   queue for Whisperer.
+
+**Legacy variables (unsupported):** `PINECONE_URL`, `PINECONE_API_KEY`
 
 See [docs/README.md](docs/README.md#flags-and-defaults) for default values and
 additional notes on these settings.

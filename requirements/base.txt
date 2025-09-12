@@ -54,10 +54,6 @@ pydantic==2.7.4
 httpx==0.28.1
 fastjsonschema==2.19.1
 
-streamlit==1.36.0
-plotly==5.22.0
-ta>=0.11.0
-
 slowapi==0.1.8
 redis==6.4.0        # Official Redis client with sync & asyncio (redis.asyncio)
 aioredis==2.0.1     # Legacy async client still used by some services
@@ -71,3 +67,12 @@ pinecone-client==6.0.0
 qdrant-client==1.15.1  # Vector DB client
 # metrics
 prometheus_client==0.22.1
+
+# MCP2 service dependencies
+pydantic==2.7.4
+httpx==0.27.0
+fastjsonschema==2.19.1
+slowapi==0.1.8
+redis==5.0.8        # Official Redis client with sync & asyncio (redis.asyncio)
+asyncpg==0.29.0
+tenacity==8.2.3
