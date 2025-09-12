@@ -705,7 +705,8 @@ services:
     logging: *default-logging
 
   pulse-bot:
-    image: python:3.11-slim
+    build:
+      context: ./services/pulse_bot
     container_name: pulse-bot
     working_dir: /app
     volumes:
@@ -719,7 +720,7 @@ services:
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_WHITELIST=${TELEGRAM_CHAT_WHITELIST:-}
-    command: sh -lc "pip install --no-cache-dir aiogram requests redis && PYTHONPATH=${PYTHONPATH:-/app} python services/pulse_bot/bot.py"
+    command: python services/pulse_bot/bot.py
     depends_on:
       django:
         condition: service_healthy
