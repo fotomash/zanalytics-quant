@@ -65,12 +65,15 @@ def run(
     for name in MODULE_ORDER:
         if state.get("status") == "FAIL":
             break
+        cfg = configs.get(name, {})
+        if cfg.get("enabled", True) is False:
+            continue
         try:
             module = import_module(f".modules.{name}", package=__package__)
             runner = getattr(module, "run")
 
             before_keys = set(state.keys())
-            state = runner(state, configs.get(name, {}))
+            state = runner(state, cfg)
             new_keys = set(state.keys()) - before_keys
             outputs[name] = {k: state[k] for k in new_keys}
         except Exception as exc:  # pragma: no cover - safeguard

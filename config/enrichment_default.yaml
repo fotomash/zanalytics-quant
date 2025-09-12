@@ -1,0 +1,28 @@
+# Default enrichment configuration grouped by category.
+# These examples demonstrate the expected schema.
+
+core:
+  structure_validator: true
+
+technical:
+  groups:
+    trend:
+      enabled: true
+      indicators:
+        sma: true
+        ema: false
+    oscillators:
+      enabled: true
+      indicators:
+        rsi: true
+        macd: true
+
+structure:
+  smc: true
+  wyckoff: true
+
+advanced:
+  liquidity_engine: true
+  context_analyzer: true
+  fvg_locator: true
+  predictive_scorer: true

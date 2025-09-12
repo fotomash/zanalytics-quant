@@ -517,6 +517,34 @@ class ZanalyticsDashboard:
                 st.session_state["refresh_home_data"] = False
 
     def display_home_page(self, data_sources=None):
+        cfg = safe_api_call("GET", "feed/enrichment-config") or {}
+        with st.expander("Enrichment Toggles", expanded=False):
+            core_cfg = cfg.get("core", {})
+            st.checkbox(
+                "Structure Validator",
+                value=core_cfg.get("structure_validator", True),
+                key="enrich_core_structure",
+            )
+            tech_groups = (cfg.get("technical", {}).get("groups", {}) or {})
+            for name, grp in tech_groups.items():
+                st.checkbox(
+                    f"Technical: {name}",
+                    value=grp.get("enabled", True),
+                    key=f"enrich_tech_{name}",
+                )
+            struct_cfg = cfg.get("structure", {})
+            st.checkbox("SMC", value=struct_cfg.get("smc", True), key="enrich_smc")
+            st.checkbox(
+                "Wyckoff", value=struct_cfg.get("wyckoff", True), key="enrich_wyckoff"
+            )
+            adv_cfg = cfg.get("advanced", {})
+            for key, val in adv_cfg.items():
+                st.checkbox(
+                    f"Advanced: {key.replace('_', ' ').title()}",
+                    value=bool(val),
+                    key=f"enrich_adv_{key}",
+                )
+
         # --- Quant-Desk Welcome Block (Updated Design) ---
         st.markdown(
             """

@@ -17,6 +17,7 @@ import json as _json
 import urllib.request as _urlreq
 import urllib.error as _urlerr
 from .schema_validation import validate_pulse_status, validate_pulse_detail
+from utils.enrichment_config import load_enrichment_config
 
 
 class PulseStatus(views.APIView):
@@ -338,6 +339,16 @@ class BarsEnriched(views.APIView):
             return Response(payload)
         except Exception as e:
             return Response({"items": [], "error": str(e)}, status=500)
+
+
+class EnrichmentConfig(views.APIView):
+    """Expose enrichment configuration grouped by section."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        cfg = load_enrichment_config()
+        return Response(cfg.model_dump())
 
 
 class TradeQualityDist(views.APIView):
