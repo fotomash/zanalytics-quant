@@ -10,6 +10,10 @@ x-common-labels: &default-labels
   logging_jobname: "containerlogs"
   stackname: "docker-monitoring-stack-gpnc"
 
+x-discord-env: &discord-env
+  DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+  DISCORD_CHANNEL_ID: ${DISCORD_CHANNEL_ID:-}
+
 services:
   traefik:
     image: traefik:v3.1
@@ -268,20 +272,19 @@ services:
       - 8010:8000
     env_file:
       - .env
-    environment:
-      - PYTHONPATH=/app:/app/components:/app/utils:/app/backend:/app/agents
-      - DJANGO_SETTINGS_MODULE=app.settings
-      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-dev-insecure-key-change-me}
-      - DJANGO_DOMAIN=${DJANGO_DOMAIN:-localhost}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
-      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID}
-      - ALERTS_ENABLED=true
-      - ALERTS_MIN_INTERVAL_SECONDS=60
-      - ALERTS_SCORE_HI=90
-      - ALERTS_TOXICITY_LIMIT=0.30
-      - ALERTS_DD_INTRADAY_WARN=0.025
-      - MT5_API_URL=http://mt5:5001
+      environment:
+        <<: *discord-env
+        PYTHONPATH: /app:/app/components:/app/utils:/app/backend:/app/agents
+        DJANGO_SETTINGS_MODULE: app.settings
+        DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-key-change-me}
+        DJANGO_DOMAIN: ${DJANGO_DOMAIN:-localhost}
+        REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+        ALERTS_ENABLED: true
+        ALERTS_MIN_INTERVAL_SECONDS: 60
+        ALERTS_SCORE_HI: 90
+        ALERTS_TOXICITY_LIMIT: 0.30
+        ALERTS_DD_INTRADAY_WARN: 0.025
+        MT5_API_URL: http://mt5:5001
       # Avoid overriding secret key with empty value; single definition above is sufficient
     depends_on:
       postgres:
@@ -613,10 +616,9 @@ services:
       dockerfile: Dockerfile.tick-to-bar
     command: ["python", "services/tick_to_bar.py"]
     environment:
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - SYMBOL=EURUSD
-      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
-      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID:-}
+      <<: *discord-env
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      SYMBOL: EURUSD
     volumes:
       - .:/app
     depends_on:
@@ -715,13 +717,13 @@ services:
     env_file:
       - .env
     environment:
-      - PYTHONPATH=/app
-      - DJANGO_API_URL=http://django:8000
-      - DJANGO_API_TOKEN=${DJANGO_API_TOKEN:-}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
-      - DISCORD_CHANNEL_WHITELIST=${DISCORD_CHANNEL_WHITELIST:-}
-      - MCP_MEMORY_API_KEY=${MCP_MEMORY_API_KEY:-}
+      <<: *discord-env
+      PYTHONPATH: /app
+      DJANGO_API_URL: http://django:8000
+      DJANGO_API_TOKEN: ${DJANGO_API_TOKEN:-}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      DISCORD_CHANNEL_WHITELIST: ${DISCORD_CHANNEL_WHITELIST:-}
+      MCP_MEMORY_API_KEY: ${MCP_MEMORY_API_KEY:-}
 
     # Canonical Pulse Discord bot entrypoint
     command: python services/pulse_bot/bot.py
@@ -741,10 +743,10 @@ services:
     env_file:
       - .env
     environment:
-      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
-      - MCP_MEMORY_API_URL=${MCP_MEMORY_API_URL}
-      - MCP_MEMORY_API_KEY=${MCP_MEMORY_API_KEY}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      <<: *discord-env
+      MCP_MEMORY_API_URL: ${MCP_MEMORY_API_URL}
+      MCP_MEMORY_API_KEY: ${MCP_MEMORY_API_KEY}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
     command: python pulse_discord_bot.py
     depends_on:
       redis:
