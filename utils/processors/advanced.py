@@ -1,4 +1,7 @@
+import json
 import logging
+import os
+import subprocess
 from typing import Any, Dict, List
 
 import numpy as np
@@ -7,6 +10,29 @@ import talib
 from scipy.signal import find_peaks
 
 from utils.metrics import record_metrics
+
+
+class RLAgent:
+    """Placeholder reinforcement-learning agent interface."""
+
+    def select_action(self, state: Dict[str, Any]) -> Any:  # pragma: no cover - stub
+        """Return an action for ``state``."""
+        return None
+
+    def update(
+        self,
+        state: Dict[str, Any],
+        action: Any,
+        reward: float,
+        next_state: Dict[str, Any],
+    ) -> None:  # pragma: no cover - stub
+        """Update internal policy from transition."""
+        return None
+
+    def train(self, episodes: int = 1) -> None:  # pragma: no cover - stub
+        """Iteratively improve the agent over ``episodes``."""
+        for _ in range(episodes):
+            pass
 
 
 class AdvancedProcessor:
@@ -27,12 +53,18 @@ class AdvancedProcessor:
         atr_period: int = 14,
         atr_threshold: float = 0.0,
         logger: logging.Logger | None = None,
+        ml_ensemble: bool = False,
+        llm_max_tokens: int = 256,
+        rl_agent: RLAgent | None = None,
     ) -> None:
         self.fractal_bars = fractal_bars
         self.alligator_cfg = alligator or {"jaw": 13, "teeth": 8, "lips": 5}
         self.atr_period = atr_period
         self.atr_threshold = atr_threshold
         self.logger = logger or logging.getLogger(__name__)
+        self.ml_ensemble = ml_ensemble
+        self.llm_max_tokens = llm_max_tokens
+        self.rl_agent = rl_agent
 
     # ------------------------------------------------------------------
     # Fractals
@@ -103,6 +135,28 @@ class AdvancedProcessor:
         trough_idx, _ = find_peaks(-lows, prominence=prominence)
 
         return {"peaks": peak_idx.tolist(), "troughs": trough_idx.tolist()}
+
+    # ------------------------------------------------------------------
+    # Local LLM helper
+    # ------------------------------------------------------------------
+    def _llm_infer(self, prompt: str) -> str:
+        """Run a locally served LLM using ``LOCAL_LLM_MODEL``."""
+
+        model = os.getenv("LOCAL_LLM_MODEL")
+        if not model:
+            return ""
+        cmd: List[str] = ["ollama", "run", model, prompt]
+        opts: Dict[str, Any] = {}
+        if self.llm_max_tokens:
+            opts["num_predict"] = int(self.llm_max_tokens)
+        if opts:
+            cmd += ["--options", json.dumps(opts)]
+        try:  # pragma: no cover - external call
+            res = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            return res.stdout.strip()
+        except Exception as exc:  # pragma: no cover - defensive
+            self.logger.warning("LLM inference failed: %s", exc)
+            return ""
 
     # ------------------------------------------------------------------
     # Alligator
@@ -257,16 +311,22 @@ class AdvancedProcessor:
             vol = self.volatility(df)
             pivots = self.detect_pivots(df)
             elliott = self.elliott_wave(df, pivots, fractals, gator)
+            forecast = ""
+            if elliott.get("label"):
+                forecast = self._llm_infer(
+                    f"Provide brief forecast for {elliott['label']} with score {elliott['score']:.2f}"
+                )
             return {
                 "fractals": fractals,
                 "alligator": gator,
                 "volatility": vol,
                 "pivots": pivots,
                 "elliott_wave": elliott,
+                "ewt_forecast": forecast,
             }
         except Exception as e:  # pragma: no cover - defensive logging
             self.logger.warning("Error in advanced processing: %s", e)
             return {}
 
 
-__all__ = ["AdvancedProcessor"]
+__all__ = ["AdvancedProcessor", "RLAgent"]
