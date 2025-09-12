@@ -1,3 +1,10 @@
+"""Minimal Pulse Discord bot (MVP).
+
+This lightweight bot demonstrates basic Discord integration for the Pulse stack.
+For production deployments with full command support, use
+``services/pulse_bot/bot.py``.
+"""
+
 import asyncio
 import logging
 import os
@@ -13,9 +20,10 @@ except Exception:  # pragma: no cover - redis optional
     aioredis = None
 
 # ---------------------------------------------------------------------------
+
 # Environment variables
 # ---------------------------------------------------------------------------
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 MCP_MEMORY_API_URL = os.getenv("MCP_MEMORY_API_URL")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 CACHE_TTL = int(os.getenv("PULSE_CACHE_TTL", "60"))
@@ -23,7 +31,7 @@ CACHE_TTL = int(os.getenv("PULSE_CACHE_TTL", "60"))
 missing = [
     name
     for name, value in [
-        ("DISCORD_TOKEN", DISCORD_TOKEN),
+        ("DISCORD_BOT_TOKEN", DISCORD_BOT_TOKEN),
         ("MCP_MEMORY_API_URL", MCP_MEMORY_API_URL),
     ]
     if not value
@@ -34,7 +42,7 @@ if missing:
     )
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
-logger = logging.getLogger("pulse_discord_bot")
+logger = logging.getLogger("pulse_bot_mvp")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -138,7 +146,7 @@ async def start_health_server() -> None:
 
 async def main() -> None:
     await start_health_server()
-    await bot.start(DISCORD_TOKEN)
+    await bot.start(DISCORD_BOT_TOKEN)
 
 
 if __name__ == "__main__":
