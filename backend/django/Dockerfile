@@ -27,7 +27,8 @@ COPY backend/django/requirements.txt /app/backend/django/requirements.txt
 ENV PIP_ROOT_USER_ACTION=ignore
 RUN pip install --no-cache-dir --upgrade pip \
  && pip install --no-cache-dir -r /app/requirements.txt \
- && pip install --no-cache-dir -r /app/backend/django/requirements.txt
+ && pip install --no-cache-dir -r /app/backend/django/requirements.txt \
+ && pip install --no-cache-dir celery redis
 
 # 2) Copy your code
 #    Django project is under backend/django/
