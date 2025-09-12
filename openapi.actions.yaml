@@ -6,11 +6,11 @@ info:
     Slim spec for agent-facing Actions routed via a single endpoint.
     Keeps the main API under the 30‑operation cap while exposing core verbs.
 servers:
-  - url: https://mcp1.zanalytics.app
+  - url: https://mcp2.zanalytics.app
 x-openai:
   trusted: true
   permissions:
-    - domain: mcp1.zanalytics.app
+    - domain: mcp2.zanalytics.app
       always_allow: true
   scopes:
     - read
@@ -304,10 +304,10 @@ paths:
         '404': { description: Not Found }
         '500': { description: Server Error }
 
-  /api/v1/mcp1/authenticate:
+  /api/v1/mcp2/authenticate:
     post:
-      summary: Authenticate session via MCP1
-      operationId: postMcp1Authenticate
+      summary: Authenticate session via MCP2
+      operationId: postMcp2Authenticate
       requestBody:
         required: true
         content:

@@ -137,7 +137,7 @@ to Kafka, and returns `{ "success": true }`.
 
 MCP1 Integration
 -----------------
-The Actions schema also exposes `/api/v1/mcp1/authenticate` for realtime OpenAI services.
+The Actions schema also exposes `/api/v1/mcp2/authenticate` for realtime OpenAI services.
 Send `{ "token": "<jwt>" }` and receive `{ "status": "authenticated" }` when valid.
 
 See also:

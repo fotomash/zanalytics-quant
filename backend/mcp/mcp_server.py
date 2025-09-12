@@ -156,7 +156,7 @@ async def generate_mcp_stream():
         yield json.dumps(
             {
                 "event": "heartbeat",
-                "data": {"time": time.time(), "server": "mcp1.zanalytics.app"},
+                "data": {"time": time.time(), "server": "mcp2.zanalytics.app"},
             }
         ) + "\n"
 

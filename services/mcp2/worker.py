@@ -19,7 +19,7 @@ from redis import Redis
 
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
-STREAM_PREFIX = os.getenv("DNS_PREFIX", "mcp1")
+STREAM_PREFIX = os.getenv("DNS_PREFIX", "mcp2")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
 MODEL = os.getenv("OLLAMA_MODEL", "llama3")
 POLL_INTERVAL = float(os.getenv("POLL_INTERVAL", 1.0))

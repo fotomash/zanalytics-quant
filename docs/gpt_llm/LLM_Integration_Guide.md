@@ -3,8 +3,8 @@
 This guide documents the agent‑facing Actions Bus, key REST endpoints, session semantics (SoD), and operational notes so LLMs can interact with Zanalytics Pulse safely and consistently.
 
 ## Base URLs
-- Primary API: `https://mcp1.zanalytics.app`
-- Slim Actions Spec (OpenAPI): `https://mcp1.zanalytics.app/openapi.actions.yaml`
+- Primary API: `https://mcp2.zanalytics.app`
+- Slim Actions Spec (OpenAPI): `https://mcp2.zanalytics.app/openapi.actions.yaml`
 
 ## Actions Bus
 - Endpoint: `POST /api/v1/actions/query`
