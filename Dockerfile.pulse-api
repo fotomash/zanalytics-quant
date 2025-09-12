@@ -10,9 +10,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential curl && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-COPY services/mcp2/requirements.txt services/mcp2/
-RUN pip install -r requirements.txt
+ARG INSTALL_DEV=false
+
+COPY requirements/ requirements/
+COPY services/mcp2/requirements.txt services/mcp2/requirements.txt
+RUN pip install -r requirements/prod.txt \
+    && pip install -r services/mcp2/requirements.txt \
+    && if [ "$INSTALL_DEV" = "true" ]; then pip install -r requirements/dev.txt -r requirements/optional.txt; fi
 
 COPY pulse_kernel.py risk_enforcer.py pulse_config.yaml ./
 COPY core/predictive_scorer.py core/__init__.py ./core/
