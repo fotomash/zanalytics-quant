@@ -40,3 +40,20 @@ def test_alligator_state_bullish():
     processor = AdvancedProcessor()
     result = processor.process(df)
     assert result["alligator"]["state"][-1] == "bullish"
+
+
+def test_zigzag_and_elliott_wave():
+    df = pd.DataFrame(
+        {
+            "open": [20, 10, 20, 15, 25, 20, 30, 25, 35, 30, 40, 35],
+            "high": [20, 10, 20, 15, 25, 20, 30, 25, 35, 30, 40, 35],
+            "low": [18, 8, 15, 12, 18, 15, 22, 18, 28, 24, 32, 30],
+            "close": [19, 9, 18, 13.5, 21.5, 17.5, 26, 21.5, 31.5, 27, 36, 32.5],
+        }
+    )
+    processor = AdvancedProcessor(fractal_bars=1)
+    result = processor.process(df)
+    assert result["pivots"]["peaks"] == [2, 4, 6, 8, 10]
+    assert result["pivots"]["troughs"] == [1, 3, 5, 7, 9]
+    assert result["elliott_wave"]["label"] == "impulse_bullish"
+    assert result["elliott_wave"]["score"] > 0.5

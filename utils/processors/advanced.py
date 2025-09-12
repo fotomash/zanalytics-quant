@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 import numpy as np
 import pandas as pd
 import talib
+from scipy.signal import find_peaks
 
 from utils.metrics import record_metrics
 
@@ -54,8 +55,8 @@ class AdvancedProcessor:
         if df.empty:
             return {"up": [], "down": []}
 
-        highs = df["high"].to_numpy()
-        lows = df["low"].to_numpy()
+        highs = df["high"].astype(float).to_numpy()
+        lows = df["low"].astype(float).to_numpy()
         b = int(self.fractal_bars)
         window = 2 * b + 1
         if len(df) < window:
@@ -70,6 +71,38 @@ class AdvancedProcessor:
         down_idx = np.where(low_windows.argmin(axis=1) == b)[0] + b
 
         return {"up": up_idx.tolist(), "down": down_idx.tolist()}
+
+    # ------------------------------------------------------------------
+    # ZigZag Pivots
+    # ------------------------------------------------------------------
+    @record_metrics
+    def detect_pivots(self, df: pd.DataFrame, prominence: float = 0.0) -> Dict[str, List[int]]:
+        """Locate swing highs and lows using SciPy ``find_peaks``.
+
+        Parameters
+        ----------
+        df: pd.DataFrame
+            DataFrame containing ``high`` and ``low`` columns.
+        prominence: float, optional
+            Minimum prominence passed to ``find_peaks``.
+
+        Returns
+        -------
+        Dict[str, List[int]]
+            Indices of ``peaks`` and ``troughs`` representing a basic
+            ZigZag pivot series.
+        """
+
+        if df.empty:
+            return {"peaks": [], "troughs": []}
+
+        highs = df["high"].astype(float).to_numpy()
+        lows = df["low"].astype(float).to_numpy()
+
+        peak_idx, _ = find_peaks(highs, prominence=prominence)
+        trough_idx, _ = find_peaks(-lows, prominence=prominence)
+
+        return {"peaks": peak_idx.tolist(), "troughs": trough_idx.tolist()}
 
     # ------------------------------------------------------------------
     # Alligator
@@ -92,7 +125,7 @@ class AdvancedProcessor:
         if df.empty:
             return {"jaw": [], "teeth": [], "lips": [], "state": []}
 
-        close = df["close"].to_numpy()
+        close = df["close"].astype(float).to_numpy()
         cfg = self.alligator_cfg
 
         jaw = talib.SMA(close, timeperiod=cfg.get("jaw", 13))
@@ -122,9 +155,9 @@ class AdvancedProcessor:
         if df.empty:
             return {"atr": [], "atr_threshold": self.atr_threshold, "atr_above_threshold": []}
 
-        high = df["high"].to_numpy()
-        low = df["low"].to_numpy()
-        close = df["close"].to_numpy()
+        high = df["high"].astype(float).to_numpy()
+        low = df["low"].astype(float).to_numpy()
+        close = df["close"].astype(float).to_numpy()
         atr = talib.ATR(high, low, close, timeperiod=self.atr_period)
         above = atr > self.atr_threshold
         return {
@@ -132,6 +165,82 @@ class AdvancedProcessor:
             "atr_threshold": self.atr_threshold,
             "atr_above_threshold": above.tolist(),
         }
+
+    # ------------------------------------------------------------------
+    # Elliott Wave heuristics
+    # ------------------------------------------------------------------
+    @record_metrics
+    def elliott_wave(
+        self,
+        df: pd.DataFrame,
+        pivots: Dict[str, List[int]],
+        fractals: Dict[str, List[int]],
+        gator: Dict[str, List[float]],
+    ) -> Dict[str, Any]:
+        """Encode simple Elliott Wave rules with Fibonacci checks.
+
+        Parameters
+        ----------
+        df: pd.DataFrame
+            Price data containing ``close``.
+        pivots: Dict[str, List[int]]
+            Output from :meth:`detect_pivots`.
+        fractals: Dict[str, List[int]]
+            Output from :meth:`detect_fractals` used for validation.
+        gator: Dict[str, List[float]]
+            Output from :meth:`calculate_alligator` for trend confirmation.
+
+        Returns
+        -------
+        Dict[str, Any]
+            ``label`` describing the pattern and ``score`` between 0 and 1.
+        """
+
+        points = sorted(
+            [(i, "peak") for i in pivots.get("peaks", [])]
+            + [(i, "trough") for i in pivots.get("troughs", [])]
+        )
+
+        if len(points) < 5:
+            return {"label": None, "score": 0.0}
+
+        seq = points[:5]
+        types = [t for _, t in seq]
+        if any(types[i] == types[i + 1] for i in range(len(types) - 1)):
+            return {"label": None, "score": 0.0}
+
+        idx = [i for i, _ in seq]
+        close = df["close"].astype(float).to_numpy()
+        orientation = "bullish" if close[idx[1]] > close[idx[0]] else "bearish"
+        waves = [abs(close[idx[i + 1]] - close[idx[i]]) for i in range(len(idx) - 1)]
+
+        score = 0.5
+
+        fib_levels = [0.382, 0.618]
+        if len(waves) >= 4 and waves[0] and waves[2]:
+            ratios = [waves[1] / waves[0], waves[3] / waves[2]]
+
+            def fib_check(r: float) -> float:
+                return 1.0 - min(abs(r - f) for f in fib_levels)
+
+            score += 0.25 * max(0.0, min(1.0, sum(fib_check(r) for r in ratios) / 2))
+
+        for i, t in seq:
+            if t == "peak" and i in fractals.get("up", []):
+                score += 0.05
+            if t == "trough" and i in fractals.get("down", []):
+                score += 0.05
+
+        state = gator.get("state", [])
+        if state:
+            last_state = state[idx[-1]] if idx[-1] < len(state) else None
+            if (orientation == "bullish" and last_state == "bullish") or (
+                orientation == "bearish" and last_state == "bearish"
+            ):
+                score += 0.1
+
+        score = float(np.clip(score, 0.0, 1.0))
+        return {"label": f"impulse_{orientation}", "score": score}
 
     # ------------------------------------------------------------------
     # Unified process
@@ -146,7 +255,15 @@ class AdvancedProcessor:
             fractals = self.detect_fractals(df)
             gator = self.calculate_alligator(df)
             vol = self.volatility(df)
-            return {"fractals": fractals, "alligator": gator, "volatility": vol}
+            pivots = self.detect_pivots(df)
+            elliott = self.elliott_wave(df, pivots, fractals, gator)
+            return {
+                "fractals": fractals,
+                "alligator": gator,
+                "volatility": vol,
+                "pivots": pivots,
+                "elliott_wave": elliott,
+            }
         except Exception as e:  # pragma: no cover - defensive logging
             self.logger.warning("Error in advanced processing: %s", e)
             return {}
