@@ -2,12 +2,14 @@ package com.pulse.services;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +36,9 @@ public class DiscordAlertServiceTest {
         server.enqueue(new MockResponse().setResponseCode(204));
         CompletableFuture<Boolean> future = service.sendAlert("hello");
         assertTrue(future.get(5, TimeUnit.SECONDS));
+        RecordedRequest request = server.takeRequest(5, TimeUnit.SECONDS);
+        assertEquals("POST", request.getMethod());
+        assertEquals("{\"content\":\"hello\"}", request.getBody().readUtf8());
     }
 
     @Test
