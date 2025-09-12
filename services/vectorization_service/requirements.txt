@@ -57,7 +57,6 @@ plotly==5.22.0
 ta>=0.11.0
 
 slowapi==0.1.8
-aioredis==2.0.1
 asyncpg==0.29.0
 fakeredis==2.23.2
 confluent-kafka==2.3.0
@@ -68,5 +67,5 @@ prometheus_client==0.22.1
 # MCP2 service dependencies inlined for isolated build context
 fastapi
 uvicorn
-redis
+redis==5.0.8
 sqlalchemy

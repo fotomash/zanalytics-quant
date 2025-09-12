@@ -76,10 +76,10 @@ async def insert_batch(conn, batch: list[dict], max_retries: int = 3, base_delay
 
 
 async def main() -> None:
-    import aioredis
+    import redis.asyncio as redis
     import asyncpg
     from adapters.mt5_client import MT5AsyncClient  # local import to avoid hard dep
-    redis = await aioredis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
+    r = await redis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
     pool = await asyncpg.create_pool(PG_DSN, min_size=1, max_size=5)
     mt5 = MT5AsyncClient(auto_reconnect=True)  # implement reconnect with backoff
 
@@ -89,7 +89,7 @@ async def main() -> None:
     async for tick in mt5.stream_ticks():  # yields dict: {symbol, bid, ask, ts, volume}
         tick["ts"] = tick.get("ts") or datetime.now(timezone.utc).isoformat()
         # 1) push to Redis stream (for live consumers)
-        await redis.xadd(
+        await r.xadd(
             STREAM_KEY, {"j": json.dumps(tick)}, maxlen=100_000, approximate=True
         )
         # 2) accumulate & dedupe for DB batch

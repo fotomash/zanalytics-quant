@@ -54,11 +54,6 @@ sys.modules.setdefault("discord", discord_module)
 sys.modules.setdefault("discord.ext", discord_ext)
 sys.modules.setdefault("discord.ext.commands", commands_module)
 
-# Stub aioredis so type annotations resolve during import
-aioredis_stub = types.ModuleType("aioredis")
-aioredis_stub.Redis = object  # pragma: no cover - placeholder
-sys.modules.setdefault("aioredis", aioredis_stub)
-
 # Now we can safely import the module under test
 import pulse_discord_bot as bot
 

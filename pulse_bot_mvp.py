@@ -13,17 +13,13 @@ from typing import Optional
 import httpx
 import discord
 from discord.ext import commands
-
-try:
-    import aioredis
-except Exception:  # pragma: no cover - redis optional
-    aioredis = None
+import redis.asyncio as redis
 
 # ---------------------------------------------------------------------------
 
 # Environment variables
 # ---------------------------------------------------------------------------
-DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN") or os.getenv("DISCORD_TOKEN")
 MCP_MEMORY_API_URL = os.getenv("MCP_MEMORY_API_URL")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 CACHE_TTL = int(os.getenv("PULSE_CACHE_TTL", "60"))
@@ -48,14 +44,14 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-_redis: Optional[aioredis.Redis] = None
+_redis: Optional[redis.Redis] = None
 
 
-async def get_redis() -> Optional[aioredis.Redis]:
+async def get_redis() -> Optional[redis.Redis]:
     global _redis
-    if _redis is None and aioredis:
+    if _redis is None:
         try:
-            _redis = await aioredis.from_url(
+            _redis = await redis.from_url(
                 REDIS_URL, encoding="utf-8", decode_responses=True
             )
         except Exception:
