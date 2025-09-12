@@ -1,11 +1,11 @@
-# Pulse Telegram Bot
+# Pulse Discord Bot
 
-This service exposes a Telegram bot for interacting with the Pulse trading kernel.
+This service exposes a Discord bot for interacting with the Pulse trading kernel.
 
 ## Environment Variables
 
-- **`TELEGRAM_BOT_TOKEN`** – Bot token obtained from BotFather.
-- **`TELEGRAM_CHAT_WHITELIST`** – Optional comma‑separated list of allowed chat IDs. When unset, all chats are accepted.
+- **`DISCORD_BOT_TOKEN`** – Bot token obtained from the Discord developer portal.
+- **`DISCORD_CHANNEL_WHITELIST`** – Optional comma‑separated list of allowed channel IDs. When unset, all channels are accepted.
 - **`PULSE_CONFIG`** – Path to the Pulse configuration file; defaults to `pulse_config.yaml`.
 
 ## Supported Commands
@@ -18,10 +18,12 @@ This service exposes a Telegram bot for interacting with the Pulse trading kerne
 | `/journal <TEXT>` | Append a note to the trading journal. |
 | `/stats` | Show today’s trading statistics. |
 | `/break <mins>` | Begin a voluntary cooling period. |
+| `/protect_be <ticket>` | Move stop loss to break-even. |
+| `/protect_trail <ticket> [ratio]` | Trail stop to lock in profit. |
 
 ## Version
 
-Built with [Aiogram 3.5.0](requirements.txt) and Python 3.11.
+Built with [discord.py](requirements.txt) and Python 3.11.
 
 ## Runtime Sharing
 

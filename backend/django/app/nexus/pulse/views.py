@@ -651,48 +651,41 @@ class YFBars(views.APIView):
             return Response({"items": [], "error": str(e)}, status=500)
 
 
-class TelegramHealth(views.APIView):
-    """Lightweight Telegram ping to verify configuration/connectivity.
+class DiscordHealth(views.APIView):
+    """Lightweight Discord webhook ping to verify configuration/connectivity.
 
     GET query params:
       text: optional message text (default: "Pulse ping ✅")
       send: optional bool-like flag (default true). When false, only reports config state.
     """
+
     permission_classes = [AllowAny]
 
     def get(self, request):
-        token = _os.getenv("TELEGRAM_BOT_TOKEN") or ""
-        chat_id = _os.getenv("TELEGRAM_CHAT_ID") or ""
+        webhook = _os.getenv("DISCORD_WEBHOOK_URL") or ""
         text = request.query_params.get("text") or "Pulse ping ✅"
         send_flag = str(request.query_params.get("send") or "true").lower() != "false"
 
-        configured = bool(token and chat_id)
+        configured = bool(webhook)
         if not configured:
             return Response({
                 "configured": False,
                 "sent": False,
-                "status": "missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID",
+                "status": "missing DISCORD_WEBHOOK_URL",
             }, status=200)
 
         if not send_flag:
             return Response({"configured": True, "sent": False})
 
         try:
-            url = f"https://api.telegram.org/bot{token}/sendMessage"
-            data = _json.dumps({
-                "chat_id": chat_id,
-                "text": text,
-                # Avoid parse errors by default; callers can include markup if desired
-                # "parse_mode": "HTML",
-                "disable_web_page_preview": True,
-            }).encode()
-            req = _urlreq.Request(url, data=data, headers={"Content-Type": "application/json"})
+            data = _json.dumps({"content": text}).encode()
+            req = _urlreq.Request(webhook, data=data, headers={"Content-Type": "application/json"})
             with _urlreq.urlopen(req, timeout=5) as resp:
-                ok = (getattr(resp, 'status', 200) == 200)
+                ok = getattr(resp, "status", 204) in (200, 204)
                 return Response({"configured": True, "sent": bool(ok)})
         except _urlerr.HTTPError as e:
             try:
-                body = e.read().decode() if hasattr(e, 'read') else str(e)
+                body = e.read().decode() if hasattr(e, "read") else str(e)
             except Exception:
                 body = str(e)
             return Response({
