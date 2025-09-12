@@ -2,19 +2,8 @@
 
 from __future__ import annotations
 
-from .bootstrap_engine import BootstrapEngine, ExecutionValidationConfig
-from .health import HealthStatus
-from .memory import AgentMemoryInterface
+# Import only lightweight utilities to avoid pulling heavy dependencies during
+# test collection.  Consumers can import additional submodules directly.
 from .smc_analyzer import SMCAnalyzer
-from .wyckoff_analyzer import WyckoffAnalyzer
 
-__all__ = [
-    "pulse_kernel",
-    "journal_sync",
-    "BootstrapEngine",
-    "ExecutionValidationConfig",
-    "SMCAnalyzer",
-    "WyckoffAnalyzer",
-    "HealthStatus",
-    "AgentMemoryInterface",
-]
+__all__ = ["SMCAnalyzer"]

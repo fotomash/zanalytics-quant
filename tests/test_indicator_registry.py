@@ -1,28 +1,32 @@
-import json
-import fakeredis
+from __future__ import annotations
 
-from metadata import indicator_registry as ir
+import pandas as pd
 
-
-class DummyProducer:
-    def __init__(self) -> None:
-        self.messages: list[tuple[str, bytes]] = []
-
-    def produce(self, topic: str, value: bytes) -> None:  # pragma: no cover - simple stub
-        self.messages.append((topic, value))
-
-    def flush(self) -> None:  # pragma: no cover - simple stub
-        pass
+from indicators.registry import disable_indicator, enable_indicator
+from core.context_analyzer import ContextAnalyzer
 
 
-def test_publish_registry():
-    client = fakeredis.FakeRedis(decode_responses=True)
-    producer = DummyProducer()
+def _sample_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "open": range(20),
+            "high": [x + 0.5 for x in range(20)],
+            "low": [x - 0.5 for x in range(20)],
+            "close": range(20),
+            "volume": [100] * 20,
+        }
+    )
 
-    ir.publish_registry(redis_client=client, kafka_producer=producer)
 
-    data = client.hgetall("indicator_registry")
-    assert "1" in data and "2" in data
-    meta = json.loads(data["1"])
-    assert "Simple" in meta["name"]
-    assert any(topic == "indicator_registry" for topic, _ in producer.messages)
+def test_enable_disable_indicator() -> None:
+    df = _sample_df()
+    analyzer = ContextAnalyzer()
+
+    # phase enabled by default
+    assert "phase" in analyzer.analyze(df)
+
+    disable_indicator("phase")
+    assert "phase" not in analyzer.analyze(df)
+
+    enable_indicator("phase")
+    assert "phase" in analyzer.analyze(df)
