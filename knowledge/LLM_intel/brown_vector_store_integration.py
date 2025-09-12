@@ -242,13 +242,7 @@ class IntegratedBrownPipeline:
         self.ingestion = BrownCSVIngestionPipeline()
 
         # Initialize vector store
-        if vector_store_type == "pinecone":
-            self.vector_store = PineconeAdapter(
-                api_key=os.getenv("PINECONE_API_KEY"),
-                environment=os.getenv("PINECONE_ENV"),
-                index_name="brown-csv-vectors"
-            )
-        elif vector_store_type == "chroma":
+        if vector_store_type == "chroma":
             self.vector_store = ChromaAdapter()
         else:
             self.vector_store = MockVectorStore()

@@ -297,7 +297,6 @@ Key variables to configure before launching:
   below this or in spring/distribution phases get a quick `llm_verdict`; others
   queue for Whisperer.
 
-**Legacy variables (unsupported):** `PINECONE_URL`, `PINECONE_API_KEY`
 
 See [docs/README.md](docs/README.md#flags-and-defaults) for default values and
 additional notes on these settings.
