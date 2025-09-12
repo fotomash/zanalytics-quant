@@ -10,16 +10,10 @@ import logging
 import os
 import re
 import time
-from datetime import datetime
-from pathlib import Path
-from statistics import mean, stdev
-from typing import Dict, Optional, List, Union
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import mean, stdev
-from typing import Any, Dict, Optional, List
-
-from typing import Dict, Optional, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
 import redis
@@ -145,30 +139,27 @@ def _parse_risk(value: object) -> Optional[float]:
 def compute_silence_duration(timestamp: Union[str, int, float]) -> float:
     """Return seconds elapsed since ``timestamp``.
 
-    The ``timestamp`` may be an ISO 8601 string or a Unix epoch expressed as
-    either a number or numeric string.  The current time is determined using
-    :func:`datetime.utcnow`.  A ``ValueError`` is raised if the timestamp cannot
-    be parsed.
+    ``timestamp`` may be an ISO 8601 string or a Unix epoch provided as a
+    number or numeric string.  :func:`time.time` supplies the current time.  A
+    ``ValueError`` is raised if the timestamp cannot be parsed.
     """
-    now = datetime.utcnow()
-
     try:
         if isinstance(timestamp, (int, float)):
-            tick_dt = datetime.utcfromtimestamp(float(timestamp))
+            ts = float(timestamp)
         else:
-            ts = str(timestamp).strip()
-            if not ts:
+            raw = str(timestamp).strip()
+            if not raw:
                 raise ValueError("empty timestamp")
             try:
-                tick_dt = datetime.utcfromtimestamp(float(ts))
+                ts = float(raw)
             except ValueError:
-                tick_dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-                if tick_dt.tzinfo is not None:
-                    tick_dt = tick_dt.astimezone(timezone.utc).replace(tzinfo=None)
+                dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                if dt.tzinfo is not None:
+                    dt = dt.astimezone(timezone.utc)
+                ts = dt.timestamp()
+        return time.time() - ts
     except Exception as exc:
         raise ValueError(f"Malformed timestamp: {timestamp!r}") from exc
-
-    return (now - tick_dt).total_seconds()
 
 
 def _load_config_threshold() -> Optional[float]:
@@ -204,20 +195,6 @@ def get_risk_threshold() -> float:
 # setting ``risk_threshold`` in ``config/predict_cron.yaml``. See
 # ``docs/update_risk_threshold.md`` for details.
 RISK_THRESHOLD = get_risk_threshold()
-
-
-def compute_silence_duration(latest_tick: Union[str, float, int]) -> float:
-    """Return elapsed seconds since ``latest_tick``.
-
-    ``latest_tick`` may be a string or numeric representation of the
-    timestamp (seconds since the epoch). Any value that cannot be coerced to a
-    float results in a duration of ``0.0`` seconds.
-    """
-    try:
-        last = float(latest_tick)
-    except (TypeError, ValueError):
-        return 0.0
-    return time.time() - last
 
 
 def predict_silence(redis_client: redis.Redis, key: str = "predict:latest_tick") -> float:
