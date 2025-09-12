@@ -1,5 +1,8 @@
 FROM python:3.11-slim
 
+# Show the Python version during build to confirm the interpreter is available
+RUN python --version
+
 WORKDIR /app
 
 COPY services/enrichment/ /app/
@@ -14,4 +17,6 @@ ENV KAFKA_BROKER=kafka:9092 \
     RAW_MARKET_DATA_TOPIC=raw-market-data \
     ENRICHED_TOPIC=enriched-analysis-payloads
 
-CMD ["python", "-u", "-m", "worker"]
+# Explicitly invoke python3 in case the environment does not provide a
+# `python` shim.
+CMD ["python3", "-u", "-m", "worker"]
