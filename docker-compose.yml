@@ -1029,7 +1029,7 @@ services:
       - data-pipeline
 
   qdrant:
-    image: qdrant/qdrant:1.10.3
+    image: qdrant/qdrant:v1.10.4
 
     container_name: qdrant
     ports:
