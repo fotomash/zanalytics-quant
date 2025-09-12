@@ -1,0 +1,49 @@
+
+# Defines the master list of all available indicators in the system.
+# The enrichment engine uses this file to understand what indicators it can apply.
+#
+# Fields:
+#   name: Display name for the indicator.
+#   module: The full import path to the indicator's implementation.
+#   enabled_by_default: Whether the indicator should run for a symbol if no specific config is found in Redis.
+#   params: Default parameters for the indicator. These can be overridden by symbol-specific configs.
+
+indicators:
+  rsi:
+    name: "Relative Strength Index"
+    module: "indicators.basic.rsi"
+    enabled_by_default: true
+    params:
+      period: 14
+
+  macd:
+    name: "Moving Average Convergence Divergence"
+    module: "indicators.basic.macd"
+    enabled_by_default: true
+    params:
+      fast_period: 12
+      slow_period: 26
+      signal_period: 9
+
+  bollinger_bands:
+    name: "Bollinger Bands"
+    module: "indicators.basic.bollinger_bands"
+    enabled_by_default: false
+    params:
+      period: 20
+      std_dev: 2
+
+  wyckoff_phase:
+    name: "Wyckoff Phase Engine"
+    module: "utilities.wyckoff_phase_engine"
+    enabled_by_default: true
+    params:
+      window: "60m"
+      trigger: "on_bar_close"
+
+  elliott_wave:
+    name: "Elliott Wave Orchestrator"
+    module: "utilities.elliott_wave_orchestrator"
+    enabled_by_default: false
+    params:
+      recursive_depth: 3
