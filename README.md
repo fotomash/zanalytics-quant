@@ -326,11 +326,17 @@ The engine reads optional execution safeguards from
 confidence_threshold: 0.8
 fallback_limits:
   max_retries: 3
+  max_fallbacks: 1
 ```
 
 `confidence_threshold` defines the minimum confidence required before an
 execution proceeds. Values below this threshold can trigger logic defined in
 `fallback_limits`, such as retry limits or alternative handlers.
+
+MT5 account credentials (`MT5_LOGIN`, `MT5_PASSWORD`, and `MT5_SERVER`) are set via
+environment variables. See
+[docs/env-reference.md](docs/env-reference.md#mt5-settings) for details on these
+fields and where to configure them.
 
 ---
 
