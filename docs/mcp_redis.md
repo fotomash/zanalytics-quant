@@ -1,3 +1,6 @@
+# MCP Redis
+
+Overview of Redis usage within the MCP stack for low-latency message passing and ephemeral state. Details configuration and connection patterns for memory-centric workflows.
 # MCP Redis Memory Windows
 
 This guide explains how the Model Control Plane (MCP) uses Redis and how it differs from the platform's standard caching layer.

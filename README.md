@@ -2,6 +2,7 @@
 
 Trader‑first analytics, risk, and execution — backed by MT5, Django, Redis, Postgres, and Streamlit. Now with LLM‑native Actions and safe position control (partials, scaling, hedging).
 
+The v2.0beta release pivots to a memory-centric stack: Redis handles low-latency state, vector search powers recall, and journal replay keeps sessions deterministic.
 - **MCP Redis** maintains real-time caches and streams for the MCP layer. [Learn more](docs/architecture_v2beta.md#mcp-redis).
 - **Journal persistence** writes a durable, replayable audit log. [Learn more](docs/architecture_v2beta.md#journal-persistence).
 - **Vector memory** stores embeddings for long-term contextual recall. [Learn more](docs/architecture_v2beta.md#vector-memory).
