@@ -86,7 +86,7 @@ similar_events = vector_store.search(
 
 1. **Deploy to Production Vector Store**
    ```bash
-   export PINECONE_API_KEY="your-key"
+   export QDRANT_API_KEY="your-key"
    python deploy_vectors.py --source processed_vectors/
    ```
 
