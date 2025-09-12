@@ -14,6 +14,7 @@ from pathlib import Path
 from statistics import mean, stdev
 from typing import Dict, Optional, List
 
+import httpx
 import redis
 import yaml
 WHISPERER_QUEUE = "whisperer:simulation"
@@ -51,6 +52,42 @@ def enqueue_for_simulation(redis_client: redis.Redis, tick: Dict) -> None:
 
 
 _FLOAT_RE = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
+
+def generate_llm_risk_score(prompt: str, *, timeout: float = 10.0) -> str:
+    """Return a risk score percentage using an LLM or heuristic.
+
+    The function attempts to call an HTTP endpoint specified by the
+    ``LLM_RISK_ENDPOINT`` environment variable. The endpoint is expected to
+    return JSON containing either a ``risk`` field (0..1 or 0..100) or text
+    with an embedded numeric value. Network errors and timeouts are caught and
+    a fallback heuristic is used instead.
+    """
+
+    endpoint = os.getenv("LLM_RISK_ENDPOINT")
+    if endpoint:
+        try:
+            with httpx.Client(timeout=timeout) as client:
+                response = client.post(endpoint, json={"prompt": prompt})
+                response.raise_for_status()
+                data = response.json()
+                value = data.get("risk", data.get("result", ""))
+                match = _FLOAT_RE.search(str(value))
+                if match:
+                    risk = float(match.group())
+                    if risk <= 1:
+                        risk *= 100
+                    return f"{risk:.1f}%"
+        except httpx.TimeoutException:
+            logging.warning("LLM risk endpoint timeout for prompt %s", prompt)
+        except httpx.HTTPError as exc:
+            logging.warning("LLM risk endpoint error: %s", exc)
+        except (ValueError, TypeError) as exc:
+            logging.warning("Unexpected LLM response: %s", exc)
+        except Exception as exc:
+            logging.warning("LLM risk endpoint failure: %s", exc)
+
+    heuristic = min(prompt.count("!") * 10.0, 100.0)
+    return f"{heuristic:.1f}%"
 
 
 def _parse_risk(value: object) -> Optional[float]:
