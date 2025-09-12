@@ -5,7 +5,7 @@ pandas
 numpy
 pytz
 MetaTrader5
-redis
+redis==6.4.0
 pyyaml>=6.0
 requests>=2.31
 websocket-client>=1.8

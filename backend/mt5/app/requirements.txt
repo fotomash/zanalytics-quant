@@ -14,4 +14,4 @@ fastapi
 load_dotenv
 
 arrow
-redis
+redis==6.4.0
