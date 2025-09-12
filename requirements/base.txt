@@ -53,14 +53,6 @@ click==8.1.7
     #   click-didyoumean
     #   click-plugins
     #   click-repl
-click-didyoumean==0.3.1
-    # via
-    #   -r requirements/base.txt
-    #   celery
-click-plugins==1.1.1
-    # via
-    #   -r requirements/base.txt
-    #   celery
 click-repl==0.3.0
     # via
     #   -r requirements/base.txt
@@ -292,8 +284,7 @@ scipy==1.13.1
     #   -r requirements/base.txt
     #   scikit-learn
     #   sentence-transformers
-sentence-transformers==5.1.0
-    # via -r requirements/base.txt
+
 six==1.16.0
     # via
     #   -r requirements/base.txt
@@ -316,29 +307,7 @@ threadpoolctl==3.6.0
     # via scikit-learn
 tokenizers==0.22.0
     # via transformers
-torch==2.8.0
-    # via sentence-transformers
-tqdm==4.67.1
-    # via
-    #   huggingface-hub
-    #   sentence-transformers
-    #   transformers
-transformers==4.56.1
-    # via sentence-transformers
-# triton==3.4.0
-    # via torch
-typing-extensions==4.12.2
-    # via
-    #   -r requirements/base.txt
-    #   aiosignal
-    #   anyio
-    #   huggingface-hub
-    #   limits
-    #   pinecone-client
-    #   pydantic
-    #   pydantic-core
-    #   sentence-transformers
-    #   torch
+
 tzdata==2024.2
     # via
     #   -r requirements/base.txt

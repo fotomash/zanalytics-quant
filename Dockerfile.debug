@@ -1,0 +1,7 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY services /app/services
+
+CMD ["python", "-c", "import services.common; print('services.common imported successfully')"]
