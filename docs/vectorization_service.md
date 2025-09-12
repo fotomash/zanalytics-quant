@@ -1,6 +1,6 @@
 # Vectorization Service
 
-The vectorization service consumes enriched market analysis messages from Kafka and stores their embeddings in an external vector database. It provides a bridge between the analytics pipeline and vector-based search or retrieval systems.
+The vectorization service consumes enriched market analysis messages from Kafka and stores their embeddings in a vector database such as Qdrant or an in-memory Faiss store. It provides a bridge between the analytics pipeline and vector-based search or retrieval systems.
 
 ## Responsibilities
 
@@ -43,7 +43,11 @@ The vectorization service consumes enriched market analysis messages from Kafka 
 
 ## Vector Database Configuration
 
-The service integrates with external vector stores (e.g. Qdrant, Pinecone, Chroma) through `BrownVectorPipeline`. Configuration is provided via environment variables:
+The service integrates with vector stores through `BrownVectorPipeline`.
+Supported backends: Qdrant and the in-memory FaissStore.
+Future/unsupported backends: Pinecone, Chroma.
+
+Configuration for Qdrant is provided via environment variables:
 
 - `QDRANT_URL` – base URL for the vector database
 - `QDRANT_API_KEY` – API key used for authentication
