@@ -1,3 +1,7 @@
+import sys
+from services.pulse_discord_bot import pulse_discord_bot as _impl
+sys.modules[__name__] = _impl
+
 import asyncio
 import os
 from typing import Any, Dict, Optional
