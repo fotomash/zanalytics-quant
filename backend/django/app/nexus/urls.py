@@ -46,6 +46,9 @@ from .views import (
     EquityTodayView,
     TradesRecentView,
     ActionsQueryView,
+    ActionsReadView,
+    ActionsMutateView,
+
     ActionsSpecView,
     PingView,
     JournalEntryPostView,
@@ -179,6 +182,10 @@ urlpatterns = [
     path('state/snapshot', StateSnapshotView.as_view(), name='state-snapshot'),
     # Actions bus (prototype; not exposed in openapi.yaml to keep op count)
     path('actions/query', ActionsQueryView.as_view(), name='actions-query'),
+    # Read action descriptors
+    path('actions/read', ActionsReadView.as_view(), name='actions-read'),
+    path('actions/mutate', ActionsMutateView.as_view(), name='actions-mutate'),
+
 
     path('actions/mutate', ActionsMutateView.as_view(), name='actions-mutate'),
 

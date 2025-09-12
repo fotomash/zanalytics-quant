@@ -6,6 +6,47 @@ info:
     Slim spec for agent-facing Actions routed via a single endpoint.
     Keeps the main API under the 30‑operation cap while exposing core verbs.
 servers:
+  - url: https://django2.zanalytics.app
+paths:
+  /api/v1/actions/read:
+    get:
+      operationId: getActionsRead
+      summary: Read action descriptors
+      parameters:
+        - name: name
+          in: query
+          schema: { type: string }
+          description: Single action name (e.g., session_boot)
+        - name: group
+          in: query
+          schema: { type: string }
+          description: Action group/namespace (e.g., whisperer)
+        - name: keys
+          in: query
+          schema:
+            type: string
+            description: Comma-separated list of action names
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:   { type: string }
+                        version:{ type: string }
+                        type:   { type: string, enum: [read, query, execute] }
+                        schema: { type: object, additionalProperties: true }
+                        meta:   { type: object, additionalProperties: true }
+
+  /api/v1/actions/query:
+    post:
   - url: https://mcp2.zanalytics.app
 x-openai:
   trusted: true
@@ -25,71 +66,34 @@ paths:
         trades_history_mt5, account_info, account_positions, account_risk, equity_today,
         pulse_status, market_snapshot, market_symbols, liquidity_map, opportunity_priority_items, position_open, position_close, position_modify.
       operationId: postActionsQuery
+      summary: Execute a query-style action and return data
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ActionQueryRequest'
-            examples:
-              position_close_half:
-                summary: Close 50% of a position
-                value:
-                  type: position_close
-                  payload:
-                    ticket: 302402468
-                    fraction: 0.5
-              position_modify_sl:
-                summary: Set/modify stop loss
-                value:
-                  type: position_modify
-                  payload:
-                    ticket: 302402468
-                    sl: 3625
-              position_open_buy:
-                summary: Open a small BUY
-                value:
-                  type: position_open
-                  payload:
-                    symbol: XAUUSD
-                    volume: 0.1
-                    side: buy
-                    sl: 0
-                    tp: 0
-              position_hedge_full:
-                summary: Hedge a position with full size
-                value:
-                  type: position_hedge
-                  payload:
-                    ticket: 302402468
-              session_boot_default:
-                summary: Boot snapshot
-                value:
-                  type: session_boot
-                  payload:
-                    limit_trades: 10
-                    include_positions: true
-                    include_equity: true
-                    include_risk: true
-              market_symbols_simple:
-                summary: Fetch symbols list
-                value:
-                  type: market_symbols
-                  payload: {}
-              journal_append_partial:
-                summary: Journal a partial close
-                value:
-                  type: journal_append
-                  payload:
-                    trade_id: 302402468
-                    kind: PARTIAL_CLOSE
-                    text: Closed 50% of XAUUSD short
+              type: object
+              required: [type]
+              properties:
+                type:
+                  type: string
+                  description: Action name (e.g., session_boot)
+                payload:
+                  type: object
+                  additionalProperties: true
       responses:
-        '200':
+        "200":
           description: OK
           content:
             application/json:
               schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  action: { type: string }
+                  data:
+                    type: object
+                    additionalProperties: true
                 oneOf:
                   - $ref: '#/components/schemas/WhisperSuggestResponse'
                   - type: array
@@ -794,4 +798,3 @@ components:
           additionalProperties: true
           description: Bridge result payload for close/modify/hedge
 
-security: []
