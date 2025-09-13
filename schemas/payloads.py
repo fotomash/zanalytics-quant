@@ -109,17 +109,17 @@ class HarmonicPattern(BaseModel):
 class HarmonicResult(BaseModel):
     """Aggregated harmonic pattern detection results."""
 
-    harmonic_patterns: List[HarmonicPattern] = Field(
+    harmonic_patterns: List[Dict[str, Any]] = Field(
         default_factory=list,
-        description="Detected harmonic patterns",
+        description="List of detected harmonic patterns",
     )
     prz: List[Dict[str, float]] = Field(
         default_factory=list,
         description="Potential reversal zone boundaries for each pattern using 'low'/'high' keys",
+
     )
-    confidence: List[float] = Field(
-        default_factory=list,
-        description="Confidence scores corresponding to detected patterns",
+    confidence: float = Field(
+        0.0, description="Confidence score for the detected patterns",
     )
 
 
@@ -152,20 +152,6 @@ class ISPTSPipelineResult(BaseModel):
     )
     fvg_locator: Any = Field(
         ..., description="FVG locator stage output",
-    )
-    harmonic_processor: Any = Field(
-        ..., description="Harmonic processor stage output",
-    )
-
-    risk_manager: Any = Field(
-        ..., description="Risk manager stage output",
-    )
-    confluence_stacker: Any = Field(
-        ..., description="Confluence stacker stage output",
-    )
-    harmonic: HarmonicResult = Field(
-        default_factory=HarmonicResult,
-        description="Harmonic pattern detection results",
     )
 
 
