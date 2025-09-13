@@ -3,7 +3,11 @@ import yaml
 import json
 import redis
 import importlib
+import logging
 from typing import Dict, List, Any
+
+
+logger = logging.getLogger(__name__)
 
 class IndicatorRegistry:
     """
@@ -26,10 +30,10 @@ class IndicatorRegistry:
         try:
             client = redis.from_url(redis_url, decode_responses=True)
             client.ping()
-            print("Successfully connected to Redis.")
+            logger.info("Successfully connected to Redis.")
             return client
         except redis.exceptions.ConnectionError as e:
-            print(f"Error connecting to Redis: {e}")
+            logger.error("Error connecting to Redis: %s", e)
             return None
 
     def _load_indicator_config(self, config_path: str) -> Dict[str, Any]:
@@ -37,13 +41,13 @@ class IndicatorRegistry:
         try:
             with open(config_path, 'r') as f:
                 config = yaml.safe_load(f)
-                print(f"Loaded indicator configuration from {config_path}")
+                logger.info("Loaded indicator configuration from %s", config_path)
                 return config.get('indicators', {})
         except FileNotFoundError:
-            print(f"Error: Indicator config file not found at {config_path}")
+            logger.error("Indicator config file not found at %s", config_path)
             return {}
         except yaml.YAMLError as e:
-            print(f"Error parsing YAML file {config_path}: {e}")
+            logger.error("Error parsing YAML file %s: %s", config_path, e)
             return {}
 
     def get_indicator_module(self, indicator_id: str):
@@ -55,21 +59,21 @@ class IndicatorRegistry:
             return self.loaded_modules[indicator_id]
 
         if indicator_id not in self.available_indicators:
-            print(f"Error: Indicator '{indicator_id}' not found in registry.")
+            logger.error("Indicator '%s' not found in registry.", indicator_id)
             return None
 
         module_path = self.available_indicators[indicator_id].get('module')
         if not module_path:
-            print(f"Error: 'module' path not defined for indicator '{indicator_id}'.")
+            logger.error("'module' path not defined for indicator '%s'.", indicator_id)
             return None
 
         try:
             module = importlib.import_module(module_path)
             self.loaded_modules[indicator_id] = module
-            print(f"Successfully loaded module '{module_path}' for indicator '{indicator_id}'.")
+            logger.info("Successfully loaded module '%s' for indicator '%s'.", module_path, indicator_id)
             return module
         except ImportError as e:
-            print(f"Error importing module '{module_path}': {e}")
+            logger.error("Error importing module '%s': %s", module_path, e)
             return None
 
     def get_active_indicators(self, symbol: str) -> List[str]:
@@ -86,9 +90,9 @@ class IndicatorRegistry:
                 config = json.loads(config_json)
                 return config.get('enabled', self._get_default_enabled())
         except redis.exceptions.RedisError as e:
-            print(f"Redis error when getting active indicators for '{symbol}': {e}")
+            logger.error("Redis error when getting active indicators for '%s': %s", symbol, e)
         except json.JSONDecodeError as e:
-            print(f"Error decoding JSON for '{symbol}': {e}")
+            logger.error("Error decoding JSON for '%s': %s", symbol, e)
 
         return self._get_default_enabled()
 
