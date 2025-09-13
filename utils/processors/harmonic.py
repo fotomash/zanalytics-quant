@@ -45,7 +45,7 @@ class HarmonicStorageProcessor:
         self,
         vectors: Sequence[Sequence[float]],
         payloads: Iterable[dict],
-        ids: Iterable[int],
+        ids: Iterable[str | int],
     ) -> None:
         """Insert vectors into Qdrant asynchronously.
 
@@ -53,10 +53,20 @@ class HarmonicStorageProcessor:
         client. Synchronous clients are executed in a background thread via
         :func:`asyncio.to_thread`, mirroring patterns used in other asynchronous
         utilities.
+
+        Parameters
+        ----------
+        vectors:
+            Sequence of vectors to persist.
+        payloads:
+            Iterable of payload dictionaries for each vector.
+        ids:
+            Iterable of unique identifiers. These IDs are sent to Qdrant and
+            should be stored or logged for later retrieval.
         """
 
         points = [
-            models.PointStruct(id=pid, vector=vec, payload=payload)
+            models.PointStruct(id=str(pid), vector=vec, payload=payload)
             for pid, vec, payload in zip(ids, vectors, payloads)
         ]
         if self._is_async:
