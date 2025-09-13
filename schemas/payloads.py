@@ -8,6 +8,17 @@ from pydantic import BaseModel, Field
 from .predictive_schemas import ConflictDetectionResult, PredictiveScorerResult
 
 
+class PriceRange(BaseModel):
+    """Simple low/high price range."""
+
+    low: float | None = Field(
+        None, description="Lower boundary of the range"
+    )
+    high: float | None = Field(
+        None, description="Upper boundary of the range"
+    )
+
+
 class MarketContext(BaseModel):
     """High level market information"""
 
@@ -97,8 +108,8 @@ class HarmonicPattern(BaseModel):
         default_factory=list,
         description="List of pivot points with index and price",
     )
-    prz: Dict[str, float] = Field(
-        default_factory=dict,
+    prz: PriceRange = Field(
+        default_factory=PriceRange,
         description="Potential reversal zone boundaries",
     )
     confidence: float = Field(
@@ -113,8 +124,8 @@ class HarmonicResult(BaseModel):
         default_factory=list,
         description="List of detected harmonic patterns",
     )
-    prz: Dict[str, float] = Field(
-        default_factory=dict,
+    prz: PriceRange = Field(
+        default_factory=PriceRange,
         description="Potential reversal zone boundaries",
     )
     confidence: float = Field(
