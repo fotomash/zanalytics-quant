@@ -17,10 +17,28 @@ from indicators.registry import (
 class SMCAnalyzer:
     """Analyze price data for liquidity and market structure."""
 
-    def __init__(self, config: dict | None = None):
+    def __init__(
+        self,
+        config: dict | None = None,
+        *,
+        features: dict[str, bool] | None = None,
+    ):
+        """Create a new analyzer instance.
+
+        Parameters
+        ----------
+        config:
+            Optional configuration mapping.
+        features:
+            Optional mapping of feature name to enabled flag.  Features set to
+            ``False`` are not registered or executed.
+        """
+
         self.config = config or {}
+        self.feature_toggles = features or {}
+
         # Map indicator names to (category, handler)
-        self._features = {
+        base_features = {
             "liquidity_zones": ("liquidity", self.identify_liquidity_zones),
             "order_blocks": ("structure", self.identify_order_blocks),
             "fair_value_gaps": ("imbalance", self.identify_fair_value_gaps),
@@ -29,12 +47,20 @@ class SMCAnalyzer:
             "displacement": ("momentum", self.detect_displacement),
             "inducement": ("liquidity", self.detect_inducement),
         }
-        for name, (category, _) in self._features.items():
+
+        # Filter disabled features
+        self._features = {}
+        for name, (category, handler) in base_features.items():
+            if not self.feature_toggles.get(name, True):
+                continue
+            self._features[name] = (category, handler)
             register_indicator(name, category)
 
     def analyze(self, df, precomputed_fvgs: list | None = None):
         results = {}
         for name, (_, func) in self._features.items():
+            if not self.feature_toggles.get(name, True):
+                continue
             if not is_indicator_enabled(name):
                 continue
             if name == "fair_value_gaps" and precomputed_fvgs is not None:

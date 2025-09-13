@@ -83,7 +83,7 @@ def build_unified_analysis(
             import pandas as pd
             from core.smc_analyzer import SMCAnalyzer
 
-            smc_engine = SMCAnalyzer()
+            smc_engine = SMCAnalyzer(features=cfg.structure.smc_features)
             smc_res = smc_engine.analyze(pd.DataFrame(bars))
             smc = SMCAnalysis(
                 market_structure=smc_res.get("market_structure"),

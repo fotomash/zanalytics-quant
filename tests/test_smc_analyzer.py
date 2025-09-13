@@ -48,3 +48,11 @@ def test_analyze():
     assert expected_keys.issubset(results.keys())
     assert results["liquidity_zones"] == expected_lz
     assert results["order_blocks"] == expected_ob
+
+
+def test_feature_toggle_disables_analysis():
+    df = _sample_df()
+    analyzer = SMCAnalyzer(features={"liquidity_sweeps": False})
+    assert "liquidity_sweeps" not in analyzer._features
+    results = analyzer.analyze(df)
+    assert "liquidity_sweeps" not in results

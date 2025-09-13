@@ -101,3 +101,33 @@ def test_load_enrichment_config_missing_file(tmp_path):
     # Assert some default values to ensure it's a default config
     assert cfg.core.structure_validator is True
     assert cfg.advanced.elliott.enabled is True
+
+
+def test_build_unified_analysis_passes_smc_toggles(monkeypatch):
+    ae = _import_analysis_engines()
+    cfg = EnrichmentConfig()
+    for grp in cfg.technical.groups.values():
+        grp.enabled = False
+    cfg.structure.smc_features = {"liquidity_sweeps": False}
+
+    captured: dict = {}
+
+    class DummySMCAnalyzer:
+        def __init__(self, *_, features=None, **__):
+            captured["features"] = features
+
+        def analyze(self, df):  # pragma: no cover - simple stub
+            return {}
+
+    smc_mod = ModuleType("core.smc_analyzer")
+    smc_mod.SMCAnalyzer = DummySMCAnalyzer
+    sys.modules["core.smc_analyzer"] = smc_mod
+
+    tick = {
+        "symbol": "EURUSD",
+        "timestamp": 0,
+        "bars": [{"open": 1, "high": 1, "low": 1, "close": 1}],
+    }
+    ae.build_unified_analysis(tick, cfg)
+
+    assert captured["features"] == {"liquidity_sweeps": False}
