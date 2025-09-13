@@ -4,6 +4,8 @@ from rest_framework import views
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
+from django.conf import settings
+
 from .service import pulse_status
 from .service import _load_minute_data
 from .gates import structure_gate, liquidity_gate, imbalance_gate, risk_gate, wyckoff_gate
@@ -14,10 +16,17 @@ from collections import Counter
 from .serializers import PulseDetailSerializer
 import os as _os
 import json as _json
+import yaml as _yaml
 import urllib.request as _urlreq
 import urllib.error as _urlerr
 from .schema_validation import validate_pulse_status, validate_pulse_detail
 from utils.enrichment_config import load_enrichment_config
+
+
+_ENRICHMENT_CONFIG_PATH = _os.path.join(
+    settings.REPO_ROOT, "config", "enrichment_default.yaml"
+)
+_ENRICHMENT_CFG = load_enrichment_config(_ENRICHMENT_CONFIG_PATH)
 
 
 class PulseStatus(views.APIView):
@@ -347,8 +356,32 @@ class EnrichmentConfig(views.APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        cfg = load_enrichment_config()
-        return Response(cfg.model_dump())
+        return Response(_ENRICHMENT_CFG.model_dump())
+
+
+class ConfigureEnrichment(views.APIView):
+    """Persist enrichment configuration and reload in-memory copy."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        return self._update(request)
+
+    def patch(self, request):
+        return self._update(request)
+
+    def _update(self, request):
+        global _ENRICHMENT_CFG
+        data = request.data or {}
+        try:
+            with open(_ENRICHMENT_CONFIG_PATH, "w", encoding="utf-8") as fh:
+                _yaml.safe_dump(data, fh)
+            # Clear any cached loader and refresh global config
+            getattr(load_enrichment_config, "cache_clear", lambda: None)()
+            _ENRICHMENT_CFG = load_enrichment_config(_ENRICHMENT_CONFIG_PATH)
+            return Response(_ENRICHMENT_CFG.model_dump())
+        except Exception as e:
+            return Response({"error": str(e)}, status=400)
 
 
 class TradeQualityDist(views.APIView):
