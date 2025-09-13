@@ -1,4 +1,4 @@
-from utils.enrichment import smc_process
+from utils.enrichment import smc_process  # package-level export
 
 
 def test_smc_process_features_and_vector():

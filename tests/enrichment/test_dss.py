@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from utils.enrichment.dss import compute_dss, process
+from utils.enrichment import compute_dss
 
 
 def test_dss_outputs_are_deterministic():
