@@ -21,8 +21,54 @@ logger = logging.getLogger(__name__)
 
 
 def detect_behavior_flags(deal: object) -> List[str]:
-    """Placeholder for behavioral flag detection logic."""
-    return []
+    """Return behavioral flags inferred from a trade *deal*.
+
+    The MT5 ``deal`` object exposes several attributes.  For the purposes of
+    journaling we look for a couple of simple but useful patterns:
+
+    ``EXCESSIVE_VOLUME``
+        Trade volume exceeds a conservative threshold (default ``5`` lots).
+
+    ``RAPID_FLIP``
+        Opposite direction trade on the same symbol executed within a short
+        time window (``60`` seconds).  This relies on tracking the previous
+        deal for each symbol during the sync run.
+    """
+
+    # Thresholds are intentionally lightweight and can be tuned via
+    # environment variables if needed.
+    try:
+        vol_threshold = float(os.getenv("JOURNAL_EXCESSIVE_VOLUME", "5"))
+    except ValueError:  # pragma: no cover - fallback for invalid env
+        vol_threshold = 5.0
+    try:
+        flip_window = int(os.getenv("JOURNAL_RAPID_FLIP_WINDOW", "60"))
+    except ValueError:  # pragma: no cover
+        flip_window = 60
+
+    flags: List[str] = []
+
+    volume = getattr(deal, "volume", 0.0) or 0.0
+    if volume >= vol_threshold:
+        flags.append("EXCESSIVE_VOLUME")
+
+    symbol = getattr(deal, "symbol", None)
+    deal_type = getattr(deal, "type", None)
+    time = getattr(deal, "time", None)
+
+    if symbol is not None and deal_type is not None and time is not None:
+        last = _LAST_DEAL_BY_SYMBOL.get(symbol)
+        if last:
+            last_time, last_type = last
+            if deal_type != last_type and (time - last_time) <= flip_window:
+                flags.append("RAPID_FLIP")
+        _LAST_DEAL_BY_SYMBOL[symbol] = (time, deal_type)
+
+    return flags
+
+
+# Internal cache for rapid flip detection; maps symbol -> (time, type)
+_LAST_DEAL_BY_SYMBOL: Dict[str, tuple[int, int]] = {}
 
 def write_journal_entry(entry: Dict) -> None:
     """Persist a journal entry to the configured backend.
