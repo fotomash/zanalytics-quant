@@ -1,30 +1,53 @@
 # Replay Inspector CLI
 
-`ops/kafka/replay_consumer.py` replays Kafka topics for inspection, backfills, or quick metrics.
+`scripts/replay_inspector.py` inspects Parquet replays with optional filtering
+and analog scoring. The CLI loads tick or bar data, filters rows with a pandas
+`query`, enriches the resulting DataFrame and scores rows using vector
+similarity. The scoring can be seeded with custom text or defaults to the first
+row in the dataset.
 
 ## Usage
 
 ```bash
-export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
-export KAFKA_TOPIC=ticks.BTCUSDT
-python ops/kafka/replay_consumer.py --start-offset 0 --batch-size 100
+python scripts/replay_inspector.py path/to/data.parquet [--filter "symbol == 'EURUSD'"] [--query "spike down"] [--top 3]
 ```
 
-### Modes
+### Key options
 
-- `simple` – print each message (default)
-- `batch` – forward the entire poll to a custom sink
-- `harmonic` – compute P&L and expose Prometheus metrics (`--metrics-port`)
+- `--filter`: pandas `query` expression applied before enrichment.
+- `--columns`: space-delimited columns used to build the embedding text. If not
+  provided, all columns are used.
+- `--query`: seed text for analog scoring. When omitted the first row is used as
+  the query vector.
+- `--top`: number of results to display (default `5`).
 
-Environment variables mirror the CLI flags:
-`KAFKA_TOPIC`, `KAFKA_START_OFFSET`, `KAFKA_BATCH_SIZE`, `KAFKA_CONSUMER_MODE`, `KAFKA_BOOTSTRAP_SERVERS`.
+## Filtering example
 
-## Inspecting Output
-
-Run in harmonic mode and scrape metrics:
+Filter ticks for a single symbol and price threshold:
 
 ```bash
-python ops/kafka/replay_consumer.py --mode harmonic --metrics-port 9100
+python scripts/replay_inspector.py ticks.parquet --filter "symbol == 'BTCUSDT' and price > 40000"
 ```
 
-The CLI exits when the topic is exhausted or when no new messages arrive before the timeout.
+## Analog scoring examples
+
+Seed the analog scoring with custom text:
+
+```bash
+python scripts/replay_inspector.py ticks.parquet --query "flash crash" --top 3
+```
+
+Score using only specific columns:
+
+```bash
+python scripts/replay_inspector.py ticks.parquet --columns price volume --query "spike up"
+```
+
+The script prints the row index and cosine similarity score for the top
+matches:
+
+```
+row=17 score=0.8901
+row=42 score=0.8543
+row=5  score=0.8322
+```
