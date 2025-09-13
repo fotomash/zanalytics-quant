@@ -29,11 +29,14 @@ The v2.0beta release pivots to a memory-centric stack: Redis handles low-latency
 - [MT5 Bridge & Orders (Execution)](#mt5-bridge-orders-execution)
 - [Actions Bus for GPT (≤30 operations)](#actions-bus-for-gpt-30-operations)
 - [Dashboards & Diagnostics](#dashboards--diagnostics)
+  - [Clustering Dashboard](#clustering-dashboard)
 - [Journaling (ZBAR)](#journaling-zbar)
 - [Typical User Scenarios](#typical-user-scenarios)
 - [Data Enrichment & Customization](#data-enrichment-customization)
+- [Vectorized Configs](#vectorized-configs)
 - [Session Manifest Prompts](#session-manifest-prompts)
 - [Confidence Trace Matrix](#confidence-trace-matrix)
+- [Whisperer Integrations](#whisperer-integrations)
 - [Example .env Configuration](#example-env-configuration)
 - [Security & Access Control](#security--access-control)
 - [API Health Check and Query Examples](#api-health-check-and-query-examples)
@@ -43,7 +46,7 @@ The v2.0beta release pivots to a memory-centric stack: Redis handles low-latency
 - [Future Directions & Next Steps](#future-directions--next-steps)
 - [License](#license)
 - [Advanced Usage](#advanced-usage)
-- [Kafka Replay Consumer](#kafka-replay-consumer)
+- [Replay Inspector CLI](#replay-inspector-cli)
   - [Basic usage](#basic-usage)
   - [Replay into Redis](#replay-into-redis)
   - [Replay into Postgres](#replay-into-postgres)
@@ -391,6 +394,16 @@ Single endpoint for GPT-driven verbs defined in `openapi.actions.yaml`. Deep div
 
 Streamlit pages under `dashboard/pages/` power Pulse, Whisperer, and diagnostics. `24_Trades_Diagnostics.py` compares closed trades, MT5 history, and open positions. See [`dashboard/`](dashboard/README.md) for setup and [`dashboards/`](dashboards/README.md) for standalone examples.
 
+### Clustering Dashboard
+
+A prototype clustering view groups volatility regimes and price levels.  Launch it with:
+
+```bash
+streamlit run dashboard/_mix/4_〽️\ Comprehensive\ Market\ Analysis.py_
+```
+
+The page visualizes clusters using DBSCAN/KMeans; configuration tips live in [docs/clustering_dashboard.md](docs/clustering_dashboard.md).
+
 ---
 
 ## Journaling (ZBAR)
@@ -407,7 +420,50 @@ Examples of real-time viewing, enrichment jobs, and troubleshooting. [docs/user_
 
 ## Data Enrichment & Customization
 
-Extend scripts in `utils/` to build custom features and dashboards. The default enrichment labels each tick with its Wyckoff phase, computes an aggregated confidence score, emits a nudge string, and generates an embedding vector. [Workflow](docs/data_enrichment_customization.md).
+The enrichment engine is modular – each processor can be toggled on or off through YAML.  Start with the default configuration and enable only the modules you need:
+
+```bash
+python -m services.enrichment.main --config config/enrichment_default.yaml
+```
+
+Example snippet from `config/enrichment_default.yaml`:
+
+```yaml
+technical:
+  groups:
+    trend:
+      enabled: true
+      indicators:
+        sma: true
+        ema: false
+advanced:
+  liquidity_engine: true
+  context_analyzer: false
+```
+
+Adjust these flags to compose custom pipelines.  See [docs/enrichment_engine.md](docs/enrichment_engine.md) for a full breakdown.
+
+## Vectorized Configs
+
+High‑frequency features can be vectorized according to `utils/tick_vectorizer_config.yaml`.  The file lists feature extractors and vector store settings:
+
+```yaml
+tick_vectorizer:
+  embedding_dim: 1536
+  feature_extractors:
+    microstructure:
+      - spread_dynamics
+      - volume_profile
+  vector_ops:
+    normalization: l2
+    similarity_metric: cosine
+```
+
+Point the vectorizer to the config to tailor embeddings:
+
+```bash
+python -m utils.tick_vectorizer --config utils/tick_vectorizer_config.yaml
+```
 
 ## Session Manifest Prompts
 
@@ -427,6 +483,18 @@ The session manifest bundles reusable Whisperer prompts:
 - **ensemble_contribution** – blends confidence across multiple models.
 
 Weights typically sum to 1.0 and bounds constrain each stage's output.
+
+## Whisperer Integrations
+
+The MCP2 service exposes `/llm/whisperer` for behavioral nudges.  Basic request:
+
+```bash
+curl -sX POST http://localhost:8002/llm/whisperer \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"Review my EURUSD risk"}'
+```
+
+Set `MCP2_API_KEY` for authenticated deployments.  More options live in [docs/whisperer_integration.md](docs/whisperer_integration.md).
 
 ---
 
@@ -506,11 +574,11 @@ Add new Streamlit dashboards following [docs/advanced_dashboard.md](docs/advance
 
 ---
 
-## Kafka Replay Consumer
+## Replay Inspector CLI
 
-Replay historical ticks or bars from Kafka into a datastore for analysis.
-The script's entry point is the ``main`` function inside
-``ops/kafka/replay_consumer.py``.
+`ops/kafka/replay_consumer.py` doubles as a replay inspector for Kafka topics.
+It can print messages, forward batches to a sink, or compute harmonic metrics.
+More examples live in [docs/replay_inspector_cli.md](docs/replay_inspector_cli.md).
 
 ### Basic usage
 
@@ -520,10 +588,11 @@ export KAFKA_TOPIC=ticks.BTCUSDT
 python ops/kafka/replay_consumer.py --start-offset 0 --batch-size 100
 ```
 
-For batch processing of entire poll results use:
+Use `--mode batch` to pass entire poll results to a custom sink, or
+`--mode harmonic` to emit Prometheus metrics while replaying:
 
 ```bash
-python ops/kafka/replay_consumer.py --mode batch
+python ops/kafka/replay_consumer.py --mode harmonic --metrics-port 9100
 ```
 
 Arguments may be set via environment variables (`KAFKA_TOPIC`,

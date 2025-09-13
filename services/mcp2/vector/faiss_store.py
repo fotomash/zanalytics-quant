@@ -46,6 +46,17 @@ class FaissStore:
         self._next_id += 1
         self.index.add_with_ids(vec, np.array([idx], dtype="int64"))
         now = time.time()
+        # Ensure common metadata fields exist for downstream consumers.
+        # ``payload`` may be any mapping supplied by callers, but the clustering
+        # page expects each vector to expose ``pattern_name``, ``pnl`` and
+        # ``confidence``.  Missing fields are initialised to ``None`` so that all
+        # vector types share a consistent structure.
+        base_payload = {"pattern_name": None, "pnl": None, "confidence": None}
+        if isinstance(payload, dict):
+            payload = {**base_payload, **payload}
+        else:
+            payload = base_payload
+
         self.metadata[idx] = {
             "embedding": vec[0],
             "payload": payload,
@@ -56,11 +67,15 @@ class FaissStore:
         self.trade_ids.append(trade_id)
         self._prune_if_needed()
 
-    async def query(self, embedding: List[float], top_k: int = 5) -> Dict[str, List[Dict[str, Any]]]:
+    async def query(
+        self, embedding: List[float], top_k: int = 5
+    ) -> Dict[str, List[Dict[str, Any]]]:
         """Return nearest payloads for the given embedding."""
         return await asyncio.to_thread(self._query, embedding, top_k)
 
-    def _query(self, embedding: List[float], top_k: int) -> Dict[str, List[Dict[str, Any]]]:
+    def _query(
+        self, embedding: List[float], top_k: int
+    ) -> Dict[str, List[Dict[str, Any]]]:
         self._prune_if_needed()
         if self.index.ntotal == 0:
             return {"matches": []}
@@ -76,7 +91,9 @@ class FaissStore:
             if not meta:
                 continue
             meta["last_access"] = now
-            trade_id = self.trade_ids[int(id_)] if int(id_) < len(self.trade_ids) else None
+            trade_id = (
+                self.trade_ids[int(id_)] if int(id_) < len(self.trade_ids) else None
+            )
             results.append(
                 {
                     "id": trade_id,
@@ -96,7 +113,11 @@ class FaissStore:
     def prune_ttl(self, ttl: float) -> None:
         """Remove entries older than ``ttl`` seconds."""
         now = time.time()
-        to_remove = [id_ for id_, meta in self.metadata.items() if now - meta["insertion_time"] > ttl]
+        to_remove = [
+            id_
+            for id_, meta in self.metadata.items()
+            if now - meta["insertion_time"] > ttl
+        ]
         if to_remove:
             self._remove_ids(to_remove)
 
@@ -104,7 +125,9 @@ class FaissStore:
         """Remove ``num_to_remove`` least recently used entries."""
         if num_to_remove <= 0:
             return
-        sorted_ids = sorted(self.metadata.items(), key=lambda item: item[1]["last_access"])
+        sorted_ids = sorted(
+            self.metadata.items(), key=lambda item: item[1]["last_access"]
+        )
         ids = [id_ for id_, _ in sorted_ids[:num_to_remove]]
         self._remove_ids(ids)
 
@@ -115,7 +138,9 @@ class FaissStore:
                 self.trade_ids[id_] = None
         if self.metadata:
             id_array = np.array(list(self.metadata.keys()), dtype="int64")
-            vec_array = np.array([m["embedding"] for m in self.metadata.values()], dtype="float32")
+            vec_array = np.array(
+                [m["embedding"] for m in self.metadata.values()], dtype="float32"
+            )
             self.index = faiss.IndexIDMap(faiss.IndexFlatL2(self.dimension))
             self.index.add_with_ids(vec_array, id_array)
             max_id = int(id_array.max())

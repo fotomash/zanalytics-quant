@@ -2,6 +2,7 @@ import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 from datetime import datetime
+from sklearn.cluster import KMeans
 
 from dashboard.components.ui_concentric import donut_session_vitals, donut_equity
 from dashboard.utils.confluence_visuals import render_confluence_donut
@@ -542,6 +543,47 @@ try:
             cst1.metric("Trades", f"{total}")
             cst2.metric("Win Rate", f"{winrate:.0f}%")
             cst3.metric("Avg PnL", f"${avg_pnl:,.2f}")
+        except Exception:
+            pass
+        # Cluster trades and narrate via Whisperer
+        try:
+            features = ['pnl']
+            vol_col = next((c for c in ['volume', 'qty', 'size'] if c in dfh.columns), None)
+            if vol_col:
+                features.append(vol_col)
+            X = dfh[features].fillna(0.0)
+            if len(X) >= 2:
+                k = min(3, len(X))
+                km = KMeans(n_clusters=k, random_state=0, n_init=10)
+                dfh['cluster'] = km.fit_predict(X)
+                stats = dfh.groupby('cluster').agg(avg_pnl=('pnl', 'mean'), size=('cluster', 'size'))
+                top_cluster = stats.sort_values(['avg_pnl', 'size'], ascending=False).index[0]
+                top = stats.loc[top_cluster]
+                summary = {
+                    'cluster': int(top_cluster),
+                    'avg_pnl': float(top['avg_pnl']),
+                    'size': int(top['size']),
+                }
+                resp = safe_api_call('POST', 'api/pulse/whisperer', summary) or {}
+                narration = resp.get('narration') if isinstance(resp, dict) else None
+                y_vals = dfh[vol_col] if vol_col else dfh.index
+                fig = go.Figure(
+                    data=go.Scatter(
+                        x=dfh['pnl'],
+                        y=y_vals,
+                        mode='markers',
+                        marker=dict(color=dfh['cluster'], colorscale='Viridis', showscale=True),
+                        text=dfh.get('symbol'),
+                    )
+                )
+                fig.update_layout(
+                    title='Trade Clusters',
+                    xaxis_title='PnL',
+                    yaxis_title=(vol_col.title() if vol_col else 'Index'),
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                if narration:
+                    st.caption(f"Whisperer: {narration}")
         except Exception:
             pass
         if 'ts' in dfh.columns:
