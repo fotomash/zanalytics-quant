@@ -1,23 +1,53 @@
-import numpy as np
+import types
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from utils import vector_backtester
 
 
-def cosine(a: np.ndarray, b: np.ndarray) -> float:
-    return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+def _make_result(payload):
+    return types.SimpleNamespace(payload=payload)
 
 
-def rank_and_score(
-    query: np.ndarray, analogs: np.ndarray, scores: np.ndarray
-) -> tuple[np.ndarray, float]:
-    sims = np.array([cosine(query, v) for v in analogs])
-    order = np.argsort(sims)[::-1]
-    weighted = np.average(scores[order[:2]], weights=sims[order[:2]])
-    return order, float(weighted)
+def test_score_embedding_success():
+    embedding = [0.1, 0.2]
+    mock_results = [
+        _make_result({"pnl": 1.0}),
+        _make_result({"pnl": -1.0}),
+        _make_result({"pnl": 2.0}),
+    ]
+    mock_client = MagicMock()
+    mock_client.search.return_value = mock_results
+
+    with patch.object(vector_backtester, "_client", mock_client):
+        avg_pnl, win_rate, payloads = vector_backtester.score_embedding(embedding)
+
+    mock_client.search.assert_called_once_with(
+        collection_name=vector_backtester.QDRANT_COLLECTION,
+        query_vector=embedding,
+        limit=10,
+    )
+    assert avg_pnl == pytest.approx((1.0 - 1.0 + 2.0) / 3)
+    assert win_rate == pytest.approx(2 / 3)
+    assert payloads == [r.payload for r in mock_results]
 
 
-def test_analog_ranking_and_replay_scoring():
-    history = np.array([[1, 0], [0, 1], [0.8, 0.2]])
-    scores = np.array([0.9, 0.1, 0.5])
-    query = np.array([0.9, 0.1])
-    order, score = rank_and_score(query, history, scores)
-    assert order[0] == 0
-    assert score > 0.7
+def test_score_embedding_handles_errors():
+    embedding = [0.5, 0.4]
+    mock_client = MagicMock()
+    mock_client.search.side_effect = Exception("boom")
+
+    with patch.object(vector_backtester, "_client", mock_client):
+        avg_pnl, win_rate, payloads = vector_backtester.score_embedding(embedding)
+
+    assert avg_pnl == 0.0
+    assert win_rate == 0.0
+    assert payloads == []
+
+    with patch.object(vector_backtester, "_client", None):
+        avg_pnl, win_rate, payloads = vector_backtester.score_embedding(embedding)
+        assert avg_pnl == 0.0
+        assert win_rate == 0.0
+        assert payloads == []
+

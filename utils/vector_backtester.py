@@ -1,69 +1,67 @@
-"""Helpers for scoring tick embeddings against historical vectors.
-
-This module provides ``score_embedding`` which queries Qdrant for the
-nearest analog vectors and returns simple PnL statistics.  The function is
-written defensively – any network or import failures simply result in
-zeroed metrics so that callers can continue operating in environments
-without a running vector database.
-"""
+"""Vector backtesting utilities using Qdrant."""
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+import logging
 import os
+from typing import List, Tuple, Dict, Any
 
-from .enrich import _get_qdrant_client
+try:
+    from qdrant_client import QdrantClient
+except Exception:  # pragma: no cover - library may be missing in tests
+    QdrantClient = None  # type: ignore
+
+logger = logging.getLogger(__name__)
+
+QDRANT_URL = os.getenv("QDRANT_URL", "")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
+QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "enriched")
+
+_client: QdrantClient | None = None
+
+if QdrantClient and QDRANT_URL:
+    try:
+        _client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Failed to initialize Qdrant client: %s", exc)
+        _client = None
+else:
+    if not QdrantClient:
+        logger.warning("QdrantClient library not available; vector backtesting disabled")
+    else:
+        logger.warning("QDRANT_URL not set; vector backtesting disabled")
 
 
-def score_embedding(
-    embedding: List[float],
-    limit: int = 5,
-) -> Tuple[float, float, List[Dict[str, Any]]]:
-    """Return analog information for *embedding*.
+def score_embedding(embedding: List[float]) -> Tuple[float, float, List[Dict[str, Any]]]:
+    """Score an embedding against historical analogs.
 
-    Parameters
-    ----------
-    embedding:
-        Embedding vector representing the current tick or batch.
-    limit:
-        Maximum number of analog vectors to consider.
-
-    Returns
-    -------
-    tuple
-        ``(avg_pnl, win_rate, payloads)`` where ``payloads`` is a list of
-        payload dictionaries returned by Qdrant for the matched points.
+    Returns a tuple of ``(average_pnl, win_rate, payloads)``. If the Qdrant
+    service is unreachable or no analogs are found, zeros are returned along
+    with an empty payload list.
     """
 
-    client = _get_qdrant_client()
-    if client is None:
+    if _client is None:
+        logger.warning("Qdrant client unavailable; returning default scores")
         return 0.0, 0.0, []
 
-    collection = os.environ.get("QDRANT_COLLECTION", "enriched")
-    try:  # pragma: no cover - network side effects
-        res = client.search(
-            collection_name=collection, query_vector=embedding, limit=limit
+    try:
+        results = _client.search(
+            collection_name=QDRANT_COLLECTION,
+            query_vector=embedding,
+            limit=10,
         )
-    except Exception:
+    except Exception as exc:  # pragma: no cover - network/HTTP errors
+        logger.warning("Qdrant search failed: %s", exc)
         return 0.0, 0.0, []
 
-    payloads: List[Dict[str, Any]] = []
-    pnls: List[float] = []
-    wins = 0
-    for point in res:
-        payload = getattr(point, "payload", {}) or {}
-        payloads.append(payload)
-        pnl = float(payload.get("pnl", 0.0))
-        pnls.append(pnl)
-        if pnl > 0:
-            wins += 1
+    payloads = [getattr(res, "payload", {}) for res in results]
+    pnls = [p.get("pnl") for p in payloads if p.get("pnl") is not None]
 
     if not pnls:
         return 0.0, 0.0, payloads
 
-    avg_pnl = float(sum(pnls) / len(pnls))
-    win_rate = float(wins / len(pnls))
+    avg_pnl = sum(pnls) / len(pnls)
+    wins = sum(1 for pnl in pnls if pnl > 0)
+    win_rate = wins / len(pnls)
+
     return avg_pnl, win_rate, payloads
-
-
-__all__ = ["score_embedding"]
