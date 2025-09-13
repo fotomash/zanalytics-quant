@@ -76,5 +76,39 @@ class BrownVectorPipeline:
         response = self._session.post(url, json=payload, timeout=30)
         response.raise_for_status()
 
+    def search_similar_clusters(
+        self, collection_name: str, query_vector: List[float], top_k: int = 5
+    ) -> List[Dict[str, Any]]:
+        """Search the vector database for entries similar to ``query_vector``.
+
+        Parameters
+        ----------
+        collection_name:
+            Name of the collection to search.
+        query_vector:
+            Vector to compare against stored entries.
+        top_k:
+            Maximum number of matches to return.
+
+        Returns
+        -------
+        List[Dict[str, Any]]
+            Search results from the vector database.  On failure an empty list
+            is returned.
+        """
+
+        if self._session is None:
+            self._connect()
+        assert self._session is not None
+        url = f"{self._db_url.rstrip('/')}/{collection_name}/search"
+        payload = {"vector": query_vector, "top": top_k}
+        try:
+            response = self._session.post(url, json=payload, timeout=30)
+            response.raise_for_status()
+            return response.json().get("result", [])
+        except Exception as exc:  # pragma: no cover - network failures are environment specific
+            logger.warning("Vector DB search failed: %s", exc)
+            return []
+
 
 __all__ = ["BrownVectorPipeline"]

@@ -118,6 +118,7 @@ def fetch_cluster_context(cluster_id: str) -> Dict[str, Any]:
 def search_similar_clusters(
     embedding: List[float],
     top_k: int = 5,
+    collection_name: str = "clusters",
 ) -> List[Dict[str, Any]]:
     """Search the vector store for clusters similar to ``embedding``.
 
@@ -127,6 +128,8 @@ def search_similar_clusters(
         Vector representation to search against.
     top_k:
         Maximum number of results to return.
+    collection_name:
+        Name of the collection in the vector store.
 
     Returns
     -------
@@ -140,14 +143,6 @@ def search_similar_clusters(
         return []
 
     try:
-        if pipeline._session is None:  # type: ignore[attr-defined]
-            pipeline._connect()  # type: ignore[attr-defined]
-        session = pipeline._session  # type: ignore[attr-defined]
-        assert session is not None
-        url = f"{pipeline._db_url.rstrip('/')}/search"  # type: ignore[attr-defined]
-        payload = {"vector": embedding, "top": top_k}
-        response = session.post(url, json=payload, timeout=30)
-        response.raise_for_status()
-        return response.json().get("result", [])
+        return pipeline.search_similar_clusters(collection_name, embedding, top_k)
     except Exception:  # pragma: no cover - network failures
         return []

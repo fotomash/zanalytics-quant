@@ -14,12 +14,16 @@ from __future__ import annotations
 
 import os
 from dataclasses import asdict
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 import httpx
 from fastapi import FastAPI
 from pydantic import BaseModel
+import redis
 
+from services.vectorization_service.brown_vector_store_integration import (
+    BrownVectorPipeline,
+)
 from whisper_engine import State, WhisperEngine
 
 # Default MCP endpoint if the environment variable is unset.
@@ -82,6 +86,30 @@ async def _fetch_cluster_from_vector_store(date: str) -> Optional[Any]:
         return None
     except Exception:
         return None
+
+
+class ClusterNarrateRequest(BaseModel):
+    cluster: Dict[str, Any]
+
+
+@app.post("/cluster_narrate")
+async def cluster_narrate(payload: ClusterNarrateRequest):
+    """Return a narrative for a provided cluster.
+
+    The endpoint initialises Redis and :class:`BrownVectorPipeline` clients and
+    delegates to :func:`WhisperEngine.cluster_narrator`.  Callers must provide a
+    cluster object containing an ``embedding`` field which is used with
+    ``search_similar_clusters``.
+    """
+
+    r = redis.Redis(
+        host=os.getenv("REDIS_HOST", "redis"),
+        port=int(os.getenv("REDIS_PORT", "6379")),
+        decode_responses=True,
+    )
+    qdrant = BrownVectorPipeline()
+    engine = WhisperEngine({})
+    return engine.cluster_narrator(payload.cluster, r, qdrant)
 
 
 @app.get("/rsi-divergence-cluster")
