@@ -108,7 +108,9 @@ class AdvancedProcessor:
     # ZigZag Pivots
     # ------------------------------------------------------------------
     @record_metrics
-    def detect_pivots(self, df: pd.DataFrame, prominence: float = 0.0) -> Dict[str, List[int]]:
+    def detect_pivots(
+        self, df: pd.DataFrame, prominence: float = 0.0
+    ) -> Dict[str, List[int]]:
         """Locate swing highs and lows using SciPy ``find_peaks``.
 
         Parameters
@@ -135,6 +137,144 @@ class AdvancedProcessor:
         trough_idx, _ = find_peaks(-lows, prominence=prominence)
 
         return {"peaks": peak_idx.tolist(), "troughs": trough_idx.tolist()}
+
+    # ------------------------------------------------------------------
+    # Harmonic Patterns
+    # ------------------------------------------------------------------
+    @record_metrics
+    def detect_harmonic_patterns(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+        """Identify common harmonic patterns within price data.
+
+        The method reuses :meth:`detect_pivots` to generate a sequence of
+        alternating peaks and troughs.  Each group of five alternating pivots is
+        evaluated against harmonic ratio templates for the Gartley, Bat,
+        Butterfly, Crab and Cypher patterns using a ±5% tolerance.  Computations
+        are vectorized where practical to keep processing time under 200ms for
+        ~1k rows.
+
+        Parameters
+        ----------
+        df: pd.DataFrame
+            Data containing ``close`` prices as well as ``high`` and ``low`` for
+            pivot detection.
+
+        Returns
+        -------
+        List[Dict[str, Any]]
+            Detected patterns with their pivot indices, potential reversal zone
+            (min/max of C and D prices) and a confidence score between 0 and 1.
+        """
+
+        if df.empty:
+            return []
+
+        pivots = self.detect_pivots(df)
+        points = sorted(
+            [(i, 1) for i in pivots.get("peaks", [])]
+            + [(i, -1) for i in pivots.get("troughs", [])]
+        )
+        if len(points) < 5:
+            return []
+
+        idx = np.array([p[0] for p in points], dtype=int)
+        t = np.array([p[1] for p in points], dtype=int)
+
+        from numpy.lib.stride_tricks import sliding_window_view
+
+        type_windows = sliding_window_view(t, 5)
+        alt_mask = np.all(type_windows[:, :-1] != type_windows[:, 1:], axis=1)
+        if not np.any(alt_mask):
+            return []
+
+        idx_windows = sliding_window_view(idx, 5)[alt_mask]
+        prices = df["close"].astype(float).to_numpy()
+
+        tolerance = 0.05
+
+        pattern_defs: Dict[str, Dict[str, List[float]]] = {
+            "gartley": {
+                "ab_xa": [0.618],
+                "bc_ab": [0.382, 0.886],
+                "cd_bc": [1.27, 1.618],
+                "ad_xa": [0.786],
+            },
+            "bat": {
+                "ab_xa": [0.382, 0.5],
+                "bc_ab": [0.382, 0.886],
+                "cd_bc": [1.618, 2.618],
+                "ad_xa": [0.886],
+            },
+            "butterfly": {
+                "ab_xa": [0.786],
+                "bc_ab": [0.382, 0.886],
+                "cd_bc": [1.618, 2.618],
+                "ad_xa": [1.27, 1.618],
+            },
+            "crab": {
+                "ab_xa": [0.382, 0.618],
+                "bc_ab": [0.382, 0.886],
+                "cd_bc": [2.618, 3.618],
+                "ad_xa": [1.618],
+            },
+            "cypher": {
+                "ab_xa": [0.382, 0.618],
+                "bc_xa": [1.27, 1.414],
+                "cd_bc": [0.786],
+                "ad_xc": [0.786],
+            },
+        }
+
+        results: List[Dict[str, Any]] = []
+
+        for window in idx_windows:
+            x, a, b, c, d = window
+            xa = abs(prices[a] - prices[x])
+            ab = abs(prices[b] - prices[a])
+            bc = abs(prices[c] - prices[b])
+            cd = abs(prices[d] - prices[c])
+            ad = abs(prices[d] - prices[a])
+            xc = abs(prices[c] - prices[x])
+
+            ratios = {
+                "ab_xa": ab / xa if xa else np.inf,
+                "bc_ab": bc / ab if ab else np.inf,
+                "cd_bc": cd / bc if bc else np.inf,
+                "ad_xa": ad / xa if xa else np.inf,
+                "bc_xa": bc / xa if xa else np.inf,
+                "ad_xc": ad / xc if xc else np.inf,
+            }
+
+            for name, reqs in pattern_defs.items():
+                errs = []
+                valid = True
+                for key, targets in reqs.items():
+                    r = ratios.get(key, np.inf)
+                    if not np.isfinite(r):
+                        valid = False
+                        break
+                    arr = np.asarray(targets, dtype=float)
+                    diff = np.abs(r - arr) / arr
+                    err = float(np.min(diff))
+                    if err > tolerance:
+                        valid = False
+                        break
+                    errs.append(err)
+                if valid and errs:
+                    confidence = float(1.0 - np.mean(errs))
+                    prz = (
+                        float(np.min(prices[[c, d]])),
+                        float(np.max(prices[[c, d]])),
+                    )
+                    results.append(
+                        {
+                            "pattern": name,
+                            "points": window.tolist(),
+                            "prz": prz,
+                            "confidence": confidence,
+                        }
+                    )
+
+        return results
 
     # ------------------------------------------------------------------
     # Local LLM helper
@@ -207,7 +347,11 @@ class AdvancedProcessor:
         """Compute ATR and flag bars exceeding the configured threshold."""
 
         if df.empty:
-            return {"atr": [], "atr_threshold": self.atr_threshold, "atr_above_threshold": []}
+            return {
+                "atr": [],
+                "atr_threshold": self.atr_threshold,
+                "atr_above_threshold": [],
+            }
 
         high = df["high"].astype(float).to_numpy()
         low = df["low"].astype(float).to_numpy()
