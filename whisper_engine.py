@@ -15,32 +15,32 @@ DEDUPE_TTL_SECONDS = int(os.getenv("WHISPER_DEDUPE_TTL", "300"))
 class Whisper:
     id: str
     ts: float
-    category: str        # sizing | patience | profit | cooldown | confluence | overconfidence
-    severity: str        # info | suggest | warn
+    category: str  # sizing | patience | profit | cooldown | confluence | overconfidence
+    severity: str  # info | suggest | warn
     message: str
     reasons: List[Dict[str, Any]]
-    actions: List[Dict[str, str]]   # [{"label": "...", "action": "act_move_sl_be"}]
+    actions: List[Dict[str, str]]  # [{"label": "...", "action": "act_move_sl_be"}]
     ttl_seconds: int
     cooldown_key: str
     cooldown_seconds: int
-    channel: List[str]   # ["dashboard","discord"]
+    channel: List[str]  # ["dashboard","discord"]
     journal_ref: Optional[str] = None
 
 
 @dataclass
 class State:
     # Market
-    confluence: float                 # 0..100
+    confluence: float  # 0..100
     confluence_trend_up: bool
     # Behavior (mirror)
-    patience_index: float             # 0..100 (higher = calmer)
-    patience_drop_pct: float          # vs baseline
+    patience_index: float  # 0..100 (higher = calmer)
+    patience_drop_pct: float  # vs baseline
     loss_streak: int
     window_minutes: int
-    recent_winrate_similar: float     # 0..1
+    recent_winrate_similar: float  # 0..1
     # Risk (hard layer)
     hard_cooldown_active: bool
-    risk_budget_used_pct: float       # 0..1
+    risk_budget_used_pct: float  # 0..1
     trades_today: int
     # Meta
     user_id: str
@@ -48,6 +48,7 @@ class State:
 
 class Cooldowns:
     """Per-process cooldowns with optional Redis persistence for cross-process dedupe."""
+
     _store: Dict[str, float] = {}
     _r = None
 
@@ -58,11 +59,15 @@ class Cooldowns:
         try:
             import os
             import redis  # type: ignore
+
             url = os.getenv("REDIS_URL")
             if url:
                 cls._r = redis.from_url(url)
             else:
-                cls._r = redis.Redis(host=os.getenv("REDIS_HOST", "redis"), port=int(os.getenv("REDIS_PORT", 6379)))
+                cls._r = redis.Redis(
+                    host=os.getenv("REDIS_HOST", "redis"),
+                    port=int(os.getenv("REDIS_PORT", 6379)),
+                )
         except Exception:
             cls._r = None
         return cls._r
@@ -113,8 +118,16 @@ class WhisperEngine:
         self.cd_default = int(r.get("default_cooldown_seconds", 300))
         self.cd_patience = int(r.get("patience_cooldown_seconds", 900))
         self.channels = list(w.get("channels", ["dashboard", "discord"]))
-    def cluster_narrator(self, top_cluster: Dict[str, Any], redis_client, qdrant_client) -> Dict[str, Any]:
-        """Compose a narrative for a cluster using historical context and vector search.
+
+    def cluster_narrator(
+        self, top_cluster: Dict[str, Any], redis_client, qdrant_client
+    ) -> Dict[str, Any]:
+        """Compose a narrative for a cluster using historical context and optional vector search.
+
+        If the provided ``qdrant_client`` does not implement
+        ``search_similar_clusters`` the vector search step is skipped and the
+        narrative is generated solely from the supplied cluster summary and
+        Redis-based market intelligence.
 
         Parameters
         ----------
@@ -127,7 +140,8 @@ class WhisperEngine:
             :class:`LLMRedisBridge`.
         qdrant_client:
             Vector search client implementing ``search_similar_clusters`` used
-            to look up similar historical patterns.
+            to look up similar historical patterns. If the method is absent the
+            search is skipped.
 
         Returns
         -------
@@ -165,17 +179,16 @@ class WhisperEngine:
         matches: List[Dict[str, Any]] = []
 
         search_fn = getattr(qdrant_client, "search_similar_clusters", None)
-        if not callable(search_fn):
-            raise TypeError(
-                "Vector search client must implement 'search_similar_clusters'"
-            )
-        try:
-            matches = search_fn(
-                collection_name=top_cluster.get("collection", "clusters"),
-                query_vector=top_cluster.get("embedding", []),
-                top_k=3,
-            )
-        except Exception:
+        if callable(search_fn):
+            try:
+                matches = search_fn(
+                    collection_name=top_cluster.get("collection", "clusters"),
+                    query_vector=top_cluster.get("embedding", []),
+                    top_k=3,
+                )
+            except Exception:
+                matches = []
+        else:
             matches = []
 
         if matches:
@@ -199,25 +212,39 @@ class WhisperEngine:
         cands: List[Whisper] = []
 
         # 1) Low-confluence reminder
-        if s.confluence < self.min_confluence_to_prompt and not Cooldowns.hit(f"{s.user_id}:lowconf"):
+        if s.confluence < self.min_confluence_to_prompt and not Cooldowns.hit(
+            f"{s.user_id}:lowconf"
+        ):
             cands.append(self._low_confluence(s))
 
         # 2) Slicing suggestion (mid & improving + patience falling)
-        if (40 <= s.confluence < 60) and s.confluence_trend_up and s.patience_drop_pct >= self.patience_drop_warn_pct \
-           and not Cooldowns.hit(f"{s.user_id}:sizing"):
+        if (
+            (40 <= s.confluence < 60)
+            and s.confluence_trend_up
+            and s.patience_drop_pct >= self.patience_drop_warn_pct
+            and not Cooldowns.hit(f"{s.user_id}:sizing")
+        ):
             cands.append(self._slicing(s))
 
         # 3) Patience soft cooldown (clustered losses)
-        if s.loss_streak >= self.loss_streak_soft and s.window_minutes <= 30 and not s.hard_cooldown_active \
-           and not Cooldowns.hit(f"{s.user_id}:patience"):
+        if (
+            s.loss_streak >= self.loss_streak_soft
+            and s.window_minutes <= 30
+            and not s.hard_cooldown_active
+            and not Cooldowns.hit(f"{s.user_id}:patience")
+        ):
             cands.append(self._patience(s))
 
         # 4) Goal protection (banking)
-        if s.risk_budget_used_pct >= self.goal_protect_at_pct and not Cooldowns.hit(f"{s.user_id}:goalprotect"):
+        if s.risk_budget_used_pct >= self.goal_protect_at_pct and not Cooldowns.hit(
+            f"{s.user_id}:goalprotect"
+        ):
             cands.append(self._goal_protect(s))
 
         # 5) Overconfidence circuit
-        if (s.trades_today >= 2 * max(1, int(60 / max(1, s.window_minutes)))) and not Cooldowns.hit(f"{s.user_id}:overconf"):
+        if (
+            s.trades_today >= 2 * max(1, int(60 / max(1, s.window_minutes)))
+        ) and not Cooldowns.hit(f"{s.user_id}:overconf"):
             cands.append(self._overconfidence(s))
 
         return self._dedupe_and_arm_cooldowns(cands, s.user_id)
@@ -340,7 +367,9 @@ class WhisperEngine:
         )
 
     # --- utilities -----------------------------------------------------
-    def _dedupe_and_arm_cooldowns(self, ws: List[Whisper], user_id: str) -> List[Whisper]:
+    def _dedupe_and_arm_cooldowns(
+        self, ws: List[Whisper], user_id: str
+    ) -> List[Whisper]:
         r = Cooldowns._redis()
         now = time.time()
         out: List[Whisper] = []
