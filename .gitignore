@@ -1,7 +1,9 @@
 # Environment files
-.env
-.env.local
-.env.production
+.env*
+!*.env.template
+!*.env.sample
+!*.env.example
+!*.env.discord
 
 # Credentials and secrets
 *.key
