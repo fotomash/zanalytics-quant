@@ -70,3 +70,19 @@ Configuration for Qdrant is provided via environment variables:
 
 The vector store receives the payload via an HTTP `POST` to `${QDRANT_URL}/upsert` with the JSON body above. Qdrant returns the
 ID associated with each point; store or log this identifier for later retrieval.
+
+## Usage Example
+
+Install dependencies and start the service:
+
+```bash
+pip install -r services/vectorization_service/requirements.txt
+python services/vectorization_service/main.py
+```
+
+Expected output (truncated):
+
+```
+INFO:root:Kafka consumer started...
+INFO:root:Shutting down vectorization service...
+```
