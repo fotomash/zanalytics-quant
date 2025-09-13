@@ -22,8 +22,8 @@ __pycache__/
 .pytest_cache/
 
 # IDE
-.vscode/
 .idea/
+.vscode/
 *.swp
 *.swo
 
