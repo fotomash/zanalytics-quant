@@ -13,10 +13,11 @@ class DummyPredictiveScorer:
 def _import_analysis_engines():
     """Import ``utils.analysis_engines`` with core scorer stubbed."""
     core_pkg = ModuleType("core")
-    sys.modules.setdefault("core", core_pkg)
+    sys.modules["core"] = core_pkg
     cps = ModuleType("core.predictive_scorer")
     cps.PredictiveScorer = DummyPredictiveScorer
     sys.modules["core.predictive_scorer"] = cps
+    sys.modules.pop("utils.analysis_engines", None)
     return importlib.import_module("utils.analysis_engines")
 
 

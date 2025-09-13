@@ -30,6 +30,7 @@ class ISPTSPipelineResult(BaseModel):
     liquidity_engine: dict = {}
     structure_validator: dict = {}
     fvg_locator: dict = {}
+    harmonic_processor: dict = {}
     risk_manager: dict = {}
     confluence_stacker: dict = {}
 

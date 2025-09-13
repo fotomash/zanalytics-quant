@@ -38,6 +38,9 @@ def test_pipeline_runs_all(monkeypatch) -> None:
     assert "liquidity_zones" in state
     assert "wyckoff_analysis" in state
     assert "maturity_score" in state
+    assert "harmonic_patterns" in state
+    assert "prz" in state
+    assert "confidence" in state
 
 
 def test_pipeline_stops_on_failure(monkeypatch) -> None:

@@ -71,6 +71,7 @@ def build_unified_analysis(
         liquidity_engine={},
         structure_validator={},
         fvg_locator={},
+        harmonic_processor={},
         risk_manager={},
         confluence_stacker={},
         harmonic=HarmonicResult(),

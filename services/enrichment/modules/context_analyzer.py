@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+import pandas as pd
+
 from core.context_analyzer import ContextAnalyzer
 from enrichment.enrichment_engine import run_data_module
 
