@@ -1,23 +1,22 @@
-"""Enrichment utilities and processors."""
+"""Enrichment utilities and processors.
 
-from .core import aggregate_ticks_to_bars, enrich_ticks
-from .rsi import RSIProcessor
-
-__all__ = ["aggregate_ticks_to_bars", "enrich_ticks", "RSIProcessor"]
-"""Lightweight enrichment utilities.
-
-This package provides basic helpers for enriching tick data and exposes
-an experimental ``smc_process`` function for extracting Smart Money Concepts
-(SMC) features.
+This package exposes helper functions for enriching tick/bar data and
+collecting higher level analytics.  It also registers lightweight analytic
+processors such as the displacement/structure-shift (DSS) module.
 """
-
 from __future__ import annotations
 
+from typing import Dict
+
+import numpy as np
 import pandas as pd
 
-from .smc import process as smc_process
+from . import dss  # noqa: F401 - re-export for convenience
 
-TIMEFRAME_RULES = {
+# ---------------------------------------------------------------------------
+# Basic enrichment helpers (migrated from legacy ``utils.enrichment`` module)
+# ---------------------------------------------------------------------------
+TIMEFRAME_RULES: Dict[str, str] = {
     "M1": "1T",
     "M5": "5T",
     "M15": "15T",
@@ -31,38 +30,30 @@ TIMEFRAME_RULES = {
 
 
 def aggregate_ticks_to_bars(ticks: pd.DataFrame, timeframe: str = "M1") -> pd.DataFrame:
-    """Aggregate tick data into OHLC bars using pandas resample.
+    """Aggregate tick data into OHLC bars using pandas ``resample``.
 
     Parameters
     ----------
-    ticks : pd.DataFrame
-        DataFrame containing tick data. It must have either a ``timestamp``
-        column or a datetime index along with a ``bid`` price column. If an
-        ``ask`` column is present it will be used to compute the mid price.
-    timeframe : str, default "M1"
-        Target timeframe in MT5 format (e.g. ``M1``, ``M5``). A valid pandas
-        resample string can also be provided.
-
-    Returns
-    -------
-    pd.DataFrame
-        Resampled bar data with ``open``, ``high``, ``low`` and ``close``
-        columns. ``volume`` will be summed if present in the input ``ticks``.
+    ticks:
+        Input tick data.  Must have either a ``timestamp`` column or a
+        datetime index and contain ``bid`` prices.  ``ask`` prices are used to
+        compute the mid price when present.
+    timeframe:
+        Target timeframe in MT5 notation (e.g. ``M1``, ``H1``) or any valid
+        pandas offset alias.
     """
-
     if ticks is None or ticks.empty:
         return pd.DataFrame()
 
     df = ticks.copy()
 
-    # Ensure datetime index
     if "timestamp" in df.columns:
         df["timestamp"] = pd.to_datetime(df["timestamp"])
         df.set_index("timestamp", inplace=True)
 
     rule = TIMEFRAME_RULES.get(timeframe.upper(), timeframe)
 
-    agg: dict[str, str | list[str]] = {"bid": ["first", "max", "min", "last"]}
+    agg: Dict[str, str | list[str]] = {"bid": ["first", "max", "min", "last"]}
     if "volume" in df.columns:
         agg["volume"] = "sum"
 
@@ -70,7 +61,6 @@ def aggregate_ticks_to_bars(ticks: pd.DataFrame, timeframe: str = "M1") -> pd.Da
     resampled.columns = ["open", "high", "low", "close"] + (
         ["volume"] if "volume" in df.columns else []
     )
-
     resampled.dropna(subset=["open"], inplace=True)
 
     return resampled
@@ -79,6 +69,10 @@ def aggregate_ticks_to_bars(ticks: pd.DataFrame, timeframe: str = "M1") -> pd.Da
 def enrich_ticks(df: pd.DataFrame) -> pd.DataFrame:
     """Enrich tick or bar data with common metrics.
 
+    When ``bid`` and ``ask`` columns are present, mid price and spread
+    statistics are derived.  Simple rolling averages and returns are computed
+    on the mid price to give downstream modules immediate contextual
+    information.
     The function expects ``bid`` and ``ask`` columns where available. When
     present, it derives ``mid_price`` and ``spread`` metrics. Simple
     technical indicators like rolling averages and returns are also
@@ -106,4 +100,4 @@ def enrich_ticks(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-__all__ = ["aggregate_ticks_to_bars", "enrich_ticks", "smc_process"]
+__all__ = ["aggregate_ticks_to_bars", "enrich_ticks", "dss"]
