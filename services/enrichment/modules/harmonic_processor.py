@@ -19,6 +19,7 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     if harmonic is not None:
         state["harmonic"] = harmonic
     state["status"] = "PASS"
+
     return state
 
 

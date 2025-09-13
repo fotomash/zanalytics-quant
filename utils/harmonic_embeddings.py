@@ -1,14 +1,29 @@
-"""Embed and store harmonic pattern features in Qdrant."""
+"""Embed harmonic pattern features and store them asynchronously in Qdrant.
+
+This module previously handled Qdrant upserts directly.  It now delegates the
+storage operation to :class:`utils.processors.harmonic.HarmonicStorageProcessor`
+which
+provides an awaitable interface capable of working with both synchronous and
+asynchronous Qdrant clients.  The public API is kept as a thin async wrapper so
+existing call sites can simply ``await`` the new implementation.
+"""
 
 from __future__ import annotations
 
+import asyncio
 import os
-import uuid
 from typing import Any, Dict, Iterable, List
 
-from qdrant_client import QdrantClient, models
+from qdrant_client import QdrantClient
 
-from services.mcp2.vector.embeddings import embed
+from utils.processors.harmonic import HarmonicStorageProcessor
+
+try:  # pragma: no cover - best effort fallback when deps missing
+    from services.mcp2.vector.embeddings import embed
+except Exception:  # pragma: no cover - deterministic zero vector fallback
+
+    def embed(text: str) -> List[float]:  # type: ignore
+        return [0.0] * 384
 
 
 def _pattern_to_text(pattern: Dict[str, Any]) -> str:
@@ -20,12 +35,11 @@ def _pattern_to_text(pattern: Dict[str, Any]) -> str:
     return f"{name} ratios {ratios_str} PRZ {prz}"
 
 
-def upsert_harmonic_patterns(
+async def upsert_harmonic_patterns(
     patterns: Iterable[Dict[str, Any]],
     *,
     client: QdrantClient | None = None,
     collection_name: str = "harmonic_patterns",
-    batch_size: int = 1000,
 ) -> None:
     """Embed and upsert harmonic patterns into a Qdrant collection.
 
@@ -34,36 +48,51 @@ def upsert_harmonic_patterns(
     patterns:
         Iterable of harmonic pattern dictionaries.
     client:
-        Optional existing ``QdrantClient``. If ``None``, a new client will be
-        created using ``QDRANT_URL`` and ``QDRANT_API_KEY`` environment variables.
+        Optional existing ``QdrantClient`` or
+        ``qdrant_client.AsyncQdrantClient``.  If ``None``, a new synchronous
+        client will be created using ``QDRANT_URL`` and ``QDRANT_API_KEY``
+        environment variables.
     collection_name:
         Name of the Qdrant collection to upsert into.
-    batch_size:
-        Number of points to upsert in a single batch.
     """
 
-    if client is None:
+    if client is None:  # pragma: no cover - defensive creation
         url = os.getenv("QDRANT_URL", "http://localhost:6333")
         api_key = os.getenv("QDRANT_API_KEY")
         client = QdrantClient(url=url, api_key=api_key)
 
-    points: List[models.PointStruct] = []
-    for idx, pattern in enumerate(patterns, 1):
+    processor = HarmonicStorageProcessor(client, collection_name)
+
+    vectors: List[List[float]] = []
+    payloads: List[Dict[str, Any]] = []
+    ids: List[int] = []
+
+    for idx, pattern in enumerate(patterns):
         text = _pattern_to_text(pattern)
-        vector = embed(text)
-        payload = {k: v for k, v in pattern.items() if k != "points"}
-        points.append(
-            models.PointStruct(
-                id=str(uuid.uuid4()),
-                vector=vector,
-                payload=payload,
-            )
+        vectors.append(embed(text))
+        payloads.append({k: v for k, v in pattern.items() if k != "points"})
+        ids.append(idx)
+
+    if vectors:
+        await processor.upsert(vectors, payloads, ids)
+
+
+def upsert_harmonic_patterns_sync(
+    patterns: Iterable[Dict[str, Any]],
+    *,
+    client: QdrantClient | None = None,
+    collection_name: str = "harmonic_patterns",
+) -> None:
+    """Synchronous wrapper around :func:`upsert_harmonic_patterns`.
+
+    Provided for compatibility with code that expects a blocking call.
+    """
+
+    asyncio.run(
+        upsert_harmonic_patterns(
+            patterns, client=client, collection_name=collection_name
         )
-        if idx % batch_size == 0:
-            client.upsert(collection_name=collection_name, points=points)
-            points = []
-    if points:
-        client.upsert(collection_name=collection_name, points=points)
+    )
 
 
-__all__ = ["upsert_harmonic_patterns"]
+__all__ = ["upsert_harmonic_patterns", "upsert_harmonic_patterns_sync"]

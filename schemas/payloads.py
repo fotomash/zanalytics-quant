@@ -122,6 +122,7 @@ class HarmonicResult(BaseModel):
         description="Aggregated confidence score",
     )
 
+
 class PredictiveAnalysisResult(BaseModel):
     """Aggregated predictive scoring and conflict detection."""
 
@@ -151,20 +152,6 @@ class ISPTSPipelineResult(BaseModel):
     )
     fvg_locator: Any = Field(
         ..., description="FVG locator stage output",
-    )
-    harmonic_processor: Any = Field(
-        ..., description="Harmonic processor stage output",
-    )
-
-    risk_manager: Any = Field(
-        ..., description="Risk manager stage output",
-    )
-    confluence_stacker: Any = Field(
-        ..., description="Confluence stacker stage output",
-    )
-    harmonic: HarmonicResult = Field(
-        default_factory=HarmonicResult,
-        description="Harmonic pattern detection results",
     )
 
 

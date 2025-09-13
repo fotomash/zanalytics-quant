@@ -15,8 +15,16 @@ class HarmonicPatternDetector:
     the implementation to the essentials required for the enrichment pipeline.
     """
 
-    def __init__(self, logger: logging.Logger | None = None) -> None:
+    def __init__(
+        self,
+        logger: logging.Logger | None = None,
+        *,
+        tolerance: float = 0.05,
+        window: int = 5,
+    ) -> None:
         self.logger = logger or logging.getLogger(__name__)
+        self.tolerance = tolerance
+        self.window = window
         self.patterns: Dict[str, Dict[str, float]] = {
             "GARTLEY": {"XA": 0.618, "AB": 0.382, "BC": 0.886, "CD": 0.786},
             "BUTTERFLY": {"XA": 0.786, "AB": 0.382, "BC": 0.886, "CD": 1.27},
@@ -36,14 +44,16 @@ class HarmonicPatternDetector:
             high = df["high"].values
             low = df["low"].values
             close = df["close"].values
-            pivots = self._find_pivots(high, low, close)
+            pivots = self._find_pivots(high, low, close, self.window)
             for name, ratios in self.patterns.items():
-                patterns_found.extend(self._check_pattern(pivots, ratios, name))
+                patterns_found.extend(
+                    self._check_pattern(pivots, ratios, name, self.tolerance)
+                )
         except Exception as exc:  # pragma: no cover - defensive
             self.logger.warning("error detecting harmonic patterns: %s", exc)
         return patterns_found
 
-    def _find_pivots(self, high, low, close, window: int = 5) -> List[Dict[str, Any]]:
+    def _find_pivots(self, high, low, close, window: int) -> List[Dict[str, Any]]:
         pivots: List[Dict[str, Any]] = []
         for i in range(window, len(high) - window):
             if all(high[i] >= high[i - j] for j in range(1, window + 1)) and all(
@@ -57,14 +67,18 @@ class HarmonicPatternDetector:
         return sorted(pivots, key=lambda x: x["index"])
 
     def _check_pattern(
-        self, pivots: List[Dict[str, Any]], ratios: Dict[str, float], pattern_name: str
+        self,
+        pivots: List[Dict[str, Any]],
+        ratios: Dict[str, float],
+        pattern_name: str,
+        tolerance: float,
     ) -> List[Dict[str, Any]]:
         patterns: List[Dict[str, Any]] = []
         if len(pivots) < 5:
             return patterns
         for i in range(len(pivots) - 4):
             points = pivots[i : i + 5]
-            if self._validate_pattern_structure(points, ratios):
+            if self._validate_pattern_structure(points, ratios, tolerance):
                 patterns.append(
                     {
                         "pattern": pattern_name,
@@ -76,7 +90,7 @@ class HarmonicPatternDetector:
         return patterns
 
     def _validate_pattern_structure(
-        self, points: List[Dict[str, Any]], ratios: Dict[str, float], tolerance: float = 0.05
+        self, points: List[Dict[str, Any]], ratios: Dict[str, float], tolerance: float
     ) -> bool:
         try:
             xa = abs(points[1]["price"] - points[0]["price"])
@@ -104,8 +118,16 @@ class HarmonicPatternDetector:
 class HarmonicProcessor:
     """Encapsulate harmonic pattern detection."""
 
-    def __init__(self, detector: HarmonicPatternDetector | None = None) -> None:
-        self.detector = detector or HarmonicPatternDetector()
+    def __init__(
+        self,
+        detector: HarmonicPatternDetector | None = None,
+        *,
+        tolerance: float = 0.05,
+        window: int = 5,
+    ) -> None:
+        self.detector = detector or HarmonicPatternDetector(
+            tolerance=tolerance, window=window
+        )
 
     def analyze(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Return harmonic pattern analysis for ``df``."""
@@ -114,7 +136,10 @@ class HarmonicProcessor:
         all_prices: List[float] = []
         confidences: List[float] = []
         for p in raw_patterns:
-            pts = [{"index": pt["index"], "price": pt["price"]} for pt in p.get("points", [])]
+            pts = [
+                {"index": pt["index"], "price": pt["price"]}
+                for pt in p.get("points", [])
+            ]
             prices = [pt["price"] for pt in pts]
             if prices:
                 prz = {"low": min(prices), "high": max(prices)}
@@ -130,6 +155,9 @@ class HarmonicProcessor:
                     "confidence": confidence,
                 }
             )
+
+            prz_list.append(prz)
+
             confidences.append(confidence)
         aggregated_prz = {
             "low": min(all_prices) if all_prices else None,

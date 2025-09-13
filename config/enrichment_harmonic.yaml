@@ -1,0 +1,15 @@
+# Harmonic-focused enrichment configuration.
+# Enables harmonic pattern detection with vector database persistence.
+
+advanced:
+  harmonic:
+    enabled: true
+    tolerance: 0.05        # Ratio matching tolerance
+    window: 5              # Pivot look-back window
+    collection: harmonic_patterns
+
+vector_db:
+  collection: harmonic_patterns
+
+embedding:
+  model: text-embedding-3-small

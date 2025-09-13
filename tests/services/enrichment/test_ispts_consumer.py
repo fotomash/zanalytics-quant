@@ -30,9 +30,6 @@ class ISPTSPipelineResult(BaseModel):
     liquidity_engine: dict = {}
     structure_validator: dict = {}
     fvg_locator: dict = {}
-    harmonic_processor: dict = {}
-    risk_manager: dict = {}
-    confluence_stacker: dict = {}
 
 class MarketContext(BaseModel):
     symbol: str
@@ -61,6 +58,7 @@ class UnifiedAnalysisPayloadV1(BaseModel):
     microstructure: MicrostructureAnalysis
     predictive_analysis: PredictiveAnalysisResult
     ispts_pipeline: ISPTSPipelineResult
+    harmonic: dict = {}
 
 schemas_module = ModuleType("schemas")
 schemas_module.ISPTSPipelineResult = ISPTSPipelineResult

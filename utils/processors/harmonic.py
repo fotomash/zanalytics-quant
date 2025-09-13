@@ -1,15 +1,15 @@
+"""Asynchronous Qdrant storage for harmonic pattern vectors.
 
-"""Harmonic pattern utilities with asynchronous Qdrant insertion.
+This module provides :class:`HarmonicStorageProcessor`, an awaitable helper for
+persisting harmonic pattern embeddings.  It focuses solely on Qdrant upserts
+and intentionally avoids the pattern *analysis* performed by
+``core.harmonic_processor.HarmonicProcessor``.
 
-This module exposes :class:`HarmonicProcessor` which mirrors the style of
-other processors under :mod:`utils.processors`. The processor accepts either
-an :class:`qdrant_client.AsyncQdrantClient` or the traditional synchronous
-:class:`qdrant_client.QdrantClient`. Inserts are executed in a non-blocking
-fashion: asynchronous clients are awaited directly while synchronous clients
-are dispatched to a background thread using :func:`asyncio.to_thread`.
-
-The goal is to provide a simple, awaitable interface for storing detected
-harmonic patterns without blocking the event loop.
+The processor accepts either :class:`qdrant_client.AsyncQdrantClient` or the
+traditional synchronous :class:`qdrant_client.QdrantClient`.  Synchronous
+clients are executed in a background thread via :func:`asyncio.to_thread` so
+that inserts never block the event loop.
+=======
 """
 
 from __future__ import annotations
@@ -21,8 +21,9 @@ from typing import Iterable, Sequence
 from qdrant_client import models
 
 
-class HarmonicProcessor:
+class HarmonicStorageProcessor:
     """Processor responsible for persisting harmonic pattern vectors."""
+
 
     def __init__(self, client: object, collection_name: str = "harmonic") -> None:
         """Initialize the processor with a Qdrant client.
@@ -68,5 +69,4 @@ class HarmonicProcessor:
             )
 
 
-__all__ = ["HarmonicProcessor"]
-
+__all__ = ["HarmonicStorageProcessor"]

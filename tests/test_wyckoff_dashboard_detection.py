@@ -47,6 +47,18 @@ def test_detect_selling_climax():
     assert analyzer._detect_selling_climax(df)
 
 
+def test_no_selling_climax():
+    """No volume spike or new low should return False."""
+    analyzer = QRTAnalyzer(None)
+    df = pd.DataFrame({
+        "close": [10, 9.9, 9.8, 9.7, 9.6],
+        "low": [9.8, 9.7, 9.6, 9.5, 9.4],
+        "high": [10.2, 10.1, 10.0, 9.9, 9.8],
+        "volume": [100, 100, 100, 100, 100],
+    })
+    assert not analyzer._detect_selling_climax(df)
+
+
 def test_detect_accumulation_range():
     analyzer = QRTAnalyzer(None)
     trend_prices = pd.Series(np.linspace(30, 20, 10))
@@ -61,6 +73,16 @@ def test_detect_accumulation_range():
     assert analyzer._detect_accumulation_range(df)
 
 
+def test_no_accumulation_range():
+    analyzer = QRTAnalyzer(None)
+    df = pd.DataFrame({
+        "high": [1, 3, 5, 7, 9],
+        "low": [0, 2, 4, 6, 8],
+        "volume": [100, 200, 300, 400, 500],
+    })
+    assert not analyzer._detect_accumulation_range(df)
+
+
 def test_detect_spring():
     analyzer = QRTAnalyzer(None)
     df = pd.DataFrame({
@@ -72,6 +94,15 @@ def test_detect_spring():
     assert spring_idx == len(df) - 1
 
 
+def test_no_spring():
+    analyzer = QRTAnalyzer(None)
+    df = pd.DataFrame({
+        "close": [10, 10.1, 10.2, 10.3],
+        "low": [9.8, 9.9, 10.0, 10.1],
+    })
+    assert analyzer._detect_spring(df) is None
+
+
 def test_detect_markup_beginning():
     analyzer = QRTAnalyzer(None)
     df = pd.DataFrame({
@@ -81,3 +112,13 @@ def test_detect_markup_beginning():
         "volume": [100, 100, 100, 100, 300]
     })
     assert analyzer._detect_markup_beginning(df)
+
+
+def test_no_markup_beginning():
+    analyzer = QRTAnalyzer(None)
+    df = pd.DataFrame({
+        "close": [10, 10.05, 10.1, 10.08, 10.09],
+        "high": [10.2, 10.15, 10.2, 10.1, 10.12],
+        "volume": [100, 100, 100, 100, 100],
+    })
+    assert not analyzer._detect_markup_beginning(df)

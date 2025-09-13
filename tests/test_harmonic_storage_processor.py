@@ -1,6 +1,6 @@
 import pytest
 
-from utils.processors.harmonic import HarmonicProcessor
+from utils.processors.harmonic import HarmonicStorageProcessor
 
 
 class DummySyncClient:
@@ -22,14 +22,15 @@ class DummyAsyncClient:
 @pytest.mark.asyncio
 async def test_upsert_uses_background_thread_for_sync_client():
     client = DummySyncClient()
-    proc = HarmonicProcessor(client)
-    await proc.upsert([[0.1]], [{}], [1])
+    processor = HarmonicStorageProcessor(client)
+    await processor.upsert([[0.1]], [{}], [1])
+
     assert client.called
 
 
 @pytest.mark.asyncio
 async def test_upsert_awaits_async_client():
     client = DummyAsyncClient()
-    proc = HarmonicProcessor(client)
-    await proc.upsert([[0.1]], [{}], [1])
+    processor = HarmonicStorageProcessor(client)
+    await processor.upsert([[0.1]], [{}], [1])
     assert client.called

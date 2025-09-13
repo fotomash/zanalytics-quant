@@ -36,6 +36,7 @@ from core.predictive_scorer import PredictiveScorer
 from core.session_journal import SessionJournal
 from schemas import (
     ISPTSPipelineResult,
+    HarmonicResult,
     MarketContext,
     MicrostructureAnalysis,
     PredictiveAnalysisResult,
@@ -244,9 +245,6 @@ def main() -> None:
                     liquidity_engine=state.get("LiquidityEngine", {}),
                     structure_validator=state.get("StructureValidator", {}),
                     fvg_locator=state.get("FVGLocator", {}),
-                    harmonic_processor=state.get("HarmonicProcessor", {}),
-                    risk_manager=state.get("RiskManager", {}),
-                    confluence_stacker=state.get("ConfluenceStacker", {}),
                 )
 
                 ts = tick.get("ts") or tick.get("timestamp")
@@ -267,6 +265,7 @@ def main() -> None:
                     smc=SMCAnalysis(),
                     wyckoff=WyckoffAnalysis(),
                     microstructure=MicrostructureAnalysis(),
+                    harmonic=HarmonicResult(**state.get("HarmonicProcessor", {})),
                     predictive_analysis=predictive,
                     ispts_pipeline=pipeline_result,
                 )

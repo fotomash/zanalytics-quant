@@ -1316,7 +1316,7 @@ class UltimateDataProcessor:
                     df
                 )
                 try:
-                    upsert_harmonic_patterns(results["harmonic_patterns"])
+                    await upsert_harmonic_patterns(results["harmonic_patterns"])
                 except Exception as e:
                     self.logger.warning(
                         f"Failed to upsert harmonic pattern embeddings: {e}"
