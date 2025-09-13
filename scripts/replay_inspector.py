@@ -21,25 +21,15 @@ import pandas as pd
 
 from enrichment.enrichment_engine import ensure_dataframe
 from services.mcp2.vector.embeddings import embed
+
+try:  # allow running as a script or module
+    from .replay_inspector_lib import ReplayInspector
+except Exception:  # pragma: no cover - fallback for script execution
+    from replay_inspector_lib import ReplayInspector
 try:  # optional faiss integration
     from services.mcp2.vector import FaissStore  # type: ignore
 except Exception:  # pragma: no cover - faiss not installed
     FaissStore = None  # type: ignore
-
-
-def _load_parquet(path: str) -> pd.DataFrame:
-    """Load a Parquet file into a DataFrame."""
-    return pd.read_parquet(path, engine="pyarrow")
-
-
-def _filter_df(df: pd.DataFrame, expr: str | None) -> pd.DataFrame:
-    """Apply a pandas ``query`` filter expression if provided."""
-    if expr:
-        try:
-            return df.query(expr)
-        except Exception:  # pragma: no cover - defensive
-            pass
-    return df
 
 
 def _row_text(row: pd.Series, columns: Sequence[str]) -> str:
@@ -70,7 +60,9 @@ def analog_scores(
     return [(int(i), float(scores[i])) for i in idx]
 
 
-def run_analog_scoring(df: pd.DataFrame, columns: Sequence[str], query: str | None, top_k: int) -> List[Tuple[int, float]]:
+def run_analog_scoring(
+    df: pd.DataFrame, columns: Sequence[str], query: str | None, top_k: int
+) -> List[Tuple[int, float]]:
     """Compute analog scores for ``df`` using optional ``query`` text."""
     embeds = embed_rows(df, columns)
     q_vec = embed(query) if query else embeds[0]
@@ -86,16 +78,25 @@ def run_analog_scoring(df: pd.DataFrame, columns: Sequence[str], query: str | No
 
 
 def main(argv: Iterable[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Inspect Parquet replay with analog scoring")
+    parser = argparse.ArgumentParser(
+        description="Inspect Parquet replay with analog scoring"
+    )
     parser.add_argument("path", help="Path to Parquet file")
     parser.add_argument("--filter", dest="filter_expr", help="pandas query expression")
-    parser.add_argument("--columns", nargs="*", default=None, help="Columns used for embeddings")
+    parser.add_argument(
+        "--columns", nargs="*", default=None, help="Columns used for embeddings"
+    )
     parser.add_argument("--query", help="Seed text for analog scoring")
     parser.add_argument("--top", type=int, default=5, help="Number of results to show")
     args = parser.parse_args(list(argv) if argv is not None else None)
 
-    df = _load_parquet(args.path)
-    df = _filter_df(df, args.filter_expr)
+    inspector = ReplayInspector(args.path)
+    df = inspector.dataframe
+    if args.filter_expr:
+        try:
+            df = df.query(args.filter_expr)
+        except Exception:  # pragma: no cover - defensive
+            pass
     state = {"dataframe": df}
     df = ensure_dataframe(state) or pd.DataFrame()
     if df.empty:
