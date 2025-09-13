@@ -1,10 +1,10 @@
-import os
-import json
+import os, json
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+
 
 # -----------------------------------------------------------------------------
 # Cached connections
@@ -86,7 +86,10 @@ def fetch_latest_message() -> Optional[Dict[str, Any]]:
 # Chart utilities (adapted from dashboard/_mix/🧠 SMC.py)
 # -----------------------------------------------------------------------------
 
-def render_harmonic_chart(df: pd.DataFrame, patterns: List[Dict[str, Any]]) -> go.Figure:
+
+def render_harmonic_chart(
+    df: pd.DataFrame, patterns: List[Dict[str, Any]]
+) -> go.Figure:
     """Render OHLC chart with harmonic overlays and PRZ shading."""
     fig = go.Figure(
         data=[
@@ -125,18 +128,17 @@ def render_harmonic_chart(df: pd.DataFrame, patterns: List[Dict[str, Any]]) -> g
                 )
             )
 
-        # PRZ shading
-        prz = pattern.get("prz") or {
-            "low": pattern.get("prz_low"),
-            "high": pattern.get("prz_high"),
-        }
-        if prz.get("low") is not None and prz.get("high") is not None:
+        # PRZ shading using converted low/high fields
+        prz_low = pattern.get("prz_low")
+        prz_high = pattern.get("prz_high")
+        if prz_low is not None and prz_high is not None:
+
             fig.add_shape(
                 type="rect",
                 x0=df.index[0],
                 x1=df.index[-1],
-                y0=prz["low"],
-                y1=prz["high"],
+                y0=prz_low,
+                y1=prz_high,
                 fillcolor="rgba(255,0,0,0.1)",
                 line=dict(width=0),
             )
@@ -157,6 +159,14 @@ payload = fetch_latest_message()
 if payload is None:
     st.info("No harmonic data available from streams.")
     st.stop()
+
+# Display basic metadata from converted payload
+symbol = payload.get("symbol", "Unknown")
+ts = payload.get("timestamp", "")
+if ts:
+    st.caption(f"{symbol} – {ts}")
+else:
+    st.caption(symbol)
 
 # Prepare dataframe
 ohlc = pd.DataFrame(payload.get("ohlc", []))
@@ -189,4 +199,3 @@ else:
             "https://actions.google.com/sounds/v1/alarms/beep_short.ogg",
             autoplay=True,
         )
-

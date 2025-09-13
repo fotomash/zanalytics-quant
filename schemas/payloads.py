@@ -99,7 +99,7 @@ class HarmonicPattern(BaseModel):
     )
     prz: Dict[str, float] = Field(
         default_factory=dict,
-        description="Potential reversal zone boundaries",
+        description="Potential reversal zone boundaries with keys 'low' and 'high'",
     )
     confidence: float = Field(
         0.0, description="Confidence score for the pattern",
@@ -113,9 +113,10 @@ class HarmonicResult(BaseModel):
         default_factory=list,
         description="List of detected harmonic patterns",
     )
-    prz: Dict[str, float] = Field(
-        default_factory=dict,
-        description="Potential reversal zone boundaries",
+    prz: List[Dict[str, float]] = Field(
+        default_factory=list,
+        description="Potential reversal zone boundaries for each pattern using 'low'/'high' keys",
+
     )
     confidence: float = Field(
         0.0, description="Confidence score for the detected patterns",

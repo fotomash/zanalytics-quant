@@ -146,6 +146,7 @@ class HarmonicProcessor:
                 all_prices.extend(prices)
             else:
                 pattern_prz = {"min": None, "max": None}
+
             confidence = float(len(pts)) / 5 if pts else 0.0
             processed.append(
                 {
