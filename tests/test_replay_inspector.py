@@ -1,42 +1,26 @@
-import json
-from pathlib import Path
-
 import pandas as pd
 
-from replay_inspector import ReplayInspector, score_embedding
+from scripts import replay_inspector as ri
 
 
-def _create_parquet(path: Path) -> Path:
-    df = pd.DataFrame(
-        [
-            {"symbol": "BTC", "confidence": 0.9, "embedding": [0.1, 0.2]},
-            {"symbol": "BTC", "confidence": 0.8, "embedding": [0.3, 0.4]},
-            {"symbol": "ETH", "confidence": 0.7, "embedding": [0.5, 0.6]},
-        ]
-    )
-    out = path / "ticks.parquet"
-    df.to_parquet(out)
-    return out
+def test_analog_scores_order():
+    embeddings = [[1, 0], [0, 1], [1, 1]]
+    query = [1, 0]
+    result = ri.analog_scores(embeddings, query, top_k=2)
+    assert result[0][0] == 0
+    assert result[0][1] >= result[1][1]
 
 
-def test_filter_aggregate_and_export(tmp_path, monkeypatch):
-    parquet_path = _create_parquet(tmp_path)
+def test_run_analog_scoring_with_monkeypatched_embed(monkeypatch):
+    # simple deterministic embed: length of text as first dimension
+    def fake_embed(text: str):
+        return [float(len(text)), 0.0]
 
-    def fake_score(emb):
-        return {"metric": round(sum(emb), 2)}
+    monkeypatch.setattr(ri, "embed", fake_embed)
 
-    monkeypatch.setattr("replay_inspector.score_embedding", fake_score)
-
-    insp = ReplayInspector(parquet_path)
-    filtered = insp.filter(symbol="BTC", min_conf=0.8)
-    assert len(filtered) == 2
-
-    agg = insp.aggregate(filtered)
-    expected = pd.DataFrame(
-        [{"symbol": "BTC", "confidence": 0.85, "metric": 0.5}]
-    )
-    pd.testing.assert_frame_equal(agg, expected)
-
+    df = pd.DataFrame({"text": ["a", "abcd"]})
+    scores = ri.run_analog_scoring(df, ["text"], query="a", top_k=1)
+    assert scores[0][0] == 0
     csv_path = tmp_path / "out.csv"
     json_path = tmp_path / "out.json"
     insp.to_csv(agg, csv_path)
