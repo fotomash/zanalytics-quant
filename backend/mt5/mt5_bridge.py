@@ -7,9 +7,17 @@ operation.
 """
 from __future__ import annotations
 
-from typing import Iterable, Mapping
+import json
+from datetime import datetime
+from typing import Any, Dict, Iterable, Mapping
 
 import pyarrow as pa
+import redis
+
+try:  # pragma: no cover - MetaTrader5 may not be available
+    import MetaTrader5 as mt5  # type: ignore
+except Exception:  # pragma: no cover - handled gracefully if missing
+    mt5 = None
 
 
 def serialize_ticks(ticks: Iterable[Mapping]) -> bytes:
@@ -39,48 +47,40 @@ def serialize_ticks(ticks: Iterable[Mapping]) -> bytes:
         writer.write_table(table)
 
     return sink.getvalue().to_pybytes()
-"""MT5 Tick Bridge
-==================
 
-Simple bridge for publishing MetaTrader 5 tick data to a Redis stream.
 
-Tick message schema published to Redis stream:
-
-{
-    "symbol": "<string>",    # e.g., "EURUSD"
-    "time": "<ISO8601>",     # timestamp of the quote
-    "bid": <float>,          # bid price
-    "ask": <float>           # ask price
-}
-
-Each message is stored in the Redis stream under the field ``"tick"`` as a
-JSON encoded string. Downstream consumers should decode the field using
-``json.loads``.
-"""
-
-from __future__ import annotations
-
-import json
-from datetime import datetime
-from typing import Any, Dict
-
-import redis
-
-try:  # pragma: no cover - MetaTrader5 may not be available in all environments
-    import MetaTrader5 as mt5  # type: ignore
-except Exception:  # pragma: no cover - handled gracefully if unavailable
-    mt5 = None
+# MT5 Tick Bridge
+# ===============
+#
+# Simple bridge for publishing MetaTrader 5 tick data to a Redis stream.
+#
+# Tick message schema published to Redis stream:
+#
+# {
+#     "symbol": "<string>",    # e.g., "EURUSD"
+#     "time": "<ISO8601>",     # timestamp of the quote
+#     "bid": <float>,          # bid price
+#     "ask": <float>           # ask price
+# }
+#
+# Each message is stored in the Redis stream under the field "tick" as a
+# JSON encoded string. Downstream consumers should decode the field using
+# ``json.loads``.
 
 
 class MT5Bridge:
     """Publish MT5 ticks to a Redis stream using JSON serialization."""
 
-    def __init__(self, stream_name: str, redis_url: str = "redis://localhost:6379/0") -> None:
+    def __init__(
+        self,
+        stream_name: str,
+        redis_url: str = "redis://localhost:6379/0",
+    ) -> None:
         self.stream_name = stream_name
         self.redis = redis.from_url(redis_url)
 
     def publish_tick(self, symbol: str) -> None:
-        """Fetch the latest tick for ``symbol`` and publish to the Redis stream."""
+        """Fetch latest tick for ``symbol`` and publish to the Redis stream."""
         if mt5 is None:
             raise RuntimeError("MetaTrader5 package is not available")
 

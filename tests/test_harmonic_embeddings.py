@@ -1,11 +1,13 @@
 """Tests for harmonic pattern embedding and upsert."""
 
+import pytest
 from qdrant_client import QdrantClient, models
 
 from utils.harmonic_embeddings import upsert_harmonic_patterns
 
 
-def test_upsert_harmonic_patterns() -> None:
+@pytest.mark.asyncio
+async def test_upsert_harmonic_patterns() -> None:
     client = QdrantClient(location=":memory:")
     client.recreate_collection(
         collection_name="harmonic_patterns",
@@ -18,7 +20,7 @@ def test_upsert_harmonic_patterns() -> None:
             "completion_price": 1.23,
         }
     ]
-    upsert_harmonic_patterns(patterns, client=client)
+    await upsert_harmonic_patterns(patterns, client=client)
     points, _ = client.scroll(
         collection_name="harmonic_patterns", limit=10, with_vectors=True
     )

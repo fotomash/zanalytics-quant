@@ -1,17 +1,19 @@
-"""QRT dashboard blending smart-money concepts with Wyckoff analysis.
+"""QRT dashboard blending smart‑money concepts with Wyckoff analysis.
 
-This module powers an interactive Streamlit dashboard.  The analytical core
-includes lightweight detectors for several Wyckoff events used throughout the
-app and exposed here for unit testing:
+This module backs an interactive Streamlit dashboard but also exposes a small
+collection of detection heuristics for unit testing.  The following Wyckoff
+events are recognised using straightforward logic:
 
-* **Selling climax** – identifies a sharp downward move on extreme volume.
-* **Accumulation range** – detects a period of reduced volatility and volume.
-* **Spring** – finds a temporary break below support that quickly reverses.
-* **Markup beginning** – flags a breakout above resistance with volume
-  expansion.
+* **Selling climax** – new low on a sharp drop and volume spike.
+* **Accumulation range** – contraction in price range accompanied by lower
+  volume.
+* **Spring** – temporary break of support that closes back above it.
+* **Markup beginning** – breakout above resistance with expanding volume.
 
-The detectors are intentionally simple and serve as placeholders for more
-advanced implementations.
+These detectors are intentionally lightweight yet fully functional and are
+covered by unit tests.  More sophisticated analytics (for example the
+``TiquidityEngine``) are outside the scope of this module and raise
+``NotImplementedError`` when invoked.
 """
 
 import streamlit as st
@@ -519,8 +521,34 @@ class QRTQuantumAnalyzer(QuantumMicrostructureAnalyzer):
 
 
 class TiquidityEngine:
-    """Engine for tick liquidity analysis"""
-    pass
+    """Engine for tick liquidity analysis.
+
+    The real liquidity engine lives in a separate service.  In the dashboard
+    context we only expose an interface so that the rest of the analyzer can be
+    instantiated during tests.  Any direct use of this stub will raise
+    :class:`NotImplementedError` to make the missing dependency explicit.
+    """
+
+    def analyze(self, df: pd.DataFrame) -> Dict[str, float]:
+        """Compute tick liquidity metrics for ``df``.
+
+        Parameters
+        ----------
+        df:
+            Price/volume data.
+
+        Returns
+        -------
+        Dict[str, float]
+            Calculated metrics.
+
+        Raises
+        ------
+        NotImplementedError
+            Always – the production engine is not bundled with the dashboard.
+        """
+
+        raise NotImplementedError("Tick liquidity analysis is not implemented in this stub.")
 
 
 class WyckoffQuantumAnalyzer:

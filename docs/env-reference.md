@@ -139,6 +139,13 @@ Define these in a dedicated `.env.discord` file which is referenced only by serv
 | `DISCORD_CHANNEL_ID` | `your_discord_channel_id_here` | Set to the channel ID that should receive messages. | Destination channel for Discord alerts. |
 | `DISCORD_WEBHOOK_URL` | `your_discord_webhook_url_here` | Replace with your webhook to enable default alerts. | Webhook endpoint used for sending alerts to Discord. |
 
+## Slack Notifications
+Environment variable used for Alertmanager Slack integration.
+
+| Variable | Default | Override Behavior | Purpose |
+| --- | --- | --- | --- |
+| `SLACK_WEBHOOK_URL` | _(empty)_ | Provide to enable Slack alert delivery. | Incoming webhook URL for Slack alerts. |
+
 ## Alert Settings
 | Variable | Default | Override Behavior | Purpose |
 | --- | --- | --- | --- |

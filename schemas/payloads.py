@@ -121,6 +121,7 @@ class HarmonicResult(BaseModel):
         0.0, description="Confidence score for the detected patterns",
     )
 
+
 class PredictiveAnalysisResult(BaseModel):
     """Aggregated predictive scoring and conflict detection."""
 
