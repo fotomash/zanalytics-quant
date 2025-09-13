@@ -145,6 +145,10 @@ class ISPTSPipelineResult(BaseModel):
     confluence_stacker: Any = Field(
         ..., description="Confluence stacker stage output",
     )
+    harmonic: HarmonicResult = Field(
+        default_factory=HarmonicResult,
+        description="Harmonic pattern detection results",
+    )
 
 
 class UnifiedAnalysisPayloadV1(BaseModel):
@@ -170,9 +174,12 @@ class UnifiedAnalysisPayloadV1(BaseModel):
     microstructure: MicrostructureAnalysis = Field(
         ..., description="Order flow and microstructure metrics"
     )
+    harmonic: HarmonicResult = Field(
+        default_factory=HarmonicResult,
+        description="Harmonic pattern detection results",
+    )
     predictive_analysis: PredictiveAnalysisResult = Field(
         ..., description="Aggregated predictive scoring and conflict detection results",
-
     )
     ispts_pipeline: ISPTSPipelineResult = Field(
         ..., description="Outputs from each stage of the ISPTS pipeline",
