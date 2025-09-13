@@ -57,3 +57,28 @@ def test_pipeline_stops_on_failure(monkeypatch) -> None:
     assert state["status"] == "FAIL"
     assert state["structure_breaks"]
     assert "liquidity_zones" not in state
+
+
+def test_disabling_module_removes_output_and_vectors(monkeypatch) -> None:
+    """Disabling a module should drop its output and vectors from the state."""
+
+    monkeypatch.setattr(pipeline, "import_module", fake_import_module)
+
+    rows = 30
+    df = pd.DataFrame(
+        {
+            "open": np.linspace(1, rows, rows),
+            "high": np.linspace(1, rows, rows) + 0.5,
+            "low": np.linspace(1, rows, rows) - 0.5,
+            "close": np.linspace(1, rows, rows),
+            "volume": np.random.randint(100, 200, size=rows),
+        }
+    )
+
+    enabled_state = pipeline.run(df, {})
+    assert "poi" in enabled_state["outputs"]
+    assert "poi_vector" in enabled_state
+
+    disabled_state = pipeline.run(df, {}, {"poi": {"enabled": False}})
+    assert "poi" not in disabled_state["outputs"]
+    assert "poi_vector" not in disabled_state
