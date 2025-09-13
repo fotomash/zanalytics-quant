@@ -41,6 +41,7 @@ import pickle
 import gzip
 from collections import defaultdict, deque
 from utils.processors.structure import StructureProcessor
+from utils.harmonic_embeddings import upsert_harmonic_patterns
 import talib
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.cluster import DBSCAN, KMeans
@@ -57,23 +58,25 @@ import plotly.express as px
 from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 from statsmodels.tsa.stattools import adfuller
 
+
 def add_fuller(series):
     """
     Augmented Dickey-Fuller test for stationarity.
     Returns a dict with test statistic, p-value, and used lags.
     """
     try:
-        result = adfuller(series, autolag='AIC')
+        result = adfuller(series, autolag="AIC")
         return {
-            'adf_statistic': result[0],
-            'p_value': result[1],
-            'used_lag': result[2],
-            'n_obs': result[3],
-            'critical_values': result[4],
-            'ic_best': result[5] if len(result) > 5 else None
+            "adf_statistic": result[0],
+            "p_value": result[1],
+            "used_lag": result[2],
+            "n_obs": result[3],
+            "critical_values": result[4],
+            "ic_best": result[5] if len(result) > 5 else None,
         }
     except Exception as e:
-        return {'error': str(e)}
+        return {"error": str(e)}
+
 
 def extract_symbol_from_filename(filename: str) -> str:
     """
@@ -81,35 +84,44 @@ def extract_symbol_from_filename(filename: str) -> str:
     Returns 'UNKNOWN' if the pattern is missing.
     """
     base = os.path.basename(filename)
-    if '_' in base:
-        return base.split('_')[0].upper()
-    return 'UNKNOWN'
+    if "_" in base:
+        return base.split("_")[0].upper()
+    return "UNKNOWN"
 
-warnings.filterwarnings('ignore')
+
+warnings.filterwarnings("ignore")
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('ncOS_analyzer.log'),
-        logging.StreamHandler()
-    ]
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("ncOS_analyzer.log"), logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class AnalysisConfig:
     """Ultimate configuration for maximum analysis - ALL FEATURES ENABLED BY DEFAULT"""
+
     # Data processing
     process_tick_data: bool = True
     process_csv_files: bool = True
     process_json_files: bool = True
     tick_bars_limit: int = 1500  # DEFAULT 1500 TICK BARS
-    bar_limits: Dict[str, int] = field(default_factory=lambda: {
-        '1min': 1000, '5min': 500, '15min': 200, '30min': 100,
-        '1h': 100, '4h': 50, '1d': 30, '1w': 20, '1M': 12
-    })
+    bar_limits: Dict[str, int] = field(
+        default_factory=lambda: {
+            "1min": 1000,
+            "5min": 500,
+            "15min": 200,
+            "30min": 100,
+            "1h": 100,
+            "4h": 50,
+            "1d": 30,
+            "1w": 20,
+            "1M": 12,
+        }
+    )
 
     # Technical analysis - ALL ENABLED
     enable_all_indicators: bool = True
@@ -157,14 +169,17 @@ class AnalysisConfig:
     export_excel: bool = True
     export_csv: bool = True
 
+
 class UltimateIndicatorEngine:
     """Maximum indicator calculation engine with enhanced London Kill Zone detection"""
-    
+
     # --- Updated: UltimateIndicatorEngine.__init__ ---
     def __init__(self, logger_instance=None):
         self.indicators = {}
         # Use provided logger or fall back to a default if none is provided
-        self.logger = logger_instance if logger_instance else logging.getLogger(__name__)
+        self.logger = (
+            logger_instance if logger_instance else logging.getLogger(__name__)
+        )
 
     # --- Updated: UltimateIndicatorEngine._add_quick_enrichment ---
     def _add_quick_enrichment(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -186,7 +201,9 @@ class UltimateIndicatorEngine:
 
         if all(c in df.columns for c in ("close", "volume")):
             try:
-                df["vwap_d"] = (df["close"] * df["volume"]).cumsum() / df["volume"].cumsum()
+                df["vwap_d"] = (df["close"] * df["volume"]).cumsum() / df[
+                    "volume"
+                ].cumsum()
             except Exception as e:
                 self.logger.warning(f"Error calculating VWAP: {e}")
                 pass
@@ -209,11 +226,11 @@ class UltimateIndicatorEngine:
 
     def calculate_all_indicators(self, df: pd.DataFrame) -> Dict[str, np.ndarray]:
         """Calculate over 200 technical indicators"""
-        high = df['high'].values
-        low = df['low'].values
-        close = df['close'].values
-        open_prices = df['open'].values
-        volume = df['volume'].values if 'volume' in df.columns else np.ones(len(df))
+        high = df["high"].values
+        low = df["low"].values
+        close = df["close"].values
+        open_prices = df["open"].values
+        volume = df["volume"].values if "volume" in df.columns else np.ones(len(df))
 
         indicators = {}
 
@@ -236,8 +253,10 @@ class UltimateIndicatorEngine:
         indicators.update(self._statistical_indicators(close))
 
         # Custom indicators
-        indicators.update(self._custom_indicators(high, low, close, open_prices, volume))
-        
+        indicators.update(
+            self._custom_indicators(high, low, close, open_prices, volume)
+        )
+
         # Apply quick enrichment
         df = self._add_quick_enrichment(df)
         return indicators
@@ -249,13 +268,15 @@ class UltimateIndicatorEngine:
         # Moving averages (multiple periods)
         for period in [5, 10, 20, 50, 100, 200]:
             try:
-                indicators[f'SMA_{period}'] = talib.SMA(close, timeperiod=period)
-                indicators[f'EMA_{period}'] = talib.EMA(close, timeperiod=period)
-                indicators[f'WMA_{period}'] = talib.WMA(close, timeperiod=period)
-                indicators[f'TEMA_{period}'] = talib.TEMA(close, timeperiod=period)
-                indicators[f'TRIMA_{period}'] = talib.TRIMA(close, timeperiod=period)
-                indicators[f'KAMA_{period}'] = talib.KAMA(close, timeperiod=period)
-                indicators[f'MAMA_{period}'], indicators[f'FAMA_{period}'] = talib.MAMA(close)
+                indicators[f"SMA_{period}"] = talib.SMA(close, timeperiod=period)
+                indicators[f"EMA_{period}"] = talib.EMA(close, timeperiod=period)
+                indicators[f"WMA_{period}"] = talib.WMA(close, timeperiod=period)
+                indicators[f"TEMA_{period}"] = talib.TEMA(close, timeperiod=period)
+                indicators[f"TRIMA_{period}"] = talib.TRIMA(close, timeperiod=period)
+                indicators[f"KAMA_{period}"] = talib.KAMA(close, timeperiod=period)
+                indicators[f"MAMA_{period}"], indicators[f"FAMA_{period}"] = talib.MAMA(
+                    close
+                )
             except:
                 pass
 
@@ -263,32 +284,41 @@ class UltimateIndicatorEngine:
         for period in [10, 20, 50]:
             try:
                 bb_upper, bb_middle, bb_lower = talib.BBANDS(close, timeperiod=period)
-                indicators[f'BB_UPPER_{period}'] = bb_upper
-                indicators[f'BB_MIDDLE_{period}'] = bb_middle
-                indicators[f'BB_LOWER_{period}'] = bb_lower
-                indicators[f'BB_WIDTH_{period}'] = (bb_upper - bb_lower) / bb_middle
-                indicators[f'BB_POSITION_{period}'] = (close - bb_lower) / (bb_upper - bb_lower)
+                indicators[f"BB_UPPER_{period}"] = bb_upper
+                indicators[f"BB_MIDDLE_{period}"] = bb_middle
+                indicators[f"BB_LOWER_{period}"] = bb_lower
+                indicators[f"BB_WIDTH_{period}"] = (bb_upper - bb_lower) / bb_middle
+                indicators[f"BB_POSITION_{period}"] = (close - bb_lower) / (
+                    bb_upper - bb_lower
+                )
             except:
                 pass
 
         # Donchian Channels
         for period in [10, 20, 55]:
             try:
-                indicators[f'DONCHIAN_UPPER_{period}'] = pd.Series(high).rolling(period).max().values
-                indicators[f'DONCHIAN_LOWER_{period}'] = pd.Series(low).rolling(period).min().values
-                indicators[f'DONCHIAN_MIDDLE_{period}'] = (indicators[f'DONCHIAN_UPPER_{period}'] + indicators[f'DONCHIAN_LOWER_{period}']) / 2
+                indicators[f"DONCHIAN_UPPER_{period}"] = (
+                    pd.Series(high).rolling(period).max().values
+                )
+                indicators[f"DONCHIAN_LOWER_{period}"] = (
+                    pd.Series(low).rolling(period).min().values
+                )
+                indicators[f"DONCHIAN_MIDDLE_{period}"] = (
+                    indicators[f"DONCHIAN_UPPER_{period}"]
+                    + indicators[f"DONCHIAN_LOWER_{period}"]
+                ) / 2
             except:
                 pass
 
         # Pivot Points
         try:
-            indicators['PIVOT'] = (high + low + close) / 3
-            indicators['R1'] = 2 * indicators['PIVOT'] - low
-            indicators['S1'] = 2 * indicators['PIVOT'] - high
-            indicators['R2'] = indicators['PIVOT'] + (high - low)
-            indicators['S2'] = indicators['PIVOT'] - (high - low)
-            indicators['R3'] = high + 2 * (indicators['PIVOT'] - low)
-            indicators['S3'] = low - 2 * (high - indicators['PIVOT'])
+            indicators["PIVOT"] = (high + low + close) / 3
+            indicators["R1"] = 2 * indicators["PIVOT"] - low
+            indicators["S1"] = 2 * indicators["PIVOT"] - high
+            indicators["R2"] = indicators["PIVOT"] + (high - low)
+            indicators["S2"] = indicators["PIVOT"] - (high - low)
+            indicators["R3"] = high + 2 * (indicators["PIVOT"] - low)
+            indicators["S3"] = low - 2 * (high - indicators["PIVOT"])
         except:
             pass
 
@@ -300,23 +330,29 @@ class UltimateIndicatorEngine:
 
         try:
             # Volume indicators
-            indicators['OBV'] = talib.OBV(close, volume)
-            indicators['AD'] = talib.AD(high, low, close, volume)
-            indicators['ADOSC'] = talib.ADOSC(high, low, close, volume)
+            indicators["OBV"] = talib.OBV(close, volume)
+            indicators["AD"] = talib.AD(high, low, close, volume)
+            indicators["ADOSC"] = talib.ADOSC(high, low, close, volume)
 
             # Volume moving averages
             for period in [10, 20, 50]:
-                indicators[f'VOLUME_SMA_{period}'] = talib.SMA(volume, timeperiod=period)
-                indicators[f'VOLUME_RATIO_{period}'] = volume / indicators[f'VOLUME_SMA_{period}']
+                indicators[f"VOLUME_SMA_{period}"] = talib.SMA(
+                    volume, timeperiod=period
+                )
+                indicators[f"VOLUME_RATIO_{period}"] = (
+                    volume / indicators[f"VOLUME_SMA_{period}"]
+                )
 
             # Volume price trend
-            indicators['VPT'] = np.cumsum(volume * (close - np.roll(close, 1)) / np.roll(close, 1))
+            indicators["VPT"] = np.cumsum(
+                volume * (close - np.roll(close, 1)) / np.roll(close, 1)
+            )
 
             # Money flow index
-            indicators['MFI_14'] = talib.MFI(high, low, close, volume, timeperiod=14)
+            indicators["MFI_14"] = talib.MFI(high, low, close, volume, timeperiod=14)
 
             # Volume weighted average price
-            indicators['VWAP'] = np.cumsum(volume * close) / np.cumsum(volume)
+            indicators["VWAP"] = np.cumsum(volume * close) / np.cumsum(volume)
 
         except:
             pass
@@ -330,40 +366,48 @@ class UltimateIndicatorEngine:
         try:
             # RSI (multiple periods)
             for period in [9, 14, 21]:
-                indicators[f'RSI_{period}'] = talib.RSI(close, timeperiod=period)
+                indicators[f"RSI_{period}"] = talib.RSI(close, timeperiod=period)
 
             # Stochastic
-            indicators['STOCH_K'], indicators['STOCH_D'] = talib.STOCH(high, low, close)
-            indicators['STOCHF_K'], indicators['STOCHF_D'] = talib.STOCHF(high, low, close)
-            indicators['STOCHRSI_K'], indicators['STOCHRSI_D'] = talib.STOCHRSI(close)
+            indicators["STOCH_K"], indicators["STOCH_D"] = talib.STOCH(high, low, close)
+            indicators["STOCHF_K"], indicators["STOCHF_D"] = talib.STOCHF(
+                high, low, close
+            )
+            indicators["STOCHRSI_K"], indicators["STOCHRSI_D"] = talib.STOCHRSI(close)
 
             # MACD (multiple settings)
             for fast, slow, signal in [(12, 26, 9), (5, 35, 5), (19, 39, 9)]:
-                macd, signal_line, histogram = talib.MACD(close, fastperiod=fast, slowperiod=slow, signalperiod=signal)
-                indicators[f'MACD_{fast}_{slow}_{signal}'] = macd
-                indicators[f'MACD_SIGNAL_{fast}_{slow}_{signal}'] = signal_line
-                indicators[f'MACD_HIST_{fast}_{slow}_{signal}'] = histogram
+                macd, signal_line, histogram = talib.MACD(
+                    close, fastperiod=fast, slowperiod=slow, signalperiod=signal
+                )
+                indicators[f"MACD_{fast}_{slow}_{signal}"] = macd
+                indicators[f"MACD_SIGNAL_{fast}_{slow}_{signal}"] = signal_line
+                indicators[f"MACD_HIST_{fast}_{slow}_{signal}"] = histogram
 
             # Williams %R
             for period in [14, 21]:
-                indicators[f'WILLR_{period}'] = talib.WILLR(high, low, close, timeperiod=period)
+                indicators[f"WILLR_{period}"] = talib.WILLR(
+                    high, low, close, timeperiod=period
+                )
 
             # Commodity Channel Index
             for period in [14, 20]:
-                indicators[f'CCI_{period}'] = talib.CCI(high, low, close, timeperiod=period)
+                indicators[f"CCI_{period}"] = talib.CCI(
+                    high, low, close, timeperiod=period
+                )
 
             # Ultimate Oscillator
-            indicators['ULTOSC'] = talib.ULTOSC(high, low, close)
+            indicators["ULTOSC"] = talib.ULTOSC(high, low, close)
 
             # Rate of Change
             for period in [10, 20]:
-                indicators[f'ROC_{period}'] = talib.ROC(close, timeperiod=period)
-                indicators[f'ROCP_{period}'] = talib.ROCP(close, timeperiod=period)
-                indicators[f'ROCR_{period}'] = talib.ROCR(close, timeperiod=period)
+                indicators[f"ROC_{period}"] = talib.ROC(close, timeperiod=period)
+                indicators[f"ROCP_{period}"] = talib.ROCP(close, timeperiod=period)
+                indicators[f"ROCR_{period}"] = talib.ROCR(close, timeperiod=period)
 
             # Momentum
             for period in [10, 14, 20]:
-                indicators[f'MOM_{period}'] = talib.MOM(close, timeperiod=period)
+                indicators[f"MOM_{period}"] = talib.MOM(close, timeperiod=period)
 
         except:
             pass
@@ -377,17 +421,23 @@ class UltimateIndicatorEngine:
         try:
             # Average True Range
             for period in [14, 21]:
-                indicators[f'ATR_{period}'] = talib.ATR(high, low, close, timeperiod=period)
-                indicators[f'NATR_{period}'] = talib.NATR(high, low, close, timeperiod=period)
-                indicators[f'TRANGE_{period}'] = talib.TRANGE(high, low, close)
+                indicators[f"ATR_{period}"] = talib.ATR(
+                    high, low, close, timeperiod=period
+                )
+                indicators[f"NATR_{period}"] = talib.NATR(
+                    high, low, close, timeperiod=period
+                )
+                indicators[f"TRANGE_{period}"] = talib.TRANGE(high, low, close)
 
             # Standard deviation
             for period in [10, 20, 50]:
-                indicators[f'STDDEV_{period}'] = talib.STDDEV(close, timeperiod=period)
-                indicators[f'VAR_{period}'] = talib.VAR(close, timeperiod=period)
+                indicators[f"STDDEV_{period}"] = talib.STDDEV(close, timeperiod=period)
+                indicators[f"VAR_{period}"] = talib.VAR(close, timeperiod=period)
 
             # Chaikin Volatility
-            indicators['CHAIKIN_VOL'] = ((high - low).rolling(10).mean().pct_change(10) * 100)
+            indicators["CHAIKIN_VOL"] = (high - low).rolling(10).mean().pct_change(
+                10
+            ) * 100
 
         except:
             pass
@@ -400,11 +450,15 @@ class UltimateIndicatorEngine:
 
         try:
             # Hilbert Transform indicators
-            indicators['HT_DCPERIOD'] = talib.HT_DCPERIOD(close)
-            indicators['HT_DCPHASE'] = talib.HT_DCPHASE(close)
-            indicators['HT_PHASOR_INPHASE'], indicators['HT_PHASOR_QUADRATURE'] = talib.HT_PHASOR(close)
-            indicators['HT_SINE_SINE'], indicators['HT_SINE_LEADSINE'] = talib.HT_SINE(close)
-            indicators['HT_TRENDMODE'] = talib.HT_TRENDMODE(close)
+            indicators["HT_DCPERIOD"] = talib.HT_DCPERIOD(close)
+            indicators["HT_DCPHASE"] = talib.HT_DCPHASE(close)
+            indicators["HT_PHASOR_INPHASE"], indicators["HT_PHASOR_QUADRATURE"] = (
+                talib.HT_PHASOR(close)
+            )
+            indicators["HT_SINE_SINE"], indicators["HT_SINE_LEADSINE"] = talib.HT_SINE(
+                close
+            )
+            indicators["HT_TRENDMODE"] = talib.HT_TRENDMODE(close)
 
         except:
             pass
@@ -418,18 +472,26 @@ class UltimateIndicatorEngine:
         try:
             # Linear regression
             for period in [14, 20, 50]:
-                indicators[f'LINEARREG_{period}'] = talib.LINEARREG(close, timeperiod=period)
-                indicators[f'LINEARREG_ANGLE_{period}'] = talib.LINEARREG_ANGLE(close, timeperiod=period)
-                indicators[f'LINEARREG_INTERCEPT_{period}'] = talib.LINEARREG_INTERCEPT(close, timeperiod=period)
-                indicators[f'LINEARREG_SLOPE_{period}'] = talib.LINEARREG_SLOPE(close, timeperiod=period)
+                indicators[f"LINEARREG_{period}"] = talib.LINEARREG(
+                    close, timeperiod=period
+                )
+                indicators[f"LINEARREG_ANGLE_{period}"] = talib.LINEARREG_ANGLE(
+                    close, timeperiod=period
+                )
+                indicators[f"LINEARREG_INTERCEPT_{period}"] = talib.LINEARREG_INTERCEPT(
+                    close, timeperiod=period
+                )
+                indicators[f"LINEARREG_SLOPE_{period}"] = talib.LINEARREG_SLOPE(
+                    close, timeperiod=period
+                )
 
             # Time Series Forecast
             for period in [14, 20]:
-                indicators[f'TSF_{period}'] = talib.TSF(close, timeperiod=period)
+                indicators[f"TSF_{period}"] = talib.TSF(close, timeperiod=period)
 
             # Beta
-            indicators['BETA'] = talib.BETA(close, close, timeperiod=5)
-            indicators['CORREL'] = talib.CORREL(close, close, timeperiod=30)
+            indicators["BETA"] = talib.BETA(close, close, timeperiod=5)
+            indicators["CORREL"] = talib.CORREL(close, close, timeperiod=30)
 
         except:
             pass
@@ -446,31 +508,38 @@ class UltimateIndicatorEngine:
             ha_open = np.zeros_like(open_prices)
             ha_open[0] = (open_prices[0] + close[0]) / 2
             for i in range(1, len(ha_open)):
-                ha_open[i] = (ha_open[i-1] + ha_close[i-1]) / 2
+                ha_open[i] = (ha_open[i - 1] + ha_close[i - 1]) / 2
             ha_high = np.maximum(high, np.maximum(ha_open, ha_close))
             ha_low = np.minimum(low, np.minimum(ha_open, ha_close))
 
-            indicators['HA_OPEN'] = ha_open
-            indicators['HA_HIGH'] = ha_high
-            indicators['HA_LOW'] = ha_low
-            indicators['HA_CLOSE'] = ha_close
+            indicators["HA_OPEN"] = ha_open
+            indicators["HA_HIGH"] = ha_high
+            indicators["HA_LOW"] = ha_low
+            indicators["HA_CLOSE"] = ha_close
 
             # Ichimoku Cloud
-            tenkan_sen = (pd.Series(high).rolling(9).max() + pd.Series(low).rolling(9).min()) / 2
-            kijun_sen = (pd.Series(high).rolling(26).max() + pd.Series(low).rolling(26).min()) / 2
+            tenkan_sen = (
+                pd.Series(high).rolling(9).max() + pd.Series(low).rolling(9).min()
+            ) / 2
+            kijun_sen = (
+                pd.Series(high).rolling(26).max() + pd.Series(low).rolling(26).min()
+            ) / 2
             senkou_span_a = ((tenkan_sen + kijun_sen) / 2).shift(26)
-            senkou_span_b = ((pd.Series(high).rolling(52).max() + pd.Series(low).rolling(52).min()) / 2).shift(26)
+            senkou_span_b = (
+                (pd.Series(high).rolling(52).max() + pd.Series(low).rolling(52).min())
+                / 2
+            ).shift(26)
             chikou_span = pd.Series(close).shift(-26)
 
-            indicators['TENKAN_SEN'] = tenkan_sen.values
-            indicators['KIJUN_SEN'] = kijun_sen.values
-            indicators['SENKOU_SPAN_A'] = senkou_span_a.values
-            indicators['SENKOU_SPAN_B'] = senkou_span_b.values
-            indicators['CHIKOU_SPAN'] = chikou_span.values
+            indicators["TENKAN_SEN"] = tenkan_sen.values
+            indicators["KIJUN_SEN"] = kijun_sen.values
+            indicators["SENKOU_SPAN_A"] = senkou_span_a.values
+            indicators["SENKOU_SPAN_B"] = senkou_span_b.values
+            indicators["CHIKOU_SPAN"] = chikou_span.values
 
             # Parabolic SAR
-            indicators['SAR'] = talib.SAR(high, low)
-            indicators['SAREXT'] = talib.SAREXT(high, low)
+            indicators["SAR"] = talib.SAR(high, low)
+            indicators["SAREXT"] = talib.SAREXT(high, low)
 
             # SuperTrend
             for period, multiplier in [(10, 3), (14, 2), (20, 1.5)]:
@@ -483,25 +552,26 @@ class UltimateIndicatorEngine:
                 direction = np.ones_like(close)
 
                 for i in range(1, len(close)):
-                    if close[i] > upper_band[i-1]:
+                    if close[i] > upper_band[i - 1]:
                         direction[i] = 1
-                    elif close[i] < lower_band[i-1]:
+                    elif close[i] < lower_band[i - 1]:
                         direction[i] = -1
                     else:
-                        direction[i] = direction[i-1]
+                        direction[i] = direction[i - 1]
 
                     if direction[i] == 1:
                         supertrend[i] = lower_band[i]
                     else:
                         supertrend[i] = upper_band[i]
 
-                indicators[f'SUPERTREND_{period}_{multiplier}'] = supertrend
-                indicators[f'SUPERTREND_DIR_{period}_{multiplier}'] = direction
+                indicators[f"SUPERTREND_{period}_{multiplier}"] = supertrend
+                indicators[f"SUPERTREND_DIR_{period}_{multiplier}"] = direction
 
         except Exception as e:
             self.logger.warning(f"Error calculating custom indicators: {e}")
 
         return indicators
+
 
 class HarmonicPatternDetector:
     """Advanced harmonic pattern detection"""
@@ -509,25 +579,27 @@ class HarmonicPatternDetector:
     # --- Updated: HarmonicPatternDetector.__init__ ---
     def __init__(self, logger_instance=None):
         self.patterns = {
-            'GARTLEY': {'XA': 0.618, 'AB': 0.382, 'BC': 0.886, 'CD': 0.786},
-            'BUTTERFLY': {'XA': 0.786, 'AB': 0.382, 'BC': 0.886, 'CD': 1.27},
-            'BAT': {'XA': 0.382, 'AB': 0.382, 'BC': 0.886, 'CD': 0.886},
-            'CRAB': {'XA': 0.382, 'AB': 0.382, 'BC': 0.886, 'CD': 1.618},
-            'SHARK': {'XA': 0.5, 'AB': 0.5, 'BC': 1.618, 'CD': 0.886},
-            'CYPHER': {'XA': 0.382, 'AB': 0.382, 'BC': 1.272, 'CD': 0.786},
-            'THREE_DRIVES': {'XA': 0.618, 'AB': 0.618, 'BC': 0.618, 'CD': 0.786},
-            'ABCD': {'AB': 0.618, 'BC': 0.618, 'CD': 1.272}
+            "GARTLEY": {"XA": 0.618, "AB": 0.382, "BC": 0.886, "CD": 0.786},
+            "BUTTERFLY": {"XA": 0.786, "AB": 0.382, "BC": 0.886, "CD": 1.27},
+            "BAT": {"XA": 0.382, "AB": 0.382, "BC": 0.886, "CD": 0.886},
+            "CRAB": {"XA": 0.382, "AB": 0.382, "BC": 0.886, "CD": 1.618},
+            "SHARK": {"XA": 0.5, "AB": 0.5, "BC": 1.618, "CD": 0.886},
+            "CYPHER": {"XA": 0.382, "AB": 0.382, "BC": 1.272, "CD": 0.786},
+            "THREE_DRIVES": {"XA": 0.618, "AB": 0.618, "BC": 0.618, "CD": 0.786},
+            "ABCD": {"AB": 0.618, "BC": 0.618, "CD": 1.272},
         }
-        self.logger = logger_instance if logger_instance else logging.getLogger(__name__)
+        self.logger = (
+            logger_instance if logger_instance else logging.getLogger(__name__)
+        )
 
     def detect_patterns(self, df: pd.DataFrame) -> List[Dict]:
         """Detect all harmonic patterns"""
         patterns_found = []
 
         try:
-            high = df['high'].values
-            low = df['low'].values
-            close = df['close'].values
+            high = df["high"].values
+            low = df["low"].values
+            close = df["close"].values
 
             # Find pivot points
             pivots = self._find_pivots(high, low, close)
@@ -548,14 +620,18 @@ class HarmonicPatternDetector:
 
         for i in range(window, len(high) - window):
             # Pivot high
-            if all(high[i] >= high[i-j] for j in range(1, window+1)) and                all(high[i] >= high[i+j] for j in range(1, window+1)):
-                pivots.append({'index': i, 'price': high[i], 'type': 'high'})
+            if all(high[i] >= high[i - j] for j in range(1, window + 1)) and all(
+                high[i] >= high[i + j] for j in range(1, window + 1)
+            ):
+                pivots.append({"index": i, "price": high[i], "type": "high"})
 
             # Pivot low
-            if all(low[i] <= low[i-j] for j in range(1, window+1)) and                all(low[i] <= low[i+j] for j in range(1, window+1)):
-                pivots.append({'index': i, 'price': low[i], 'type': 'low'})
+            if all(low[i] <= low[i - j] for j in range(1, window + 1)) and all(
+                low[i] <= low[i + j] for j in range(1, window + 1)
+            ):
+                pivots.append({"index": i, "price": low[i], "type": "low"})
 
-        return sorted(pivots, key=lambda x: x['index'])
+        return sorted(pivots, key=lambda x: x["index"])
 
     def _check_pattern(self, pivots, ratios, pattern_name):
         """Check for specific harmonic pattern"""
@@ -566,17 +642,19 @@ class HarmonicPatternDetector:
 
         # Check all possible 5-point combinations
         for i in range(len(pivots) - 4):
-            points = pivots[i:i+5]
+            points = pivots[i : i + 5]
 
             # Validate pattern structure
             if self._validate_pattern_structure(points, ratios):
-                patterns.append({
-                    'pattern': pattern_name,
-                    'points': points,
-                    'ratios': ratios,
-                    'completion_time': points[-1]['index'],
-                    'completion_price': points[-1]['price']
-                })
+                patterns.append(
+                    {
+                        "pattern": pattern_name,
+                        "points": points,
+                        "ratios": ratios,
+                        "completion_time": points[-1]["index"],
+                        "completion_price": points[-1]["price"],
+                    }
+                )
 
         return patterns
 
@@ -584,22 +662,22 @@ class HarmonicPatternDetector:
         """Validate if points form a valid harmonic pattern"""
         try:
             # Calculate ratios between points
-            xa = abs(points[1]['price'] - points[0]['price'])
-            ab = abs(points[2]['price'] - points[1]['price'])
-            bc = abs(points[3]['price'] - points[2]['price'])
-            cd = abs(points[4]['price'] - points[3]['price'])
+            xa = abs(points[1]["price"] - points[0]["price"])
+            ab = abs(points[2]["price"] - points[1]["price"])
+            bc = abs(points[3]["price"] - points[2]["price"])
+            cd = abs(points[4]["price"] - points[3]["price"])
 
             tolerance = 0.05  # 5% tolerance
 
             # Check each ratio
             for ratio_name, expected_ratio in ratios.items():
-                if ratio_name == 'XA':
+                if ratio_name == "XA":
                     actual_ratio = ab / xa if xa != 0 else 0
-                elif ratio_name == 'AB':
+                elif ratio_name == "AB":
                     actual_ratio = bc / ab if ab != 0 else 0
-                elif ratio_name == 'BC':
+                elif ratio_name == "BC":
                     actual_ratio = cd / bc if bc != 0 else 0
-                elif ratio_name == 'CD':
+                elif ratio_name == "CD":
                     actual_ratio = cd / xa if xa != 0 else 0
                 else:
                     continue
@@ -612,6 +690,7 @@ class HarmonicPatternDetector:
         except:
             return False
 
+
 class SMCAnalyzer:
     """Smart Money Concepts Analysis with Enhanced FVG Signal Detection"""
 
@@ -622,7 +701,9 @@ class SMCAnalyzer:
         self.order_blocks = []
         self.fair_value_gaps = []
         self.structure_processor = StructureProcessor()
-        self.logger = logger_instance if logger_instance else logging.getLogger(__name__)
+        self.logger = (
+            logger_instance if logger_instance else logging.getLogger(__name__)
+        )
 
     # --- Updated: SMCAnalyzer.analyze_smc to call _analyze_fvg_signals ---
     def analyze_smc(self, df: pd.DataFrame) -> Dict:
@@ -631,31 +712,33 @@ class SMCAnalyzer:
 
         try:
             # Market structure
-            results['market_structure'] = self._analyze_market_structure(df)
+            results["market_structure"] = self._analyze_market_structure(df)
 
             # Liquidity zones
-            results['liquidity_zones'] = self._identify_liquidity_zones(df)
+            results["liquidity_zones"] = self._identify_liquidity_zones(df)
 
             # Order blocks
-            results['order_blocks'] = self.structure_processor.identify_order_blocks(df)
+            results["order_blocks"] = self.structure_processor.identify_order_blocks(df)
 
             # Fair value gaps
-            results['fair_value_gaps'] = self.structure_processor.identify_fair_value_gaps(df)
+            results["fair_value_gaps"] = (
+                self.structure_processor.identify_fair_value_gaps(df)
+            )
 
             # NEW: Analyze FVG signals
-            results['fvg_signals'] = self._analyze_fvg_signals(df)
+            results["fvg_signals"] = self._analyze_fvg_signals(df)
 
             # Breaker blocks
-            results['breaker_blocks'] = self._identify_breaker_blocks(df)
+            results["breaker_blocks"] = self._identify_breaker_blocks(df)
 
             # Mitigation blocks
-            results['mitigation_blocks'] = self._identify_mitigation_blocks(df)
+            results["mitigation_blocks"] = self._identify_mitigation_blocks(df)
 
             # Displacement analysis
-            results['displacement'] = self._analyze_displacement(df)
+            results["displacement"] = self._analyze_displacement(df)
 
             # Inducement analysis
-            results['inducement'] = self._analyze_inducement(df)
+            results["inducement"] = self._analyze_inducement(df)
 
         except Exception as e:
             self.logger.warning(f"Error in SMC analysis: {e}")
@@ -675,10 +758,10 @@ class SMCAnalyzer:
         # Re-use existing displacement analysis for context
         displacement_events = self._analyze_displacement(df)
 
-        displacement_indices = {d['index'] for d in displacement_events}
+        displacement_indices = {d["index"] for d in displacement_events}
 
         for fvg in fair_value_gaps:
-            fvg_idx = fvg['index']
+            fvg_idx = fvg["index"]
             # Check a small window (e.g., 3 bars) before the FVG for a preceding displacement
             window = 3
             is_after_displacement = False
@@ -688,47 +771,63 @@ class SMCAnalyzer:
                     break
 
             if is_after_displacement:
-                fvg_signals.append({
-                    'type': fvg['type'],
-                    'index': fvg_idx,
-                    'price_range': {'top': fvg['top'], 'bottom': fvg['bottom']},
-                    'size': fvg['size'],
-                    'signal_strength': 'high_probability_setup',
-                    'description': (f"Major {fvg['type'].replace('_', ' ')} detected around displacement "
-                                    f"at index {fvg_idx}. This often signals strong momentum "
-                                    f"and potential trend continuation or reversal.")
-                })
+                fvg_signals.append(
+                    {
+                        "type": fvg["type"],
+                        "index": fvg_idx,
+                        "price_range": {"top": fvg["top"], "bottom": fvg["bottom"]},
+                        "size": fvg["size"],
+                        "signal_strength": "high_probability_setup",
+                        "description": (
+                            f"Major {fvg['type'].replace('_', ' ')} detected around displacement "
+                            f"at index {fvg_idx}. This often signals strong momentum "
+                            f"and potential trend continuation or reversal."
+                        ),
+                    }
+                )
                 # Optionally, annotate the original FVG with its signal status
-                if 'signal' not in fvg:  # Avoid overwriting if multiple signal checks are added
-                    fvg['signal'] = fvg_signals[-1]['signal_strength']
+                if (
+                    "signal" not in fvg
+                ):  # Avoid overwriting if multiple signal checks are added
+                    fvg["signal"] = fvg_signals[-1]["signal_strength"]
 
         return fvg_signals
 
     def _analyze_market_structure(self, df: pd.DataFrame) -> Dict:
         """Analyze market structure"""
-        high = df['high'].values
-        low = df['low'].values
-        close = df['close'].values
+        high = df["high"].values
+        low = df["low"].values
+        close = df["close"].values
 
         # Find swing highs and lows
         swing_highs = []
         swing_lows = []
 
         for i in range(2, len(high) - 2):
-            if high[i] > high[i-1] and high[i] > high[i+1] and                high[i] > high[i-2] and high[i] > high[i+2]:
-                swing_highs.append({'index': i, 'price': high[i]})
+            if (
+                high[i] > high[i - 1]
+                and high[i] > high[i + 1]
+                and high[i] > high[i - 2]
+                and high[i] > high[i + 2]
+            ):
+                swing_highs.append({"index": i, "price": high[i]})
 
-            if low[i] < low[i-1] and low[i] < low[i+1] and                low[i] < low[i-2] and low[i] < low[i+2]:
-                swing_lows.append({'index': i, 'price': low[i]})
+            if (
+                low[i] < low[i - 1]
+                and low[i] < low[i + 1]
+                and low[i] < low[i - 2]
+                and low[i] < low[i + 2]
+            ):
+                swing_lows.append({"index": i, "price": low[i]})
 
         # Determine trend
         trend = self._determine_trend(swing_highs, swing_lows)
 
         return {
-            'swing_highs': swing_highs,
-            'swing_lows': swing_lows,
-            'trend': trend,
-            'structure_breaks': self._find_structure_breaks(swing_highs, swing_lows)
+            "swing_highs": swing_highs,
+            "swing_lows": swing_lows,
+            "trend": trend,
+            "structure_breaks": self._find_structure_breaks(swing_highs, swing_lows),
         }
 
     def _identify_liquidity_zones(self, df: pd.DataFrame) -> List[Dict]:
@@ -736,29 +835,37 @@ class SMCAnalyzer:
         zones = []
 
         try:
-            high = df['high'].values
-            low = df['low'].values
-            volume = df['volume'].values if 'volume' in df.columns else np.ones(len(df))
+            high = df["high"].values
+            low = df["low"].values
+            volume = df["volume"].values if "volume" in df.columns else np.ones(len(df))
 
             # Equal highs/lows with high volume
             for i in range(1, len(high) - 1):
                 # Check for equal highs
-                if abs(high[i] - high[i-1]) < (high[i] * 0.001) and volume[i] > np.mean(volume):
-                    zones.append({
-                        'type': 'liquidity_high',
-                        'price': high[i],
-                        'index': i,
-                        'strength': volume[i] / np.mean(volume)
-                    })
+                if abs(high[i] - high[i - 1]) < (high[i] * 0.001) and volume[
+                    i
+                ] > np.mean(volume):
+                    zones.append(
+                        {
+                            "type": "liquidity_high",
+                            "price": high[i],
+                            "index": i,
+                            "strength": volume[i] / np.mean(volume),
+                        }
+                    )
 
                 # Check for equal lows
-                if abs(low[i] - low[i-1]) < (low[i] * 0.001) and volume[i] > np.mean(volume):
-                    zones.append({
-                        'type': 'liquidity_low',
-                        'price': low[i],
-                        'index': i,
-                        'strength': volume[i] / np.mean(volume)
-                    })
+                if abs(low[i] - low[i - 1]) < (low[i] * 0.001) and volume[i] > np.mean(
+                    volume
+                ):
+                    zones.append(
+                        {
+                            "type": "liquidity_low",
+                            "price": low[i],
+                            "index": i,
+                            "strength": volume[i] / np.mean(volume),
+                        }
+                    )
 
         except Exception as e:
             self.logger.warning(f"Error identifying liquidity zones: {e}")
@@ -772,26 +879,30 @@ class SMCAnalyzer:
         try:
             # Implementation of breaker block identification
             order_blocks = self.structure_processor.identify_order_blocks(df)
-            close = df['close'].values
+            close = df["close"].values
 
             for ob in order_blocks:
                 # Check if order block was broken
-                for i in range(ob['index'] + 1, len(close)):
-                    if ob['type'] == 'bullish_ob' and close[i] < ob['bottom']:
-                        breakers.append({
-                            'type': 'bearish_breaker',
-                            'original_ob': ob,
-                            'break_index': i,
-                            'break_price': close[i]
-                        })
+                for i in range(ob["index"] + 1, len(close)):
+                    if ob["type"] == "bullish_ob" and close[i] < ob["bottom"]:
+                        breakers.append(
+                            {
+                                "type": "bearish_breaker",
+                                "original_ob": ob,
+                                "break_index": i,
+                                "break_price": close[i],
+                            }
+                        )
                         break
-                    elif ob['type'] == 'bearish_ob' and close[i] > ob['top']:
-                        breakers.append({
-                            'type': 'bullish_breaker',
-                            'original_ob': ob,
-                            'break_index': i,
-                            'break_price': close[i]
-                        })
+                    elif ob["type"] == "bearish_ob" and close[i] > ob["top"]:
+                        breakers.append(
+                            {
+                                "type": "bullish_breaker",
+                                "original_ob": ob,
+                                "break_index": i,
+                                "break_price": close[i],
+                            }
+                        )
                         break
 
         except Exception as e:
@@ -805,28 +916,32 @@ class SMCAnalyzer:
 
         try:
             order_blocks = self.structure_processor.identify_order_blocks(df)
-            close = df['close'].values
+            close = df["close"].values
 
             for ob in order_blocks:
                 # Check for mitigation (price returning to order block)
-                for i in range(ob['index'] + 1, len(close)):
-                    if ob['type'] == 'bullish_ob':
-                        if ob['bottom'] <= close[i] <= ob['top']:
-                            mitigations.append({
-                                'type': 'bullish_mitigation',
-                                'original_ob': ob,
-                                'mitigation_index': i,
-                                'mitigation_price': close[i]
-                            })
+                for i in range(ob["index"] + 1, len(close)):
+                    if ob["type"] == "bullish_ob":
+                        if ob["bottom"] <= close[i] <= ob["top"]:
+                            mitigations.append(
+                                {
+                                    "type": "bullish_mitigation",
+                                    "original_ob": ob,
+                                    "mitigation_index": i,
+                                    "mitigation_price": close[i],
+                                }
+                            )
                             break
-                    elif ob['type'] == 'bearish_ob':
-                        if ob['bottom'] <= close[i] <= ob['top']:
-                            mitigations.append({
-                                'type': 'bearish_mitigation',
-                                'original_ob': ob,
-                                'mitigation_index': i,
-                                'mitigation_price': close[i]
-                            })
+                    elif ob["type"] == "bearish_ob":
+                        if ob["bottom"] <= close[i] <= ob["top"]:
+                            mitigations.append(
+                                {
+                                    "type": "bearish_mitigation",
+                                    "original_ob": ob,
+                                    "mitigation_index": i,
+                                    "mitigation_price": close[i],
+                                }
+                            )
                             break
 
         except Exception as e:
@@ -839,8 +954,8 @@ class SMCAnalyzer:
         displacements = []
 
         try:
-            close = df['close'].values
-            volume = df['volume'].values if 'volume' in df.columns else np.ones(len(df))
+            close = df["close"].values
+            volume = df["volume"].values if "volume" in df.columns else np.ones(len(df))
 
             # Calculate price changes and volume
             price_changes = np.diff(close) / close[:-1]
@@ -849,14 +964,21 @@ class SMCAnalyzer:
 
             for i in range(1, len(price_changes)):
                 # Significant price movement with volume
-                if abs(price_changes[i]) > 2 * avg_change and volume[i] > 1.5 * avg_volume:
-                    displacements.append({
-                        'index': i,
-                        'direction': 'bullish' if price_changes[i] > 0 else 'bearish',
-                        'magnitude': abs(price_changes[i]),
-                        'volume_ratio': volume[i] / avg_volume,
-                        'price_change': price_changes[i]
-                    })
+                if (
+                    abs(price_changes[i]) > 2 * avg_change
+                    and volume[i] > 1.5 * avg_volume
+                ):
+                    displacements.append(
+                        {
+                            "index": i,
+                            "direction": (
+                                "bullish" if price_changes[i] > 0 else "bearish"
+                            ),
+                            "magnitude": abs(price_changes[i]),
+                            "volume_ratio": volume[i] / avg_volume,
+                            "price_change": price_changes[i],
+                        }
+                    )
 
         except Exception as e:
             self.logger.warning(f"Error analyzing displacement: {e}")
@@ -868,28 +990,40 @@ class SMCAnalyzer:
         inducements = []
 
         try:
-            high = df['high'].values
-            low = df['low'].values
-            close = df['close'].values
+            high = df["high"].values
+            low = df["low"].values
+            close = df["close"].values
 
             for i in range(2, len(df) - 2):
                 # Bullish inducement (fake breakout to downside)
-                if low[i] < min(low[i-2:i]) and close[i] > low[i] and close[i+1] > close[i]:
-                    inducements.append({
-                        'type': 'bullish_inducement',
-                        'index': i,
-                        'low': low[i],
-                        'recovery': close[i+1] - low[i]
-                    })
+                if (
+                    low[i] < min(low[i - 2 : i])
+                    and close[i] > low[i]
+                    and close[i + 1] > close[i]
+                ):
+                    inducements.append(
+                        {
+                            "type": "bullish_inducement",
+                            "index": i,
+                            "low": low[i],
+                            "recovery": close[i + 1] - low[i],
+                        }
+                    )
 
                 # Bearish inducement (fake breakout to upside)
-                if high[i] > max(high[i-2:i]) and close[i] < high[i] and close[i+1] < close[i]:
-                    inducements.append({
-                        'type': 'bearish_inducement',
-                        'index': i,
-                        'high': high[i],
-                        'decline': high[i] - close[i+1]
-                    })
+                if (
+                    high[i] > max(high[i - 2 : i])
+                    and close[i] < high[i]
+                    and close[i + 1] < close[i]
+                ):
+                    inducements.append(
+                        {
+                            "type": "bearish_inducement",
+                            "index": i,
+                            "high": high[i],
+                            "decline": high[i] - close[i + 1],
+                        }
+                    )
 
         except Exception as e:
             self.logger.warning(f"Error analyzing inducement: {e}")
@@ -899,27 +1033,34 @@ class SMCAnalyzer:
     def _determine_trend(self, swing_highs: List[Dict], swing_lows: List[Dict]) -> str:
         """Determine market trend"""
         if len(swing_highs) < 2 or len(swing_lows) < 2:
-            return 'sideways'
+            return "sideways"
 
         # Higher highs and higher lows = uptrend
-        recent_highs = sorted(swing_highs, key=lambda x: x['index'])[-2:]
-        recent_lows = sorted(swing_lows, key=lambda x: x['index'])[-2:]
+        recent_highs = sorted(swing_highs, key=lambda x: x["index"])[-2:]
+        recent_lows = sorted(swing_lows, key=lambda x: x["index"])[-2:]
 
-        if (recent_highs[1]['price'] > recent_highs[0]['price'] and 
-            recent_lows[1]['price'] > recent_lows[0]['price']):
-            return 'uptrend'
-        elif (recent_highs[1]['price'] < recent_highs[0]['price'] and 
-              recent_lows[1]['price'] < recent_lows[0]['price']):
-            return 'downtrend'
+        if (
+            recent_highs[1]["price"] > recent_highs[0]["price"]
+            and recent_lows[1]["price"] > recent_lows[0]["price"]
+        ):
+            return "uptrend"
+        elif (
+            recent_highs[1]["price"] < recent_highs[0]["price"]
+            and recent_lows[1]["price"] < recent_lows[0]["price"]
+        ):
+            return "downtrend"
         else:
-            return 'sideways'
+            return "sideways"
 
-    def _find_structure_breaks(self, swing_highs: List[Dict], swing_lows: List[Dict]) -> List[Dict]:
+    def _find_structure_breaks(
+        self, swing_highs: List[Dict], swing_lows: List[Dict]
+    ) -> List[Dict]:
         """Find market structure breaks"""
         breaks = []
         # Implementation of structure break detection
         # This would identify when price breaks through significant swing levels
         return breaks
+
 
 class TickDataAnalyzer:
     """Advanced tick data analysis"""
@@ -928,7 +1069,9 @@ class TickDataAnalyzer:
     def __init__(self, config: AnalysisConfig, logger_instance=None):
         self.config = config
         self.tick_limit = config.tick_bars_limit
-        self.logger = logger_instance if logger_instance else logging.getLogger(__name__)
+        self.logger = (
+            logger_instance if logger_instance else logging.getLogger(__name__)
+        )
         self.structure_processor = StructureProcessor(self.logger)
 
     def analyze_tick_data(self, df: pd.DataFrame) -> Dict:
@@ -942,22 +1085,22 @@ class TickDataAnalyzer:
                 self.logger.info(f"Limited tick data to last {self.tick_limit} ticks")
 
             # Microstructure analysis
-            results['microstructure'] = self._analyze_microstructure(df)
+            results["microstructure"] = self._analyze_microstructure(df)
 
             # Spread analysis
-            results['spread_analysis'] = self._analyze_spreads(df)
+            results["spread_analysis"] = self._analyze_spreads(df)
 
             # Volume analysis
-            results['volume_analysis'] = self._analyze_tick_volume(df)
+            results["volume_analysis"] = self._analyze_tick_volume(df)
 
             # Market manipulation detection
-            results['manipulation'] = self.structure_processor.detect_manipulation(df)
+            results["manipulation"] = self.structure_processor.detect_manipulation(df)
 
             # Liquidity analysis
-            results['liquidity'] = self._analyze_liquidity(df)
+            results["liquidity"] = self._analyze_liquidity(df)
 
             # Order flow
-            results['order_flow'] = self._analyze_order_flow(df)
+            results["order_flow"] = self._analyze_order_flow(df)
 
         except Exception as e:
             self.logger.warning(f"Error in tick data analysis: {e}")
@@ -965,6 +1108,7 @@ class TickDataAnalyzer:
         return results
 
     # ... [rest of TickDataAnalyzer methods remain the same] ...
+
 
 class UltimateDataProcessor:
     """Ultimate data processing engine with all features enabled by default"""
@@ -982,7 +1126,9 @@ class UltimateDataProcessor:
         self.tick_analyzer = TickDataAnalyzer(config, self.logger)  # Passed logger
 
     # --- New: UltimateDataProcessor._generate_analysis_metadata ---
-    def _generate_analysis_metadata(self, df: pd.DataFrame, all_analysis_results: Dict) -> Dict:
+    def _generate_analysis_metadata(
+        self, df: pd.DataFrame, all_analysis_results: Dict
+    ) -> Dict:
         """
         Generates comprehensive metadata for the analysis, including column descriptions,
         feature theories, and details about detected signals. This metadata provides
@@ -992,7 +1138,7 @@ class UltimateDataProcessor:
             "analysis_description": "Comprehensive market microstructure and trading strategy analysis, focusing on key concepts like Smart Money Concepts (SMC) and session-specific behaviors.",
             "columns_info": {},
             "features_theory": {},
-            "detected_signals_summary": {}
+            "detected_signals_summary": {},
         }
 
         # 1. Column Information (for columns added or specifically referenced)
@@ -1003,7 +1149,7 @@ class UltimateDataProcessor:
                 "type": "categorical string",
                 "units": "N/A",
                 "how_calculated": "Mapped from UTC hour: AS (0-6, 22-23), EU (7-12), US (13-21).",
-                "commentary": "Market behavior often changes significantly across different trading sessions due to varying participant liquidity and volume."
+                "commentary": "Market behavior often changes significantly across different trading sessions due to varying participant liquidity and volume.",
             }
         if "is_london_killzone" in df.columns:
             metadata["columns_info"]["is_london_killzone"] = {
@@ -1011,7 +1157,7 @@ class UltimateDataProcessor:
                 "type": "boolean",
                 "units": "N/A",
                 "how_calculated": "True if UTC hour is between 7:00 (inclusive) and 13:00 (exclusive). This aligns with the London session beginning and its specific characteristics.",
-                "commentary": "The London Kill Zone is identified as an important time for trading due to significant liquidity injection, new market participants, and a tendency for daily highs/lows to form within this period. It is a critical timing aspect for many strategies."
+                "commentary": "The London Kill Zone is identified as an important time for trading due to significant liquidity injection, new market participants, and a tendency for daily highs/lows to form within this period. It is a critical timing aspect for many strategies.",
             }
         if "atr_14" in df.columns:  # Existing indicator, but good to document fully
             metadata["columns_info"]["atr_14"] = {
@@ -1019,7 +1165,7 @@ class UltimateDataProcessor:
                 "type": "float",
                 "units": "price units",
                 "how_calculated": "Calculated using TA-Lib's ATR function over 14 periods. ATR measures market volatility by calculating the average of true ranges over a specified period.",
-                "commentary": "A higher ATR indicates higher volatility. Spikes in ATR (e.g., atr_value > 2 * mean(ATR)) can signal significant market events, potential reversals, or increased trading opportunities."
+                "commentary": "A higher ATR indicates higher volatility. Spikes in ATR (e.g., atr_value > 2 * mean(ATR)) can signal significant market events, potential reversals, or increased trading opportunities.",
             }
 
         # 2. Features Theory & Commentary
@@ -1029,21 +1175,21 @@ class UltimateDataProcessor:
                 "fair_value_gaps": {
                     "description": "Fair Value Gaps (FVG), also known as inefficiencies or imbalances, represent areas in price delivery where price has moved rapidly in one direction without sufficient opposing market participation, leaving a 'gap' in the candles. These gaps are often seen as 'magnets' or areas where price may eventually return to be 'filled' or 'mitigated'.",
                     "calculation_method": "Identified when the low of candle 'i' is greater than the high of candle 'i-2' (bullish FVG), or when the high of candle 'i' is less than the low of candle 'i-2' (bearish FVG).",
-                    "nested_structure": "{'type': 'bullish_fvg'/'bearish_fvg', 'top': price, 'bottom': price, 'index': bar_index, 'size': gap_size, 'signal': optional_signal_strength}"
+                    "nested_structure": "{'type': 'bullish_fvg'/'bearish_fvg', 'top': price, 'bottom': price, 'index': bar_index, 'size': gap_size, 'signal': optional_signal_strength}",
                 },
                 "displacement": {
                     "description": "Displacement is a sharp, aggressive, and often high-volume move that breaks market structure, typically leaving behind a fair value gap. It signifies strong institutional conviction and a potential, decisive shift in trend or momentum. It's metaphorically described as 'like a big elephant jumping into a pool and then the water splashes'.",
-                    "calculation_method": "Detected by significant price movement (e.g., absolute percentage change greater than 2 times the average change) coupled with unusually high volume (e.g., volume greater than 1.5 times the average volume) over a short period."
+                    "calculation_method": "Detected by significant price movement (e.g., absolute percentage change greater than 2 times the average change) coupled with unusually high volume (e.g., volume greater than 1.5 times the average volume) over a short period.",
                 },
                 "liquidity_sweeps": {
                     "description": "Liquidity sweeps (or liquidity grabs/hunts) occur when price moves beyond a significant high or low (where stop-losses, buy stops, or sell stops are clustered), 'sweeps' or 'grabs' that accumulated liquidity, and then often reverses sharply. These are crucial for identifying potential high-probability trading opportunities as they can indicate exhaustion of a move or the start of a new trend. They are often associated with 'fake outs' or 'failed breakouts'.",
-                    "commentary": "Recognizing liquidity sweeps is fundamental to identifying market manipulation and trading against the majority, aligning with institutional flow."
+                    "commentary": "Recognizing liquidity sweeps is fundamental to identifying market manipulation and trading against the majority, aligning with institutional flow.",
                 },
                 "order_blocks": {
                     "description": "Order Blocks are specific candles or series of candles where large institutional orders were likely placed, leading to a significant price move away from that area. They are considered areas of concentrated supply or demand that price may revisit to mitigate remaining orders.",
-                    "calculation_method": "For a bullish order block, it's typically the last down candle before a strong move up. For a bearish order block, it's the last up candle before a strong move down. Specific rules involve checking subsequent candle closes relative to the order block's high/low."
-                }
-            }
+                    "calculation_method": "For a bullish order block, it's typically the last down candle before a strong move up. For a bearish order block, it's the last up candle before a strong move down. Specific rules involve checking subsequent candle closes relative to the order block's high/low.",
+                },
+            },
         }
         metadata["features_theory"]["london_kill_zone_strategy"] = {
             "description": "The London Kill Zone trading strategy is a timing-based approach focusing on exploiting the unique characteristics of the London trading session. It involves observing liquidity dynamics and market structure shifts (like displacement and change of character) within this specific time window for high-probability setups.",
@@ -1052,24 +1198,34 @@ class UltimateDataProcessor:
                 "**New Trend Formation**: New participants often join, causing market movements distinct from the Asian session and frequently leading to the formation of new trends.",
                 "**Daily Extremes**: The high and low of the day are often established within this trading session.",
                 "**Common Patterns**: Strategies often look for liquidity sweeps beyond the Asian session's high/low, followed by either continuation of a higher timeframe trend or a complete shift in market direction.",
-                "**Midas Model Integration**: Specific scalping models like the 'Midas Model' (for Gold) leverage precise timing within the London and New York sessions, looking for liquidity sweeps and market structure shifts (displacement with FVGs) on lower timeframes."
-            ]
+                "**Midas Model Integration**: Specific scalping models like the 'Midas Model' (for Gold) leverage precise timing within the London and New York sessions, looking for liquidity sweeps and market structure shifts (displacement with FVGs) on lower timeframes.",
+            ],
         }
 
         # 3. Detected Signals Summary
         # Extract FVG signals from the results dict
-        if 'smc_analysis' in all_analysis_results and 'fvg_signals' in all_analysis_results['smc_analysis']:
-            fvg_signals = all_analysis_results['smc_analysis']['fvg_signals']
+        if (
+            "smc_analysis" in all_analysis_results
+            and "fvg_signals" in all_analysis_results["smc_analysis"]
+        ):
+            fvg_signals = all_analysis_results["smc_analysis"]["fvg_signals"]
             if fvg_signals:
-                metadata["detected_signals_summary"]["fvg_signals_after_displacement"] = {
+                metadata["detected_signals_summary"][
+                    "fvg_signals_after_displacement"
+                ] = {
                     "count": len(fvg_signals),
-                    "examples": fvg_signals[:min(3, len(fvg_signals))],  # Show up to 3 examples
-                    "description": "Fair Value Gaps identified as strong trading signals due to their occurrence after detected displacement, indicative of a significant institutional move."
+                    "examples": fvg_signals[
+                        : min(3, len(fvg_signals))
+                    ],  # Show up to 3 examples
+                    "description": "Fair Value Gaps identified as strong trading signals due to their occurrence after detected displacement, indicative of a significant institutional move.",
                 }
 
         # Example for other signals (e.g., ATR spikes) - this would need separate detection logic in the future
-        if 'indicators' in all_analysis_results and 'ATR_14' in all_analysis_results['indicators']:
-            atr_values = all_analysis_results['indicators']['ATR_14']
+        if (
+            "indicators" in all_analysis_results
+            and "ATR_14" in all_analysis_results["indicators"]
+        ):
+            atr_values = all_analysis_results["indicators"]["ATR_14"]
             if len(atr_values) > 14:  # Ensure enough data for meaningful average
                 mean_atr = np.nanmean(atr_values)
                 # Define an ATR spike as values significantly above the average
@@ -1079,12 +1235,18 @@ class UltimateDataProcessor:
                     if not np.isnan(atr_val) and atr_val > atr_spike_threshold:
                         # Check for a "spike" more dynamically, e.g. relative to recent values
                         # For simplicity, we just check against mean for summary
-                        atr_spikes_detected.append({'index': i, 'value': float(atr_val), 'threshold': float(atr_spike_threshold)})
+                        atr_spikes_detected.append(
+                            {
+                                "index": i,
+                                "value": float(atr_val),
+                                "threshold": float(atr_spike_threshold),
+                            }
+                        )
 
                 if atr_spikes_detected:
                     metadata["detected_signals_summary"]["atr_spikes"] = {
                         "count": len(atr_spikes_detected),
-                        "description": f"Periods of significant volatility (ATR_14 > {atr_spike_threshold:.2f}), potentially signaling major market events or turning points."
+                        "description": f"Periods of significant volatility (ATR_14 > {atr_spike_threshold:.2f}), potentially signaling major market events or turning points.",
                     }
 
         # Add timestamp for when this metadata was generated
@@ -1105,7 +1267,7 @@ class UltimateDataProcessor:
 
             if df is None or df.empty:
                 self.logger.error(f"Failed to load data from {file_path}")
-                return {'error': 'Failed to load data', 'file_path': file_path}
+                return {"error": "Failed to load data", "file_path": file_path}
 
             self.logger.info("STARTING: apply limits")
             # Apply limits
@@ -1114,31 +1276,35 @@ class UltimateDataProcessor:
 
             # Initialize results
             results = {
-                'file_path': file_path,
-                'total_bars': len(df),
-                'timeframe': self._detect_timeframe(file_path),
-                'currency_pair': self._detect_currency_pair(file_path),
-                'analysis_timestamp': datetime.now().isoformat()
+                "file_path": file_path,
+                "total_bars": len(df),
+                "timeframe": self._detect_timeframe(file_path),
+                "currency_pair": self._detect_currency_pair(file_path),
+                "analysis_timestamp": datetime.now().isoformat(),
             }
 
             self.logger.info("STARTING: basic stats")
             # Basic statistics
-            results['basic_stats'] = self._calculate_basic_stats(df)
+            results["basic_stats"] = self._calculate_basic_stats(df)
             self.logger.info("FINISHED: basic stats")
 
             # Skip indicators and patterns if essential OHLC columns missing
-            required_ohlc = ['open', 'high', 'low', 'close']
+            required_ohlc = ["open", "high", "low", "close"]
             if not all(col in df.columns for col in required_ohlc):
-                self.logger.warning("Skipping indicators/patterns: missing OHLC columns")
-                results['indicators'] = {}
-                results['harmonic_patterns'] = []
-                results['smc_analysis'] = {}
-                results['wyckoff_analysis'] = {}
+                self.logger.warning(
+                    "Skipping indicators/patterns: missing OHLC columns"
+                )
+                results["indicators"] = {}
+                results["harmonic_patterns"] = []
+                results["smc_analysis"] = {}
+                results["wyckoff_analysis"] = {}
             else:
                 # Technical indicators (ALWAYS ENABLED)
-                results['indicators'] = self.indicator_engine.calculate_all_indicators(df)
+                results["indicators"] = self.indicator_engine.calculate_all_indicators(
+                    df
+                )
                 try:
-                    for col_name, values in results['indicators'].items():
+                    for col_name, values in results["indicators"].items():
                         if len(values) == len(df):
                             df[col_name] = values
                 except Exception as e:
@@ -1146,70 +1312,107 @@ class UltimateDataProcessor:
                 self.logger.info("FINISHED: indicators")
 
                 self.logger.info("STARTING: harmonic patterns")
-                results['harmonic_patterns'] = self.harmonic_detector.detect_patterns(df)
+                results["harmonic_patterns"] = self.harmonic_detector.detect_patterns(
+                    df
+                )
+                try:
+                    upsert_harmonic_patterns(results["harmonic_patterns"])
+                except Exception as e:
+                    self.logger.warning(
+                        f"Failed to upsert harmonic pattern embeddings: {e}"
+                    )
                 self.logger.info("FINISHED: harmonic patterns")
 
                 self.logger.info("STARTING: SMC analysis")
-                results['smc_analysis'] = self.smc_analyzer.analyze_smc(df)
+                results["smc_analysis"] = self.smc_analyzer.analyze_smc(df)
                 self.logger.info("FINISHED: SMC analysis")
 
                 self.logger.info("STARTING: Wyckoff analysis")
-                results['wyckoff_analysis'] = self.structure_processor.analyze_wyckoff(df)
+                results["wyckoff_analysis"] = self.structure_processor.analyze_wyckoff(
+                    df
+                )
                 self.logger.info("FINISHED: Wyckoff analysis")
 
             # Tick data analysis (ALWAYS ENABLED if tick data)
             if self._is_tick_data(file_path):
                 self.logger.info("STARTING: tick analysis")
-                results['tick_analysis'] = self.tick_analyzer.analyze_tick_data(df)
+                results["tick_analysis"] = self.tick_analyzer.analyze_tick_data(df)
                 self.logger.info("FINISHED: tick analysis")
 
             self.logger.info("STARTING: advanced analytics")
             # Advanced analytics (ALWAYS ENABLED)
-            results['advanced_analytics'] = await self._perform_advanced_analytics(df)
+            results["advanced_analytics"] = await self._perform_advanced_analytics(df)
             self.logger.info("FINISHED: advanced analytics")
 
             self.logger.info("STARTING: risk metrics")
             # Risk metrics (ALWAYS ENABLED)
-            results['risk_metrics'] = self._calculate_risk_metrics(df)
+            results["risk_metrics"] = self._calculate_risk_metrics(df)
             self.logger.info("FINISHED: risk metrics")
 
             self.logger.info("STARTING: ML features")
             # Machine learning features (ALWAYS ENABLED)
-            results['ml_features'] = await self._extract_ml_features(df)
+            results["ml_features"] = await self._extract_ml_features(df)
             self.logger.info("FINISHED: ML features")
 
             # --- NEW: Generate and attach comprehensive analysis metadata ---
             # Call after all analysis results are populated in 'results'
-            results['analysis_metadata'] = self._generate_analysis_metadata(df, results)
+            results["analysis_metadata"] = self._generate_analysis_metadata(df, results)
 
             # Save per-symbol comprehensive JSON and parquet output
             try:
                 # Use regex-based extractor for symbol
-                tf = results.get('timeframe', 'unknown')
-                base_output_dir = self.config.output_dir if hasattr(self.config, 'output_dir') else './out'
-                parquet_root = os.path.join(base_output_dir, 'parquet')
-                json_root = os.path.join(base_output_dir, 'json')
+                tf = results.get("timeframe", "unknown")
+                base_output_dir = (
+                    self.config.output_dir
+                    if hasattr(self.config, "output_dir")
+                    else "./out"
+                )
+                parquet_root = os.path.join(base_output_dir, "parquet")
+                json_root = os.path.join(base_output_dir, "json")
 
                 # Prepare full_results for multiple timeframes (resample)
                 full_results = {}
-                full_results[tf] = df  # original timeframe with indicator columns attached
+                full_results[tf] = (
+                    df  # original timeframe with indicator columns attached
+                )
 
                 resample_rules = {
-                    '5min': '5T', '15min': '15T', '30min': '30T',
-                    '1h': '1H', '4h': '4H', '1d': '1D'
+                    "5min": "5T",
+                    "15min": "15T",
+                    "30min": "30T",
+                    "1h": "1H",
+                    "4h": "4H",
+                    "1d": "1D",
                 }
 
                 for target_tf, rule in resample_rules.items():
                     try:
                         if tf != target_tf:
-                            df_resampled = df.resample(rule).agg({
-                                'open': 'first', 'high': 'max', 'low': 'min',
-                                'close': 'last', 'volume': 'sum'
-                            }).dropna()
+                            df_resampled = (
+                                df.resample(rule)
+                                .agg(
+                                    {
+                                        "open": "first",
+                                        "high": "max",
+                                        "low": "min",
+                                        "close": "last",
+                                        "volume": "sum",
+                                    }
+                                )
+                                .dropna()
+                            )
                             # Retain all extra indicator columns via forward fill where applicable
                             for col in df.columns:
-                                if col not in ['open', 'high', 'low', 'close', 'volume']:
-                                    df_resampled[col] = df[col].resample(rule).ffill().dropna()
+                                if col not in [
+                                    "open",
+                                    "high",
+                                    "low",
+                                    "close",
+                                    "volume",
+                                ]:
+                                    df_resampled[col] = (
+                                        df[col].resample(rule).ffill().dropna()
+                                    )
                             full_results[target_tf] = df_resampled
                     except Exception as e:
                         self.logger.warning(f"Failed to resample to {target_tf}: {e}")
@@ -1217,12 +1420,26 @@ class UltimateDataProcessor:
                 # Filtering by timeframes and limiting max candles is done here:
                 data_by_timeframe = full_results
                 if self.config.timeframes_parquet:
-                    data_by_timeframe = {t: d for t, d in data_by_timeframe.items() if t in self.config.timeframes_parquet}
+                    data_by_timeframe = {
+                        t: d
+                        for t, d in data_by_timeframe.items()
+                        if t in self.config.timeframes_parquet
+                    }
                 if self.config.max_candles:
-                    data_by_timeframe = {t: d.tail(self.config.max_candles) for t, d in data_by_timeframe.items()}
+                    data_by_timeframe = {
+                        t: d.tail(self.config.max_candles)
+                        for t, d in data_by_timeframe.items()
+                    }
 
                 # --- UPDATED CALL: Pass the generated analysis_metadata ---
-                save_results_to_parquet_and_json(symbol, data_by_timeframe, parquet_root, json_root, self.config.csv_dir, analysis_metadata=results['analysis_metadata'])
+                save_results_to_parquet_and_json(
+                    symbol,
+                    data_by_timeframe,
+                    parquet_root,
+                    json_root,
+                    self.config.csv_dir,
+                    analysis_metadata=results["analysis_metadata"],
+                )
                 self.logger.info(f"Saved parquet and JSON for symbol: {symbol}")
 
             except Exception as e:
@@ -1233,30 +1450,32 @@ class UltimateDataProcessor:
 
         except Exception as e:
             self.logger.error(f"Error processing {file_path}: {e}")
-            return {'error': str(e), 'file_path': file_path}
+            return {"error": str(e), "file_path": file_path}
 
     async def _load_data(self, file_path: str) -> Optional[pd.DataFrame]:
         """Load data from CSV and JSON files"""
         try:
-            if file_path.endswith('.csv'):
+            if file_path.endswith(".csv"):
                 # Try different separators, propagate KeyboardInterrupt
-                for sep in ['\t', ',', ';']:
+                for sep in ["\t", ",", ";"]:
                     try:
                         df = pd.read_csv(file_path, sep=sep)
                         if len(df.columns) > 1:  # Successfully parsed
                             # Attempt to parse timestamp as well
-                            if 'timestamp' in df.columns:
+                            if "timestamp" in df.columns:
                                 try:
-                                    df['timestamp'] = pd.to_datetime(
-                                        df['timestamp'],
-                                        format='%Y.%m.%d %H:%M:%S',
-                                        errors='coerce'
+                                    df["timestamp"] = pd.to_datetime(
+                                        df["timestamp"],
+                                        format="%Y.%m.%d %H:%M:%S",
+                                        errors="coerce",
                                     )
-                                    df.set_index('timestamp', inplace=True)
+                                    df.set_index("timestamp", inplace=True)
                                 except Exception:
                                     # fallback: parse without format string
-                                    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-                                    df.set_index('timestamp', inplace=True)
+                                    df["timestamp"] = pd.to_datetime(
+                                        df["timestamp"], errors="coerce"
+                                    )
+                                    df.set_index("timestamp", inplace=True)
                             return df
                     except KeyboardInterrupt:
                         raise
@@ -1264,24 +1483,24 @@ class UltimateDataProcessor:
                         continue
                 return None
 
-            elif file_path.endswith('.json'):
-                with open(file_path, 'r') as f:
+            elif file_path.endswith(".json"):
+                with open(file_path, "r") as f:
                     data = json.load(f)
 
                 # Convert to DataFrame based on structure
-                if isinstance(data, dict) and 'data' in data:
-                    return pd.DataFrame(data['data'])
+                if isinstance(data, dict) and "data" in data:
+                    return pd.DataFrame(data["data"])
                 elif isinstance(data, list):
                     return pd.DataFrame(data)
                 else:
                     return pd.DataFrame([data])
 
-            elif file_path.endswith('.json.gz'):
-                with gzip.open(file_path, 'rt') as f:
+            elif file_path.endswith(".json.gz"):
+                with gzip.open(file_path, "rt") as f:
                     data = json.load(f)
 
-                if isinstance(data, dict) and 'data' in data:
-                    return pd.DataFrame(data['data'])
+                if isinstance(data, dict) and "data" in data:
+                    return pd.DataFrame(data["data"])
                 elif isinstance(data, list):
                     return pd.DataFrame(data)
                 else:
@@ -1297,7 +1516,9 @@ class UltimateDataProcessor:
             if self._is_tick_data(file_path):
                 if len(df) > self.config.tick_bars_limit:
                     df = df.tail(self.config.tick_bars_limit)
-                    self.logger.info(f"Limited to {self.config.tick_bars_limit} tick bars")
+                    self.logger.info(
+                        f"Limited to {self.config.tick_bars_limit} tick bars"
+                    )
             else:
                 timeframe = self._detect_timeframe(file_path)
                 if timeframe in self.config.bar_limits:
@@ -1313,16 +1534,16 @@ class UltimateDataProcessor:
     def _detect_timeframe(self, file_path: str) -> str:
         """Detect timeframe from filename"""
         timeframe_patterns = {
-            r'(?i)tick': 'tick',
-            r'(?i)m1|1min|1minute': '1min',
-            r'(?i)m5|5min|5minute': '5min',
-            r'(?i)m15|15min|15minute': '15min',
-            r'(?i)m30|30min|30minute': '30min',
-            r'(?i)h1|1h|1hour': '1h',
-            r'(?i)h4|4h|4hour': '4h',
-            r'(?i)d1|1d|1day|daily': '1d',
-            r'(?i)w1|1w|1week|weekly': '1w',
-            r'(?i)mn1|1mn|1month|monthly': '1M'
+            r"(?i)tick": "tick",
+            r"(?i)m1|1min|1minute": "1min",
+            r"(?i)m5|5min|5minute": "5min",
+            r"(?i)m15|15min|15minute": "15min",
+            r"(?i)m30|30min|30minute": "30min",
+            r"(?i)h1|1h|1hour": "1h",
+            r"(?i)h4|4h|4hour": "4h",
+            r"(?i)d1|1d|1day|daily": "1d",
+            r"(?i)w1|1w|1week|weekly": "1w",
+            r"(?i)mn1|1mn|1month|monthly": "1M",
         }
 
         filename = Path(file_path).name.lower()
@@ -1330,14 +1551,14 @@ class UltimateDataProcessor:
             if re.search(pattern, filename):
                 return tf
 
-        return 'unknown'
+        return "unknown"
 
     def _detect_currency_pair(self, file_path: str) -> str:
         """Detect currency pair from filename"""
         pair_patterns = [
-            r'(?i)(EUR|GBP|USD|JPY|CHF|CAD|AUD|NZD|XAU|XAG|BTC|ETH|OIL|GAS|SPX|NAS|DJI|DAX|FTSE|NIKKEI)[A-Z]{3}',
-            r'(?i)(GOLD|SILVER|CRUDE|BRENT)',
-            r'(?i)(BITCOIN|ETHEREUM|LITECOIN|RIPPLE)'
+            r"(?i)(EUR|GBP|USD|JPY|CHF|CAD|AUD|NZD|XAU|XAG|BTC|ETH|OIL|GAS|SPX|NAS|DJI|DAX|FTSE|NIKKEI)[A-Z]{3}",
+            r"(?i)(GOLD|SILVER|CRUDE|BRENT)",
+            r"(?i)(BITCOIN|ETHEREUM|LITECOIN|RIPPLE)",
         ]
 
         filename = Path(file_path).name
@@ -1346,48 +1567,58 @@ class UltimateDataProcessor:
             if match:
                 return match.group(0).upper()
 
-        return 'UNKNOWN'
+        return "UNKNOWN"
 
     def _is_tick_data(self, file_path: str) -> bool:
         """Check if file contains tick data"""
-        return 'tick' in Path(file_path).name.lower()
+        return "tick" in Path(file_path).name.lower()
 
     def _calculate_basic_stats(self, df: pd.DataFrame) -> Dict:
         """Calculate basic statistics"""
         stats = {}
 
         try:
-            if 'close' in df.columns:
-                close = df['close']
-                stats.update({
-                    'first_price': close.iloc[0],
-                    'last_price': close.iloc[-1],
-                    'high_price': close.max(),
-                    'low_price': close.min(),
-                    'price_change': close.iloc[-1] - close.iloc[0],
-                    'price_change_pct': ((close.iloc[-1] - close.iloc[0]) / close.iloc[0]) * 100,
-                    'volatility': close.pct_change().std() * np.sqrt(252),
-                    'skewness': close.pct_change().skew(),
-                    'kurtosis': close.pct_change().kurtosis()
-                })
+            if "close" in df.columns:
+                close = df["close"]
+                stats.update(
+                    {
+                        "first_price": close.iloc[0],
+                        "last_price": close.iloc[-1],
+                        "high_price": close.max(),
+                        "low_price": close.min(),
+                        "price_change": close.iloc[-1] - close.iloc[0],
+                        "price_change_pct": (
+                            (close.iloc[-1] - close.iloc[0]) / close.iloc[0]
+                        )
+                        * 100,
+                        "volatility": close.pct_change().std() * np.sqrt(252),
+                        "skewness": close.pct_change().skew(),
+                        "kurtosis": close.pct_change().kurtosis(),
+                    }
+                )
 
-            if 'volume' in df.columns:
-                volume = df['volume']
-                stats.update({
-                    'total_volume': volume.sum(),
-                    'avg_volume': volume.mean(),
-                    'volume_std': volume.std(),
-                    'max_volume': volume.max(),
-                    'min_volume': volume.min()
-                })
+            if "volume" in df.columns:
+                volume = df["volume"]
+                stats.update(
+                    {
+                        "total_volume": volume.sum(),
+                        "avg_volume": volume.mean(),
+                        "volume_std": volume.std(),
+                        "max_volume": volume.max(),
+                        "min_volume": volume.min(),
+                    }
+                )
 
             # Time-based stats
-            if hasattr(df.index, 'to_pydatetime'):
-                stats.update({
-                    'start_time': df.index[0].isoformat(),
-                    'end_time': df.index[-1].isoformat(),
-                    'duration_hours': (df.index[-1] - df.index[0]).total_seconds() / 3600
-                })
+            if hasattr(df.index, "to_pydatetime"):
+                stats.update(
+                    {
+                        "start_time": df.index[0].isoformat(),
+                        "end_time": df.index[-1].isoformat(),
+                        "duration_hours": (df.index[-1] - df.index[0]).total_seconds()
+                        / 3600,
+                    }
+                )
 
         except Exception as e:
             self.logger.warning(f"Error calculating basic stats: {e}")
@@ -1399,59 +1630,66 @@ class UltimateDataProcessor:
         analytics = {}
 
         try:
-            if 'close' in df.columns:
-                close = df['close'].values
+            if "close" in df.columns:
+                close = df["close"].values
 
                 self.logger.info("STARTING: fractal dimension")
                 # Fractal dimension
-                analytics['fractal_dimension'] = self._calculate_fractal_dimension(close)
+                analytics["fractal_dimension"] = self._calculate_fractal_dimension(
+                    close
+                )
                 self.logger.info("FINISHED: fractal dimension")
 
                 self.logger.info("STARTING: hurst exponent")
                 # Hurst exponent
-                analytics['hurst_exponent'] = self._calculate_hurst_exponent(close)
+                analytics["hurst_exponent"] = self._calculate_hurst_exponent(close)
                 self.logger.info("FINISHED: hurst exponent")
 
                 # Approximate entropy (with check for series size)
                 if len(close) > 2000:
-                    self.logger.info("SKIPPING: approximate entropy (series too large: %d rows)", len(close))
-                    analytics['approximate_entropy'] = np.nan
+                    self.logger.info(
+                        "SKIPPING: approximate entropy (series too large: %d rows)",
+                        len(close),
+                    )
+                    analytics["approximate_entropy"] = np.nan
                 else:
                     self.logger.info("STARTING: approximate entropy")
-                    analytics['approximate_entropy'] = self._calculate_approximate_entropy(close)
+                    analytics["approximate_entropy"] = (
+                        self._calculate_approximate_entropy(close)
+                    )
                     self.logger.info("FINISHED: approximate entropy")
 
                 self.logger.info("STARTING: DFA")
                 # Detrended fluctuation analysis
-                analytics['dfa_alpha'] = self._calculate_dfa(close)
+                analytics["dfa_alpha"] = self._calculate_dfa(close)
                 self.logger.info("FINISHED: DFA")
 
                 self.logger.info("STARTING: efficiency ratio")
                 # Market efficiency ratio
-                analytics['efficiency_ratio'] = self._calculate_efficiency_ratio(close)
+                analytics["efficiency_ratio"] = self._calculate_efficiency_ratio(close)
                 self.logger.info("FINISHED: efficiency ratio")
 
                 self.logger.info("STARTING: trend strength")
                 # Trend strength
-                analytics['trend_strength'] = self._calculate_trend_strength(close)
+                analytics["trend_strength"] = self._calculate_trend_strength(close)
                 self.logger.info("FINISHED: trend strength")
 
                 self.logger.info("STARTING: support/resistance")
                 # Support and resistance levels
-                analytics['support_resistance'] = self._find_support_resistance(df)
+                analytics["support_resistance"] = self._find_support_resistance(df)
                 self.logger.info("FINISHED: support/resistance")
 
                 self.logger.info("STARTING: fibonacci levels")
                 # Fibonacci levels
-                analytics['fibonacci_levels'] = self._calculate_fibonacci_levels(close)
+                analytics["fibonacci_levels"] = self._calculate_fibonacci_levels(close)
                 self.logger.info("FINISHED: fibonacci levels")
 
             # Augmented Dickey-Fuller stationarity test (ALWAYS ENABLED)
             try:
-                if 'close' in df.columns:
-                    analytics['adf_fuller'] = add_fuller(df['close'].values)
+                if "close" in df.columns:
+                    analytics["adf_fuller"] = add_fuller(df["close"].values)
             except Exception as e:
-                analytics['adf_fuller'] = {'error': str(e)}
+                analytics["adf_fuller"] = {"error": str(e)}
 
         except Exception as e:
             self.logger.warning(f"Error in advanced analytics: {e}")
@@ -1460,12 +1698,12 @@ class UltimateDataProcessor:
 
     def _find_support_resistance(self, df: pd.DataFrame) -> dict:
         """Simple support/resistance finder for close prices."""
-        if 'close' not in df.columns:
+        if "close" not in df.columns:
             return {}
-        close = df['close'].values
+        close = df["close"].values
         support = float(np.min(close))
         resistance = float(np.max(close))
-        return {'support': support, 'resistance': resistance}
+        return {"support": support, "resistance": resistance}
 
     def _calculate_fibonacci_levels(self, close: np.ndarray) -> Dict:
         """Calculate Fibonacci retracement levels"""
@@ -1473,15 +1711,15 @@ class UltimateDataProcessor:
             high = np.max(close)
             low = np.min(close)
             diff = high - low
-            
+
             levels = {
-                '0.0': high,
-                '23.6': high - 0.236 * diff,
-                '38.2': high - 0.382 * diff,
-                '50.0': high - 0.5 * diff,
-                '61.8': high - 0.618 * diff,
-                '78.6': high - 0.786 * diff,
-                '100.0': low
+                "0.0": high,
+                "23.6": high - 0.236 * diff,
+                "38.2": high - 0.382 * diff,
+                "50.0": high - 0.5 * diff,
+                "61.8": high - 0.618 * diff,
+                "78.6": high - 0.786 * diff,
+                "100.0": low,
             }
             return levels
         except:
@@ -1495,14 +1733,19 @@ class UltimateDataProcessor:
     def _calculate_risk_metrics(self, df: pd.DataFrame) -> dict:
         """Stub risk metrics calculation. Expand as needed."""
         try:
-            if 'close' not in df.columns:
+            if "close" not in df.columns:
                 return {}
-            close = df['close'].values
+            close = df["close"].values
             returns = np.diff(close) / close[:-1]
             return {
-                'std_dev': float(np.std(returns)),
-                'max_drawdown': float(np.min((close - np.maximum.accumulate(close)) / np.maximum.accumulate(close))),
-                'value_at_risk_95': float(np.percentile(returns, 5))
+                "std_dev": float(np.std(returns)),
+                "max_drawdown": float(
+                    np.min(
+                        (close - np.maximum.accumulate(close))
+                        / np.maximum.accumulate(close)
+                    )
+                ),
+                "value_at_risk_95": float(np.percentile(returns, 5)),
             }
         except Exception:
             return {}
@@ -1510,6 +1753,7 @@ class UltimateDataProcessor:
     def _calculate_fractal_dimension(self, data: np.ndarray) -> float:
         """Calculate fractal dimension using box counting method"""
         try:
+
             def box_count(data, r):
                 n = len(data)
                 boxes = np.ceil(n / r).astype(int)
@@ -1545,7 +1789,9 @@ class UltimateDataProcessor:
         except:
             return np.nan
 
-    def _calculate_approximate_entropy(self, data: np.ndarray, m: int = 2, r: float = None) -> float:
+    def _calculate_approximate_entropy(
+        self, data: np.ndarray, m: int = 2, r: float = None
+    ) -> float:
         """Calculate approximate entropy"""
         try:
             if r is None:
@@ -1556,7 +1802,7 @@ class UltimateDataProcessor:
 
             def _phi(m):
                 N = len(data)
-                patterns = np.array([data[i:i + m] for i in range(N - m + 1)])
+                patterns = np.array([data[i : i + m] for i in range(N - m + 1)])
                 C = np.zeros(N - m + 1)
 
                 for i in range(N - m + 1):
@@ -1604,14 +1850,14 @@ class UltimateDataProcessor:
                     trend = np.polyval(coeffs, x)
 
                     # Calculate fluctuation
-                    fluctuation = np.sqrt(np.mean((segment - trend)**2))
+                    fluctuation = np.sqrt(np.mean((segment - trend) ** 2))
                     fluctuations.append(fluctuation)
 
                 F.append(np.mean(fluctuations))
 
             # Fit line to log-log plot
             if len(F) > 1:
-                valid_scales = scales[:len(F)]
+                valid_scales = scales[: len(F)]
                 coeffs = np.polyfit(np.log(valid_scales), np.log(F), 1)
                 return coeffs[0]
 
@@ -1650,15 +1896,23 @@ class UltimateDataProcessor:
             # Compute R^2
             p = np.poly1d([slope, intercept])
             y_hat = p(x)
-            ss_res = np.sum((data - y_hat)**2)
-            ss_tot = np.sum((data - np.mean(data))**2)
-            r2 = 1 - ss_res/ss_tot if ss_tot > 0 else 0
+            ss_res = np.sum((data - y_hat) ** 2)
+            ss_tot = np.sum((data - np.mean(data)) ** 2)
+            r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0
             return r2
         except Exception:
             return np.nan
 
+
 # --- Updated: save_results_to_parquet_and_json ---
-def save_results_to_parquet_and_json(symbol, data_by_timeframe, parquet_root='./parquet', json_root='./json', csv_root='./csv', analysis_metadata=None):
+def save_results_to_parquet_and_json(
+    symbol,
+    data_by_timeframe,
+    parquet_root="./parquet",
+    json_root="./json",
+    csv_root="./csv",
+    analysis_metadata=None,
+):
     """
     Save results to parquet, JSON, and CSV for each timeframe, now including comprehensive metadata.
     """
@@ -1673,8 +1927,8 @@ def save_results_to_parquet_and_json(symbol, data_by_timeframe, parquet_root='./
     # Save to CSV (unchanged logic for CSVs themselves)
     for tf, df in data_by_timeframe.items():
         csv_file = os.path.join(symbol_csv_dir, f"{symbol}_{tf}.csv")
-        if 'tickvol' in df.columns:
-            df['volume'] = df['tickvol']
+        if "tickvol" in df.columns:
+            df["volume"] = df["tickvol"]
         if isinstance(df.index, pd.DatetimeIndex):
             df = df.reset_index().rename(columns={"index": "timestamp"})
         elif "timestamp" not in df.columns:
@@ -1698,8 +1952,8 @@ def save_results_to_parquet_and_json(symbol, data_by_timeframe, parquet_root='./
     for tf, df in data_by_timeframe.items():
         parquet_file = os.path.join(symbol_parquet_dir, f"{symbol}_{tf}.parquet")
 
-        if 'tickvol' in df.columns:
-            df['volume'] = df['tickvol']
+        if "tickvol" in df.columns:
+            df["volume"] = df["tickvol"]
         if isinstance(df.index, pd.DatetimeIndex):
             df = df.reset_index().rename(columns={"index": "timestamp"})
         elif "timestamp" not in df.columns:
@@ -1715,54 +1969,101 @@ def save_results_to_parquet_and_json(symbol, data_by_timeframe, parquet_root='./
         table = pa.Table.from_pandas(df, preserve_index=False)
 
         # Base metadata for Parquet footer
-        meta_dict = {
-            "columns": df.columns.tolist(),
-            "symbol": symbol,
-            "timeframe": tf
-        }
+        meta_dict = {"columns": df.columns.tolist(), "symbol": symbol, "timeframe": tf}
         # NEW: Embed the comprehensive analysis_metadata directly into Parquet metadata
         if analysis_metadata:
             meta_dict["ncos_analysis_metadata"] = analysis_metadata
 
         # Ensure all metadata is string-encoded for PyArrow
-        table = table.replace_schema_metadata({b"ncos_meta": json.dumps(meta_dict, default=str).encode()})
+        table = table.replace_schema_metadata(
+            {b"ncos_meta": json.dumps(meta_dict, default=str).encode()}
+        )
         pq.write_table(table, parquet_file, compression="snappy")
 
-        comprehensive_json_output[tf] = df.to_dict(orient='records')
+        comprehensive_json_output[tf] = df.to_dict(orient="records")
 
     # NEW: Add the comprehensive analysis_metadata to the main JSON output as well
     if analysis_metadata:
         comprehensive_json_output["_analysis_metadata"] = analysis_metadata
 
     json_file_path = os.path.join(json_root, f"{symbol}_comprehensive.json")
-    with open(json_file_path, 'w') as json_file:
+    with open(json_file_path, "w") as json_file:
         # Use default=str for json.dump to handle datetime objects gracefully
         json.dump(comprehensive_json_output, json_file, indent=4, default=str)
+
 
 # Main function and CLI remain the same as original
 async def main():
     """Main function with ALL features enabled by default"""
-    parser = argparse.ArgumentParser(description='ncOS Ultimate Microstructure Analyzer - Enhanced Edition with ZANFLOW v12 Integration')
+    parser = argparse.ArgumentParser(
+        description="ncOS Ultimate Microstructure Analyzer - Enhanced Edition with ZANFLOW v12 Integration"
+    )
 
     # Input options
-    parser.add_argument('--directory', '-d', type=str, help='Directory to scan for files')
-    parser.add_argument('--file', '-f', type=str, help='Single file to process')
-    parser.add_argument('--pattern', '-p', type=str, default='*', help='File pattern to match (supports CSV and JSON)')
-    parser.add_argument('--recursive', '-r', action='store_true', help='Recursive directory scan')
+    parser.add_argument(
+        "--directory", "-d", type=str, help="Directory to scan for files"
+    )
+    parser.add_argument("--file", "-f", type=str, help="Single file to process")
+    parser.add_argument(
+        "--pattern",
+        "-p",
+        type=str,
+        default="*",
+        help="File pattern to match (supports CSV and JSON)",
+    )
+    parser.add_argument(
+        "--recursive", "-r", action="store_true", help="Recursive directory scan"
+    )
 
     # Processing options
-    parser.add_argument('--tick_bars', type=int, default=1500, help='Maximum number of tick bars to process (DEFAULT: 1500)')
-    parser.add_argument('--timeframes', nargs='+', default=['1min', '5min', '15min', '30min', '1h', '4h', '1d'],
-                        help='Timeframes to process')
-    parser.add_argument('--bar_limits', type=str, help='JSON string of bar limits per timeframe')
+    parser.add_argument(
+        "--tick_bars",
+        type=int,
+        default=1500,
+        help="Maximum number of tick bars to process (DEFAULT: 1500)",
+    )
+    parser.add_argument(
+        "--timeframes",
+        nargs="+",
+        default=["1min", "5min", "15min", "30min", "1h", "4h", "1d"],
+        help="Timeframes to process",
+    )
+    parser.add_argument(
+        "--bar_limits", type=str, help="JSON string of bar limits per timeframe"
+    )
 
     # Output options
-    parser.add_argument('--output_dir', '-o', type=str, default='./ultimate_analysis_results', help='Output directory')
-    parser.add_argument('--no_compression', action='store_true', help='Disable output compression')
-    parser.add_argument('--json_dir', type=str, default='./json', help='Directory to save JSON files')
-    parser.add_argument('--csv_dir', type=str, default='./csv', help='Directory to save CSV exports (mirrors Parquet structure)')
-    parser.add_argument('--timeframes_parquet', type=str, default=None, help='Comma-separated list of timeframes to export (e.g., M1,M5)')
-    parser.add_argument('--max_candles', type=int, default=60, help='Max number of candles to export per timeframe (default: 60)')
+    parser.add_argument(
+        "--output_dir",
+        "-o",
+        type=str,
+        default="./ultimate_analysis_results",
+        help="Output directory",
+    )
+    parser.add_argument(
+        "--no_compression", action="store_true", help="Disable output compression"
+    )
+    parser.add_argument(
+        "--json_dir", type=str, default="./json", help="Directory to save JSON files"
+    )
+    parser.add_argument(
+        "--csv_dir",
+        type=str,
+        default="./csv",
+        help="Directory to save CSV exports (mirrors Parquet structure)",
+    )
+    parser.add_argument(
+        "--timeframes_parquet",
+        type=str,
+        default=None,
+        help="Comma-separated list of timeframes to export (e.g., M1,M5)",
+    )
+    parser.add_argument(
+        "--max_candles",
+        type=int,
+        default=60,
+        help="Max number of candles to export per timeframe (default: 60)",
+    )
 
     args = parser.parse_args()
 
@@ -1781,13 +2082,14 @@ async def main():
         save_all_plots=True,
         compress_output=not args.no_compression,
         process_csv_files=True,
-        process_json_files=True
+        process_json_files=True,
     )
     config.json_dir = args.json_dir
     config.csv_dir = args.csv_dir
     config.timeframes_parquet = (
-        [x.strip() for x in args.timeframes_parquet.split(',')]
-        if args.timeframes_parquet else None
+        [x.strip() for x in args.timeframes_parquet.split(",")]
+        if args.timeframes_parquet
+        else None
     )
     config.max_candles = args.max_candles
 
@@ -1804,11 +2106,11 @@ async def main():
         if directory.exists():
             # Process both CSV and JSON files by default
             if args.recursive:
-                files_to_process.extend(directory.rglob('*.csv'))
-                files_to_process.extend(directory.rglob('*.json'))
+                files_to_process.extend(directory.rglob("*.csv"))
+                files_to_process.extend(directory.rglob("*.json"))
             else:
-                files_to_process.extend(directory.glob('*.csv'))
-                files_to_process.extend(directory.glob('*.json'))
+                files_to_process.extend(directory.glob("*.csv"))
+                files_to_process.extend(directory.glob("*.json"))
 
     if not files_to_process:
         logger.error("No CSV or JSON files found to process")
@@ -1818,14 +2120,20 @@ async def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"🚀 ENHANCED ULTIMATE ANALYSIS STARTING - Processing {len(files_to_process)} files with ZANFLOW v12 Integration")
+    logger.info(
+        f"🚀 ENHANCED ULTIMATE ANALYSIS STARTING - Processing {len(files_to_process)} files with ZANFLOW v12 Integration"
+    )
     logger.info(f"📊 Tick bars limit: {args.tick_bars}")
     logger.info(f"📁 Processing: CSV and JSON files")
-    logger.info(f"💎 All indicators, SMC with FVG signals, Wyckoff, London Kill Zone, ML, Risk metrics ENABLED")
+    logger.info(
+        f"💎 All indicators, SMC with FVG signals, Wyckoff, London Kill Zone, ML, Risk metrics ENABLED"
+    )
 
     # Process files
     results = {}
-    tasks = [asyncio.create_task(processor.process_file(str(fp))) for fp in files_to_process]
+    tasks = [
+        asyncio.create_task(processor.process_file(str(fp))) for fp in files_to_process
+    ]
 
     try:
         for coro in asyncio.as_completed(tasks):
@@ -1836,7 +2144,7 @@ async def main():
             except Exception as e:
                 file_path = getattr(e, "file_path", "unknown")
                 logger.error(f"❌ Failed: {file_path} - {e}")
-                results[str(file_path)] = {'error': str(e)}
+                results[str(file_path)] = {"error": str(e)}
     except KeyboardInterrupt:
         logger.warning("🛑 Interrupted by user. Cancelling remaining tasks…")
         for task in tasks:
@@ -1854,13 +2162,13 @@ async def main():
     output_file = output_dir / f"{symbol}_comprehensive_enhanced.json"
 
     # Save JSON results
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         json.dump(results, f, indent=2, default=str)
 
     # Compress if requested
     if config.compress_output:
-        with open(output_file, 'rb') as f_in:
-            with gzip.open(f"{output_file}.gz", 'wb') as f_out:
+        with open(output_file, "rb") as f_in:
+            with gzip.open(f"{output_file}.gz", "wb") as f_out:
                 f_out.writelines(f_in)
         output_file.unlink()  # Remove uncompressed file
         logger.info(f"📦 Results compressed and saved to: {output_file}.gz")
@@ -1870,31 +2178,38 @@ async def main():
     # Generate summary report
     summary_file = output_dir / f"summary_report_enhanced_{timestamp}.json"
     summary = {
-        'total_files_processed': len(files_to_process),
-        'successful_analyses': len([r for r in results.values() if 'error' not in r]),
-        'failed_analyses': len([r for r in results.values() if 'error' in r]),
-        'analysis_timestamp': datetime.now().isoformat(),
-        'enhancements': {
-            'london_kill_zone_detection': True,
-            'fvg_signals_after_displacement': True,
-            'comprehensive_metadata_generation': True,
-            'zanflow_v12_integration': True
+        "total_files_processed": len(files_to_process),
+        "successful_analyses": len([r for r in results.values() if "error" not in r]),
+        "failed_analyses": len([r for r in results.values() if "error" in r]),
+        "analysis_timestamp": datetime.now().isoformat(),
+        "enhancements": {
+            "london_kill_zone_detection": True,
+            "fvg_signals_after_displacement": True,
+            "comprehensive_metadata_generation": True,
+            "zanflow_v12_integration": True,
         },
-        'configuration': {
-            'tick_bars_limit': config.tick_bars_limit,
-            'all_features_enabled': True,
-            'csv_and_json_processing': True
+        "configuration": {
+            "tick_bars_limit": config.tick_bars_limit,
+            "all_features_enabled": True,
+            "csv_and_json_processing": True,
         },
-        'files_processed': list(results.keys())
+        "files_processed": list(results.keys()),
     }
 
-    with open(summary_file, 'w') as f:
+    with open(summary_file, "w") as f:
         json.dump(summary, f, indent=2, default=str)
 
     logger.info(f"📋 Enhanced summary report saved to: {summary_file}")
-    logger.info(f"🎉 ENHANCED ULTIMATE ANALYSIS COMPLETE! Processed {len(files_to_process)} files")
-    logger.info(f"✅ Success: {summary['successful_analyses']} | ❌ Failed: {summary['failed_analyses']}")
-    logger.info(f"🔥 Enhanced with: London Kill Zone, FVG Signals, ZANFLOW v12 Integration, Comprehensive Metadata")
+    logger.info(
+        f"🎉 ENHANCED ULTIMATE ANALYSIS COMPLETE! Processed {len(files_to_process)} files"
+    )
+    logger.info(
+        f"✅ Success: {summary['successful_analyses']} | ❌ Failed: {summary['failed_analyses']}"
+    )
+    logger.info(
+        f"🔥 Enhanced with: London Kill Zone, FVG Signals, ZANFLOW v12 Integration, Comprehensive Metadata"
+    )
+
 
 if __name__ == "__main__":
     asyncio.run(main())
