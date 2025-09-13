@@ -59,7 +59,7 @@ services/.env
 /dashboard/.cache
 /config/.dbus/session-bus
 
-# Node modules
+# Node modules for web frontend
 web/node_modules/
 
 # Ignore session and trade history artifacts
