@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable, List, Sequence
+from typing import Iterable, Sequence
 
 import pandas as pd
 
@@ -26,9 +26,19 @@ class ReplayInspector:
     def __init__(self, paths: Iterable[Path | str]):
         if isinstance(paths, (str, Path)):
             paths = [paths]
-        self._df = pd.concat([pd.read_parquet(Path(p)) for p in paths], ignore_index=True)
+        self._df = pd.concat(
+            [pd.read_parquet(Path(p)) for p in paths], ignore_index=True
+        )
 
-    def filter(self, *, symbol: str | None = None, min_conf: float | None = None) -> pd.DataFrame:
+    @property
+    def dataframe(self) -> pd.DataFrame:
+        """Return the loaded dataframe."""
+
+        return self._df
+
+    def filter(
+        self, *, symbol: str | None = None, min_conf: float | None = None
+    ) -> pd.DataFrame:
         """Return a filtered copy of the loaded dataframe."""
 
         df = self._df
