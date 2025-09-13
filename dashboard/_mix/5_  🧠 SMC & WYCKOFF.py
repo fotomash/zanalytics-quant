@@ -1,8 +1,9 @@
 """QRT dashboard blending smart‑money concepts with Wyckoff analysis.
 
-This module backs an interactive Streamlit dashboard but also exposes a small
-collection of detection heuristics for unit testing.  The following Wyckoff
-events are recognised using straightforward logic:
+Beyond powering an interactive Streamlit dashboard, this module exposes a
+handful of self‑contained detection heuristics that can be imported and tested
+independently.  The following Wyckoff events are recognised using
+straightforward logic:
 
 * **Selling climax** – new low on a sharp drop and volume spike.
 * **Accumulation range** – contraction in price range accompanied by lower
@@ -10,10 +11,11 @@ events are recognised using straightforward logic:
 * **Spring** – temporary break of support that closes back above it.
 * **Markup beginning** – breakout above resistance with expanding volume.
 
-These detectors are intentionally lightweight yet fully functional and are
-covered by unit tests.  More sophisticated analytics (for example the
-``TiquidityEngine``) are outside the scope of this module and raise
-``NotImplementedError`` when invoked.
+Each detector lives on :class:`QRTQuantumAnalyzer` as a private method.  They
+are intentionally lightweight yet fully functional and are now covered by unit
+tests.  More sophisticated analytics (for example the ``TiquidityEngine``)
+remain out of scope for this module and raise ``NotImplementedError`` when
+invoked.
 """
 
 import streamlit as st
