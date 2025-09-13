@@ -6,6 +6,7 @@ The `dashboard/` directory hosts the primary Streamlit application for Zanalytic
 - `Home.py` – main launcher that wires the pages.
 - `pulse_dashboard.py` and `pulse_kernel_dashboard.py` – focused dashboards for pulse analytics.
 - `wiki_dashboard.py` – streamlit wrapper around internal wiki data.
+- `cluster_viz.py` – explore enriched vectors with UMAP/t‑SNE and Whisperer queries.
 - `pages/system_diagnostics.py` – aggregates health checks for Redis, Kafka, MT5 and the Django API.
 - `stream.py` – minimal WebSocket stream viewer for MCP2.
 
