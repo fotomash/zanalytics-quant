@@ -48,8 +48,6 @@ import os
 from typing import Iterable, Optional
 
 import pyarrow as pa
-
-from confluent_kafka import Consumer, KafkaError, TopicPartition
 try:  # pragma: no cover - module may be absent in tests
     from confluent_kafka import Consumer, KafkaError, TopicPartition
 except Exception:  # pragma: no cover - fallback for environments without kafka
