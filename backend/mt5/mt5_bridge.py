@@ -4,6 +4,24 @@ This module provides helpers to serialize tick data using the Arrow IPC
 streaming format.  The resulting bytes can be published to Kafka and later
 consumed by `ops.kafka.replay_consumer` which performs the reverse
 operation.
+
+MT5 Tick Bridge
+=================
+
+Simple bridge for publishing MetaTrader 5 tick data to a Redis stream.
+
+Tick message schema published to Redis stream::
+
+    {
+        "symbol": "<string>",    # e.g., "EURUSD"
+        "time": "<ISO8601>",     # timestamp of the quote
+        "bid": <float>,          # bid price
+        "ask": <float>           # ask price
+    }
+
+Each message is stored in the Redis stream under the field "tick" as a
+JSON encoded string. Downstream consumers should decode the field using
+``json.loads``.
 """
 from __future__ import annotations
 
@@ -47,25 +65,6 @@ def serialize_ticks(ticks: Iterable[Mapping]) -> bytes:
         writer.write_table(table)
 
     return sink.getvalue().to_pybytes()
-
-
-# MT5 Tick Bridge
-# ===============
-#
-# Simple bridge for publishing MetaTrader 5 tick data to a Redis stream.
-#
-# Tick message schema published to Redis stream:
-#
-# {
-#     "symbol": "<string>",    # e.g., "EURUSD"
-#     "time": "<ISO8601>",     # timestamp of the quote
-#     "bid": <float>,          # bid price
-#     "ask": <float>           # ask price
-# }
-#
-# Each message is stored in the Redis stream under the field "tick" as a
-# JSON encoded string. Downstream consumers should decode the field using
-# ``json.loads``.
 
 
 class MT5Bridge:
