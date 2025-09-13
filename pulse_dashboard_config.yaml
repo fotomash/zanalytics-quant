@@ -37,5 +37,6 @@ harmonic_stream_schema:
         point3_price: float
         point4_time: ISO-8601 string
         point4_price: float
-        prz_low: float
-        prz_high: float
+        prz:
+          low: float
+          high: float

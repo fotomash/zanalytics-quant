@@ -11,6 +11,7 @@ from schemas import UnifiedAnalysisPayloadV1
 from services.common import get_logger
 from .dashboard_payload import build_harmonic_dashboard_payload
 
+
 logger = get_logger(__name__)
 
 
@@ -21,9 +22,7 @@ def on_message(ctx: Dict[str, Any], msg: Message) -> None:
     and includes both ``predictive_analysis`` and ``ispts_pipeline`` details.
     """
     try:
-        incoming = AnalysisPayload.model_validate_json(
-            msg.value().decode("utf-8")
-        )
+        incoming = AnalysisPayload.model_validate_json(msg.value().decode("utf-8"))
     except ValidationError as exc:
         logger.error("payload validation error: %s", exc)
         ctx["consumer"].commit(msg)

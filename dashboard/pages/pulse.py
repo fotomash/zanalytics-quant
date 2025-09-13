@@ -1,10 +1,10 @@
-import os
-import json
+import os, json
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+
 
 # -----------------------------------------------------------------------------
 # Cached connections
@@ -86,7 +86,10 @@ def fetch_latest_message() -> Optional[Dict[str, Any]]:
 # Chart utilities (adapted from dashboard/_mix/🧠 SMC.py)
 # -----------------------------------------------------------------------------
 
-def render_harmonic_chart(df: pd.DataFrame, patterns: List[Dict[str, Any]]) -> go.Figure:
+
+def render_harmonic_chart(
+    df: pd.DataFrame, patterns: List[Dict[str, Any]]
+) -> go.Figure:
     """Render OHLC chart with harmonic overlays and PRZ shading."""
     fig = go.Figure(
         data=[
@@ -129,6 +132,7 @@ def render_harmonic_chart(df: pd.DataFrame, patterns: List[Dict[str, Any]]) -> g
         prz_low = pattern.get("prz_low")
         prz_high = pattern.get("prz_high")
         if prz_low is not None and prz_high is not None:
+
             fig.add_shape(
                 type="rect",
                 x0=df.index[0],
@@ -195,4 +199,3 @@ else:
             "https://actions.google.com/sounds/v1/alarms/beep_short.ogg",
             autoplay=True,
         )
-
