@@ -10,6 +10,7 @@ import pyarrow.parquet as pq
 import pyarrow as pa
 from concurrent.futures import ThreadPoolExecutor
 from core.data.manager import get_data_manager
+from .microstructure_filter import microstructure_filter
 
 @dataclass
 class DataConfig:
@@ -140,7 +141,6 @@ class HybridDataPipeline:
         # Start with standard
         df = self._standard_enrichment(df)
 
-        # Advanced microstructure
         df['realized_spread'] = self._calculate_realized_spread(df)
         df['price_impact'] = self._calculate_price_impact(df)
         df['liquidity_score'] = self._calculate_liquidity_score(df)
@@ -151,7 +151,7 @@ class HybridDataPipeline:
         df['trend_strength'] = self._calculate_trend_strength(df)
 
         df['enrichment_level'] = 'full'
-        return df
+        return microstructure_filter(df)
 
     def _calculate_rsi(self, prices: pd.Series, period: int = 14) -> pd.Series:
         """Calculate RSI"""
