@@ -1,9 +1,11 @@
 """Embed harmonic pattern features and store them asynchronously in Qdrant.
 
-The actual upsert is delegated to
-:class:`utils.processors.harmonic.HarmonicStorageProcessor`, an awaitable
-utility dedicated solely to Qdrant persistence (pattern analysis is handled by
-``core.harmonic_processor``).
+This module previously handled Qdrant upserts directly.  It now delegates the
+storage operation to :class:`utils.processors.harmonic.HarmonicStorageProcessor`
+which
+provides an awaitable interface capable of working with both synchronous and
+asynchronous Qdrant clients.  The public API is kept as a thin async wrapper so
+existing call sites can simply ``await`` the new implementation.
 """
 
 from __future__ import annotations
