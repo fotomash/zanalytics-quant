@@ -12,6 +12,59 @@ from scipy.signal import find_peaks
 from utils.metrics import record_metrics
 
 
+# ---------------------------------------------------------------------------
+# Harmonic pattern detection helper
+# ---------------------------------------------------------------------------
+
+def detect_harmonic_patterns(
+    df: pd.DataFrame, pivots: Dict[str, List[int]] | None = None
+) -> List[Dict[str, Any]]:
+    """Detect harmonic patterns using precomputed pivots when available.
+
+    Parameters
+    ----------
+    df:
+        Price data containing ``high`` and ``low`` columns.
+    pivots:
+        Optional dictionary with ``peaks`` and ``troughs`` index lists.
+
+    Returns
+    -------
+    List[Dict[str, Any]]
+        List of detected patterns. Each entry contains ``pattern`` name,
+        ``points`` describing the pivot structure and ``completion_time`` /
+        ``completion_price`` values.  If the detector is unavailable or an
+        error occurs, an empty list is returned.
+    """
+
+    try:
+        from utils.ncos_enhanced_analyzer import HarmonicPatternDetector
+
+        detector = HarmonicPatternDetector()
+        if pivots:
+            highs = df["high"].astype(float).to_numpy()
+            lows = df["low"].astype(float).to_numpy()
+            pivot_points = []
+            for i in pivots.get("peaks", []):
+                if i < len(highs):
+                    pivot_points.append(
+                        {"index": int(i), "price": float(highs[i]), "type": "high"}
+                    )
+            for i in pivots.get("troughs", []):
+                if i < len(lows):
+                    pivot_points.append(
+                        {"index": int(i), "price": float(lows[i]), "type": "low"}
+                    )
+            pivot_points.sort(key=lambda x: x["index"])
+            patterns: List[Dict[str, Any]] = []
+            for name, ratios in detector.patterns.items():
+                patterns.extend(detector._check_pattern(pivot_points, ratios, name))
+            return patterns
+        return detector.detect_patterns(df)
+    except Exception:  # pragma: no cover - graceful fallback
+        return []
+
+
 class RLAgent:
     """Placeholder reinforcement-learning agent interface."""
 
@@ -469,6 +522,28 @@ class AdvancedProcessor:
             analytics such as fractals and pivots are computed internally but
             omitted from the returned dictionary.  ``fractals_only`` takes
             precedence if both flags are ``True``.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Depending on the flags, a subset of the following keys:
+
+            ``fractals``
+                Dictionary of upward and downward fractal indices.
+            ``alligator``
+                Moving-average lines and state classification.
+            ``volatility``
+                ATR series and threshold comparison.
+            ``pivots``
+                ZigZag swing high/low indices.
+            ``harmonic_patterns``
+                List of detected harmonic patterns.  Each pattern contains a
+                ``pattern`` name, ``points`` describing the pivot structure,
+                and ``completion_time``/``completion_price`` values.
+            ``elliott_wave``
+                Elliott Wave label and confidence score.
+            ``ewt_forecast``
+                Optional forecast string generated via LLM.
         """
 
         if df.empty:
@@ -482,12 +557,14 @@ class AdvancedProcessor:
             if wave_only:
                 gator = self.calculate_alligator(df)
                 pivots = self.detect_pivots(df)
+                _ = detect_harmonic_patterns(df, pivots)
                 elliott = self.elliott_wave(df, pivots, fractals, gator)
                 return {"elliott_wave": elliott}
 
             gator = self.calculate_alligator(df)
             vol = self.volatility(df)
             pivots = self.detect_pivots(df)
+            patterns = detect_harmonic_patterns(df, pivots)
             elliott = self.elliott_wave(df, pivots, fractals, gator)
             forecast = ""
             print(f"DEBUG: process - Elliott Label: {elliott.get('label')}")
@@ -499,6 +576,7 @@ class AdvancedProcessor:
                 "alligator": gator,
                 "volatility": vol,
                 "pivots": pivots,
+                "harmonic_patterns": patterns,
                 "elliott_wave": elliott,
                 "ewt_forecast": forecast,
             }
