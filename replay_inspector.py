@@ -3,17 +3,31 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, List, Sequence
 
+import math
 import pandas as pd
 
 
 def score_embedding(embedding: Sequence[float]) -> dict:
-    """Placeholder embedding scoring function.
+    """Return cosine similarity and distance for ``embedding``.
 
-    The real implementation computes various similarity metrics for an embedding
-    vector.  Tests patch this function to provide deterministic metrics.
+    The embedding is compared against a unit vector of the same dimensionality
+    (a vector of ones).  This keeps the metric deterministic and independent of
+    any external state while still exercising the typical cosine calculations
+    used by the real system.
     """
 
-    return {"score": float(sum(embedding))}
+    vec = list(embedding)
+    if not vec:
+        return {"cosine_similarity": 0.0, "cosine_distance": 1.0}
+
+    norm = math.sqrt(sum(x * x for x in vec))
+    if norm == 0:
+        return {"cosine_similarity": 0.0, "cosine_distance": 1.0}
+
+    ref_norm = math.sqrt(len(vec))  # norm of [1, 1, ..., 1]
+    cos_sim = sum(vec) / (norm * ref_norm)
+    cos_dist = 1.0 - cos_sim
+    return {"cosine_similarity": cos_sim, "cosine_distance": cos_dist}
 
 
 class ReplayInspector:

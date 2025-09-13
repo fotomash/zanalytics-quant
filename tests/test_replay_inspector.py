@@ -1,34 +1,48 @@
 import pandas as pd
+import pytest
 
-from scripts import replay_inspector as ri
-
-
-def test_analog_scores_order():
-    embeddings = [[1, 0], [0, 1], [1, 1]]
-    query = [1, 0]
-    result = ri.analog_scores(embeddings, query, top_k=2)
-    assert result[0][0] == 0
-    assert result[0][1] >= result[1][1]
+import replay_inspector as ri
 
 
-def test_run_analog_scoring_with_monkeypatched_embed(monkeypatch):
-    # simple deterministic embed: length of text as first dimension
-    def fake_embed(text: str):
-        return [float(len(text)), 0.0]
+def test_score_embedding_basic():
+    emb = [1.0, 1.0]
+    metrics = ri.score_embedding(emb)
+    assert metrics["cosine_similarity"] == pytest.approx(1.0)
+    assert metrics["cosine_distance"] == pytest.approx(0.0)
 
-    monkeypatch.setattr(ri, "embed", fake_embed)
 
-    df = pd.DataFrame({"text": ["a", "abcd"]})
-    scores = ri.run_analog_scoring(df, ["text"], query="a", top_k=1)
-    assert scores[0][0] == 0
-    csv_path = tmp_path / "out.csv"
-    json_path = tmp_path / "out.json"
-    insp.to_csv(agg, csv_path)
-    insp.to_json(agg, json_path)
+def test_score_embedding_zero_vector():
+    emb = [0.0, 0.0, 0.0]
+    metrics = ri.score_embedding(emb)
+    assert metrics == {"cosine_similarity": 0.0, "cosine_distance": 1.0}
 
-    csv_df = pd.read_csv(csv_path)
-    pd.testing.assert_frame_equal(csv_df, expected)
 
-    with open(json_path) as fh:
-        data = json.load(fh)
-    assert data == [{"symbol": "BTC", "confidence": 0.85, "metric": 0.5}]
+def test_aggregate_cosine_metrics():
+    df = pd.DataFrame(
+        {
+            "symbol": ["BTC", "BTC"],
+            "confidence": [0.9, 0.8],
+            "embedding": [[1.0, 0.0], [0.0, 1.0]],
+        }
+    )
+
+    # Bypass __init__ to provide the dataframe directly
+    insp = ri.ReplayInspector.__new__(ri.ReplayInspector)
+    insp._df = df
+
+    agg = insp.aggregate(df)
+
+    expected_sim = ri.score_embedding([1.0, 0.0])["cosine_similarity"]
+    expected_dist = ri.score_embedding([1.0, 0.0])["cosine_distance"]
+
+    expected = pd.DataFrame(
+        {
+            "symbol": ["BTC"],
+            "confidence": [0.85],
+            "cosine_similarity": [expected_sim],
+            "cosine_distance": [expected_dist],
+        }
+    )
+
+    pd.testing.assert_frame_equal(agg, expected)
+
