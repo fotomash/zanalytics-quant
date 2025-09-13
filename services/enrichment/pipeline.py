@@ -82,6 +82,7 @@ def run(
             if name == "harmonic_processor" and "HarmonicProcessor" in state:
                 module_output = state["HarmonicProcessor"]
             outputs[name] = module_output
+
         except Exception as exc:  # pragma: no cover - safeguard
             state["status"] = "FAIL"
             state.setdefault("errors", {})[name] = str(exc)

@@ -245,6 +245,9 @@ def main() -> None:
                     liquidity_engine=state.get("LiquidityEngine", {}),
                     structure_validator=state.get("StructureValidator", {}),
                     fvg_locator=state.get("FVGLocator", {}),
+                    harmonic_processor=HarmonicResult(
+                        **state.get("HarmonicProcessor", {})
+                    ),
                 )
 
                 ts = tick.get("ts") or tick.get("timestamp")
@@ -265,7 +268,6 @@ def main() -> None:
                     smc=SMCAnalysis(),
                     wyckoff=WyckoffAnalysis(),
                     microstructure=MicrostructureAnalysis(),
-                    harmonic=HarmonicResult(**state.get("HarmonicProcessor", {})),
                     predictive_analysis=predictive,
                     ispts_pipeline=pipeline_result,
                 )
@@ -280,9 +282,7 @@ def main() -> None:
                     timeframe=timeframe,
                 )
                 enriched_payloads_processed_total.inc()
-                processing_latency_seconds.observe(
-                    time.perf_counter() - start_time
-                )
+                processing_latency_seconds.observe(time.perf_counter() - start_time)
             consumer.commit(msg)
     finally:
         if producer is not None:
@@ -297,4 +297,3 @@ def main() -> None:
 
 if __name__ == "__main__":  # pragma: no cover - service entry point
     main()
-

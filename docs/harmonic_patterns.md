@@ -20,8 +20,9 @@ The detector recognises the following Fibonacci-based structures:
 
 ## Return schema
 
-`HarmonicProcessor.analyze` returns a dictionary containing
-`harmonic_patterns`, where each pattern entry has:
+`HarmonicProcessor.analyze` returns a dictionary with a ``harmonic`` key
+containing a :class:`~schemas.payloads.HarmonicResult`.  Each pattern
+entry within ``harmonic_patterns`` has:
 
 ```json
 {
@@ -32,9 +33,12 @@ The detector recognises the following Fibonacci-based structures:
 }
 ```
 
-`points` lists the five pivot locations forming the pattern. `prz`
-shows the potential reversal zone bounds, and `confidence` is a simple
-heuristic based on the number of recognised points.
+`points` lists the five pivot locations forming the pattern. ``prz``
+shows the potential reversal zone bounds, and ``confidence`` is a simple
+heuristic based on the number of recognised points.  The top-level
+``prz`` aggregates the minimum and maximum across all detected pattern
+points using ``{"low": min_price, "high": max_price}`` and ``confidence``
+summarises pattern confidence scores.
 
 ## Tolerance settings
 
@@ -66,8 +70,8 @@ bars = pd.DataFrame({
 
 proc = AdvancedProcessor()
 analysis = proc.process(bars)
-analysis.update(HarmonicProcessor().analyze(bars))
-print(analysis["harmonic_patterns"])  # list of detected patterns
+analysis["harmonic"] = HarmonicProcessor().analyze(bars)["harmonic"].model_dump()
+print(analysis["harmonic"]["harmonic_patterns"])  # list of detected patterns
 ```
 
 The combined `analysis` dictionary now includes harmonic pattern

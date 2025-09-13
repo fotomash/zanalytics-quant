@@ -5,6 +5,7 @@ from types import ModuleType, SimpleNamespace
 import pytest
 from pydantic import BaseModel
 
+
 # Stub out the broken `schemas` package with the minimal models required
 class AnalysisPayload(BaseModel):
     symbol: str
@@ -12,40 +13,57 @@ class AnalysisPayload(BaseModel):
     timestamp: int | float
     data: dict = {}
 
+
 class PredictiveScorerResult(BaseModel):
     maturity_score: float = 0.0
     grade: str | None = None
     confidence_factors: list = []
     extras: dict = {}
 
+
 class ConflictDetectionResult(BaseModel):
     is_conflict: bool
+
 
 class PredictiveAnalysisResult(BaseModel):
     scorer: PredictiveScorerResult
     conflict_detection: ConflictDetectionResult
+
 
 class ISPTSPipelineResult(BaseModel):
     context_analyzer: dict = {}
     liquidity_engine: dict = {}
     structure_validator: dict = {}
     fvg_locator: dict = {}
+    harmonic_processor: object = None
+
 
 class MarketContext(BaseModel):
     symbol: str
     timeframe: str
 
+
 class TechnicalIndicators(BaseModel):
     pass
+
 
 class SMCAnalysis(BaseModel):
     pass
 
+
 class WyckoffAnalysis(BaseModel):
     pass
 
+
 class MicrostructureAnalysis(BaseModel):
     pass
+
+
+class HarmonicResult(BaseModel):
+    harmonic_patterns: list = []
+    prz: dict = {}
+    confidence: float = 0.0
+
 
 class UnifiedAnalysisPayloadV1(BaseModel):
     symbol: str
@@ -58,12 +76,13 @@ class UnifiedAnalysisPayloadV1(BaseModel):
     microstructure: MicrostructureAnalysis
     predictive_analysis: PredictiveAnalysisResult
     ispts_pipeline: ISPTSPipelineResult
-    harmonic: dict = {}
+
 
 schemas_module = ModuleType("schemas")
 schemas_module.ISPTSPipelineResult = ISPTSPipelineResult
 schemas_module.MarketContext = MarketContext
 schemas_module.MicrostructureAnalysis = MicrostructureAnalysis
+schemas_module.HarmonicResult = HarmonicResult
 schemas_module.PredictiveAnalysisResult = PredictiveAnalysisResult
 schemas_module.SMCAnalysis = SMCAnalysis
 schemas_module.TechnicalIndicators = TechnicalIndicators
@@ -78,13 +97,19 @@ predictive_module.ConflictDetectionResult = ConflictDetectionResult
 predictive_module.PredictiveScorerResult = PredictiveScorerResult
 
 agent_profile_module = ModuleType("schemas.agent_profile_schemas")
+
+
 class PipelineConfig(BaseModel):
     stages: list[str] = []
+
+
 class SessionManifest(BaseModel):
     version: str = "1.0"
     instrument_pair: str
     timeframe: str
     topics: object
+
+
 agent_profile_module.PipelineConfig = PipelineConfig
 agent_profile_module.SessionManifest = SessionManifest
 
@@ -195,6 +220,7 @@ def test_stage_order_and_success_publishes_output(monkeypatch):
         def _stage(state):
             calls.append(name)
             return {"name": name}
+
         return _stage
 
     stage_map = {name: stage_factory(name) for name in stages}

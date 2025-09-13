@@ -17,7 +17,11 @@ AdvancedProcessor = module.AdvancedProcessor
 
 def detect_harmonic_patterns(df: pd.DataFrame) -> dict:
     """Convenience wrapper for harmonic pattern analysis."""
-    return HarmonicProcessor().analyze(df)
+    result = HarmonicProcessor().analyze(df)
+    harmonic = result.get("harmonic")
+    if hasattr(harmonic, "model_dump"):
+        return harmonic.model_dump()
+    return harmonic
 
 
 def _generate_abcd_dataframe(bullish: bool = True) -> pd.DataFrame:
@@ -163,24 +167,24 @@ def test_elliott_wave_bearish_impulse():
 
 
 def test_elliott_wave_empty_dataframe():
-    df = pd.DataFrame(
-        columns=["open", "high", "low", "close"]
-    )
+    df = pd.DataFrame(columns=["open", "high", "low", "close"])
     processor = AdvancedProcessor(fractal_bars=1)
     result = processor.process(df, wave_only=True)
     assert result == {}
 
 
-@patch('utils.processors.advanced.AdvancedProcessor._llm_infer')
+@patch("utils.processors.advanced.AdvancedProcessor._llm_infer")
 def test_elliott_wave_llm_integration_mocked(mock_llm_infer, sample_df):
     mock_llm_infer.return_value = "Mocked LLM Forecast"
     processor = AdvancedProcessor(fractal_bars=1)
     result = processor.process(sample_df)
-    
+
     assert mock_llm_infer.called
     assert "ewt_forecast" in result
     assert result["ewt_forecast"] == "Mocked LLM Forecast"
-    assert result["elliott_wave"]["label"] == "impulse_bullish"  # Ensure elliott wave still processed
+    assert (
+        result["elliott_wave"]["label"] == "impulse_bullish"
+    )  # Ensure elliott wave still processed
 
 
 def test_detect_harmonic_patterns_bullish():

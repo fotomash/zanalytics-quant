@@ -11,16 +11,8 @@ from qdrant_client import QdrantClient
 from core.harmonic_processor import HarmonicProcessor as PatternAnalyzer
 from enrichment.enrichment_engine import run_data_module
 from services.mcp2.vector.embeddings import embed
-from utils.processors.harmonic import HarmonicStorageProcessor as QdrantUploader
 
 
-def _pattern_to_text(pattern: Dict[str, Any]) -> str:
-    """Return a simple text description of a harmonic pattern."""
-
-    name = pattern.get("pattern", "")
-    prz = pattern.get("prz", {})
-    confidence = float(pattern.get("confidence", 0.0))
-    return f"{name} conf {confidence:.3f} PRZ {prz.get('min')} {prz.get('max')}"
 
 
 def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
@@ -33,12 +25,15 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         engine_factory=lambda: PatternAnalyzer(**config),
     )
     if state.get("status") != "FAIL":
-        result = {
-            "harmonic_patterns": state.get("harmonic_patterns", []),
-            "prz": state.get("prz", []),
-            "confidence": state.get("confidence", []),
-        }
-        state["HarmonicProcessor"] = result
+        harmonic = state.get("harmonic")
+        if isinstance(harmonic, HarmonicResult):
+            harmonic_dict = harmonic.model_dump()
+        elif isinstance(harmonic, dict):
+            harmonic_dict = harmonic
+        else:
+            harmonic_dict = {}
+        state["harmonic"] = harmonic_dict
+        state["HarmonicProcessor"] = harmonic_dict
     return state
 
     if not config.get("upload"):
