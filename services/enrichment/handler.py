@@ -9,7 +9,8 @@ from utils.analysis_engines import build_unified_analysis
 from schemas.behavioral import AnalysisPayload
 from schemas import UnifiedAnalysisPayloadV1
 from services.common import get_logger
-from services.enrichment.dashboard_adapter import to_dashboard_payload
+from .dashboard_payload import build_harmonic_dashboard_payload
+
 
 logger = get_logger(__name__)
 
@@ -44,9 +45,16 @@ def on_message(ctx: Dict[str, Any], msg: Message) -> None:
         serialized = payload.model_dump_json(exclude_none=False).encode("utf-8")
         ctx["producer"].produce("enriched-analysis-payloads", value=serialized)
 
-        bars = tick.get("bars") or tick.get("data", {}).get("bars")
-        dashboard_payload = to_dashboard_payload(payload, bars)
-        ctx["redis"].xadd("harmonics", {"data": json.dumps(dashboard_payload)})
+        # Build and emit dashboard-friendly harmonic payload
+        bars = tick.get("bars") or tick.get("data", {}).get("bars", [])
+        dashboard_payload = build_harmonic_dashboard_payload(payload, bars)
+        serialized_dashboard = json.dumps(dashboard_payload).encode("utf-8")
+        try:
+            ctx["producer"].produce("harmonics", value=serialized_dashboard)
+            ctx["redis"].xadd("harmonics", {"data": serialized_dashboard.decode("utf-8")})
+        except Exception as emit_exc:  # pragma: no cover - non-critical emit errors
+            logger.warning("failed to emit harmonic payload: %s", emit_exc)
+
         decision = "produced_payload"
     except Exception as e:  # pragma: no cover - log and continue
         logger.exception("analysis error: %s", e)

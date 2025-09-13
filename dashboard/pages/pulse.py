@@ -128,7 +128,7 @@ def render_harmonic_chart(
                 )
             )
 
-        # PRZ shading
+        # PRZ shading using converted low/high fields
         prz_low = pattern.get("prz_low")
         prz_high = pattern.get("prz_high")
         if prz_low is not None and prz_high is not None:
@@ -159,6 +159,14 @@ payload = fetch_latest_message()
 if payload is None:
     st.info("No harmonic data available from streams.")
     st.stop()
+
+# Display basic metadata from converted payload
+symbol = payload.get("symbol", "Unknown")
+ts = payload.get("timestamp", "")
+if ts:
+    st.caption(f"{symbol} – {ts}")
+else:
+    st.caption(symbol)
 
 # Prepare dataframe
 ohlc = pd.DataFrame(payload.get("ohlc", []))
