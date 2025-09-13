@@ -100,16 +100,16 @@ def test_elliott_wave_consecutive_same_type_pivots():
 def test_elliott_wave_bearish_impulse():
     df = pd.DataFrame(
         {
-            "open": [100, 90, 95, 80, 85, 70, 75, 60, 65, 50],
-            "high": [100, 90, 95, 80, 85, 70, 75, 60, 65, 50],
-            "low": [98, 88, 93, 78, 83, 68, 73, 58, 63, 48],
-            "close": [99, 89, 94, 79, 84, 69, 74, 59, 64, 49],
+            "open": [10, 100, 90, 95, 80, 85, 70, 75, 60, 65, 50, 60], # Added 60 at end
+            "high": [10, 100, 90, 95, 80, 85, 70, 75, 60, 65, 50, 60],
+            "low": [8, 98, 88, 93, 78, 83, 68, 73, 58, 63, 48, 58],
+            "close": [9, 99, 89, 94, 79, 84, 69, 74, 59, 64, 49, 59],
         }
     )
     processor = AdvancedProcessor(fractal_bars=1)
     result = processor.process(df)
-    assert result["pivots"]["peaks"] == [0, 2, 4, 6, 8]
-    assert result["pivots"]["troughs"] == [1, 3, 5, 7, 9]
+    assert result["pivots"]["peaks"] == [1, 3, 5, 7, 9]
+    assert result["pivots"]["troughs"] == [2, 4, 6, 8, 10]
     assert result["elliott_wave"]["label"] == "impulse_bearish"
     assert result["elliott_wave"]["score"] > 0.5
 

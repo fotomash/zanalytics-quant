@@ -451,16 +451,12 @@ class AdvancedProcessor:
             [(i, "peak") for i in pivots.get("peaks", [])]
             + [(i, "trough") for i in pivots.get("troughs", [])]
         )
-        print(f"DEBUG: elliott_wave - Pivots: {pivots}")
-        print(f"DEBUG: elliott_wave - Points: {points}")
 
         if len(points) < 5:
             return {"label": None, "score": 0.0}
 
         seq = points[:5]
         types = [t for _, t in seq]
-        print(f"DEBUG: elliott_wave - Seq: {seq}")
-        print(f"DEBUG: elliott_wave - Types: {types}")
         if any(types[i] == types[i + 1] for i in range(len(types) - 1)):
             return {"label": None, "score": 0.0}
 
@@ -567,10 +563,10 @@ class AdvancedProcessor:
             patterns = detect_harmonic_patterns(df, pivots)
             elliott = self.elliott_wave(df, pivots, fractals, gator)
             forecast = ""
-            print(f"DEBUG: process - Elliott Label: {elliott.get('label')}")
-            forecast = self._llm_infer(
-                f"Provide brief forecast for {elliott['label']} with score {elliott['score']:.2f}"
-            )
+            if elliott.get("label"):
+                forecast = self._llm_infer(
+                    f"Provide brief forecast for {elliott['label']} with score {elliott['score']:.2f}"
+                )
             return {
                 "fractals": fractals,
                 "alligator": gator,
