@@ -13,6 +13,7 @@
 
 - Ensure `DJANGO_SECRET_KEY` only set once with default fallback
 - Provide `SLACK_WEBHOOK_URL` in the environment for Alertmanager Slack alerts
+- Provide `PUSHOVER_TOKEN` and `PUSHOVER_USER_KEY` in the environment for Pushover notifications
 - Celery/Celery Beat:
   - `entrypoint`: `celery -A app worker|beat`
   - `PYTHONPATH` includes: `/app/backend/django:/app/agents:/app:/app/components:/app/utils:/app/backend`

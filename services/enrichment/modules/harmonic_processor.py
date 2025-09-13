@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import uuid
 from typing import Any, Dict, List
 
 from qdrant_client import QdrantClient
@@ -15,13 +16,6 @@ from services.mcp2.vector.embeddings import embed
 from utils.processors.harmonic import HarmonicVectorStore
 
 
-def _pattern_to_text(pattern: Dict[str, Any]) -> str:
-    """Return a simple text description of a harmonic pattern."""
-
-    name = pattern.get("pattern", "")
-    prz = pattern.get("prz", {})
-    confidence = float(pattern.get("confidence", 0.0))
-    return f"{name} conf {confidence:.3f} PRZ {prz.get('min')} {prz.get('max')}"
 
 
 def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
@@ -51,7 +45,8 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
 
     vectors = [embed(_pattern_to_text(p)) for p in patterns]
     payloads = [{k: v for k, v in p.items() if k != "points"} for p in patterns]
-    ids = list(range(len(patterns)))
+    ids = [str(uuid.uuid4()) for _ in patterns]
+    # Store or log these IDs so the vectors can be retrieved later from Qdrant
 
     url = os.getenv("QDRANT_URL", "http://localhost:6333")
     api_key = os.getenv("QDRANT_API_KEY")

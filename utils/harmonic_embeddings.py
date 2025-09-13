@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import uuid
 from typing import Any, Dict, Iterable, List
 
 from qdrant_client import QdrantClient
@@ -42,6 +43,8 @@ async def upsert_harmonic_patterns(
 ) -> None:
     """Embed and upsert harmonic patterns into a Qdrant collection.
 
+    The generated point IDs should be stored or logged for later retrieval.
+
     Parameters
     ----------
     patterns:
@@ -64,13 +67,14 @@ async def upsert_harmonic_patterns(
 
     vectors: List[List[float]] = []
     payloads: List[Dict[str, Any]] = []
-    ids: List[int] = []
+    ids: List[str] = []
 
-    for idx, pattern in enumerate(patterns):
+    for pattern in patterns:
         text = _pattern_to_text(pattern)
         vectors.append(embed(text))
         payloads.append({k: v for k, v in pattern.items() if k != "points"})
-        ids.append(idx)
+        ids.append(str(uuid.uuid4()))
+        # Record these IDs to reference the vectors in future queries
 
     if vectors:
         await store.upsert(vectors, payloads, ids)

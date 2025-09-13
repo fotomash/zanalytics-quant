@@ -24,6 +24,7 @@ cp .env.template .env
 
 Ensure `POSTGRES_PASSWORD` is set to a strong value; the stack will not start without it.
 Optionally set `SLACK_WEBHOOK_URL` to route Alertmanager notifications to Slack.
+Optionally set `PUSHOVER_TOKEN` and `PUSHOVER_USER_KEY` to enable Pushover alert delivery.
 
 ## 3. Configure domain records
 
