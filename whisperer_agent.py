@@ -4,11 +4,14 @@ This FastAPI application forwards incoming trading state objects to a remote
 Whisperer MCP backend.  The backend URL is configured via the ``MCP_HOST``
 environment variable, replacing the deprecated ``WHISPERER_BACKEND`` setting.
 
+Redis support is optional; if the ``redis`` package is not installed or the
+service is unavailable, ``/cluster_narrate`` will return a helpful error rather
+than failing at import time.
+
 In addition to the ``/mcp`` passthrough, the service exposes ``/cluster_narrate``
-which initialises Redis and a vector client implementing
-``search_similar_clusters`` (currently :class:`BrownVectorPipeline`) then
-delegates to :func:`WhisperEngine.cluster_narrator` to produce a narrative and
-recommendation for the supplied cluster.
+which initialises Redis (when available) and Qdrant clients then delegates to
+``WhisperEngine.cluster_narrator`` to produce a narrative and recommendation for
+the supplied cluster identifier.
 """
 
 from __future__ import annotations
@@ -18,9 +21,13 @@ from dataclasses import asdict
 from typing import Any, Dict, Optional
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import redis
+
+try:  # Redis is optional
+    import redis  # type: ignore
+except ImportError:  # pragma: no cover - handled gracefully
+    redis = None  # type: ignore
 
 from services.vectorization_service.brown_vector_store_integration import (
     BrownVectorPipeline,
@@ -103,11 +110,19 @@ async def cluster_narrate(payload: ClusterNarrateRequest):
     ``search_similar_clusters``.
     """
 
-    r = redis.Redis(
-        host=os.getenv("REDIS_HOST", "redis"),
-        port=int(os.getenv("REDIS_PORT", "6379")),
-        decode_responses=True,
-    )
+    if redis is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Redis support is not installed; cluster narration is unavailable.",
+        )
+    try:
+        r = redis.Redis(
+            host=os.getenv("REDIS_HOST", "redis"),
+            port=int(os.getenv("REDIS_PORT", "6379")),
+            decode_responses=True,
+        )
+    except Exception as exc:  # pragma: no cover - network failure
+        raise HTTPException(status_code=503, detail=f"Redis connection failed: {exc}")
     qdrant = BrownVectorPipeline()
     engine = WhisperEngine({})
     return engine.cluster_narrator(payload.cluster, r, qdrant)
@@ -127,3 +142,54 @@ async def rsi_divergence_cluster(date: str):
         cluster = await _fetch_cluster_from_vector_store(date)
     return {"date": date, "cluster": cluster}
 
+
+@app.post("/cluster_narrate")
+async def cluster_narrate(payload: ClusterPayload) -> dict:
+    """Return a narrative for the supplied cluster."""
+
+    engine = WhisperEngine({})
+
+    try:
+        import redis as _redis
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="Redis support is not installed; cluster narration is unavailable.",
+        )
+    from qdrant_client import QdrantClient
+
+    try:
+        redis_client = _redis.Redis(
+            host=os.getenv("REDIS_HOST", "localhost"),
+            port=int(os.getenv("REDIS_PORT", "6379")),
+            decode_responses=True,
+        )
+    except Exception as exc:  # pragma: no cover - network failure
+        raise HTTPException(status_code=503, detail=f"Redis connection failed: {exc}")
+
+    qdrant_client: Any = None
+    try:
+
+        class QdrantAdapter:
+            def __init__(self) -> None:
+                self._client = QdrantClient(
+                    url=os.getenv("QDRANT_URL"),
+                    api_key=os.getenv("QDRANT_API_KEY"),
+                )
+                self._collection = os.getenv("QDRANT_COLLECTION", "clusters")
+
+            def search(self, embedding, top_k: int = 3):
+                try:
+                    return self._client.search(
+                        collection_name=self._collection,
+                        query_vector=embedding,
+                        limit=top_k,
+                    )
+                except Exception:
+                    return []
+
+        qdrant_client = QdrantAdapter()
+    except Exception:
+        qdrant_client = None
+
+    return engine.cluster_narrator(payload.top_cluster, redis_client, qdrant_client)
