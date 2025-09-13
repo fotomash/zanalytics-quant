@@ -282,6 +282,7 @@ class PulseKernel:
     async def _calculate_confluence(self, data: Dict) -> Dict:
         """Run configured enrichment processors and aggregate their outputs."""
         aggregate: Dict[str, Any] = {}
+        start_time = time.perf_counter()
         for proc in self.enrichment_processors:
             module_path = proc.get("module")
             if not module_path:
@@ -317,6 +318,9 @@ class PulseKernel:
                     aggregate[key].update(value)
                 else:
                     aggregate[key] = value
+        duration = time.perf_counter() - start_time
+        if duration > 0.4:
+            logger.warning("Enrichment processors took %.3fs", duration)
         return aggregate
     
     async def _enforce_risk(self, confluence_result: Dict) -> Dict:
