@@ -65,27 +65,7 @@ def detect_harmonic_patterns(
         return []
 
 
-class RLAgent:
-    """Placeholder reinforcement-learning agent interface."""
 
-    def select_action(self, state: Dict[str, Any]) -> Any:  # pragma: no cover - stub
-        """Return an action for ``state``."""
-        return None
-
-    def update(
-        self,
-        state: Dict[str, Any],
-        action: Any,
-        reward: float,
-        next_state: Dict[str, Any],
-    ) -> None:  # pragma: no cover - stub
-        """Update internal policy from transition."""
-        return None
-
-    def train(self, episodes: int = 1) -> None:  # pragma: no cover - stub
-        """Iteratively improve the agent over ``episodes``."""
-        for _ in range(episodes):
-            pass
 
 
 class AdvancedProcessor:
@@ -108,7 +88,7 @@ class AdvancedProcessor:
         logger: logging.Logger | None = None,
         ml_ensemble: bool = False,
         llm_max_tokens: int = 256,
-        rl_agent: RLAgent | None = None,
+        
     ) -> None:
         self.fractal_bars = fractal_bars
         self.alligator_cfg = alligator or {"jaw": 13, "teeth": 8, "lips": 5}
@@ -117,7 +97,7 @@ class AdvancedProcessor:
         self.logger = logger or logging.getLogger(__name__)
         self.ml_ensemble = ml_ensemble
         self.llm_max_tokens = llm_max_tokens
-        self.rl_agent = rl_agent
+        
 
     # ------------------------------------------------------------------
     # Fractals
@@ -581,4 +561,4 @@ class AdvancedProcessor:
             return {}
 
 
-__all__ = ["AdvancedProcessor", "RLAgent"]
+__all__ = ["AdvancedProcessor"]

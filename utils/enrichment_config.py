@@ -103,6 +103,7 @@ class ElliottConfig(BaseModel):
     llm_max_tokens: int = Field(
         256, description="Token limit for optional local LLM forecast"
     )
+    fib_levels: List[float] = Field(default_factory=lambda: [0.382, 0.618], description="List of Fibonacci levels to use for wave validation")
 
 
 class HarmonicConfig(BaseModel):
