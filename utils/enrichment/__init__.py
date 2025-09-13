@@ -109,3 +109,4 @@ from . import poi
 from .rsi import RSIProcessor
 
 __all__ = ["aggregate_ticks_to_bars", "enrich_ticks", "poi", "RSIProcessor"]
+

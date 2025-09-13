@@ -12,15 +12,16 @@ def main(
     dataframe: Any,
     metadata: Dict[str, Any],
     configs: Optional[Dict[str, Dict[str, Any]]] = None,
-    config_path: str = "config/enrichment_default.yaml",
+    config_path: str = "config/enrichment_vectorized.yaml",
 ) -> Dict[str, Any]:
     """Execute the enrichment pipeline and return its final state.
 
     Configuration is loaded from ``config_path`` and validated using
-    :class:`~utils.enrichment_config.EnrichmentConfig`.  To enable harmonic
-    pattern enrichment with vector database persistence, pass
-    ``config/enrichment_harmonic.yaml``.  Any configs passed explicitly will
-    override the defaults.
+    :class:`~utils.enrichment_config.EnrichmentConfig`.  The default
+    configuration ``config/enrichment_vectorized.yaml`` enables the
+    vectorized enrichment modules. To enable harmonic pattern enrichment
+    with vector database persistence, pass ``config/enrichment_harmonic.yaml``.
+    Any configs passed explicitly will override the defaults.
     """
 
     base_cfg = load_enrichment_config(config_path).to_module_configs()

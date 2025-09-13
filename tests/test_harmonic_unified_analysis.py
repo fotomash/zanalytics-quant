@@ -16,13 +16,7 @@ def _import_analysis_engines():
     cps = ModuleType("core.predictive_scorer")
     cps.PredictiveScorer = DummyPredictiveScorer
     sys.modules["core.predictive_scorer"] = cps
-    sys.modules.pop("schemas", None)
-    sys.modules.pop("schemas.predictive_schemas", None)
-    sys.modules.pop("schemas.behavioral", None)
-    ps = importlib.import_module("schemas.predictive_schemas")
-    sys.modules["schemas.predictive_schemas"] = ps
-    if "utils.analysis_engines" in sys.modules:
-        importlib.reload(sys.modules["utils.analysis_engines"])
+    sys.modules.pop("utils.analysis_engines", None)
     return importlib.import_module("utils.analysis_engines")
 
 
@@ -36,8 +30,8 @@ def test_build_unified_analysis_includes_harmonic():
         "timestamp": 0,
         "harmonic": {
             "harmonic_patterns": [{"pattern": "bat"}],
-            "prz": [{"low": 1.0, "high": 1.2}],
-            "confidence": [0.9],
+            "prz": {"low": 1.0, "high": 1.2},
+            "confidence": 0.9,
         },
     }
     payload = ae.build_unified_analysis(tick, cfg)

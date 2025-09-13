@@ -7,3 +7,17 @@ processors:
   - module: services.enrichment.modules.context_analyzer
     enabled: false
     settings: {}
+  - module: utils.enrichment.smc
+    enabled: false
+    settings: {}
+  - module: utils.enrichment.poi
+    enabled: false
+    settings: {}
+  - module: utils.enrichment.dss
+    enabled: false
+    settings: {}
+  - module: utils.enrichment.rsi
+    enabled: false
+    settings:
+      period: 14
+      column: close
