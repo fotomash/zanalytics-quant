@@ -29,17 +29,26 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         engine_factory=lambda: PatternAnalyzer(**config),
     )
     if state.get("status") != "FAIL":
-        result = {
-            "harmonic_patterns": state.get("harmonic_patterns", []),
-            "prz": state.get("prz", []),
-            "confidence": state.get("confidence", []),
+        patterns = state.get("harmonic_patterns", [])
+        prz = state.get("prz", [])
+        confidence = state.get("confidence", [])
+        state["harmonic_patterns"] = patterns
+        state["prz"] = prz
+        state["confidence"] = confidence
+        state["HarmonicProcessor"] = {
+            "harmonic_patterns": patterns,
+            "prz": prz,
+            "confidence": confidence,
         }
-        state["HarmonicProcessor"] = result
 
     if not config.get("upload"):
         return state
 
-    patterns: List[Dict[str, Any]] = state.get("harmonic_patterns", [])
+    module_output = state.get("HarmonicProcessor")
+    if not module_output:
+        return state
+
+    patterns: List[Dict[str, Any]] = module_output.get("harmonic_patterns", [])
     if not patterns:
         return state
 

@@ -26,15 +26,20 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         float(recent["low"].min()),
         float(recent["volume"].mean()),
     ]
-    state["poi_vector"] = vector
 
-    if config.get("upload"):
-        try:  # pragma: no cover - optional dependency
-            from analytics.vector_db_config import add_vectors
+    if vector:
+        state["poi_vector"] = vector
+        if config.get("upload"):
+            try:  # pragma: no cover - optional dependency
+                from analytics.vector_db_config import add_vectors
 
-            add_vectors([vector], [config.get("id", "poi")], [config.get("metadata", {})])
-        except Exception:
-            pass
+                add_vectors(
+                    [vector],
+                    [config.get("id", "poi")],
+                    [config.get("metadata", {})],
+                )
+            except Exception:
+                pass
 
     state.setdefault("status", "PASS")
     return state

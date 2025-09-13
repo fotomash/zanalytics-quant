@@ -23,15 +23,20 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     pct_vol = df["volume"].pct_change()
     divergence = (pct_price - pct_vol).fillna(0.0)
     vector = divergence.tail(5).astype(float).tolist()
-    state["divergence_vector"] = vector
 
-    if config.get("upload"):
-        try:  # pragma: no cover - optional dependency
-            from analytics.vector_db_config import add_vectors
+    if vector:
+        state["divergence_vector"] = vector
+        if config.get("upload"):
+            try:  # pragma: no cover - optional dependency
+                from analytics.vector_db_config import add_vectors
 
-            add_vectors([vector], [config.get("id", "divergence")], [config.get("metadata", {})])
-        except Exception:
-            pass
+                add_vectors(
+                    [vector],
+                    [config.get("id", "divergence")],
+                    [config.get("metadata", {})],
+                )
+            except Exception:
+                pass
 
     state.setdefault("status", "PASS")
     return state
