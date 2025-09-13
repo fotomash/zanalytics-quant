@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 import logging
 import pandas as pd
+from schemas.payloads import HarmonicResult
 
 
 class HarmonicPatternDetector:
@@ -132,7 +133,7 @@ class HarmonicProcessor:
         """Return harmonic pattern analysis for ``df``."""
         raw_patterns = self.detector.detect_patterns(df)
         processed: List[Dict[str, Any]] = []
-        prz_list: List[Dict[str, Any]] = []
+        all_prices: List[float] = []
         confidences: List[float] = []
         for p in raw_patterns:
             pts = [
@@ -141,25 +142,31 @@ class HarmonicProcessor:
             ]
             prices = [pt["price"] for pt in pts]
             if prices:
-                prz = {"min": min(prices), "max": max(prices)}
+                pattern_prz = {"min": min(prices), "max": max(prices)}
+                all_prices.extend(prices)
             else:
-                prz = {"min": None, "max": None}
+                pattern_prz = {"min": None, "max": None}
             confidence = float(len(pts)) / 5 if pts else 0.0
             processed.append(
                 {
                     "pattern": p.get("pattern"),
                     "points": pts,
-                    "prz": prz,
+                    "prz": pattern_prz,
                     "confidence": confidence,
                 }
             )
-            prz_list.append(prz)
             confidences.append(confidence)
-        return {
-            "harmonic_patterns": processed,
-            "prz": prz_list,
-            "confidence": confidences,
-        }
+        if all_prices:
+            prz_bounds = {"low": min(all_prices), "high": max(all_prices)}
+        else:
+            prz_bounds = {}
+        aggregate_confidence = max(confidences) if confidences else 0.0
+        result = HarmonicResult(
+            harmonic_patterns=processed,
+            prz=prz_bounds,
+            confidence=aggregate_confidence,
+        )
+        return {"harmonic": result}
 
 
 __all__ = ["HarmonicProcessor", "HarmonicPatternDetector"]

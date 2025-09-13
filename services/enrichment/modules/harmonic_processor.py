@@ -6,6 +6,7 @@ from typing import Any, Dict
 
 from core.harmonic_processor import HarmonicProcessor
 from enrichment.enrichment_engine import run_data_module
+from schemas.payloads import HarmonicResult
 
 
 def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
@@ -16,12 +17,15 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         engine_factory=lambda: HarmonicProcessor(**config),
     )
     if state.get("status") != "FAIL":
-        result = {
-            "harmonic_patterns": state.get("harmonic_patterns", []),
-            "prz": state.get("prz", []),
-            "confidence": state.get("confidence", []),
-        }
-        state["HarmonicProcessor"] = result
+        harmonic = state.get("harmonic")
+        if isinstance(harmonic, HarmonicResult):
+            harmonic_dict = harmonic.model_dump()
+        elif isinstance(harmonic, dict):
+            harmonic_dict = harmonic
+        else:
+            harmonic_dict = {}
+        state["harmonic"] = harmonic_dict
+        state["HarmonicProcessor"] = harmonic_dict
     return state
 
 
