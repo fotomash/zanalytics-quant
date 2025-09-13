@@ -71,10 +71,6 @@ def build_unified_analysis(
         liquidity_engine={},
         structure_validator={},
         fvg_locator={},
-        harmonic_processor={},
-        risk_manager={},
-        confluence_stacker={},
-        harmonic=HarmonicResult(),
     )
 
     symbol = tick.get("symbol", "UNKNOWN")
@@ -116,7 +112,6 @@ def build_unified_analysis(
         if patterns:
             harmonic_data["harmonic_patterns"] = patterns
     harmonic = HarmonicResult(**harmonic_data) if harmonic_data else HarmonicResult()
-    pipeline.harmonic = harmonic
 
     if bars and cfg.structure.wyckoff:
         try:  # pragma: no cover - optional dependency/data
