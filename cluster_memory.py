@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+import logging
 
 try:
     import redis
@@ -70,11 +72,14 @@ def _get_vector_pipeline() -> Optional[BrownVectorPipeline]:
     return _vector_pipeline
 
 
+logger = logging.getLogger(__name__)
+
+
 def store_cluster_context(
     cluster_id: str,
     context: Dict[str, Any],
     embedding: Optional[List[float]] = None,
-) -> None:
+) -> bool:
     """Persist ``context`` for ``cluster_id`` in Redis and optionally Qdrant.
 
     Parameters
@@ -87,14 +92,24 @@ def store_cluster_context(
         Optional vector representation of the cluster context. When provided and
         a vector store is configured, the embedding is upserted using
         :class:`BrownVectorPipeline`.
+
+    Returns
+    -------
+    bool
+        ``True`` if all storage operations succeeded, ``False`` otherwise.
     """
 
+    success = True
     bridge = _get_redis_bridge()
     if bridge is not None:
         try:
             bridge.redis.set(f"cluster:context:{cluster_id}", json.dumps(context))
-        except Exception:  # pragma: no cover - Redis failures are environment specific
-            pass
+        except Exception as exc:  # pragma: no cover - Redis failures are environment specific
+            logger.exception("Failed to store context for %s in Redis", cluster_id)
+            success = False
+    else:
+        logger.warning("Redis bridge unavailable; context for %s not stored", cluster_id)
+        success = False
 
     if embedding is not None:
         pipeline = _get_vector_pipeline()
@@ -105,8 +120,18 @@ def store_cluster_context(
                     embedding,
                     {"cluster_id": cluster_id},
                 )
-            except Exception:  # pragma: no cover - network failures
-                pass
+            except Exception as exc:  # pragma: no cover - network failures
+                logger.exception(
+                    "Failed to upsert embedding for %s to vector store", cluster_id
+                )
+                success = False
+        else:
+            logger.warning(
+                "Vector pipeline unavailable; embedding for %s not stored", cluster_id
+            )
+            success = False
+
+    return success
 
 
 def fetch_cluster_context(cluster_id: str) -> Dict[str, Any]:
@@ -130,7 +155,7 @@ def search_similar_clusters(
     embedding: List[float],
     top_k: int = 5,
     collection_name: str = "clusters",
-) -> List[Dict[str, Any]]:
+) -> Tuple[List[Dict[str, Any]], bool]:
     """Search the vector store for clusters similar to ``embedding``.
 
     Parameters
@@ -144,16 +169,22 @@ def search_similar_clusters(
 
     Returns
     -------
-    List[Dict[str, Any]]
-        Search results returned by the vector store. When the backend is
-        unavailable an empty list is returned.
+    Tuple[List[Dict[str, Any]], bool]
+        A tuple of search results and a success flag. When the backend is
+        unavailable or an error occurs, an empty list and ``False`` are
+        returned.
     """
 
     pipeline = _get_vector_pipeline()
     if pipeline is None:
-        return []
+        logger.warning("Vector pipeline unavailable; search cannot be performed")
+        return [], False
 
     try:
-        return pipeline.search_similar_clusters(collection_name, embedding, top_k)
-    except Exception:  # pragma: no cover - network failures
-        return []
+        return (
+            pipeline.search_similar_clusters(collection_name, embedding, top_k),
+            True,
+        )
+    except Exception as exc:  # pragma: no cover - network failures
+        logger.exception("Vector search failed for provided embedding")
+        return [], False

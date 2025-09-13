@@ -44,12 +44,6 @@ VECTOR_SEARCH_URL = os.getenv("VECTOR_SEARCH_URL")
 app = FastAPI(title="Whisperer MCP")
 
 
-class ClusterPayload(BaseModel):
-    """Request body for ``/cluster_narrate`` containing the top cluster."""
-
-    top_cluster: dict
-
-
 @app.post("/mcp")
 async def mcp(state: State):
     """Forward the trading state to the configured MCP host."""
