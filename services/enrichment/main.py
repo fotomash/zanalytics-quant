@@ -17,8 +17,10 @@ def main(
     """Execute the enrichment pipeline and return its final state.
 
     Configuration is loaded from ``config_path`` and validated using
-    :class:`~utils.enrichment_config.EnrichmentConfig`.  Any configs passed
-    explicitly will override the defaults.
+    :class:`~utils.enrichment_config.EnrichmentConfig`.  To enable harmonic
+    pattern enrichment with vector database persistence, pass
+    ``config/enrichment_harmonic.yaml``.  Any configs passed explicitly will
+    override the defaults.
     """
 
     base_cfg = load_enrichment_config(config_path).to_module_configs()
