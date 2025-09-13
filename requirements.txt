@@ -17,6 +17,8 @@ confluent-kafka==2.3.0
 # Embeddings and vector search
 pinecone-client==6.0.0
 qdrant-client==1.15.1  # Vector DB client
+pandas==2.2.2
+pyarrow==15.0.2
 # metrics
 prometheus_client==0.22.1
 # MCP2 service dependencies

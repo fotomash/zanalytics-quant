@@ -50,3 +50,4 @@ def test_score_embedding_handles_errors():
         assert avg_pnl == 0.0
         assert win_rate == 0.0
         assert payloads == []
+

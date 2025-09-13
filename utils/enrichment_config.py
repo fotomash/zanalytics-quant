@@ -13,7 +13,7 @@ under the ``config`` mapping of each subgroup if needed.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, List
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
@@ -155,10 +155,10 @@ class AdvancedConfig(BaseModel):
 class EnrichmentConfig(BaseModel):
     """Top-level enrichment configuration."""
 
-    core: CoreConfig = CoreConfig()
-    technical: TechnicalConfig = TechnicalConfig()
-    structure: StructureConfig = StructureConfig()
-    advanced: AdvancedConfig = AdvancedConfig()
+    core: CoreConfig = Field(default_factory=CoreConfig)
+    technical: TechnicalConfig = Field(default_factory=TechnicalConfig)
+    structure: StructureConfig = Field(default_factory=StructureConfig)
+    advanced: AdvancedConfig = Field(default_factory=AdvancedConfig)
     vector_db: VectorDBConfig = Field(default_factory=VectorDBConfig)
     embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
 
@@ -191,6 +191,7 @@ class EnrichmentConfig(BaseModel):
                 "enabled": self.advanced.elliott.enabled,
                 "ml_ensemble": self.advanced.elliott.ml_ensemble,
                 "llm_max_tokens": self.advanced.elliott.llm_max_tokens,
+                "fib_levels": self.advanced.elliott.fib_levels,
             },
             "harmonic_processor": {
                 "enabled": self.advanced.harmonic.enabled,
@@ -211,12 +212,12 @@ def load_enrichment_config(
     """
 
     path = Path(path)
+    if not path.exists():
+        return EnrichmentConfig() # Return a default, valid config
+
     data: Dict[str, Any]
-    if path.exists():
-        with path.open("r", encoding="utf-8") as fh:
-            data = yaml.safe_load(fh) or {}
-    else:  # pragma: no cover - file missing handled gracefully
-        data = {}
+    with path.open("r", encoding="utf-8") as fh:
+        data = yaml.safe_load(fh) or {}
 
     missing = []
     if not data.get("vector_db", {}).get("collection"):
@@ -233,6 +234,9 @@ def load_enrichment_config(
     cfg = EnrichmentConfig.model_validate(data)
     return cfg
 
+
+AdvancedConfig.model_rebuild()
+EnrichmentConfig.model_rebuild()
 
 __all__ = [
     "CoreConfig",
