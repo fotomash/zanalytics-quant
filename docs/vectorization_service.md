@@ -68,4 +68,5 @@ Configuration for Qdrant is provided via environment variables:
 }
 ```
 
-The vector store receives the payload via an HTTP `POST` to `${QDRANT_URL}/upsert` with the JSON body above.
+The vector store receives the payload via an HTTP `POST` to `${QDRANT_URL}/upsert` with the JSON body above. Qdrant returns the
+ID associated with each point; store or log this identifier for later retrieval.

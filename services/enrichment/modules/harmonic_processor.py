@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import uuid
 from typing import Any, Dict, List
 
 from qdrant_client import QdrantClient
@@ -24,7 +25,10 @@ def _pattern_to_text(pattern: Dict[str, Any]) -> str:
 
 
 def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
-    """Populate ``state`` with harmonic pattern analysis and upload vectors."""
+    """Populate ``state`` with harmonic pattern analysis and upload vectors.
+
+    The generated Qdrant IDs should be stored or logged for later retrieval.
+    """
 
 
     state = run_data_module(
@@ -50,7 +54,8 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
 
     vectors = [embed(_pattern_to_text(p)) for p in patterns]
     payloads = [{k: v for k, v in p.items() if k != "points"} for p in patterns]
-    ids = list(range(len(patterns)))
+    ids = [str(uuid.uuid4()) for _ in patterns]
+    # Store or log these IDs so the vectors can be retrieved later from Qdrant
 
     url = os.getenv("QDRANT_URL", "http://localhost:6333")
     api_key = os.getenv("QDRANT_API_KEY")
