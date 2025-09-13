@@ -7,8 +7,7 @@ information:
 * ``wyckoff_phase`` – placeholder phase detection (falls back to ``"Unknown"``)
 * ``confidence`` – aggregated weight from a confidence matrix JSON file
 * ``nudge`` – human‑readable summary combining phase and confidence
-* ``embedding`` – dense vector representation of the ``nudge`` text using a
-  ``SentenceTransformer`` model
+* ``embedding_id`` – identifier of the vector representation stored in Qdrant
 
 The module also exposes helpers for loading the manifest and confidence matrix
 files so they can be validated independently.
@@ -18,8 +17,14 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+import os
 import uuid
 from typing import Any, Dict, List, TYPE_CHECKING
+
+try:  # pragma: no cover - optional dependency
+    from qdrant_client import QdrantClient
+except Exception:  # pragma: no cover - Qdrant optional
+    QdrantClient = None  # type: ignore
 
 try:
     from services.mcp2 import llm_config
@@ -50,6 +55,8 @@ class _MockSentenceTransformer:
 
 
 _MODEL: "SentenceTransformer | _MockSentenceTransformer | None" = None
+
+_QDRANT_CLIENT: "QdrantClient | None" = None
 
 
 def _get_model() -> "SentenceTransformer | _MockSentenceTransformer":
@@ -113,6 +120,55 @@ def _generate_trade_id(trade_id: str | None = None) -> str:
     return trade_id or uuid.uuid4().hex
 
 
+def _get_qdrant_client() -> "QdrantClient | None":
+    """Return a cached Qdrant client if the library is available."""
+
+    global _QDRANT_CLIENT
+    if _QDRANT_CLIENT is None and QdrantClient is not None:
+        try:  # pragma: no cover - simple client creation
+            url = os.environ.get("QDRANT_URL", "http://localhost:6333")
+            api_key = os.environ.get("QDRANT_API_KEY")
+            _QDRANT_CLIENT = QdrantClient(url=url, api_key=api_key)
+        except Exception:
+            _QDRANT_CLIENT = None
+    return _QDRANT_CLIENT
+
+
+def _store_embedding(embedding: List[float]) -> str:
+    """Persist *embedding* to Qdrant and return the point ID."""
+
+    point_id = uuid.uuid4().hex
+    client = _get_qdrant_client()
+    if client is None:
+        return point_id
+    try:  # pragma: no cover - network side effects
+        from qdrant_client.http.models import PointStruct
+
+        collection = os.environ.get("QDRANT_COLLECTION", "enriched")
+        client.upsert(collection_name=collection, points=[PointStruct(id=point_id, vector=embedding)])
+    except Exception:
+        pass
+    return point_id
+
+
+def get_embedding(point_id: str) -> List[float] | None:
+    """Retrieve the embedding vector for *point_id* from Qdrant."""
+
+    client = _get_qdrant_client()
+    if client is None:
+        return None
+    try:  # pragma: no cover - network side effects
+        collection = os.environ.get("QDRANT_COLLECTION", "enriched")
+        res = client.retrieve(collection_name=collection, ids=[point_id])
+        if res:
+            vector = getattr(res[0], "vector", None)
+            if vector is not None:
+                return list(vector)
+    except Exception:
+        return None
+    return None
+
+
 def enrich_ticks(
     ticks: list[dict],
     *,
@@ -133,7 +189,7 @@ def enrich_ticks(
     -------
     list[dict]
         Enriched tick dictionaries including ``trade_id``, ``phase``,
-        ``confidence``, ``nudge``, ``embedding`` and optionally ``echonudge``
+        ``confidence``, ``nudge``, ``embedding_id`` and optionally ``echonudge``
         for locally handled ticks.
     """
 
@@ -159,12 +215,14 @@ def enrich_ticks(
         # Simple nudge text combining manifest name and phase/confidence
         nudge = f"{model_name} sees {phase} phase with confidence {confidence:.2f}"
 
-        # Embedding vector for the nudge text
+        # Embedding vector for the nudge text is stored in Qdrant
         embedding = model.encode(nudge)
         if hasattr(embedding, "tolist"):
             embedding = embedding.tolist()
         else:  # pragma: no cover - mock model already returns list
             embedding = list(embedding)
+
+        embedding_id = _store_embedding(embedding)
 
         data.update(
             {
@@ -173,7 +231,7 @@ def enrich_ticks(
                 "phase": phase,
                 "confidence": confidence,
                 "nudge": nudge,
-                "embedding": embedding,
+                "embedding_id": embedding_id,
             }
         )
 
@@ -193,4 +251,4 @@ def enrich_ticks(
     return enriched
 
 
-__all__ = ["enrich_ticks", "load_manifest", "load_confidence_matrix"]
+__all__ = ["enrich_ticks", "load_manifest", "load_confidence_matrix", "get_embedding"]

@@ -1,7 +1,7 @@
+import sys
+import types
 import uuid
 from pathlib import Path
-import types
-import sys
 
 import pytest
 
@@ -19,7 +19,7 @@ sys.modules.setdefault(
     "sentence_transformers", types.SimpleNamespace(SentenceTransformer=lambda *a, **k: _StubModel())
 )
 
-from utils.enrich import load_manifest, load_confidence_matrix
+import utils.enrich as enrich_mod
 from utils import enrich_ticks
 
 DATA_DIR = Path(__file__).parent / "enrich_samples"
@@ -28,8 +28,8 @@ MATRIX_PATH = DATA_DIR / "matrix.json"
 
 
 def test_load_manifest_and_matrix():
-    manifest = load_manifest(MANIFEST_PATH)
-    matrix = load_confidence_matrix(MATRIX_PATH)
+    manifest = enrich_mod.load_manifest(MANIFEST_PATH)
+    matrix = enrich_mod.load_confidence_matrix(MATRIX_PATH)
     assert manifest["schema_version"] == "v1"
     assert "raw_calculation" in matrix
 
@@ -41,10 +41,22 @@ def test_trade_id_generation():
     uuid.UUID(enriched["trade_id"])
 
 
-def test_embedding_vector_shape():
+def test_embedding_vector_shape(monkeypatch):
+    store: dict[str, list[float]] = {}
+
+    def fake_store(embedding):
+        pid = uuid.uuid4().hex
+        store[pid] = embedding
+        return pid
+
+    monkeypatch.setattr("utils.enrich._store_embedding", fake_store)
+    monkeypatch.setattr("utils.enrich.get_embedding", lambda pid: store.get(pid))
+
     enriched = enrich_ticks([{}], manifest_path=MANIFEST_PATH, matrix_path=MATRIX_PATH)[0]
-    assert isinstance(enriched["embedding"], list)
-    assert enriched["embedding"], "embedding should not be empty"
+    pid = enriched["embedding_id"]
+    embedding = enrich_mod.get_embedding(pid)
+    assert isinstance(embedding, list)
+    assert embedding, "embedding should not be empty"
 
 
 def test_embedding_fallback(monkeypatch):
@@ -64,8 +76,19 @@ def test_embedding_fallback(monkeypatch):
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
 
+    store: dict[str, list[float]] = {}
+
+    def fake_store(embedding):
+        pid = "id"
+        store[pid] = embedding
+        return pid
+
+    monkeypatch.setattr("utils.enrich._store_embedding", fake_store)
+    monkeypatch.setattr("utils.enrich.get_embedding", lambda pid: store.get(pid))
+
     enriched = enrich_ticks([{}], manifest_path=MANIFEST_PATH, matrix_path=MATRIX_PATH)[0]
-    assert enriched["embedding"] == [0.0] * 384
+    assert enriched["embedding_id"] == "id"
+    assert store["id"] == [0.0] * 384
 
 
 def test_echonudge_phase_routing():
@@ -84,7 +107,7 @@ def test_echonudge_threshold(monkeypatch):
     assert "echonudge" in enriched[0]
 
 
-@pytest.mark.parametrize("loader", [load_manifest, load_confidence_matrix])
+@pytest.mark.parametrize("loader", [enrich_mod.load_manifest, enrich_mod.load_confidence_matrix])
 def test_loader_missing_file(loader, tmp_path):
     missing = tmp_path / "missing.json"
     with pytest.raises(ValueError) as exc:
@@ -92,7 +115,7 @@ def test_loader_missing_file(loader, tmp_path):
     assert "does not exist" in str(exc.value)
 
 
-@pytest.mark.parametrize("loader", [load_manifest, load_confidence_matrix])
+@pytest.mark.parametrize("loader", [enrich_mod.load_manifest, enrich_mod.load_confidence_matrix])
 def test_loader_invalid_json(loader, tmp_path):
     bad = tmp_path / "bad.json"
     bad.write_text("{invalid json", encoding="utf-8")
