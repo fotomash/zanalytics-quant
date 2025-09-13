@@ -105,6 +105,24 @@ class HarmonicPattern(BaseModel):
         0.0, description="Confidence score for the pattern",
     )
 
+
+class HarmonicResult(BaseModel):
+    """Aggregated harmonic pattern detection results."""
+
+    harmonic_patterns: List[HarmonicPattern] = Field(
+        default_factory=list,
+        description="Detected harmonic patterns",
+    )
+    prz: List[Dict[str, float]] = Field(
+        default_factory=list,
+        description="Potential reversal zone boundaries for each pattern",
+    )
+    confidence: List[float] = Field(
+        default_factory=list,
+        description="Confidence scores corresponding to detected patterns",
+    )
+
+
 class PredictiveAnalysisResult(BaseModel):
     """Aggregated predictive scoring and conflict detection."""
 

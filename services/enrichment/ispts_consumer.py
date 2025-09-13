@@ -36,6 +36,7 @@ from core.predictive_scorer import PredictiveScorer
 from core.session_journal import SessionJournal
 from schemas import (
     ISPTSPipelineResult,
+    HarmonicResult,
     MarketContext,
     MicrostructureAnalysis,
     PredictiveAnalysisResult,
@@ -267,6 +268,7 @@ def main() -> None:
                     smc=SMCAnalysis(),
                     wyckoff=WyckoffAnalysis(),
                     microstructure=MicrostructureAnalysis(),
+                    harmonic=HarmonicResult(**state.get("HarmonicProcessor", {})),
                     predictive_analysis=predictive,
                     ispts_pipeline=pipeline_result,
                 )
