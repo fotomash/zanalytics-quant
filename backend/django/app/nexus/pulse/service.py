@@ -4,6 +4,7 @@ import json
 from typing import Dict, Any, Optional
 import os
 import json
+import logging
 
 try:  # pandas is optional at runtime
     import pandas as pd  # type: ignore
@@ -28,6 +29,8 @@ from .gates import (
 from .confluence_score_engine import compute_confluence_score
 from .gates import KafkaJournalEngine as _KafkaJournalEngine
 import time as _time
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_bars(df: "pd.DataFrame | None") -> "pd.DataFrame | None":
@@ -129,8 +132,8 @@ def _resolve_weights(weights: Optional[Dict[str, float]] = None, *, symbol: Opti
                     w = obj.get("weights") or {}
                     if isinstance(w, dict) and w:
                         return {k: float(v) for k, v in w.items() if isinstance(v, (int, float))}
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.exception("Failed to resolve weights from Redis: %s", exc)
     # Try env var JSON: PULSE_CONF_WEIGHTS='{"context":0.2,"liquidity":0.2,"structure":0.25,"imbalance":0.15,"risk":0.15,"wyckoff":0.05}'
     try:
         raw = os.getenv('PULSE_CONF_WEIGHTS')
@@ -138,8 +141,8 @@ def _resolve_weights(weights: Optional[Dict[str, float]] = None, *, symbol: Opti
             obj = json.loads(raw)
             if isinstance(obj, dict):
                 return {k: float(v) for k, v in obj.items() if isinstance(v, (int, float))}
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.exception("Failed to parse PULSE_CONF_WEIGHTS: %s", exc)
     # Fallback defaults (Wyckoff emphasized)
     # Sum = 1.0 → Wyckoff carries highest contribution by default
     return {
@@ -167,11 +170,12 @@ def _resolve_threshold(*, symbol: Optional[str] = None, default: float = 0.6) ->
                 thr = obj.get("threshold") if isinstance(obj, dict) else None
                 if isinstance(thr, (int, float)):
                     return float(thr)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.exception("Failed to resolve threshold from Redis: %s", exc)
     try:
         return float(os.getenv('PULSE_CONF_THRESHOLD', str(default)))
-    except Exception:
+    except Exception as exc:
+        logger.exception("Failed to parse PULSE_CONF_THRESHOLD: %s", exc)
         return float(default)
 
 
@@ -192,8 +196,8 @@ def pulse_status(symbol: str, *, weights: Optional[Dict[str, float]] = None, thr
                     for k, v in obj.items()
                     if k in {"context", "liquidity", "structure", "imbalance", "risk", "confluence"}
                 }
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Failed to load demo pulse_status: %s", exc)
 
     data = _load_minute_data(symbol)
 
@@ -242,7 +246,8 @@ def pulse_status(symbol: str, *, weights: Optional[Dict[str, float]] = None, thr
             try:
                 import datetime as _dt
                 now_iso = _dt.datetime.utcfromtimestamp(now_ts).isoformat() + "Z"
-            except Exception:
+            except Exception as exc:
+                logger.warning("Failed to format timestamp for gate hits: %s", exc)
                 now_iso = None
             for g in ("context", "liquidity", "structure", "imbalance", "risk", "wyckoff"):
                 try:
@@ -255,14 +260,14 @@ def pulse_status(symbol: str, *, weights: Optional[Dict[str, float]] = None, thr
                         "score": float(status.get("confidence") or 0.0),
                     }
                     r.rpush("pulse:gate_hits", json.dumps(ev))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Failed to push gate hit for %s: %s", g, exc)
             try:
                 r.ltrim("pulse:gate_hits", -300, -1)
-            except Exception:
-                pass
-    except Exception:
-        pass
+            except Exception as exc:
+                logger.warning("Failed to trim gate hits list: %s", exc)
+    except Exception as exc:
+        logger.warning("Failed to cache pulse_status to Redis: %s", exc)
 
     # Optional Kafka journal for gate events (best-effort)
     try:
@@ -283,9 +288,9 @@ def pulse_status(symbol: str, *, weights: Optional[Dict[str, float]] = None, thr
                                 "score": float(status.get("confidence") or 0.0),
                             },
                         })
-                    except Exception:
-                        pass
-    except Exception:
-        pass
+                    except Exception as exc:
+                        logger.warning("Failed to emit Kafka gate hit for %s: %s", g, exc)
+    except Exception as exc:
+        logger.warning("Kafka journal emission failed: %s", exc)
 
     return status
