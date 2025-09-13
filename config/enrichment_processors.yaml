@@ -1,0 +1,9 @@
+# Ordered list of enrichment processors with per-processor settings
+processors:
+  - module: services.enrichment.modules.harmonic_processor
+    enabled: true
+    settings:
+      upload: false
+  - module: services.enrichment.modules.context_analyzer
+    enabled: false
+    settings: {}

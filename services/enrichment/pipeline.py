@@ -31,6 +31,10 @@ MODULE_ORDER: Iterable[str] = (
     "fvg_locator",
     "harmonic_processor",
     "predictive_scorer",
+    "smc",
+    "poi",
+    "divergence",
+    "rsi_fusion",
 )
 
 

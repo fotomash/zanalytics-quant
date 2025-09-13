@@ -1,0 +1,16 @@
+# Vectorized enrichment configuration with per-module toggles.
+vectorized:
+  smc: true
+  poi: true
+  divergence: true
+  rsi_fusion: true
+
+advanced:
+  harmonic:
+    enabled: false
+
+vector_db:
+  collection: enrichment_vectors
+
+embedding:
+  model: text-embedding-3-small

@@ -6,6 +6,8 @@ import hashlib
 import os
 import time
 
+from llm_redis_bridge import LLMRedisBridge
+
 DEDUPE_TTL_SECONDS = int(os.getenv("WHISPER_DEDUPE_TTL", "300"))
 
 
@@ -111,6 +113,80 @@ class WhisperEngine:
         self.cd_default = int(r.get("default_cooldown_seconds", 300))
         self.cd_patience = int(r.get("patience_cooldown_seconds", 900))
         self.channels = list(w.get("channels", ["dashboard", "discord"]))
+    def cluster_narrator(self, top_cluster: Dict[str, Any], redis_client, qdrant_client) -> Dict[str, Any]:
+        """Compose a narrative for a cluster using historical context and vector search.
+
+        Parameters
+        ----------
+        top_cluster:
+            Metadata for the cluster that needs narration. Expected to contain
+            fields like ``cluster_id``/``id``, ``summary``, ``pattern`` and
+            optional ``recommendation``.
+        redis_client:
+            Redis connection used for fetching historical context via
+            :class:`LLMRedisBridge`.
+        qdrant_client:
+            Vector search client (e.g., :class:`BrownVectorPipeline`) used to
+            look up similar historical patterns.
+
+        Returns
+        -------
+        dict
+            Structured payload with ``cluster_id``, ``narrative`` and
+            ``recommendation`` keys.
+        """
+
+        cluster_id = top_cluster.get("cluster_id") or top_cluster.get("id", "unknown")
+        summary = top_cluster.get("summary", "")
+
+        # Gather memory context from Redis
+        bridge = LLMRedisBridge(redis_client)
+        try:
+            context = bridge.get_market_intelligence_summary()
+        except Exception:
+            context = {}
+
+        insight_parts: List[str] = []
+        alerts = context.get("risk_alerts") or []
+        if alerts:
+            alert = alerts[0]
+            alert_msg = alert.get("message") or alert.get("name") or str(alert)
+            insight_parts.append(f"Risk alert: {alert_msg}")
+        correlations = context.get("correlation_analysis") or {}
+        if correlations:
+            insight_parts.append("Correlation shifts observed")
+        if not insight_parts:
+            insight_parts.append("No notable historical alerts")
+
+        memory_insight = "; ".join(insight_parts)
+
+        # Query vector store for similar patterns
+        similar_note = ""
+        matches: List[Dict[str, Any]] = []
+        try:
+            if hasattr(qdrant_client, "search_similar_patterns"):
+                matches = qdrant_client.search_similar_patterns(
+                    pattern_type=top_cluster.get("pattern", ""),
+                    timeframe=top_cluster.get("timeframe", ""),
+                    top_k=3,
+                )
+            elif hasattr(qdrant_client, "search"):
+                # Expect a raw embedding when direct search is available
+                matches = qdrant_client.search(top_cluster.get("embedding", []), top_k=3)  # type: ignore[arg-type]
+        except Exception:
+            matches = []
+
+        if matches:
+            similar_note = f" Found {len(matches)} similar historical patterns."
+
+        narrative = f"{summary} {memory_insight}{similar_note}".strip()
+        recommendation = top_cluster.get("recommendation") or top_cluster.get("action", "")
+
+        return {
+            "cluster_id": cluster_id,
+            "narrative": narrative,
+            "recommendation": recommendation,
+        }
 
     def evaluate(self, s: State) -> List[Whisper]:
         if s.hard_cooldown_active:

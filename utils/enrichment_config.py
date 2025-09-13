@@ -13,7 +13,7 @@ under the ``config`` mapping of each subgroup if needed.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, List
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
@@ -124,6 +124,15 @@ class HarmonicConfig(BaseModel):
     upload: bool = False
 
 
+class VectorizedConfig(BaseModel):
+    """Toggles for vectorized enrichment modules."""
+
+    smc: bool = True
+    poi: bool = True
+    divergence: bool = True
+    rsi_fusion: bool = True
+
+
 class VectorDBConfig(BaseModel):
     """Settings for the backing vector database."""
 
@@ -147,6 +156,10 @@ class AdvancedConfig(BaseModel):
     predictive_scorer: bool = True
     fractal_detector: bool = True
     fractal_bars: int = 2
+    smc: bool = False
+    poi: bool = False
+    divergence: bool = False
+    rsi_fusion: bool = False
     alligator: AlligatorConfig = Field(default_factory=AlligatorConfig)
     elliott: ElliottConfig = Field(default_factory=ElliottConfig)
     harmonic: HarmonicConfig = Field(default_factory=HarmonicConfig)
@@ -159,6 +172,7 @@ class EnrichmentConfig(BaseModel):
     technical: TechnicalConfig = TechnicalConfig()
     structure: StructureConfig = StructureConfig()
     advanced: AdvancedConfig = AdvancedConfig()
+    vectorized: VectorizedConfig = Field(default_factory=VectorizedConfig)
     vector_db: VectorDBConfig = Field(default_factory=VectorDBConfig)
     embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
 
@@ -191,12 +205,17 @@ class EnrichmentConfig(BaseModel):
                 "enabled": self.advanced.elliott.enabled,
                 "ml_ensemble": self.advanced.elliott.ml_ensemble,
                 "llm_max_tokens": self.advanced.elliott.llm_max_tokens,
+                "fib_levels": self.advanced.elliott.fib_levels,
             },
             "harmonic_processor": {
                 "enabled": self.advanced.harmonic.enabled,
                 "tolerance": self.advanced.harmonic.tolerance,
                 "window": self.advanced.harmonic.window,
             },
+            "smc": {"enabled": self.vectorized.smc},
+            "poi": {"enabled": self.vectorized.poi},
+            "divergence": {"enabled": self.vectorized.divergence},
+            "rsi_fusion": {"enabled": self.vectorized.rsi_fusion},
         }
 
 
@@ -211,12 +230,12 @@ def load_enrichment_config(
     """
 
     path = Path(path)
+    if not path.exists():
+        return EnrichmentConfig() # Return a default, valid config
+
     data: Dict[str, Any]
-    if path.exists():
-        with path.open("r", encoding="utf-8") as fh:
-            data = yaml.safe_load(fh) or {}
-    else:  # pragma: no cover - file missing handled gracefully
-        data = {}
+    with path.open("r", encoding="utf-8") as fh:
+        data = yaml.safe_load(fh) or {}
 
     missing = []
     if not data.get("vector_db", {}).get("collection"):
@@ -234,6 +253,9 @@ def load_enrichment_config(
     return cfg
 
 
+AdvancedConfig.model_rebuild()
+EnrichmentConfig.model_rebuild()
+
 __all__ = [
     "CoreConfig",
     "TechnicalSubGroup",
@@ -242,6 +264,7 @@ __all__ = [
     "AlligatorConfig",
     "ElliottConfig",
     "HarmonicConfig",
+    "VectorizedConfig",
     "VectorDBConfig",
     "EmbeddingConfig",
     "AdvancedConfig",
