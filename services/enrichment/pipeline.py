@@ -8,10 +8,12 @@ an exception is raised.
 
 Order of execution:
     1. structure_validator
-    2. liquidity_engine
-    3. context_analyzer
-    4. fvg_locator
-    5. predictive_scorer
+    2. technical_indicators
+    3. liquidity_engine
+    4. context_analyzer
+    5. fvg_locator
+    6. harmonic_processor
+    7. predictive_scorer
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ MODULE_ORDER: Iterable[str] = (
     "liquidity_engine",
     "context_analyzer",
     "fvg_locator",
+    "harmonic_processor",
     "predictive_scorer",
 )
 

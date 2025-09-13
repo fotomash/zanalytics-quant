@@ -88,6 +88,23 @@ class MicrostructureAnalysis(BaseModel):
         None, description="Order flow toxicity score"
     )
 
+
+class HarmonicPattern(BaseModel):
+    """Detected harmonic pattern information."""
+
+    pattern: str = Field(..., description="Name of the harmonic pattern")
+    points: List[Dict[str, float]] = Field(
+        default_factory=list,
+        description="List of pivot points with index and price",
+    )
+    prz: Dict[str, float] = Field(
+        default_factory=dict,
+        description="Potential reversal zone boundaries",
+    )
+    confidence: float = Field(
+        0.0, description="Confidence score for the pattern",
+    )
+
 class PredictiveAnalysisResult(BaseModel):
     """Aggregated predictive scoring and conflict detection."""
 
@@ -118,6 +135,10 @@ class ISPTSPipelineResult(BaseModel):
     fvg_locator: Any = Field(
         ..., description="FVG locator stage output",
     )
+    harmonic_processor: Any = Field(
+        ..., description="Harmonic processor stage output",
+    )
+
     risk_manager: Any = Field(
         ..., description="Risk manager stage output",
     )
