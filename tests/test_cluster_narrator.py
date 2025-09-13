@@ -10,7 +10,7 @@ class MockQdrantClient:
     def __init__(self, matches=None):
         self.matches = matches or []
 
-    def search_similar_patterns(self, *args, **kwargs):
+    def search_similar_clusters(self, *args, **kwargs):
         return self.matches
 
 
@@ -61,3 +61,17 @@ def test_cluster_narrator_recommendation_format():
     }
     result = engine.cluster_narrator(top_cluster, r, qdrant)
     assert result["recommendation"] == result["recommendation"].strip()
+
+
+def test_cluster_narrator_trims_recommendation():
+    r = fakeredis.FakeRedis(decode_responses=True)
+    qdrant = MockQdrantClient()
+    engine = WhisperEngine({})
+    top_cluster = {
+        "cluster_id": "top",
+        "summary": "Uptrend",
+        "pattern": "pattern",
+        "recommendation": "Buy the breakout   ",
+    }
+    result = engine.cluster_narrator(top_cluster, r, qdrant)
+    assert result["recommendation"] == "Buy the breakout"
