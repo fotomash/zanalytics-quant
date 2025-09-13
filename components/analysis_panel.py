@@ -6,9 +6,20 @@
 
 import streamlit as st
 import pandas as pd
+from utils.enrichment_config import EnrichmentConfig
 
 class AnalysisPanel:
-    def __init__(self):
+    def __init__(self, config: EnrichmentConfig | None = None):
+        self.overbought_threshold = (
+            config.technical.overbought_threshold
+            if config
+            else 70
+        )
+        self.oversold_threshold = (
+            config.technical.oversold_threshold
+            if config
+            else 30
+        )
         self.panel_config = {
             'smc': {
                 'title': '🏛️ Smart Money Concepts',
@@ -228,7 +239,11 @@ class AnalysisPanel:
             st.subheader("Momentum")
             if 'rsi' in results and len(results['rsi']) > 0:
                 rsi = results['rsi'].iloc[-1] if hasattr(results['rsi'], 'iloc') else results['rsi'][-1]
-                rsi_status = "🔴 Overbought" if rsi > 70 else "🟢 Oversold" if rsi < 30 else "Neutral"
+                rsi_status = (
+                    "🔴 Overbought"
+                    if rsi > self.overbought_threshold
+                    else "🟢 Oversold" if rsi < self.oversold_threshold else "Neutral"
+                )
                 st.metric("RSI", f"{rsi:.1f}", rsi_status)
             
             if 'macd_diff' in results and len(results['macd_diff']) > 0:

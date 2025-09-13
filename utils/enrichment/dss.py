@@ -44,4 +44,15 @@ def compute_dss(df: pd.DataFrame) -> Tuple[Dict[str, float], np.ndarray]:
     return metrics, vector
 
 
-__all__ = ["compute_dss"]
+def process(df: pd.DataFrame) -> Dict[str, np.ndarray | Dict[str, float]]:
+    """Return DSS metrics and vector in a single dictionary.
+
+    The helper simply wraps :func:`compute_dss` to provide a consistent
+    dictionary-based API with ``metrics`` and ``vector`` keys.
+    """
+
+    metrics, vec = compute_dss(df)
+    return {"metrics": metrics, "vector": vec}
+
+
+__all__ = ["compute_dss", "process"]

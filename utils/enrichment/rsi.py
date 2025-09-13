@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -70,4 +70,26 @@ class RSIProcessor:
         return enriched, vector
 
 
-__all__ = ["RSIProcessor"]
+def process(
+    df: pd.DataFrame,
+    period: int = 14,
+    return_vector: bool = False,
+) -> Tuple[Dict[str, pd.DataFrame], Optional[np.ndarray]]:
+    """Convenience wrapper returning a dictionary plus optional vector.
+
+    Parameters
+    ----------
+    df:
+        Input price DataFrame.
+    period:
+        RSI lookback period, forwarded to :class:`RSIProcessor`.
+    return_vector:
+        When ``True`` also return the raw RSI values as a vector.
+    """
+
+    processor = RSIProcessor(period=period)
+    enriched, vector = processor.enrich(df, return_vector=return_vector)
+    return {"df": enriched}, vector
+
+
+__all__ = ["RSIProcessor", "process"]

@@ -8,9 +8,10 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
+from utils.enrichment_config import EnrichmentConfig
 
 class ChartBuilder:
-    def __init__(self):
+    def __init__(self, config: EnrichmentConfig | None = None):
         self.color_scheme = {
             'bullish': '#26a69a',
             'bearish': '#ef5350',
@@ -19,6 +20,12 @@ class ChartBuilder:
             'grid': '#2c2c2c',
             'text': '#ffffff'
         }
+        if config:
+            self.overbought_threshold = config.technical.overbought_threshold
+            self.oversold_threshold = config.technical.oversold_threshold
+        else:
+            self.overbought_threshold = 70
+            self.oversold_threshold = 30
     
     def create_main_chart(self, df, timeframe, chart_type='Candlestick', 
                          show_volume=True, analysis_results=None):
@@ -115,8 +122,22 @@ class ChartBuilder:
             )
             
             # Add RSI levels
-            fig.add_hline(y=70, line_dash="dash", line_color="red", opacity=0.5, row=rows, col=1)
-            fig.add_hline(y=30, line_dash="dash", line_color="green", opacity=0.5, row=rows, col=1)
+            fig.add_hline(
+                y=self.overbought_threshold,
+                line_dash="dash",
+                line_color="red",
+                opacity=0.5,
+                row=rows,
+                col=1,
+            )
+            fig.add_hline(
+                y=self.oversold_threshold,
+                line_dash="dash",
+                line_color="green",
+                opacity=0.5,
+                row=rows,
+                col=1,
+            )
         
         # Update layout
         fig.update_layout(
@@ -435,9 +456,20 @@ Displays analysis results in organized panels
 
 import streamlit as st
 import pandas as pd
+from utils.enrichment_config import EnrichmentConfig
 
 class AnalysisPanel:
-    def __init__(self):
+    def __init__(self, config: EnrichmentConfig | None = None):
+        self.overbought_threshold = (
+            config.technical.overbought_threshold
+            if config
+            else 70
+        )
+        self.oversold_threshold = (
+            config.technical.oversold_threshold
+            if config
+            else 30
+        )
         self.panel_config = {
             'smc': {
                 'title': '🏛️ Smart Money Concepts',
@@ -657,7 +689,11 @@ class AnalysisPanel:
             st.subheader("Momentum")
             if 'rsi' in results and len(results['rsi']) > 0:
                 rsi = results['rsi'].iloc[-1] if hasattr(results['rsi'], 'iloc') else results['rsi'][-1]
-                rsi_status = "🔴 Overbought" if rsi > 70 else "🟢 Oversold" if rsi < 30 else "Neutral"
+                rsi_status = (
+                    "🔴 Overbought"
+                    if rsi > self.overbought_threshold
+                    else "🟢 Oversold" if rsi < self.oversold_threshold else "Neutral"
+                )
                 st.metric("RSI", f"{rsi:.1f}", rsi_status)
             
             if 'macd_diff' in results and len(results['macd_diff']) > 0:

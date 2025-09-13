@@ -5,6 +5,8 @@ core:
   structure_validator: true
 
 technical:
+  overbought_threshold: 70
+  oversold_threshold: 30
   groups:
     momentum:
       enabled: true
