@@ -2,6 +2,7 @@
 
 from .payloads import (
     ISPTSPipelineResult,  # ISPTS pipeline stage outputs
+    HarmonicPattern,
     MarketContext,
     MicrostructureAnalysis,
     PredictiveAnalysisResult,
@@ -34,6 +35,7 @@ __all__ = (
     "BehavioralScoreOutput",
     "ConflictDetectionResult",
     "HealthStatus",
+    "HarmonicPattern",
     "ISPTSPipelineResult",
     "MarketContext",
     "MicrostructureAnalysis",

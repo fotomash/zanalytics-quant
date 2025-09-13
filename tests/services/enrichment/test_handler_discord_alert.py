@@ -71,6 +71,7 @@ def _build_payload(score: float) -> UnifiedAnalysisPayloadV1:
             liquidity_engine={},
             structure_validator={},
             fvg_locator={},
+            harmonic_processor={},
             risk_manager={},
             confluence_stacker={},
         ),

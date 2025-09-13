@@ -244,6 +244,7 @@ def main() -> None:
                     liquidity_engine=state.get("LiquidityEngine", {}),
                     structure_validator=state.get("StructureValidator", {}),
                     fvg_locator=state.get("FVGLocator", {}),
+                    harmonic_processor=state.get("HarmonicProcessor", {}),
                     risk_manager=state.get("RiskManager", {}),
                     confluence_stacker=state.get("ConfluenceStacker", {}),
                 )
