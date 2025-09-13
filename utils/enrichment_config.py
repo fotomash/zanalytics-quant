@@ -156,6 +156,10 @@ class AdvancedConfig(BaseModel):
     predictive_scorer: bool = True
     fractal_detector: bool = True
     fractal_bars: int = 2
+    smc: bool = False
+    poi: bool = False
+    divergence: bool = False
+    rsi_fusion: bool = False
     alligator: AlligatorConfig = Field(default_factory=AlligatorConfig)
     elliott: ElliottConfig = Field(default_factory=ElliottConfig)
     harmonic: HarmonicConfig = Field(default_factory=HarmonicConfig)
@@ -201,6 +205,7 @@ class EnrichmentConfig(BaseModel):
                 "enabled": self.advanced.elliott.enabled,
                 "ml_ensemble": self.advanced.elliott.ml_ensemble,
                 "llm_max_tokens": self.advanced.elliott.llm_max_tokens,
+                "fib_levels": self.advanced.elliott.fib_levels,
             },
             "harmonic_processor": {
                 "enabled": self.advanced.harmonic.enabled,
@@ -225,12 +230,12 @@ def load_enrichment_config(
     """
 
     path = Path(path)
+    if not path.exists():
+        return EnrichmentConfig() # Return a default, valid config
+
     data: Dict[str, Any]
-    if path.exists():
-        with path.open("r", encoding="utf-8") as fh:
-            data = yaml.safe_load(fh) or {}
-    else:  # pragma: no cover - file missing handled gracefully
-        data = {}
+    with path.open("r", encoding="utf-8") as fh:
+        data = yaml.safe_load(fh) or {}
 
     missing = []
     if not data.get("vector_db", {}).get("collection"):
@@ -247,6 +252,9 @@ def load_enrichment_config(
     cfg = EnrichmentConfig.model_validate(data)
     return cfg
 
+
+AdvancedConfig.model_rebuild()
+EnrichmentConfig.model_rebuild()
 
 __all__ = [
     "CoreConfig",
