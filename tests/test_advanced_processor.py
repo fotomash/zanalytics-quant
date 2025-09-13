@@ -5,12 +5,60 @@ import numpy as np
 import pandas as pd
 from unittest.mock import patch
 
+from core.harmonic_processor import HarmonicProcessor
+
 spec = importlib.util.spec_from_file_location(
     "advanced", pathlib.Path("utils/processors/advanced.py")
 )
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)  # type: ignore
 AdvancedProcessor = module.AdvancedProcessor
+
+
+def detect_harmonic_patterns(df: pd.DataFrame) -> dict:
+    """Convenience wrapper for harmonic pattern analysis."""
+    return HarmonicProcessor().analyze(df)
+
+
+def _generate_abcd_dataframe(bullish: bool = True) -> pd.DataFrame:
+    """Create a synthetic ABCD harmonic pattern.
+
+    The pattern ratios are chosen to satisfy the simplified checker in
+    :class:`core.harmonic_processor.HarmonicPatternDetector`.  Extra leading
+    and trailing bars ensure the internal pivot finder can locate all five
+    required turning points.
+    """
+
+    xa = 1.0
+    ab = 3.33
+    bc = 0.618 * ab
+    cd = 0.618 * bc
+
+    if bullish:
+        x = 0.0
+        a = x - xa
+        b = a + ab
+        c = b - bc
+        d = c + cd
+        pre = [-0.5, -0.4, -0.3, -0.2, -0.1]
+        post = [d - 0.5]
+    else:
+        x = 0.0
+        a = x + xa
+        b = a - ab
+        c = b + bc
+        d = c - cd
+        pre = [0.5, 0.4, 0.3, 0.2, 0.1]
+        post = [d + 0.5]
+
+    prices = [*pre, x, a, b, c, d, *post]
+    data: list[float] = []
+    for start, end in zip(prices, prices[1:]):
+        steps = np.linspace(start, end, 6, endpoint=False)
+        data.extend(steps.tolist())
+    data.append(prices[-1])
+    arr = np.array(data)
+    return pd.DataFrame({"open": arr, "high": arr, "low": arr, "close": arr})
 
 
 @pytest.fixture
@@ -132,4 +180,33 @@ def test_elliott_wave_llm_integration_mocked(mock_llm_infer, sample_df):
     assert mock_llm_infer.called
     assert "ewt_forecast" in result
     assert result["ewt_forecast"] == "Mocked LLM Forecast"
-    assert result["elliott_wave"]["label"] == "impulse_bullish" # Ensure elliott wave still processed
+    assert result["elliott_wave"]["label"] == "impulse_bullish"  # Ensure elliott wave still processed
+
+
+def test_detect_harmonic_patterns_bullish():
+    df = _generate_abcd_dataframe(bullish=True)
+    result = detect_harmonic_patterns(df)
+    patterns = result["harmonic_patterns"]
+    assert patterns and patterns[0]["pattern"] == "ABCD"
+    prz = patterns[0]["prz"]
+    assert pytest.approx(prz["min"], rel=1e-3) == -1.0
+    assert pytest.approx(prz["max"], rel=1e-3) == 2.33
+    assert patterns[0]["confidence"] > 0
+
+
+def test_detect_harmonic_patterns_bearish():
+    df = _generate_abcd_dataframe(bullish=False)
+    result = detect_harmonic_patterns(df)
+    patterns = result["harmonic_patterns"]
+    assert patterns and patterns[0]["pattern"] == "ABCD"
+    prz = patterns[0]["prz"]
+    assert pytest.approx(prz["min"], rel=1e-3) == -2.33
+    assert pytest.approx(prz["max"], rel=1e-3) == 1.0
+    assert patterns[0]["confidence"] > 0
+
+
+def test_detect_harmonic_patterns_none():
+    close = np.linspace(1, 50, 60)
+    df = pd.DataFrame({"open": close, "high": close, "low": close, "close": close})
+    result = detect_harmonic_patterns(df)
+    assert result["harmonic_patterns"] == []
