@@ -13,7 +13,7 @@ under the ``config`` mapping of each subgroup if needed.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, List
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
@@ -124,6 +124,15 @@ class HarmonicConfig(BaseModel):
     upload: bool = False
 
 
+class VectorizedConfig(BaseModel):
+    """Toggles for vectorized enrichment modules."""
+
+    smc: bool = True
+    poi: bool = True
+    divergence: bool = True
+    rsi_fusion: bool = True
+
+
 class VectorDBConfig(BaseModel):
     """Settings for the backing vector database."""
 
@@ -159,6 +168,7 @@ class EnrichmentConfig(BaseModel):
     technical: TechnicalConfig = TechnicalConfig()
     structure: StructureConfig = StructureConfig()
     advanced: AdvancedConfig = AdvancedConfig()
+    vectorized: VectorizedConfig = Field(default_factory=VectorizedConfig)
     vector_db: VectorDBConfig = Field(default_factory=VectorDBConfig)
     embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
 
@@ -197,6 +207,10 @@ class EnrichmentConfig(BaseModel):
                 "tolerance": self.advanced.harmonic.tolerance,
                 "window": self.advanced.harmonic.window,
             },
+            "smc": {"enabled": self.vectorized.smc},
+            "poi": {"enabled": self.vectorized.poi},
+            "divergence": {"enabled": self.vectorized.divergence},
+            "rsi_fusion": {"enabled": self.vectorized.rsi_fusion},
         }
 
 
@@ -242,6 +256,7 @@ __all__ = [
     "AlligatorConfig",
     "ElliottConfig",
     "HarmonicConfig",
+    "VectorizedConfig",
     "VectorDBConfig",
     "EmbeddingConfig",
     "AdvancedConfig",
