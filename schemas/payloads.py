@@ -97,12 +97,29 @@ class HarmonicPattern(BaseModel):
         default_factory=list,
         description="List of pivot points with index and price",
     )
-    prz: Dict[str, float] = Field(
+    prz: Dict[str, float | None] = Field(
         default_factory=dict,
         description="Potential reversal zone boundaries",
     )
     confidence: float = Field(
         0.0, description="Confidence score for the pattern",
+    )
+
+
+class HarmonicResult(BaseModel):
+    """Harmonic pattern detection results."""
+
+    harmonic_patterns: List[HarmonicPattern] = Field(
+        default_factory=list,
+        description="List of detected harmonic patterns",
+    )
+    prz: Dict[str, float | None] = Field(
+        default_factory=dict,
+        description="Aggregated potential reversal zone boundaries",
+    )
+    confidence: float = Field(
+        0.0,
+        description="Aggregated confidence score",
     )
 
 class PredictiveAnalysisResult(BaseModel):

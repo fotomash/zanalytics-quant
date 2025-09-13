@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 import logging
 import pandas as pd
+from schemas.payloads import HarmonicResult
 
 
 class HarmonicPatternDetector:
@@ -110,24 +111,37 @@ class HarmonicProcessor:
         """Return harmonic pattern analysis for ``df``."""
         raw_patterns = self.detector.detect_patterns(df)
         processed: List[Dict[str, Any]] = []
-        prz_list: List[Dict[str, Any]] = []
+        all_prices: List[float] = []
         confidences: List[float] = []
         for p in raw_patterns:
             pts = [{"index": pt["index"], "price": pt["price"]} for pt in p.get("points", [])]
             prices = [pt["price"] for pt in pts]
             if prices:
-                prz = {"min": min(prices), "max": max(prices)}
+                prz = {"low": min(prices), "high": max(prices)}
+                all_prices.extend(prices)
             else:
-                prz = {"min": None, "max": None}
+                prz = {"low": None, "high": None}
             confidence = float(len(pts)) / 5 if pts else 0.0
-            processed.append({"pattern": p.get("pattern"), "points": pts, "prz": prz, "confidence": confidence})
-            prz_list.append(prz)
+            processed.append(
+                {
+                    "pattern": p.get("pattern"),
+                    "points": pts,
+                    "prz": prz,
+                    "confidence": confidence,
+                }
+            )
             confidences.append(confidence)
-        return {
-            "harmonic_patterns": processed,
-            "prz": prz_list,
-            "confidence": confidences,
+        aggregated_prz = {
+            "low": min(all_prices) if all_prices else None,
+            "high": max(all_prices) if all_prices else None,
         }
+        aggregated_conf = max(confidences) if confidences else 0.0
+        result = HarmonicResult(
+            harmonic_patterns=processed,
+            prz=aggregated_prz,
+            confidence=aggregated_conf,
+        )
+        return {"harmonic": result}
 
 
 __all__ = ["HarmonicProcessor", "HarmonicPatternDetector"]

@@ -185,28 +185,28 @@ def test_elliott_wave_llm_integration_mocked(mock_llm_infer, sample_df):
 
 def test_detect_harmonic_patterns_bullish():
     df = _generate_abcd_dataframe(bullish=True)
-    result = detect_harmonic_patterns(df)
-    patterns = result["harmonic_patterns"]
-    assert patterns and patterns[0]["pattern"] == "ABCD"
-    prz = patterns[0]["prz"]
-    assert pytest.approx(prz["min"], rel=1e-3) == -1.0
-    assert pytest.approx(prz["max"], rel=1e-3) == 2.33
-    assert patterns[0]["confidence"] > 0
+    result = detect_harmonic_patterns(df)["harmonic"]
+    patterns = result.harmonic_patterns
+    assert patterns and patterns[0].pattern == "ABCD"
+    prz = patterns[0].prz
+    assert pytest.approx(prz["low"], rel=1e-3) == -1.0
+    assert pytest.approx(prz["high"], rel=1e-3) == 2.33
+    assert patterns[0].confidence > 0
 
 
 def test_detect_harmonic_patterns_bearish():
     df = _generate_abcd_dataframe(bullish=False)
-    result = detect_harmonic_patterns(df)
-    patterns = result["harmonic_patterns"]
-    assert patterns and patterns[0]["pattern"] == "ABCD"
-    prz = patterns[0]["prz"]
-    assert pytest.approx(prz["min"], rel=1e-3) == -2.33
-    assert pytest.approx(prz["max"], rel=1e-3) == 1.0
-    assert patterns[0]["confidence"] > 0
+    result = detect_harmonic_patterns(df)["harmonic"]
+    patterns = result.harmonic_patterns
+    assert patterns and patterns[0].pattern == "ABCD"
+    prz = patterns[0].prz
+    assert pytest.approx(prz["low"], rel=1e-3) == -2.33
+    assert pytest.approx(prz["high"], rel=1e-3) == 1.0
+    assert patterns[0].confidence > 0
 
 
 def test_detect_harmonic_patterns_none():
     close = np.linspace(1, 50, 60)
     df = pd.DataFrame({"open": close, "high": close, "low": close, "close": close})
-    result = detect_harmonic_patterns(df)
-    assert result["harmonic_patterns"] == []
+    result = detect_harmonic_patterns(df)["harmonic"]
+    assert result.harmonic_patterns == []
