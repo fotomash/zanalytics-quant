@@ -115,16 +115,31 @@ class MockVectorStore(VectorStoreInterface):
         }
 
     def search(self, query_embedding: List[float], top_k: int = 5) -> List[Dict]:
-        # Simple mock search - return random vectors
+        """Return stored records ordered by cosine similarity to the query."""
+        if not self.storage:
+            return []
+
+        query_vec = np.array(query_embedding, dtype=float)
+        query_norm = np.linalg.norm(query_vec)
+        if query_norm == 0:
+            return []
+
         results = []
-        for i, (chunk_id, vector) in enumerate(list(self.storage.items())[:top_k]):
+        for chunk_id, vector in self.storage.items():
+            stored_vec = np.array(vector['embedding'], dtype=float)
+            denom = np.linalg.norm(stored_vec) * query_norm
+            if denom == 0:
+                similarity = 0.0
+            else:
+                similarity = float(np.dot(query_vec, stored_vec) / denom)
             results.append({
                 'id': chunk_id,
-                'score': 0.95 - (i * 0.05),  # Mock similarity scores
-                'metadata': vector['metadata']
+                'score': similarity,
+                'metadata': vector['metadata'],
             })
-        return results
 
+        results.sort(key=lambda r: r['score'], reverse=True)
+        return results[:top_k]
 
 class BrownVectorPipeline:
     """
