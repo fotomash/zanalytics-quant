@@ -24,9 +24,7 @@ class MarketContext(BaseModel):
 
     symbol: str = Field(..., description="Instrument identifier")
     timeframe: str = Field(..., description="Timeframe of the context, e.g. 1m or 1h")
-    session: Optional[str] = Field(
-        None, description="Optional trading session label"
-    )
+    session: Optional[str] = Field(None, description="Optional trading session label")
     trend: Optional[str] = Field(
         None, description="Textual trend description such as bullish or bearish"
     )
@@ -38,15 +36,11 @@ class MarketContext(BaseModel):
 class TechnicalIndicators(BaseModel):
     """Common technical indicator values"""
 
-    rsi: Optional[float] = Field(
-        None, description="Relative Strength Index value"
-    )
+    rsi: Optional[float] = Field(None, description="Relative Strength Index value")
     macd: Optional[float] = Field(
         None, description="Moving Average Convergence Divergence value"
     )
-    vwap: Optional[float] = Field(
-        None, description="Volume weighted average price"
-    )
+    vwap: Optional[float] = Field(None, description="Volume weighted average price")
     moving_averages: Dict[str, float] = Field(
         default_factory=dict, description="Mapping of moving average name to value"
     )
@@ -62,7 +56,8 @@ class SMCAnalysis(BaseModel):
         None, description="Market structure label such as bullish or bearish"
     )
     poi: List[str] = Field(
-        default_factory=list, description="Points of interest discovered by the analysis"
+        default_factory=list,
+        description="Points of interest discovered by the analysis",
     )
     liquidity_pools: List[str] = Field(
         default_factory=list, description="Identified liquidity pool identifiers"
@@ -89,9 +84,7 @@ class MicrostructureAnalysis(BaseModel):
     realized_spread: Optional[float] = Field(
         None, description="Realized spread measure"
     )
-    price_impact: Optional[float] = Field(
-        None, description="Price impact of trades"
-    )
+    price_impact: Optional[float] = Field(None, description="Price impact of trades")
     liquidity_score: Optional[float] = Field(
         None, description="Derived liquidity score"
     )
@@ -114,7 +107,8 @@ class HarmonicPattern(BaseModel):
 
     )
     confidence: float = Field(
-        0.0, description="Confidence score for the pattern",
+        0.0,
+        description="Confidence score for the pattern",
     )
 
 
@@ -131,7 +125,8 @@ class HarmonicResult(BaseModel):
 
     )
     confidence: float = Field(
-        0.0, description="Confidence score for the detected patterns",
+        0.0,
+        description="Confidence score for the detected patterns",
     )
 
 
@@ -154,16 +149,24 @@ class ISPTSPipelineResult(BaseModel):
     """Outputs from each stage of the ISPTS pipeline."""
 
     context_analyzer: Any = Field(
-        ..., description="Context analyzer stage output",
+        ...,
+        description="Context analyzer stage output",
     )
     liquidity_engine: Any = Field(
-        ..., description="Liquidity engine stage output",
+        ...,
+        description="Liquidity engine stage output",
     )
     structure_validator: Any = Field(
-        ..., description="Structure validator stage output",
+        ...,
+        description="Structure validator stage output",
     )
     fvg_locator: Any = Field(
-        ..., description="FVG locator stage output",
+        ...,
+        description="FVG locator stage output",
+    )
+    harmonic_processor: HarmonicResult = Field(
+        default_factory=HarmonicResult,
+        description="Harmonic pattern detection results",
     )
 
 
@@ -181,24 +184,18 @@ class UnifiedAnalysisPayloadV1(BaseModel):
     technical_indicators: TechnicalIndicators = Field(
         ..., description="Common technical indicator values"
     )
-    smc: SMCAnalysis = Field(
-        ..., description="Smart Money Concepts analysis results"
-    )
-    wyckoff: WyckoffAnalysis = Field(
-        ..., description="Wyckoff model state"
-    )
+    smc: SMCAnalysis = Field(..., description="Smart Money Concepts analysis results")
+    wyckoff: WyckoffAnalysis = Field(..., description="Wyckoff model state")
     microstructure: MicrostructureAnalysis = Field(
         ..., description="Order flow and microstructure metrics"
     )
-    harmonic: HarmonicResult = Field(
-        default_factory=HarmonicResult,
-        description="Harmonic pattern detection results",
-    )
     predictive_analysis: PredictiveAnalysisResult = Field(
-        ..., description="Aggregated predictive scoring and conflict detection results",
+        ...,
+        description="Aggregated predictive scoring and conflict detection results",
     )
     ispts_pipeline: ISPTSPipelineResult = Field(
-        ..., description="Outputs from each stage of the ISPTS pipeline",
+        ...,
+        description="Outputs from each stage of the ISPTS pipeline",
     )
     extras: Dict[str, Any] = Field(
         default_factory=dict,

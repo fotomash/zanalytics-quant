@@ -41,7 +41,7 @@ def test_build_unified_analysis_includes_harmonic():
         },
     }
     payload = ae.build_unified_analysis(tick, cfg)
-    harmonic = payload.harmonic
+    harmonic = payload.ispts_pipeline.harmonic_processor
     assert harmonic.harmonic_patterns[0]["pattern"] == "bat"
     assert harmonic.prz.low == 1.0
     assert harmonic.prz.high == 1.2
