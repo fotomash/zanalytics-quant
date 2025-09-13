@@ -228,7 +228,7 @@ class EnhancedRiskEnforcer:
         details = {}
 
         # Check profit target first (optional); if hit, block further trades
-        pt_check = self._check_profit_target(signal.get("sod_equity"))
+        pt_check = self._check_daily_profit_target(signal.get("sod_equity"))
         if not pt_check["allowed"]:
             allowed = False
             warnings.append(pt_check["reason"])
@@ -333,9 +333,12 @@ class EnhancedRiskEnforcer:
 
         return {"allowed": True}
 
-    def _check_profit_target(self, sod_equity: Optional[float] = None) -> Dict:
-        """Check if daily profit target is reached. If a USD target is configured,
-        compare against total PnL; if a percent target is configured, requires SoD equity.
+    def _check_daily_profit_target(self, sod_equity: Optional[float] = None) -> Dict:
+        """Check if daily profit target is reached.
+
+        If a USD target is configured, compare against total PnL; if a percent target is
+        configured, requires SoD equity. Any unexpected errors are logged and re-raised so
+        callers can react accordingly.
         """
         try:
             target_usd = self.limits.get("daily_profit_target_usd")
@@ -361,8 +364,9 @@ class EnhancedRiskEnforcer:
                         "reason": "🎯 Daily profit target reached — protect gains and pause trading.",
                         "flag": "DAILY_PROFIT_TARGET_REACHED",
                     }
-        except Exception:
-            pass
+        except Exception as exc:  # pragma: no cover - re-raised for visibility
+            logger.exception("Daily profit target check failed: %s", exc)
+            raise
         return {"allowed": True}
 
     def _check_trade_count(self) -> Dict:
