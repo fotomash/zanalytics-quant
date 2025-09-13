@@ -41,6 +41,7 @@ def test_pipeline_runs_all(monkeypatch) -> None:
     assert "harmonic_patterns" in state
     assert "prz" in state
     assert "confidence" in state
+    assert state["outputs"]["harmonic_processor"] == state["HarmonicProcessor"]
 
 
 def test_pipeline_stops_on_failure(monkeypatch) -> None:
