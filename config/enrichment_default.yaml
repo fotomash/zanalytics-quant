@@ -28,6 +28,10 @@ advanced:
   predictive_scorer: true
   fractal_detector: true
   fractal_bars: 2
+  smc: false
+  poi: false
+  divergence: false
+  rsi_fusion: false
   harmonic:
     enabled: true
     collection: harmonic_patterns

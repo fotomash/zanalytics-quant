@@ -147,6 +147,10 @@ class AdvancedConfig(BaseModel):
     predictive_scorer: bool = True
     fractal_detector: bool = True
     fractal_bars: int = 2
+    smc: bool = False
+    poi: bool = False
+    divergence: bool = False
+    rsi_fusion: bool = False
     alligator: AlligatorConfig = Field(default_factory=AlligatorConfig)
     elliott: ElliottConfig = Field(default_factory=ElliottConfig)
     harmonic: HarmonicConfig = Field(default_factory=HarmonicConfig)
@@ -197,6 +201,10 @@ class EnrichmentConfig(BaseModel):
                 "tolerance": self.advanced.harmonic.tolerance,
                 "window": self.advanced.harmonic.window,
             },
+            "smc": {"enabled": self.advanced.smc},
+            "poi": {"enabled": self.advanced.poi},
+            "divergence": {"enabled": self.advanced.divergence},
+            "rsi_fusion": {"enabled": self.advanced.rsi_fusion},
         }
 
 
