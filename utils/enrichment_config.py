@@ -53,7 +53,12 @@ def _default_technical_groups() -> Dict[str, TechnicalSubGroup]:
 
 class TechnicalConfig(BaseModel):
     """Configuration for technical indicator groups."""
-
+    overbought_threshold: float = Field(
+        70, description="RSI value considered overbought"
+    )
+    oversold_threshold: float = Field(
+        30, description="RSI value considered oversold"
+    )
     groups: Dict[str, TechnicalSubGroup] = Field(
         default_factory=_default_technical_groups
     )
@@ -181,7 +186,11 @@ class EnrichmentConfig(BaseModel):
 
         return {
             "structure_validator": {"enabled": self.core.structure_validator},
-            "technical_indicators": {"enabled": self.technical.enabled},
+            "technical_indicators": {
+                "enabled": self.technical.enabled,
+                "overbought_threshold": self.technical.overbought_threshold,
+                "oversold_threshold": self.technical.oversold_threshold,
+            },
             "liquidity_engine": {"enabled": self.advanced.liquidity_engine},
             "context_analyzer": {"enabled": self.advanced.context_analyzer},
             "fvg_locator": {"enabled": self.advanced.fvg_locator},
