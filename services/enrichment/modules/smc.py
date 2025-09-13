@@ -27,15 +27,16 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         float(last.get("close", 0.0)),
         float(last.get("volume", 0.0)),
     ]
-    state["smc_vector"] = vector
 
-    if config.get("upload"):
-        try:  # pragma: no cover - optional dependency
-            from analytics.vector_db_config import add_vectors
+    if vector:
+        state["smc_vector"] = vector
+        if config.get("upload"):
+            try:  # pragma: no cover - optional dependency
+                from analytics.vector_db_config import add_vectors
 
-            add_vectors([vector], [config.get("id", "smc")], [config.get("metadata", {})])
-        except Exception:
-            pass
+                add_vectors([vector], [config.get("id", "smc")], [config.get("metadata", {})])
+            except Exception:
+                pass
 
     state.setdefault("status", "PASS")
     return state

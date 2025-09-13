@@ -33,15 +33,20 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     last = float(rsi_series.iloc[-1]) if not rsi_series.empty else 0.0
     mean = float(rsi_series.tail(period).mean()) if not rsi_series.empty else 0.0
     vector = [last, mean]
-    state["rsi_fusion_vector"] = vector
 
-    if config.get("upload"):
-        try:  # pragma: no cover - optional dependency
-            from analytics.vector_db_config import add_vectors
+    if vector:
+        state["rsi_fusion_vector"] = vector
+        if config.get("upload"):
+            try:  # pragma: no cover - optional dependency
+                from analytics.vector_db_config import add_vectors
 
-            add_vectors([vector], [config.get("id", "rsi_fusion")], [config.get("metadata", {})])
-        except Exception:
-            pass
+                add_vectors(
+                    [vector],
+                    [config.get("id", "rsi_fusion")],
+                    [config.get("metadata", {})],
+                )
+            except Exception:
+                pass
 
     state.setdefault("status", "PASS")
     return state
