@@ -129,9 +129,9 @@ def render_harmonic_chart(
             )
 
         # PRZ shading
-        prz_low = pattern.get("prz_low")
-        prz_high = pattern.get("prz_high")
-        if prz_low is not None and prz_high is not None:
+        prz = pattern.get("prz", {})
+        if prz.get("low") is not None and prz.get("high") is not None:
+
             fig.add_shape(
                 type="rect",
                 x0=df.index[0],
