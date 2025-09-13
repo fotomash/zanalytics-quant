@@ -1,8 +1,13 @@
-import pandas as pd
-import numpy as np
-from datetime import datetime
+import logging
 import os
+from datetime import datetime
+
+import numpy as np
+import pandas as pd
 import traceback
+
+
+logger = logging.getLogger(__name__)
 
 class DataProcessor:
 
@@ -15,16 +20,29 @@ class DataProcessor:
         try:
             # Attempt to read as tab-separated first
             df = pd.read_csv(filepath, sep='\t', engine='python')
-            print(f"[DEBUG] Loaded columns: {df.columns.tolist()}")
-            print(df.head(3))
+            logger.debug(
+                "Loaded columns from %s: %s", filepath, df.columns.tolist()
+            )
+            logger.debug("Data preview from %s:\n%s", filepath, df.head(3).to_string())
 
             # If parsing failed and resulted in a single column, attempt to split
             if len(df.columns) == 1:
                 # Try splitting on commas if tabs didn't work
-                print("[INFO] Only one column detected. Trying comma separator...")
+                logger.info(
+                    "Only one column detected in %s. Trying comma separator...",
+                    filepath,
+                )
                 df = pd.read_csv(filepath, sep=',', engine='python')
-                print(f"[DEBUG] After comma split: {df.columns.tolist()}")
-                print(df.head(3))
+                logger.debug(
+                    "After comma split columns in %s: %s",
+                    filepath,
+                    df.columns.tolist(),
+                )
+                logger.debug(
+                    "Data preview after comma split from %s:\n%s",
+                    filepath,
+                    df.head(3).to_string(),
+                )
                 # If still only one column, try splitting that column
                 if len(df.columns) == 1:
                     df = df.iloc[:, 0].str.split('\t', expand=True)
@@ -48,11 +66,18 @@ class DataProcessor:
             # Handle volume - use 'tickvol' if 'volume' is 0 or not present
             if 'volume' not in df.columns or df['volume'].astype(float).sum() == 0:
                 if 'tickvol' in df.columns:
-                    print("Info: 'volume' column is empty or missing. Using 'tickvol' as volume source.")
+                    logger.info(
+                        "'volume' column is empty or missing in %s. Using 'tickvol' as volume source. Columns: %s",
+                        filepath,
+                        df.columns.tolist(),
+                    )
                     # Always assign as 1D numeric Series, never DataFrame
                     df['volume'] = pd.to_numeric(df['tickvol'], errors='coerce')
                 else:
-                    print("Warning: No volume data found. Using 1 as a placeholder.")
+                    logger.warning(
+                        "No volume data found in %s. Using 1 as a placeholder.",
+                        filepath,
+                    )
                     df['volume'] = 1
             else:
                 df['volume'] = pd.to_numeric(df['volume'], errors='coerce')
@@ -68,7 +93,12 @@ class DataProcessor:
                     if isinstance(df[col], (pd.Series, list, np.ndarray)):
                         df[col] = pd.to_numeric(df[col], errors='coerce')
                     else:
-                        print(f"[WARNING] Column '{col}' is not 1D and cannot be converted. Type: {type(df[col])}")
+                        logger.warning(
+                            "Column '%s' in %s is not 1D and cannot be converted. Type: %s",
+                            col,
+                            filepath,
+                            type(df[col]),
+                        )
 
             # Clean up data
             df.dropna(inplace=True)
@@ -123,7 +153,9 @@ class DataProcessor:
             ticks_df.dropna(subset=['bid', 'ask'], inplace=True)
             ticks_df.sort_index(inplace=True)
 
-            print(f"Successfully loaded and processed {len(ticks_df)} ticks from {filepath}.")
+            logger.info(
+                "Loaded and processed %d ticks from %s", len(ticks_df), filepath
+            )
             return ticks_df
 
         except Exception as e:
