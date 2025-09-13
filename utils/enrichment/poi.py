@@ -1,6 +1,6 @@
 """Point‑of‑interest (POI) feature processor.
 
-The :func:`process` function extracts simple support/resistance style
+The :func:`run` function extracts simple support/resistance style
 features from price data and returns both a dictionary of values and a
 vector representation suitable for downstream models.
 """
@@ -28,7 +28,7 @@ def _to_dataframe(data: Any) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def process(data: Any) -> Tuple[Dict[str, float], List[float]]:
+def run(data: Any) -> Tuple[Dict[str, float], List[float]]:
     """Return basic point‑of‑interest features.
 
     Parameters
@@ -54,3 +54,6 @@ def process(data: Any) -> Tuple[Dict[str, float], List[float]]:
     enriched = {"support": support, "resistance": resistance, "midpoint": midpoint}
     vector = [support, resistance, midpoint]
     return enriched, vector
+
+
+__all__ = ["run"]

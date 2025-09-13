@@ -88,3 +88,12 @@ def enrich_ticks(df: pd.DataFrame) -> pd.DataFrame:
         df["ma_20"] = df["mid_price"].rolling(20).mean()
 
     return df
+
+
+def run(ticks: pd.DataFrame, timeframe: str = "M1") -> pd.DataFrame:
+    """Aggregate ticks then enrich the resulting bars."""
+    bars = aggregate_ticks_to_bars(ticks, timeframe)
+    return enrich_ticks(bars)
+
+
+__all__ = ["aggregate_ticks_to_bars", "enrich_ticks", "run"]

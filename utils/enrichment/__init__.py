@@ -104,17 +104,9 @@ def enrich_ticks(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-# Re-export selected processors and helpers for convenience
+# Expose selected processors
 from . import poi
-from .smc import process as smc_process
-from .dss import compute_dss
 from .rsi import RSIProcessor
 
-__all__ = [
-    "aggregate_ticks_to_bars",
-    "enrich_ticks",
-    "poi",
-    "smc_process",
-    "compute_dss",
-    "RSIProcessor",
-]
+__all__ = ["aggregate_ticks_to_bars", "enrich_ticks", "poi", "RSIProcessor"]
+

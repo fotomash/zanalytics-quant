@@ -43,16 +43,9 @@ def compute_dss(df: pd.DataFrame) -> Tuple[Dict[str, float], np.ndarray]:
     vector = np.column_stack((displacement, shift)).astype(float)
     return metrics, vector
 
-
-def process(df: pd.DataFrame) -> Dict[str, np.ndarray | Dict[str, float]]:
-    """Return DSS metrics and vector in a single dictionary.
-
-    The helper simply wraps :func:`compute_dss` to provide a consistent
-    dictionary-based API with ``metrics`` and ``vector`` keys.
-    """
-
-    metrics, vec = compute_dss(df)
-    return {"metrics": metrics, "vector": vec}
+def run(df: pd.DataFrame) -> Tuple[Dict[str, float], np.ndarray]:
+    """Convenience wrapper around :func:`compute_dss`."""
+    return compute_dss(df)
 
 
-__all__ = ["compute_dss", "process"]
+__all__ = ["compute_dss", "run"]

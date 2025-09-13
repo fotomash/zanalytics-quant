@@ -69,27 +69,16 @@ class RSIProcessor:
         vector = rsi.to_numpy() if return_vector else None
         return enriched, vector
 
-
-def process(
+def run(
     df: pd.DataFrame,
     period: int = 14,
+    *,
+    column: str = "close",
     return_vector: bool = False,
-) -> Tuple[Dict[str, pd.DataFrame], Optional[np.ndarray]]:
-    """Convenience wrapper returning a dictionary plus optional vector.
-
-    Parameters
-    ----------
-    df:
-        Input price DataFrame.
-    period:
-        RSI lookback period, forwarded to :class:`RSIProcessor`.
-    return_vector:
-        When ``True`` also return the raw RSI values as a vector.
-    """
-
+) -> Tuple[pd.DataFrame, Optional[np.ndarray]]:
+    """Convenience function using :class:`RSIProcessor`."""
     processor = RSIProcessor(period=period)
-    enriched, vector = processor.enrich(df, return_vector=return_vector)
-    return {"df": enriched}, vector
+    return processor.enrich(df, column=column, return_vector=return_vector)
 
 
-__all__ = ["RSIProcessor", "process"]
+__all__ = ["RSIProcessor", "run"]
