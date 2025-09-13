@@ -11,7 +11,7 @@ from qdrant_client import QdrantClient
 from core.harmonic_processor import HarmonicProcessor as PatternAnalyzer
 from enrichment.enrichment_engine import run_data_module
 from services.mcp2.vector.embeddings import embed
-from utils.processors.harmonic import HarmonicProcessor as QdrantUploader
+from utils.processors.harmonic import HarmonicVectorStore as QdrantUploader
 
 
 def _pattern_to_text(pattern: Dict[str, Any]) -> str:

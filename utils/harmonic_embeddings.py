@@ -1,11 +1,10 @@
 """Embed harmonic pattern features and store them asynchronously in Qdrant.
 
 This module previously handled Qdrant upserts directly.  It now delegates the
-storage operation to :class:`utils.processors.harmonic.HarmonicStorageProcessor`
-which
-provides an awaitable interface capable of working with both synchronous and
-asynchronous Qdrant clients.  The public API is kept as a thin async wrapper so
-existing call sites can simply ``await`` the new implementation.
+storage operation to :class:`utils.processors.harmonic.HarmonicVectorStore`
+which provides an awaitable interface capable of working with both synchronous
+and asynchronous Qdrant clients.  The public API is kept as a thin async wrapper
+so existing call sites can simply ``await`` the new implementation.
 """
 
 from __future__ import annotations
@@ -14,9 +13,9 @@ import asyncio
 import os
 from typing import Any, Dict, Iterable, List
 
-from qdrant_client import QdrantClient
+from qdrant_client import AsyncQdrantClient, QdrantClient
 
-from utils.processors.harmonic import HarmonicStorageProcessor
+from utils.processors.harmonic import HarmonicVectorStore
 
 try:  # pragma: no cover - best effort fallback when deps missing
     from services.mcp2.vector.embeddings import embed
@@ -38,7 +37,7 @@ def _pattern_to_text(pattern: Dict[str, Any]) -> str:
 async def upsert_harmonic_patterns(
     patterns: Iterable[Dict[str, Any]],
     *,
-    client: QdrantClient | None = None,
+    client: QdrantClient | AsyncQdrantClient | None = None,
     collection_name: str = "harmonic_patterns",
 ) -> None:
     """Embed and upsert harmonic patterns into a Qdrant collection.
@@ -61,7 +60,7 @@ async def upsert_harmonic_patterns(
         api_key = os.getenv("QDRANT_API_KEY")
         client = QdrantClient(url=url, api_key=api_key)
 
-    processor = HarmonicStorageProcessor(client, collection_name)
+    store = HarmonicVectorStore(client, collection_name)
 
     vectors: List[List[float]] = []
     payloads: List[Dict[str, Any]] = []
@@ -74,13 +73,13 @@ async def upsert_harmonic_patterns(
         ids.append(idx)
 
     if vectors:
-        await processor.upsert(vectors, payloads, ids)
+        await store.upsert(vectors, payloads, ids)
 
 
 def upsert_harmonic_patterns_sync(
     patterns: Iterable[Dict[str, Any]],
     *,
-    client: QdrantClient | None = None,
+    client: QdrantClient | AsyncQdrantClient | None = None,
     collection_name: str = "harmonic_patterns",
 ) -> None:
     """Synchronous wrapper around :func:`upsert_harmonic_patterns`.
