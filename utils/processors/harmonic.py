@@ -16,9 +16,12 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
 from typing import Iterable, Sequence
 
 from qdrant_client import models
+
+logger = logging.getLogger(__name__)
 
 
 class HarmonicProcessor:
@@ -54,18 +57,30 @@ class HarmonicProcessor:
         utilities.
         """
 
+        vectors_list = list(vectors)
+        payloads_list = list(payloads)
+        ids_list = list(ids)
+        if not (len(vectors_list) == len(payloads_list) == len(ids_list)):
+            raise ValueError("vectors, payloads, and ids must have the same length")
+
         points = [
             models.PointStruct(id=pid, vector=vec, payload=payload)
-            for pid, vec, payload in zip(ids, vectors, payloads)
+            for pid, vec, payload in zip(ids_list, vectors_list, payloads_list)
         ]
-        if self._is_async:
-            await self._client.upsert(collection_name=self._collection, points=points)
-        else:
-            await asyncio.to_thread(
-                self._client.upsert,
-                collection_name=self._collection,
-                points=points,
-            )
+        try:
+            if self._is_async:
+                await self._client.upsert(
+                    collection_name=self._collection, points=points
+                )
+            else:
+                await asyncio.to_thread(
+                    self._client.upsert,
+                    collection_name=self._collection,
+                    points=points,
+                )
+        except Exception as exc:  # pragma: no cover - network failures are env specific
+            logger.exception("Failed to upsert points to Qdrant")
+            raise RuntimeError("Failed to upsert points to Qdrant") from exc
 
 
 __all__ = ["HarmonicProcessor"]
