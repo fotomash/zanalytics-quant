@@ -16,7 +16,10 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 
-import redis
+try:
+    import redis
+except ImportError:  # pragma: no cover - optional dependency
+    redis = None  # type: ignore[assignment]
 
 from llm_redis_bridge import LLMRedisBridge
 from services.vectorization_service.brown_vector_store_integration import (
@@ -32,10 +35,13 @@ __all__ = [
 _redis_bridge: Optional[LLMRedisBridge] = None
 _vector_pipeline: Optional[BrownVectorPipeline] = None
 
+
 def _get_redis_bridge() -> Optional[LLMRedisBridge]:
     """Return a cached :class:`LLMRedisBridge` instance if available."""
 
     global _redis_bridge
+    if redis is None:
+        return None
     if _redis_bridge is None:
         try:
             client = redis.Redis(
@@ -45,9 +51,12 @@ def _get_redis_bridge() -> Optional[LLMRedisBridge]:
             )
             client.ping()
             _redis_bridge = LLMRedisBridge(client)
-        except Exception:  # pragma: no cover - connection failures are environment specific
+        except (
+            Exception
+        ):  # pragma: no cover - connection failures are environment specific
             _redis_bridge = None
     return _redis_bridge
+
 
 def _get_vector_pipeline() -> Optional[BrownVectorPipeline]:
     """Return a cached :class:`BrownVectorPipeline` instance if available."""
@@ -59,6 +68,7 @@ def _get_vector_pipeline() -> Optional[BrownVectorPipeline]:
         except Exception:  # pragma: no cover - missing configuration or network errors
             _vector_pipeline = None
     return _vector_pipeline
+
 
 def store_cluster_context(
     cluster_id: str,
@@ -97,6 +107,7 @@ def store_cluster_context(
                 )
             except Exception:  # pragma: no cover - network failures
                 pass
+
 
 def fetch_cluster_context(cluster_id: str) -> Dict[str, Any]:
     """Retrieve context previously stored for ``cluster_id``.
