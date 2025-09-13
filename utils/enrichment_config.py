@@ -110,6 +110,7 @@ class HarmonicConfig(BaseModel):
     collection: str | None = Field(
         None, description="Target collection for harmonic pattern vectors"
     )
+    upload: bool = False
 
 
 class VectorDBConfig(BaseModel):
@@ -161,6 +162,11 @@ class EnrichmentConfig(BaseModel):
             "liquidity_engine": {"enabled": self.advanced.liquidity_engine},
             "context_analyzer": {"enabled": self.advanced.context_analyzer},
             "fvg_locator": {"enabled": self.advanced.fvg_locator},
+            "harmonic_processor": {
+                "enabled": self.advanced.harmonic.enabled,
+                "collection": self.advanced.harmonic.collection,
+                "upload": self.advanced.harmonic.upload,
+            },
             "predictive_scorer": {"enabled": self.advanced.predictive_scorer},
             "fractal_detector": {
                 "enabled": self.advanced.fractal_detector,
