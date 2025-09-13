@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, Optional
 import os
+import logging
 
 try:  # pragma: no cover - optional dependency
     from confluent_kafka import Consumer, Producer
@@ -18,6 +19,9 @@ except Exception:  # pragma: no cover - handled gracefully
     Consumer = Producer = None  # type: ignore[misc,assignment]
 
 from core.bootstrap_engine import BootstrapEngine
+
+
+logger = logging.getLogger(__name__)
 
 
 Handler = Callable[[Any], None]
@@ -136,13 +140,25 @@ class IngestionEngine:
             if handler is not None:
                 handler(msg)
 
-    def run_forever(self, timeout: float = 1.0) -> None:
-        """Continuously poll consumers until interrupted."""
+    def run_forever(self, timeout: float = 1.0) -> int:
+        """Continuously poll consumers until interrupted.
+
+        Returns an exit status code: ``0`` for a graceful shutdown triggered by
+        :class:`KeyboardInterrupt` and ``1`` when aborted due to an unexpected
+        exception.  Callers can forward this value to :func:`sys.exit` or use it
+        for supervisory decisions.
+        """
+        status = 0
         try:
             while True:
                 self.poll(timeout)
-        except KeyboardInterrupt:  # pragma: no cover - manual stop
-            pass
+        except KeyboardInterrupt:
+            logger.info("Ingestion engine received shutdown signal")
+            status = 0
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("Ingestion engine stopped due to an error")
+            status = 1
+            raise
         finally:
             for consumer in self.consumers.values():
                 close = getattr(consumer, "close", None)
@@ -152,3 +168,4 @@ class IngestionEngine:
                 flush = getattr(producer, "flush", None)
                 if callable(flush):
                     flush()
+        return status

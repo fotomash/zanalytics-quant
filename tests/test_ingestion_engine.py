@@ -2,6 +2,14 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List
+import types
+import sys
+
+# Provide a minimal SemanticMappingService to satisfy BootstrapEngine imports
+sys.modules.setdefault(
+    "core.semantic_mapping_service",
+    types.SimpleNamespace(SemanticMappingService=type("SemanticMappingService", (), {})),
+)
 
 from core.ingestion_engine import IngestionEngine
 from core.bootstrap_engine import BootstrapEngine
@@ -69,3 +77,47 @@ def test_profile_registration_and_poll() -> None:
     # Consumer should have subscribed to provided topic
     consumer = engine.consumers["test.topic"]
     assert consumer.topics == ["test.topic"]
+
+
+def test_run_forever_handles_keyboard_interrupt(monkeypatch, caplog) -> None:
+    class ClosingConsumer:
+        def __init__(self) -> None:
+            self.closed = False
+            self.topics: List[str] = []
+
+        def subscribe(self, topics: List[str]) -> None:  # pragma: no cover - simple
+            self.topics = topics
+
+        def close(self) -> None:
+            self.closed = True
+
+    class FlushingProducer:
+        def __init__(self) -> None:
+            self.flushed = False
+
+        def flush(self) -> None:
+            self.flushed = True
+
+    consumer = ClosingConsumer()
+    producer = FlushingProducer()
+
+    engine = IngestionEngine(
+        bootstrap=DummyBootstrap(),
+        consumer_factory=lambda cfg: consumer,
+        producer_factory=lambda cfg: producer,
+    )
+    engine.register_profile({"topic": "test.topic", "handler": lambda m: None})
+    engine.producers["p"] = producer
+
+    def raise_interrupt(timeout: float) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(engine, "poll", raise_interrupt)
+
+    with caplog.at_level("INFO"):
+        status = engine.run_forever()
+
+    assert status == 0
+    assert consumer.closed
+    assert producer.flushed
+    assert "shutdown signal" in caplog.text
