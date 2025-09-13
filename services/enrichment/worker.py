@@ -52,7 +52,7 @@ async def main() -> None:
                     tick = json.loads(fields["j"])
                     try:
                         payload = build_unified_analysis(tick)
-                        enriched_json = payload.model_dump()
+                        enriched_json = payload.model_dump(exclude_none=False)
                     except Exception as e:  # pragma: no cover - defensive
                         enriched_json = {"error": str(e)}
 

@@ -42,7 +42,7 @@ def on_message(ctx: Dict[str, Any], msg: Message) -> None:
                 "payload_id": str(uuid.uuid4()),
             }
             ctx["redis"].publish("discord-alerts", json.dumps(alert))
-        serialized = payload.model_dump_json().encode("utf-8")
+        serialized = payload.model_dump_json(exclude_none=False).encode("utf-8")
         ctx["producer"].produce("enriched-analysis-payloads", value=serialized)
         decision = "produced_payload"
     except Exception as e:  # pragma: no cover - log and continue

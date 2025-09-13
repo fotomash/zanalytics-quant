@@ -14,6 +14,7 @@ from schemas.payloads import (
     ISPTSPipelineResult,
     MarketContext,
     MicrostructureAnalysis,
+    HarmonicResult,
     PredictiveAnalysisResult,
     SMCAnalysis,
     TechnicalIndicators,
@@ -72,6 +73,7 @@ def build_unified_analysis(
         fvg_locator={},
         risk_manager={},
         confluence_stacker={},
+        harmonic=HarmonicResult(),
     )
 
     symbol = tick.get("symbol", "UNKNOWN")
@@ -103,6 +105,18 @@ def build_unified_analysis(
         except Exception:
             pass
 
+    harmonic_data = (
+        tick.get("harmonic")
+        or tick.get("data", {}).get("harmonic")
+        or {}
+    )
+    if not harmonic_data:
+        patterns = tick.get("harmonic_patterns") or tick.get("data", {}).get("harmonic_patterns")
+        if patterns:
+            harmonic_data["harmonic_patterns"] = patterns
+    harmonic = HarmonicResult(**harmonic_data) if harmonic_data else HarmonicResult()
+    pipeline.harmonic = harmonic
+
     if bars and cfg.structure.wyckoff:
         try:  # pragma: no cover - optional dependency/data
             import pandas as pd
@@ -126,6 +140,7 @@ def build_unified_analysis(
         smc=smc,
         wyckoff=wyckoff,
         microstructure=MicrostructureAnalysis(),
+        harmonic=harmonic,
         predictive_analysis=predictive,
         ispts_pipeline=pipeline,
         extras={"risk": risk},

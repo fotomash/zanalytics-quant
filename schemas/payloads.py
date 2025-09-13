@@ -88,6 +88,22 @@ class MicrostructureAnalysis(BaseModel):
         None, description="Order flow toxicity score"
     )
 
+
+class HarmonicResult(BaseModel):
+    """Results from harmonic pattern detection."""
+
+    harmonic_patterns: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="List of detected harmonic patterns",
+    )
+    prz: Any = Field(
+        None, description="Potential reversal zone for the detected pattern(s)"
+    )
+    confidence: Optional[float] = Field(
+        None, description="Confidence score of the detected harmonic pattern(s)"
+    )
+
+
 class PredictiveAnalysisResult(BaseModel):
     """Aggregated predictive scoring and conflict detection."""
 
@@ -124,6 +140,10 @@ class ISPTSPipelineResult(BaseModel):
     confluence_stacker: Any = Field(
         ..., description="Confluence stacker stage output",
     )
+    harmonic: HarmonicResult = Field(
+        default_factory=HarmonicResult,
+        description="Harmonic pattern detection results",
+    )
 
 
 class UnifiedAnalysisPayloadV1(BaseModel):
@@ -149,9 +169,12 @@ class UnifiedAnalysisPayloadV1(BaseModel):
     microstructure: MicrostructureAnalysis = Field(
         ..., description="Order flow and microstructure metrics"
     )
+    harmonic: HarmonicResult = Field(
+        default_factory=HarmonicResult,
+        description="Harmonic pattern detection results",
+    )
     predictive_analysis: PredictiveAnalysisResult = Field(
         ..., description="Aggregated predictive scoring and conflict detection results",
-
     )
     ispts_pipeline: ISPTSPipelineResult = Field(
         ..., description="Outputs from each stage of the ISPTS pipeline",
