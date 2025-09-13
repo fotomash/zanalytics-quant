@@ -78,10 +78,11 @@ def run(
             before_keys = set(state.keys())
             state = runner(state, cfg)
             new_keys = set(state.keys()) - before_keys
-            module_output = {k: state[k] for k in new_keys}
             if name == "harmonic_processor" and "harmonic" in state:
-                module_output = state["harmonic"]
-            outputs[name] = module_output
+                outputs["harmonic_processor"] = state["harmonic"]
+            else:
+                module_output = {k: state[k] for k in new_keys}
+                outputs[name] = module_output
         except Exception as exc:  # pragma: no cover - safeguard
             state["status"] = "FAIL"
             state.setdefault("errors", {})[name] = str(exc)
