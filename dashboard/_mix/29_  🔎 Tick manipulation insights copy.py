@@ -106,7 +106,13 @@ except (ImportError, ModuleNotFoundError):
 
 # ---- Core microstructure modules ----
 
-# TODO: remove or replace when microstructure_filter is available – # apply_microstructure_filter(
+try:
+    from core.microstructure_filter import apply_microstructure_filter
+except (ImportError, ModuleNotFoundError):
+    def apply_microstructure_filter(df):
+        """Fallback no-op if microstructure filter is unavailable."""
+        return df
+
 # from core.scalp_filters import detect_scalp_conditions
 # --- Optional import for SMC enrichment logic ---
 try:
@@ -994,6 +1000,7 @@ class QuantumMicrostructureAnalyzer:
         # Calculate tick rate (ticks per second)
         df['tick_rate'] = 1000 / df['tick_interval_ms']
         df['tick_rate'] = df['tick_rate'].clip(upper=1000)  # Cap at 1000 ticks/sec
+        df = apply_microstructure_filter(df)
 
         return df
 
@@ -1604,12 +1611,30 @@ These documents expand on engineered-liquidity traps, Wyckoff sweeps, and the VP
         # 5. Manipulation Timeline
         try:
             all_events = (
-                [{'time': e['timestamp'], 'type': e['type'], 'conf': e['confidence']} for e in self.session_state['spoofing_events']] +
-                [{'time': e['start_time'], 'type': e['type'], 'conf': e['confidence']} for e in self.session_state['iceberg_events']] +
-                [{'time': e['timestamp'], 'type': e['type'], 'conf': e['confidence']} for e in self.session_state.get('layering_events', [])]
-
-                [{'time': e['timestamp'], 'type': e['type'], 'conf': e['confidence']} for e in self.session_state.get('layering_events', [])] +
-                [{'time': e['start_time'], 'type': e['type'], 'conf': e['confidence']} for e in self.session_state['iceberg_events']]
+                [
+                    {
+                        'time': e['timestamp'],
+                        'type': e['type'],
+                        'conf': e['confidence'],
+                    }
+                    for e in self.session_state['spoofing_events']
+                ]
+                + [
+                    {
+                        'time': e['start_time'],
+                        'type': e['type'],
+                        'conf': e['confidence'],
+                    }
+                    for e in self.session_state['iceberg_events']
+                ]
+                + [
+                    {
+                        'time': e['timestamp'],
+                        'type': e['type'],
+                        'conf': e['confidence'],
+                    }
+                    for e in self.session_state.get('layering_events', [])
+                ]
             )
             if all_events:
                 event_df = pd.DataFrame(all_events)
