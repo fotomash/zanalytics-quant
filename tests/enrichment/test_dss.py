@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from utils.enrichment.dss import compute_dss
+from utils.enrichment.dss import compute_dss, process
 
 
 def test_dss_outputs_are_deterministic():
@@ -32,3 +32,22 @@ def test_dss_empty_dataframe():
     metrics, vec = compute_dss(df)
     assert metrics == {}
     assert vec.size == 0
+
+    result = process(df)
+    assert result["metrics"] == {}
+    assert result["vector"].size == 0
+
+
+def test_dss_process_wrapper():
+    df = pd.DataFrame(
+        {
+            "open": [1, 2, 3, 4, 5],
+            "high": [1.1, 2.1, 3.1, 4.1, 5.1],
+            "low": [0.9, 1.9, 2.9, 3.9, 4.9],
+            "close": [1, 2, 3, 2, 1],
+        }
+    )
+    result = process(df)
+    metrics, vec = compute_dss(df)
+    assert result["metrics"] == metrics
+    assert np.array_equal(result["vector"], vec)

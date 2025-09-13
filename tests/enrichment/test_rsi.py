@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from utils.enrichment import RSIProcessor
+from utils.enrichment.rsi import RSIProcessor, process
 
 
 def test_rsi_processor_matches_expected_values():
@@ -45,3 +45,16 @@ def test_rsi_processor_without_vector():
     enriched, vector = RSIProcessor().enrich(df)
     assert vector is None
     assert "rsi_14" in enriched.columns
+
+
+def test_rsi_process_wrapper():
+    df = pd.DataFrame({"close": np.linspace(1, 30, 30)})
+    result, vector = process(df, return_vector=True)
+    enriched = result["df"]
+    assert "rsi_14" in enriched.columns
+    assert isinstance(vector, np.ndarray)
+    assert np.allclose(vector, enriched["rsi_14"].to_numpy(), equal_nan=True)
+
+    result_no_vec, vector_none = process(df)
+    assert vector_none is None
+    assert "rsi_14" in result_no_vec["df"].columns
