@@ -32,6 +32,12 @@ VECTOR_SEARCH_URL = os.getenv("VECTOR_SEARCH_URL")
 app = FastAPI(title="Whisperer MCP")
 
 
+class ClusterPayload(BaseModel):
+    """Request body for ``/cluster_narrate`` containing the top cluster."""
+
+    top_cluster: dict
+
+
 @app.post("/mcp")
 async def mcp(state: State):
     """Forward the trading state to the configured MCP host."""
@@ -97,3 +103,45 @@ async def rsi_divergence_cluster(date: str):
     if cluster is None:
         cluster = await _fetch_cluster_from_vector_store(date)
     return {"date": date, "cluster": cluster}
+
+
+@app.post("/cluster_narrate")
+async def cluster_narrate(payload: ClusterPayload) -> dict:
+    """Return a narrative for the supplied cluster."""
+
+    engine = WhisperEngine({})
+
+    import redis
+    from qdrant_client import QdrantClient
+
+    redis_client = redis.Redis(
+        host=os.getenv("REDIS_HOST", "localhost"),
+        port=int(os.getenv("REDIS_PORT", "6379")),
+        decode_responses=True,
+    )
+
+    qdrant_client: Any = None
+    try:
+        class QdrantAdapter:
+            def __init__(self) -> None:
+                self._client = QdrantClient(
+                    url=os.getenv("QDRANT_URL"),
+                    api_key=os.getenv("QDRANT_API_KEY"),
+                )
+                self._collection = os.getenv("QDRANT_COLLECTION", "clusters")
+
+            def search(self, embedding, top_k: int = 3):
+                try:
+                    return self._client.search(
+                        collection_name=self._collection,
+                        query_vector=embedding,
+                        limit=top_k,
+                    )
+                except Exception:
+                    return []
+
+        qdrant_client = QdrantAdapter()
+    except Exception:
+        qdrant_client = None
+
+    return engine.cluster_narrator(payload.top_cluster, redis_client, qdrant_client)
