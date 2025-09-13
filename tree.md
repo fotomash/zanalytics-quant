@@ -203,7 +203,6 @@ requirements.txt
 scripts
 
 ./dashboard/pages:
- 🔎 Tick manipulation insights copy.py
 10_ 🔧 Utilities.py
 1_  🌍 Market Intelligence_4.py
 2_ 📰 MACRO & NEWS.py
@@ -248,7 +247,6 @@ strategy_integration.py
 strategy_signals_dashboard.py
 tick_manipulation_dashboard.py
 ultimate_analysis_enhanced.py
-wyckof copy.py
 wyckof.py
 wyckoff_analysis.py.py
 wyckoff_config.yaml
