@@ -53,7 +53,8 @@ scaling linearly with input size.
 
 ```python
 import pandas as pd
-from utils.processors import AdvancedProcessor, HarmonicProcessor
+from utils.processors import AdvancedProcessor
+from core.harmonic_processor import HarmonicProcessor
 
 # Minimal OHLC sample; use real market data in practice
 bars = pd.DataFrame({
