@@ -21,8 +21,7 @@ streamlit run dashboard/Home.py
    ```bash
    pip install -r requirements/dashboard.txt  # or dashboard/requirements.txt
    ```
-   This installs the necessary Python packages, including `scikit-learn` and
-   `umap-learn`, which power machine-learning features in the dashboard.
+   This pulls in core analytics libraries like `scikit-learn` and `umap-learn` needed for local development.
 2. **Environment** – ensure Redis and the Django API are reachable; most pages expect live data. Set `HEALTH_AGGREGATOR_URL` to the base URL of your health aggregator service.
 
 ## Customization
