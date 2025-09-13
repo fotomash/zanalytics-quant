@@ -44,8 +44,8 @@ route:
 receivers:
   - name: 'default-pushover'
     pushover_configs:
-      - token: xxxxxxxxxxxxxxxxxxxxxxxxx
-        user_key: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      - token: '${PUSHOVER_TOKEN}'
+        user_key: '${PUSHOVER_USER_KEY}'
         title: '{{ template "pushover.default.title" . }}'
         message: '{{ template "pushover.default.message" . }}'
         url: '{{ template "pushover.default.url" . }}'
@@ -53,8 +53,8 @@ receivers:
 
   - name: 'warning-pushover'
     pushover_configs:
-      - token: xxxxxxxxxxxxxxxxxxxxxxxxx
-        user_key: xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      - token: '${PUSHOVER_TOKEN}'
+        user_key: '${PUSHOVER_USER_KEY}'
         title: '[{{ .Status | toUpper }}] {{ .CommonAnnotations.title }}'
         message: '{{ .CommonAnnotations.description }}'
         url: '{{ template "pushover.default.url" . }}'
@@ -62,8 +62,8 @@ receivers:
 
   - name: 'critical-pushover'
     pushover_configs:
-      - token: xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-        user_key: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      - token: '${PUSHOVER_TOKEN}'
+        user_key: '${PUSHOVER_USER_KEY}'
         title: '{{ if eq .Status "firing" }}ALARM{{ else }}OK{{ end }} [{{ .Status | toUpper }}] {{ .CommonAnnotations.summary }}'
         message: '{{ template "pushover.default.message" . }}'
         url: '{{ template "pushover.default.url" . }}'
