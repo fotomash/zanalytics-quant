@@ -13,6 +13,7 @@ import json
 import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
+import importlib
 import redis
 import logging
 from redis.exceptions import RedisError
@@ -70,6 +71,10 @@ class PulseKernel:
         self.active_signals = {}
         self.daily_stats = self._init_daily_stats()
         self.behavioral_state = "normal"
+        # Enrichment processor configuration
+        self.enrichment_processors = self._load_enrichment_processors(
+            os.path.join("config", "enrichment_processors.yaml")
+        )
         # Whisper engine (optional)
         self.whisper = None
         if WhisperEngine is not None:
@@ -113,6 +118,20 @@ class PulseKernel:
                     pass
         except Exception as e:
             logger.warning(f"whisper publish error: {e}")
+
+    def _load_enrichment_processors(self, path: str) -> List[Dict[str, Any]]:
+        """Load enrichment processor configuration from YAML."""
+        try:
+            with open(path) as fh:
+                data = yaml.safe_load(fh) or {}
+                processors = data.get("processors", [])
+                if isinstance(processors, list):
+                    return processors
+        except FileNotFoundError:
+            logger.warning("Processor config %s not found", path)
+        except yaml.YAMLError as e:
+            logger.error("Error parsing processor config %s: %s", path, e)
+        return []
 
     def _load_config(self, config_path: str) -> Dict:
         """Load configuration from YAML file"""
@@ -261,26 +280,44 @@ class PulseKernel:
             return {'error': str(e), 'action': 'skip'}
     
     async def _calculate_confluence(self, data: Dict) -> Dict:
-        """Calculate confluence score using existing analyzers"""
-        # This will call the ConfluenceScorer which wraps:
-        # - SMC Analyzer (35,895 LOC)
-        # - Wyckoff Analyzer (15,011 LOC)  
-        # - Technical Analysis (8,161 LOC)
-        
-        return {
-            'score': 82,  # 0-100
-            'grade': 'high',
-            'components': {
-                'smc': 85,
-                'wyckoff': 78,
-                'technical': 83
-            },
-            'reasons': [
-                'Bullish order block detected',
-                'Wyckoff spring confirmed',
-                'RSI oversold bounce'
-            ]
-        }
+        """Run configured enrichment processors and aggregate their outputs."""
+        aggregate: Dict[str, Any] = {}
+        for proc in self.enrichment_processors:
+            module_path = proc.get("module")
+            if not module_path:
+                continue
+            if not proc.get("enabled", True):
+                logger.warning("Processor %s disabled", module_path)
+                continue
+            try:
+                module = importlib.import_module(module_path)
+            except Exception as e:
+                logger.warning("Processor %s not available: %s", module_path, e)
+                continue
+            if not hasattr(module, "process"):
+                logger.warning("Processor %s missing process()", module_path)
+                continue
+            settings = proc.get("settings", {})
+            try:
+                result = module.process(data, **settings)
+                if asyncio.iscoroutine(result):
+                    result = await result
+            except Exception as e:
+                logger.warning("Processor %s failed: %s", module_path, e)
+                continue
+            if not isinstance(result, dict):
+                continue
+            for key, value in result.items():
+                if isinstance(value, list):
+                    aggregate.setdefault(key, []).extend(value)
+                elif (
+                    isinstance(value, dict)
+                    and isinstance(aggregate.get(key), dict)
+                ):
+                    aggregate[key].update(value)
+                else:
+                    aggregate[key] = value
+        return aggregate
     
     async def _enforce_risk(self, confluence_result: Dict) -> Dict:
         """Check risk constraints and limits"""
