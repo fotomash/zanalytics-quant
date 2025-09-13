@@ -21,3 +21,14 @@ def test_run_analog_scoring_with_monkeypatched_embed(monkeypatch):
     df = pd.DataFrame({"text": ["a", "abcd"]})
     scores = ri.run_analog_scoring(df, ["text"], query="a", top_k=1)
     assert scores[0][0] == 0
+    csv_path = tmp_path / "out.csv"
+    json_path = tmp_path / "out.json"
+    insp.to_csv(agg, csv_path)
+    insp.to_json(agg, json_path)
+
+    csv_df = pd.read_csv(csv_path)
+    pd.testing.assert_frame_equal(csv_df, expected)
+
+    with open(json_path) as fh:
+        data = json.load(fh)
+    assert data == [{"symbol": "BTC", "confidence": 0.85, "metric": 0.5}]
