@@ -1,9 +1,16 @@
 # Vectorized enrichment configuration with per-module toggles.
 vectorized:
-  smc: true
-  poi: true
+  toggles:
+    smc: true
+    poi: true
+    indicators:
+      liquidity_zones: true
+      order_blocks: true
   divergence: true
   rsi_fusion: true
+  rsi_thresholds:
+    lower: 30
+    upper: 70
 
 advanced:
   harmonic:
