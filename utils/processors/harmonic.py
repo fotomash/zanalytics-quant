@@ -1,4 +1,3 @@
-
 """Harmonic pattern utilities with asynchronous Qdrant insertion.
 
 This module exposes :class:`HarmonicProcessor` which mirrors the style of
@@ -44,7 +43,7 @@ class HarmonicProcessor:
         self,
         vectors: Sequence[Sequence[float]],
         payloads: Iterable[dict],
-        ids: Iterable[int],
+        ids: Iterable[str | int],
     ) -> None:
         """Insert vectors into Qdrant asynchronously.
 
@@ -52,6 +51,9 @@ class HarmonicProcessor:
         client. Synchronous clients are executed in a background thread via
         :func:`asyncio.to_thread`, mirroring patterns used in other asynchronous
         utilities.
+
+        ``ids`` are expected to be globally unique within the collection and
+        may be provided as either strings or integers.
         """
 
         points = [
@@ -69,4 +71,3 @@ class HarmonicProcessor:
 
 
 __all__ = ["HarmonicProcessor"]
-

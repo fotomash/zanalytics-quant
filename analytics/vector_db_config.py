@@ -18,12 +18,27 @@ import faiss
 VECTOR_DIMENSION = int(os.getenv("VECTOR_DIMENSION", "1536"))
 
 _faiss_index = faiss.IndexFlatL2(VECTOR_DIMENSION)
-_faiss_ids: List[str] = []
-_faiss_metadata: Dict[str, Dict] = {}
+_faiss_ids: List[str | int] = []
+_faiss_metadata: Dict[str | int, Dict] = {}
 
 
-def add_vectors(vectors: Iterable[Iterable[float]], ids: Iterable[str], metadata: Optional[Iterable[Dict]] = None) -> None:
-    """Add vectors with associated ids and metadata to the configured store."""
+def add_vectors(
+    vectors: Iterable[Iterable[float]],
+    ids: Iterable[str | int],
+    metadata: Optional[Iterable[Dict]] = None,
+) -> None:
+    """Add vectors with associated ids and metadata to the configured store.
+
+    Parameters
+    ----------
+    vectors:
+        Iterable of vector embeddings.
+    ids:
+        Globally unique identifiers for each vector. Values may be strings or
+        integers. IDs must be globally unique across the entire index.
+    metadata:
+        Optional iterable of dictionaries containing per-vector metadata.
+    """
     if metadata is None:
         metadata = [{} for _ in ids]
     vec_array = np.array(list(vectors), dtype="float32")
@@ -44,7 +59,9 @@ def query_vector(vector: Iterable[float], top_k: int = 5) -> List[Dict]:
         if idx == -1:
             continue
         id_ = _faiss_ids[idx]
-        matches.append({"id": id_, "score": float(dist), "metadata": _faiss_metadata.get(id_)})
+        matches.append(
+            {"id": id_, "score": float(dist), "metadata": _faiss_metadata.get(id_)}
+        )
     return matches
 
 
