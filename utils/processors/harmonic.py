@@ -9,6 +9,7 @@ The processor accepts either :class:`qdrant_client.AsyncQdrantClient` or the
 traditional synchronous :class:`qdrant_client.QdrantClient`.  Synchronous
 clients are executed in a background thread via :func:`asyncio.to_thread` so
 that inserts never block the event loop.
+=======
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from qdrant_client import models
 
 class HarmonicStorageProcessor:
     """Processor responsible for persisting harmonic pattern vectors."""
+
 
     def __init__(self, client: object, collection_name: str = "harmonic") -> None:
         """Initialize the processor with a Qdrant client.

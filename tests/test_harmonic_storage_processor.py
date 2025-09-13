@@ -24,6 +24,7 @@ async def test_upsert_uses_background_thread_for_sync_client():
     client = DummySyncClient()
     processor = HarmonicStorageProcessor(client)
     await processor.upsert([[0.1]], [{}], [1])
+
     assert client.called
 
 
