@@ -1,3 +1,4 @@
+
 """Harmonic pattern utilities with asynchronous Qdrant insertion.
 
 This module exposes :class:`HarmonicProcessor` which mirrors the style of
@@ -68,3 +69,4 @@ class HarmonicProcessor:
 
 
 __all__ = ["HarmonicProcessor"]
+
