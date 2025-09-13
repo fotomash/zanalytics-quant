@@ -1,11 +1,9 @@
-"""Enrichment service modules."""
 """Enrichment service modules.
 
 This package exposes individual enrichment stages used by the enrichment
 pipeline.  Aliases are registered for modules whose canonical names differ from
-their file names.
-Provides convenient aliases so modules can be loaded by simplified names in
-:mod:`services.enrichment.pipeline`.
+their file names and provides convenient aliases so modules can be loaded by
+simplified names in :mod:`services.enrichment.pipeline`.
 """
 
 from __future__ import annotations

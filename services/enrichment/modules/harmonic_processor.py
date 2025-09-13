@@ -1,4 +1,5 @@
-"""Detect harmonic price patterns and optionally upload vectors to Qdrant."""
+"""Detect harmonic price patterns and optionally store vectors using
+``HarmonicVectorStore``."""
 
 from __future__ import annotations
 
@@ -12,15 +13,14 @@ from qdrant_client import QdrantClient
 from core.harmonic_processor import HarmonicProcessor as PatternAnalyzer
 from enrichment.enrichment_engine import run_data_module
 from services.mcp2.vector.embeddings import embed
+from utils.processors.harmonic import HarmonicVectorStore
 
 
 
 
 def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
-    """Populate ``state`` with harmonic pattern analysis and upload vectors.
-
-    The generated Qdrant IDs should be stored or logged for later retrieval.
-    """
+    """Populate ``state`` with harmonic pattern analysis and upload vectors using
+    ``HarmonicVectorStore``."""
 
 
     state = run_data_module(
@@ -29,16 +29,12 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         engine_factory=lambda: PatternAnalyzer(**config),
     )
     if state.get("status") != "FAIL":
-        harmonic = state.get("harmonic")
-        if isinstance(harmonic, HarmonicResult):
-            harmonic_dict = harmonic.model_dump()
-        elif isinstance(harmonic, dict):
-            harmonic_dict = harmonic
-        else:
-            harmonic_dict = {}
-        state["harmonic"] = harmonic_dict
-        state["HarmonicProcessor"] = harmonic_dict
-    return state
+        result = {
+            "harmonic_patterns": state.get("harmonic_patterns", []),
+            "prz": state.get("prz", []),
+            "confidence": state.get("confidence", []),
+        }
+        state["HarmonicProcessor"] = result
 
     if not config.get("upload"):
         return state
@@ -55,10 +51,12 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     url = os.getenv("QDRANT_URL", "http://localhost:6333")
     api_key = os.getenv("QDRANT_API_KEY")
     client = QdrantClient(url=url, api_key=api_key)
-    uploader = QdrantUploader(client, collection_name=config.get("collection", "harmonic"))
+    vector_store = HarmonicVectorStore(
+        client, collection_name=config.get("collection", "harmonic")
+    )
 
     async def _upsert() -> None:
-        await uploader.upsert(vectors, payloads, ids)
+        await vector_store.upsert(vectors, payloads, ids)
 
     asyncio.run(_upsert())
     return state

@@ -2,7 +2,7 @@
 
 The ``advanced`` processor depends on optional third‑party libraries such as
 ``talib``.  Import failures for these heavy dependencies are gracefully handled
-so lighter‑weight utilities (e.g. :class:`HarmonicStorageProcessor`) remain
+so lighter‑weight utilities (e.g. :class:`HarmonicVectorStore`) remain
 available without requiring the full stack during test runs.
 """
 
@@ -14,11 +14,12 @@ except Exception:  # pragma: no cover - ignore when deps missing
     AdvancedProcessor = RLAgent = None  # type: ignore[assignment]
 
 from .structure import StructureProcessor
-from .harmonic import HarmonicStorageProcessor
+from .harmonic import HarmonicVectorStore, HarmonicStorageProcessor
 
 __all__ = [
     "AdvancedProcessor",
     "StructureProcessor",
     "RLAgent",
+    "HarmonicVectorStore",
     "HarmonicStorageProcessor",
 ]
