@@ -146,6 +146,14 @@ Environment variable used for Alertmanager Slack integration.
 | --- | --- | --- | --- |
 | `SLACK_WEBHOOK_URL` | _(empty)_ | Provide to enable Slack alert delivery. | Incoming webhook URL for Slack alerts. |
 
+## Pushover Notifications
+Environment variables used for Alertmanager Pushover integration.
+
+| Variable | Default | Override Behavior | Purpose |
+| --- | --- | --- | --- |
+| `PUSHOVER_TOKEN` | _(empty)_ | Provide to enable Pushover alerts. | Pushover application token. |
+| `PUSHOVER_USER_KEY` | _(empty)_ | Provide to enable Pushover alerts. | Pushover user key receiving notifications. |
+
 ## Alert Settings
 | Variable | Default | Override Behavior | Purpose |
 | --- | --- | --- | --- |
