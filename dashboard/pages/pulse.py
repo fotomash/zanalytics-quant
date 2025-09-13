@@ -126,10 +126,7 @@ def render_harmonic_chart(df: pd.DataFrame, patterns: List[Dict[str, Any]]) -> g
             )
 
         # PRZ shading
-        prz = pattern.get("prz") or {
-            "low": pattern.get("prz_low"),
-            "high": pattern.get("prz_high"),
-        }
+        prz = pattern.get("prz", {})
         if prz.get("low") is not None and prz.get("high") is not None:
             fig.add_shape(
                 type="rect",

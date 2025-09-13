@@ -189,8 +189,8 @@ def test_detect_harmonic_patterns_bullish():
     patterns = result["harmonic_patterns"]
     assert patterns and patterns[0]["pattern"] == "ABCD"
     prz = patterns[0]["prz"]
-    assert pytest.approx(prz["min"], rel=1e-3) == -1.0
-    assert pytest.approx(prz["max"], rel=1e-3) == 2.33
+    assert pytest.approx(prz["low"], rel=1e-3) == -1.0
+    assert pytest.approx(prz["high"], rel=1e-3) == 2.33
     assert patterns[0]["confidence"] > 0
 
 
@@ -200,8 +200,8 @@ def test_detect_harmonic_patterns_bearish():
     patterns = result["harmonic_patterns"]
     assert patterns and patterns[0]["pattern"] == "ABCD"
     prz = patterns[0]["prz"]
-    assert pytest.approx(prz["min"], rel=1e-3) == -2.33
-    assert pytest.approx(prz["max"], rel=1e-3) == 1.0
+    assert pytest.approx(prz["low"], rel=1e-3) == -2.33
+    assert pytest.approx(prz["high"], rel=1e-3) == 1.0
     assert patterns[0]["confidence"] > 0
 
 

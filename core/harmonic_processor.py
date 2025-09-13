@@ -141,9 +141,9 @@ class HarmonicProcessor:
             ]
             prices = [pt["price"] for pt in pts]
             if prices:
-                prz = {"min": min(prices), "max": max(prices)}
+                prz = {"low": min(prices), "high": max(prices)}
             else:
-                prz = {"min": None, "max": None}
+                prz = {"low": None, "high": None}
             confidence = float(len(pts)) / 5 if pts else 0.0
             processed.append(
                 {

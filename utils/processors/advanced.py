@@ -314,10 +314,10 @@ class AdvancedProcessor:
                     errs.append(err)
                 if valid and errs:
                     confidence = float(1.0 - np.mean(errs))
-                    prz = (
-                        float(np.min(prices[[c, d]])),
-                        float(np.max(prices[[c, d]])),
-                    )
+                    prz = {
+                        "low": float(np.min(prices[[c, d]])),
+                        "high": float(np.max(prices[[c, d]])),
+                    }
                     results.append(
                         {
                             "pattern": name,

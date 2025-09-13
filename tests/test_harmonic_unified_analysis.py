@@ -29,12 +29,12 @@ def test_build_unified_analysis_includes_harmonic():
         "timestamp": 0,
         "harmonic": {
             "harmonic_patterns": [{"pattern": "bat"}],
-            "prz": {"low": 1.0, "high": 1.2},
-            "confidence": 0.9,
+            "prz": [{"low": 1.0, "high": 1.2}],
+            "confidence": [0.9],
         },
     }
     payload = ae.build_unified_analysis(tick, cfg)
     harmonic = payload.harmonic
-    assert harmonic.harmonic_patterns[0]["pattern"] == "bat"
-    assert harmonic.prz == {"low": 1.0, "high": 1.2}
-    assert harmonic.confidence == 0.9
+    assert harmonic.harmonic_patterns[0].pattern == "bat"
+    assert harmonic.prz[0] == {"low": 1.0, "high": 1.2}
+    assert harmonic.confidence[0] == 0.9
