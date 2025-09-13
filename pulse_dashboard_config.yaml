@@ -15,3 +15,27 @@ behavioral_modules:
   fomo_protection: true
   loss_chasing: true
   time_of_day: true
+harmonic_stream_schema:
+  description: Expected fields for harmonic pattern messages streamed to the Pulse dashboard.
+  fields:
+    symbol: string
+    timestamp: ISO-8601 string
+    ohlc:
+      - time: ISO-8601 string
+        open: float
+        high: float
+        low: float
+        close: float
+    harmonic_patterns:
+      - pattern_type: string
+        confidence: float
+        point1_time: ISO-8601 string
+        point1_price: float
+        point2_time: ISO-8601 string
+        point2_price: float
+        point3_time: ISO-8601 string
+        point3_price: float
+        point4_time: ISO-8601 string
+        point4_price: float
+        prz_low: float
+        prz_high: float
