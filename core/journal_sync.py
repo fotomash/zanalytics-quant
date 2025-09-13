@@ -7,17 +7,59 @@ except ImportError:  # pragma: no cover - MT5 optional in tests
 
 from datetime import datetime, timezone
 from typing import Dict, List
+import json
+import logging
+import os
+import sqlite3
+
+try:  # pragma: no cover - optional dependency
+    import redis
+except Exception:  # pragma: no cover - handled gracefully in write_journal_entry
+    redis = None  # type: ignore
+
+logger = logging.getLogger(__name__)
 
 
 def detect_behavior_flags(deal: object) -> List[str]:
     """Placeholder for behavioral flag detection logic."""
     return []
 
-# STUB
 def write_journal_entry(entry: Dict) -> None:
-    """Placeholder for writing a journal entry to storage."""
-    # In production, this would persist to a database or message queue.
-    raise NotImplementedError("Stub")
+    """Persist a journal entry to the configured backend.
+
+    The backend is selected via the ``JOURNAL_BACKEND`` environment variable and
+    supports ``redis`` (default) or ``sqlite`` for lightweight testing.  Errors
+    are logged but never raised to avoid interrupting the sync process.
+    """
+
+    backend = os.getenv("JOURNAL_BACKEND", "redis").lower()
+
+    if backend == "redis":
+        if redis is None:  # pragma: no cover - library missing
+            logger.warning("Redis backend requested but redis package is unavailable")
+            return
+        url = os.getenv("JOURNAL_REDIS_URL", os.getenv("REDIS_URL", "redis://redis:6379/0"))
+        try:
+            client = redis.from_url(url, decode_responses=True)
+            client.xadd("pulse:journal", entry, maxlen=1000, approximate=True)
+        except Exception as exc:  # pragma: no cover - network errors
+            logger.error("Failed to write journal entry to Redis: %s", exc)
+    elif backend == "sqlite":
+        db_path = os.getenv("JOURNAL_DB_PATH", "journal.db")
+        try:
+            conn = sqlite3.connect(db_path)
+            with conn:  # ensures commit/rollback
+                conn.execute("CREATE TABLE IF NOT EXISTS journal (data TEXT)")
+                conn.execute("INSERT INTO journal (data) VALUES (?)", (json.dumps(entry),))
+        except Exception as exc:  # pragma: no cover - file/IO errors
+            logger.error("Failed to write journal entry to SQLite: %s", exc)
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    else:
+        logger.error("Unknown JOURNAL_BACKEND '%s' - entry dropped", backend)
 
 
 def sync_to_pulse_journal() -> Dict[str, int | str]:
