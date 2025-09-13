@@ -1,4 +1,3 @@
-import pytest
 import fakeredis
 
 from whisper_engine import WhisperEngine
@@ -22,6 +21,7 @@ def test_cluster_narrator_returns_dict():
         "cluster_id": "top",
         "summary": "Market is bullish",
         "pattern": "trend",
+        "embedding": [0.0, 0.0, 0.0],
         "recommendation": "Consider long positions",
     }
     result = engine.cluster_narrator(top_cluster, r, qdrant)
@@ -33,7 +33,12 @@ def test_cluster_narrator_unknown_cluster():
     r = fakeredis.FakeRedis(decode_responses=True)
     qdrant = MockQdrantClient()
     engine = WhisperEngine({})
-    top_cluster = {"cluster_id": "unknown", "summary": "", "pattern": ""}
+    top_cluster = {
+        "cluster_id": "unknown",
+        "summary": "",
+        "pattern": "",
+        "embedding": [0.0, 0.0, 0.0],
+    }
     result = engine.cluster_narrator(top_cluster, r, qdrant)
     assert result["recommendation"] == ""
     assert "No notable historical alerts" in result["narrative"]
@@ -43,7 +48,12 @@ def test_cluster_narrator_empty_memory():
     r = fakeredis.FakeRedis(decode_responses=True)
     qdrant = MockQdrantClient()
     engine = WhisperEngine({})
-    top_cluster = {"cluster_id": "top", "summary": "", "pattern": ""}
+    top_cluster = {
+        "cluster_id": "top",
+        "summary": "",
+        "pattern": "",
+        "embedding": [0.0, 0.0, 0.0],
+    }
     result = engine.cluster_narrator(top_cluster, r, qdrant)
     assert "No notable historical alerts" in result["narrative"]
     assert result["recommendation"] == ""
@@ -57,6 +67,7 @@ def test_cluster_narrator_recommendation_format():
         "cluster_id": "top",
         "summary": "Uptrend",
         "pattern": "pattern",
+        "embedding": [0.0, 0.0, 0.0],
         "recommendation": "Buy the breakout",
     }
     result = engine.cluster_narrator(top_cluster, r, qdrant)
