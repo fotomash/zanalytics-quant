@@ -30,6 +30,12 @@ def test_default_groups_present():
     assert "volatility" in cfg.technical.groups
 
 
+def test_rsi_threshold_defaults():
+    cfg = EnrichmentConfig()
+    assert cfg.technical.overbought_threshold == 70
+    assert cfg.technical.oversold_threshold == 30
+
+
 def test_build_unified_analysis_skips_technical(monkeypatch):
     ae = _import_analysis_engines()
     cfg = EnrichmentConfig()

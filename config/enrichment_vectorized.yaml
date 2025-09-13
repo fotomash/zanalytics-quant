@@ -12,12 +12,3 @@ vectorized:
     lower: 30
     upper: 70
 
-advanced:
-  harmonic:
-    enabled: false
-
-vector_db:
-  collection: enrichment_vectors
-
-embedding:
-  model: text-embedding-3-small

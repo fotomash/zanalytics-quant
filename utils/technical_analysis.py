@@ -7,11 +7,18 @@
 import pandas as pd
 import numpy as np
 import ta
+from utils.enrichment_config import EnrichmentConfig
 
 class TechnicalAnalysis:
-    def __init__(self):
+    def __init__(self, config: EnrichmentConfig | None = None):
         self.indicators = {}
         self.calculate_indicators = self.calculate_all
+        if config:
+            self.overbought_threshold = config.technical.overbought_threshold
+            self.oversold_threshold = config.technical.oversold_threshold
+        else:
+            self.overbought_threshold = 70
+            self.oversold_threshold = 30
 
     def calculate_all(self, df):
         """Calculate all technical indicators"""
@@ -207,8 +214,8 @@ class TechnicalAnalysis:
             if len(rsi) > 0:
                 confluence['momentum'][tf] = {
                     'rsi': rsi.iloc[-1],
-                    'overbought': rsi.iloc[-1] > 70,
-                    'oversold': rsi.iloc[-1] < 30
+                    'overbought': rsi.iloc[-1] > self.overbought_threshold,
+                    'oversold': rsi.iloc[-1] < self.oversold_threshold
                 }
         
         # Cluster key levels across timeframes

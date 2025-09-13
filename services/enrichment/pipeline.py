@@ -73,8 +73,11 @@ def run(
         if state.get("status") == "FAIL":
             break
         cfg = configs.get(name, {})
+
         if cfg.get("enabled", True) is False:
+            outputs.pop(name, None)
             continue
+
         try:
             module = import_module(f"modules.{name}")
             runner = getattr(module, "run")
@@ -91,6 +94,10 @@ def run(
             state["status"] = "FAIL"
             state.setdefault("errors", {})[name] = str(exc)
             break
+        finally:
+            for mod, mod_cfg in configs.items():
+                if mod_cfg.get("enabled", True) is False:
+                    outputs.pop(mod, None)
 
     return state
 

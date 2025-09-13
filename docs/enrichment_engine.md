@@ -56,6 +56,19 @@ configuration is provided at
 defines the harmonic tolerance and pivot window along with the target
 embedding model and collection name.
 
+For vectorized runs, [`config/enrichment_vectorized.yaml`](../config/enrichment_vectorized.yaml)
+defines nested flags for individual features:
+
+```yaml
+smc:
+  liquidity_grabs: true
+  order_blocks: true
+poi:
+  imbalances: true
+rsi:
+  overbought_threshold: 70
+```
+
 ### Pydantic configuration model
 
 The groups are represented by the Pydantic
