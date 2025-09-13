@@ -1,5 +1,15 @@
+"""Lightweight enrichment utilities.
+
+This package provides basic helpers for enriching tick data and exposes
+an experimental ``smc_process`` function for extracting Smart Money Concepts
+(SMC) features.
+"""
+
+from __future__ import annotations
+
 import pandas as pd
-import numpy as np
+
+from .smc import process as smc_process
 
 TIMEFRAME_RULES = {
     "M1": "1T",
@@ -88,3 +98,6 @@ def enrich_ticks(df: pd.DataFrame) -> pd.DataFrame:
         df["ma_20"] = df["mid_price"].rolling(20).mean()
 
     return df
+
+
+__all__ = ["aggregate_ticks_to_bars", "enrich_ticks", "smc_process"]
