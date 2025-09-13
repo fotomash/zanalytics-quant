@@ -111,6 +111,7 @@ class HarmonicPattern(BaseModel):
     prz: PriceRange = Field(
         default_factory=PriceRange,
         description="Potential reversal zone boundaries",
+
     )
     confidence: float = Field(
         0.0, description="Confidence score for the pattern",
@@ -127,6 +128,7 @@ class HarmonicResult(BaseModel):
     prz: PriceRange = Field(
         default_factory=PriceRange,
         description="Potential reversal zone boundaries",
+
     )
     confidence: float = Field(
         0.0, description="Confidence score for the detected patterns",

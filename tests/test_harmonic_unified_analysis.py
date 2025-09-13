@@ -36,8 +36,8 @@ def test_build_unified_analysis_includes_harmonic():
         "timestamp": 0,
         "harmonic": {
             "harmonic_patterns": [{"pattern": "bat"}],
-            "prz": {"low": 1.0, "high": 1.2},
-            "confidence": 0.9,
+            "prz": [{"low": 1.0, "high": 1.2}],
+            "confidence": [0.9],
         },
     }
     payload = ae.build_unified_analysis(tick, cfg)
