@@ -69,5 +69,16 @@ class RSIProcessor:
         vector = rsi.to_numpy() if return_vector else None
         return enriched, vector
 
+def run(
+    df: pd.DataFrame,
+    period: int = 14,
+    *,
+    column: str = "close",
+    return_vector: bool = False,
+) -> Tuple[pd.DataFrame, Optional[np.ndarray]]:
+    """Convenience function using :class:`RSIProcessor`."""
+    processor = RSIProcessor(period=period)
+    return processor.enrich(df, column=column, return_vector=return_vector)
 
-__all__ = ["RSIProcessor"]
+
+__all__ = ["RSIProcessor", "run"]

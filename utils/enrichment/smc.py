@@ -1,6 +1,6 @@
 """SMC feature extraction utilities.
 
-The :func:`process` function is intentionally lightweight; it operates on a
+The :func:`run` function is intentionally lightweight; it operates on a
 plain ``dict`` of OHLC values and returns a tuple containing a features
 dictionary and, when possible, a vector representation of those features.
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Optional
 
 
-def process(data: dict) -> tuple[dict, Optional[list[float]]]:
+def run(data: dict) -> tuple[dict, Optional[list[float]]]:
     """Extract simple SMC features.
 
     Parameters
@@ -56,5 +56,5 @@ def process(data: dict) -> tuple[dict, Optional[list[float]]]:
     return features, vector
 
 
-__all__ = ["process"]
+__all__ = ["run"]
 

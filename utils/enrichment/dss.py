@@ -43,5 +43,9 @@ def compute_dss(df: pd.DataFrame) -> Tuple[Dict[str, float], np.ndarray]:
     vector = np.column_stack((displacement, shift)).astype(float)
     return metrics, vector
 
+def run(df: pd.DataFrame) -> Tuple[Dict[str, float], np.ndarray]:
+    """Convenience wrapper around :func:`compute_dss`."""
+    return compute_dss(df)
 
-__all__ = ["compute_dss"]
+
+__all__ = ["compute_dss", "run"]

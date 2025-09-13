@@ -104,7 +104,8 @@ def enrich_ticks(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-# Expose POI processor
+# Expose selected processors
 from . import poi
+from .rsi import RSIProcessor
 
-__all__ = ["aggregate_ticks_to_bars", "enrich_ticks", "poi"]
+__all__ = ["aggregate_ticks_to_bars", "enrich_ticks", "poi", "RSIProcessor"]

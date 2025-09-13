@@ -294,12 +294,13 @@ class PulseKernel:
             except Exception as e:
                 logger.warning("Processor %s not available: %s", module_path, e)
                 continue
-            if not hasattr(module, "process"):
-                logger.warning("Processor %s missing process()", module_path)
+            func = getattr(module, "process", getattr(module, "run", None))
+            if func is None:
+                logger.warning("Processor %s missing run()", module_path)
                 continue
             settings = proc.get("settings", {})
             try:
-                result = module.process(data, **settings)
+                result = func(data, **settings)
                 if asyncio.iscoroutine(result):
                     result = await result
             except Exception as e:
