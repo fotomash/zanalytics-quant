@@ -126,8 +126,8 @@ class WhisperEngine:
             Redis connection used for fetching historical context via
             :class:`LLMRedisBridge`.
         qdrant_client:
-            Vector search client (e.g., :class:`BrownVectorPipeline`) used to
-            look up similar historical patterns.
+            Vector search client implementing ``search_similar_clusters`` used
+            to look up similar historical patterns.
 
         Returns
         -------
@@ -163,16 +163,18 @@ class WhisperEngine:
         # Query vector store for similar patterns
         similar_note = ""
         matches: List[Dict[str, Any]] = []
+
+        search_fn = getattr(qdrant_client, "search_similar_clusters", None)
+        if not callable(search_fn):
+            raise TypeError(
+                "Vector search client must implement 'search_similar_clusters'"
+            )
         try:
-            if hasattr(qdrant_client, "search_similar_patterns"):
-                matches = qdrant_client.search_similar_patterns(
-                    pattern_type=top_cluster.get("pattern", ""),
-                    timeframe=top_cluster.get("timeframe", ""),
-                    top_k=3,
-                )
-            elif hasattr(qdrant_client, "search"):
-                # Expect a raw embedding when direct search is available
-                matches = qdrant_client.search(top_cluster.get("embedding", []), top_k=3)  # type: ignore[arg-type]
+            matches = search_fn(
+                collection_name=top_cluster.get("collection", "clusters"),
+                query_vector=top_cluster.get("embedding", []),
+                top_k=3,
+            )
         except Exception:
             matches = []
 
