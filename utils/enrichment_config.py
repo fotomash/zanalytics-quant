@@ -54,7 +54,9 @@ def _default_technical_groups() -> Dict[str, TechnicalSubGroup]:
 class TechnicalConfig(BaseModel):
     """Configuration for technical indicator groups."""
 
-    groups: Dict[str, TechnicalSubGroup] = Field(default_factory=_default_technical_groups)
+    groups: Dict[str, TechnicalSubGroup] = Field(
+        default_factory=_default_technical_groups
+    )
 
     @field_validator("groups", mode="before")
     @classmethod
@@ -107,6 +109,14 @@ class HarmonicConfig(BaseModel):
     """Configuration for harmonic pattern detection."""
 
     enabled: bool = True
+    tolerance: float = Field(
+        0.05,
+        description="Ratio matching tolerance for pattern validation",
+    )
+    window: int = Field(
+        5,
+        description="Look-back window when locating swing pivots",
+    )
     collection: str | None = Field(
         None, description="Target collection for harmonic pattern vectors"
     )
@@ -124,9 +134,7 @@ class VectorDBConfig(BaseModel):
 class EmbeddingConfig(BaseModel):
     """Embedding model configuration."""
 
-    model: str | None = Field(
-        None, description="Name of the embedding model to use"
-    )
+    model: str | None = Field(None, description="Name of the embedding model to use")
 
 
 class AdvancedConfig(BaseModel):
@@ -183,11 +191,23 @@ class EnrichmentConfig(BaseModel):
                 "ml_ensemble": self.advanced.elliott.ml_ensemble,
                 "llm_max_tokens": self.advanced.elliott.llm_max_tokens,
             },
+            "harmonic_processor": {
+                "enabled": self.advanced.harmonic.enabled,
+                "tolerance": self.advanced.harmonic.tolerance,
+                "window": self.advanced.harmonic.window,
+            },
         }
 
 
-def load_enrichment_config(path: str | Path = "config/enrichment_default.yaml") -> EnrichmentConfig:
-    """Load and validate enrichment configuration from YAML file."""
+def load_enrichment_config(
+    path: str | Path = "config/enrichment_default.yaml",
+) -> EnrichmentConfig:
+    """Load and validate enrichment configuration from YAML file.
+
+    Besides the default configuration, ``config/enrichment_harmonic.yaml``
+    is provided to enable harmonic pattern detection and vector database
+    persistence.  Pass the path to this function to activate the feature.
+    """
 
     path = Path(path)
     data: Dict[str, Any]

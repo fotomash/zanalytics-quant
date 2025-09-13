@@ -12,6 +12,7 @@
 ## docker compose
 
 - Ensure `DJANGO_SECRET_KEY` only set once with default fallback
+- Provide `SLACK_WEBHOOK_URL` in the environment for Alertmanager Slack alerts
 - Celery/Celery Beat:
   - `entrypoint`: `celery -A app worker|beat`
   - `PYTHONPATH` includes: `/app/backend/django:/app/agents:/app:/app/components:/app/utils:/app/backend`

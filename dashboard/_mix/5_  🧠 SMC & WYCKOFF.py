@@ -1,3 +1,20 @@
+"""QRT dashboard blending smart‑money concepts with Wyckoff analysis.
+
+This module backs an interactive Streamlit dashboard but also exposes a small
+collection of detection heuristics for unit testing.  The following Wyckoff
+events are recognised using straightforward logic:
+
+* **Selling climax** – new low on a sharp drop and volume spike.
+* **Accumulation range** – contraction in price range accompanied by lower
+  volume.
+* **Spring** – temporary break of support that closes back above it.
+* **Markup beginning** – breakout above resistance with expanding volume.
+
+These detectors are intentionally lightweight yet fully functional and are
+covered by unit tests.  More sophisticated analytics (for example the
+``TiquidityEngine``) are outside the scope of this module and raise
+``NotImplementedError`` when invoked.
+"""
 
 import streamlit as st
 
@@ -451,25 +468,87 @@ class QRTQuantumAnalyzer(QuantumMicrostructureAnalyzer):
                 "delta_div": bullish_div + bearish_div}
 
     def _detect_selling_climax(self, df):
-        # TODO: Replace with real selling climax detection logic
-        return False
+        """Basic selling climax detection.
+
+        Returns ``True`` when the last bar prints a new low accompanied by a
+        volume spike and a sharp percentage drop from the start of ``df``.
+        ``df`` must contain ``close``, ``low`` and ``volume`` columns.
+        """
+        required = {"close", "low", "volume"}
+        if not required.issubset(df.columns) or len(df) < 5:
+            return False
+        last = df.iloc[-1]
+        if last["low"] > df["low"].min():
+            return False
+        volume_spike = last["volume"] >= df["volume"].mean() * 2
+        drop = (last["close"] - df["close"].iloc[0]) / df["close"].iloc[0]
+        return volume_spike and drop <= -0.03
 
     def _detect_accumulation_range(self, df):
-        # TODO: Replace with real accumulation range detection logic
-        return False
+        """Detect a low-volatility, low-volume accumulation range."""
+        required = {"high", "low", "volume"}
+        lookback = min(20, len(df))
+        if not required.issubset(df.columns) or lookback < 2:
+            return False
+        recent = df.tail(lookback)
+        recent_range = recent["high"].max() - recent["low"].min()
+        full_range = df["high"].max() - df["low"].min()
+        volume_drop = recent["volume"].mean() < df["volume"].mean()
+        return full_range > 0 and recent_range / full_range < 0.4 and volume_drop
 
     def _detect_spring(self, df):
-        # TODO: Replace with real spring detection logic
+        """Detect a spring: price dips below support then closes back above."""
+        required = {"low", "close"}
+        if not required.issubset(df.columns) or len(df) < 2:
+            return None
+        for i in range(1, len(df)):
+            support = df["low"].iloc[:i].min()
+            bar = df.iloc[i]
+            if bar["low"] < support and bar["close"] > support:
+                return i
         return None
 
     def _detect_markup_beginning(self, df):
-        # TODO: Replace with real markup beginning detection logic
-        return False
+        """Detect the start of a markup phase via breakout and volume spike."""
+        required = {"high", "close", "volume"}
+        if not required.issubset(df.columns) or len(df) < 2:
+            return False
+        resistance = df["high"].iloc[:-1].max()
+        last = df.iloc[-1]
+        breakout = last["close"] > resistance
+        volume_spike = last["volume"] > df["volume"].iloc[:-1].mean() * 1.5
+        return breakout and volume_spike
 
 
 class TiquidityEngine:
-    """Engine for tick liquidity analysis"""
-    pass
+    """Engine for tick liquidity analysis.
+
+    The real liquidity engine lives in a separate service.  In the dashboard
+    context we only expose an interface so that the rest of the analyzer can be
+    instantiated during tests.  Any direct use of this stub will raise
+    :class:`NotImplementedError` to make the missing dependency explicit.
+    """
+
+    def analyze(self, df: pd.DataFrame) -> Dict[str, float]:
+        """Compute tick liquidity metrics for ``df``.
+
+        Parameters
+        ----------
+        df:
+            Price/volume data.
+
+        Returns
+        -------
+        Dict[str, float]
+            Calculated metrics.
+
+        Raises
+        ------
+        NotImplementedError
+            Always – the production engine is not bundled with the dashboard.
+        """
+
+        raise NotImplementedError("Tick liquidity analysis is not implemented in this stub.")
 
 
 class WyckoffQuantumAnalyzer:

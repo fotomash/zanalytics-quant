@@ -26,11 +26,20 @@ def _pattern_to_text(pattern: Dict[str, Any]) -> str:
 def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     """Populate ``state`` with harmonic pattern analysis and upload vectors."""
 
+
     state = run_data_module(
         state,
         required_cols=("open", "high", "low", "close"),
         engine_factory=lambda: PatternAnalyzer(**config),
     )
+    if state.get("status") != "FAIL":
+        result = {
+            "harmonic_patterns": state.get("harmonic_patterns", []),
+            "prz": state.get("prz", []),
+            "confidence": state.get("confidence", []),
+        }
+        state["HarmonicProcessor"] = result
+    return state
 
     if not config.get("upload"):
         return state

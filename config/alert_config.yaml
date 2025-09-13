@@ -15,7 +15,7 @@ channels:
       - "risk@example.com"
   slack:
     enabled: false
-    webhook_url: ""
+    webhook_url: "${SLACK_WEBHOOK_URL}"
 
 alert_types:
   price_alerts:
