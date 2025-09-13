@@ -1,9 +1,14 @@
-# Vectorized enrichment configuration with nested flags.
-smc:
-  liquidity_grabs: true
-  order_blocks: true
-poi:
-  imbalances: true
-rsi:
-  overbought_threshold: 70
+# Vectorized enrichment configuration with per-module toggles.
+vectorized:
+  toggles:
+    smc: true
+    poi: true
+    indicators:
+      liquidity_zones: true
+      order_blocks: true
+  divergence: true
+  rsi_fusion: true
+  rsi_thresholds:
+    lower: 30
+    upper: 70
 

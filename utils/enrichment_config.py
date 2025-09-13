@@ -129,13 +129,36 @@ class HarmonicConfig(BaseModel):
     upload: bool = False
 
 
-class VectorizedConfig(BaseModel):
-    """Toggles for vectorized enrichment modules."""
+class IndicatorToggles(BaseModel):
+    """Toggle configuration for SMC/POI and specific indicators."""
 
     smc: bool = True
     poi: bool = True
+    indicators: Mapping[str, bool] = Field(
+        default_factory=dict,
+        description="Mapping of indicator name to enabled flag",
+    )
+
+    def enabled_indicators(self) -> List[str]:
+        """Return a list of indicator names that are enabled."""
+
+        return [name for name, flag in self.indicators.items() if flag]
+
+
+class RSIThresholds(BaseModel):
+    """Upper and lower thresholds for RSI-based indicators."""
+
+    lower: float = Field(30, description="Oversold threshold")
+    upper: float = Field(70, description="Overbought threshold")
+
+
+class VectorizedConfig(BaseModel):
+    """Toggles for vectorized enrichment modules."""
+
+    toggles: IndicatorToggles = Field(default_factory=IndicatorToggles)
     divergence: bool = True
     rsi_fusion: bool = True
+    rsi_thresholds: RSIThresholds = Field(default_factory=RSIThresholds)
 
 
 class VectorDBConfig(BaseModel):
@@ -194,11 +217,6 @@ class EnrichmentConfig(BaseModel):
             "liquidity_engine": {"enabled": self.advanced.liquidity_engine},
             "context_analyzer": {"enabled": self.advanced.context_analyzer},
             "fvg_locator": {"enabled": self.advanced.fvg_locator},
-            "harmonic_processor": {
-                "enabled": self.advanced.harmonic.enabled,
-                "collection": self.advanced.harmonic.collection,
-                "upload": self.advanced.harmonic.upload,
-            },
             "predictive_scorer": {"enabled": self.advanced.predictive_scorer},
             "fractal_detector": {
                 "enabled": self.advanced.fractal_detector,
@@ -218,14 +236,29 @@ class EnrichmentConfig(BaseModel):
             },
             "harmonic_processor": {
                 "enabled": self.advanced.harmonic.enabled,
+                "collection": self.advanced.harmonic.collection,
+                "upload": self.advanced.harmonic.upload,
                 "tolerance": self.advanced.harmonic.tolerance,
                 "window": self.advanced.harmonic.window,
             },
-            "smc": {"enabled": self.vectorized.smc},
-            "poi": {"enabled": self.vectorized.poi},
+            "smc": {"enabled": self.vectorized.toggles.smc},
+            "poi": {"enabled": self.vectorized.toggles.poi},
             "divergence": {"enabled": self.vectorized.divergence},
-            "rsi_fusion": {"enabled": self.vectorized.rsi_fusion},
+            "rsi_fusion": {
+                "enabled": self.vectorized.rsi_fusion,
+                "thresholds": {
+                    "lower": self.vectorized.rsi_thresholds.lower,
+                    "upper": self.vectorized.rsi_thresholds.upper,
+                },
+            },
         }
+
+    def apply_indicator_toggles(self) -> None:
+        """Apply indicator enable/disable settings to the global registry."""
+
+        from indicators.registry import set_enabled
+
+        set_enabled(self.vectorized.toggles.enabled_indicators())
 
 
 def load_enrichment_config(
@@ -273,6 +306,8 @@ __all__ = [
     "AlligatorConfig",
     "ElliottConfig",
     "HarmonicConfig",
+    "IndicatorToggles",
+    "RSIThresholds",
     "VectorizedConfig",
     "VectorDBConfig",
     "EmbeddingConfig",
