@@ -1,4 +1,5 @@
-"""Detect harmonic price patterns and optionally upload vectors to Qdrant."""
+"""Detect harmonic price patterns and optionally store vectors using
+``HarmonicVectorStore``."""
 
 from __future__ import annotations
 
@@ -11,7 +12,7 @@ from qdrant_client import QdrantClient
 from core.harmonic_processor import HarmonicProcessor as PatternAnalyzer
 from enrichment.enrichment_engine import run_data_module
 from services.mcp2.vector.embeddings import embed
-from utils.processors.harmonic import HarmonicProcessor as QdrantUploader
+from utils.processors.harmonic import HarmonicVectorStore
 
 
 def _pattern_to_text(pattern: Dict[str, Any]) -> str:
@@ -24,7 +25,8 @@ def _pattern_to_text(pattern: Dict[str, Any]) -> str:
 
 
 def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
-    """Populate ``state`` with harmonic pattern analysis and upload vectors."""
+    """Populate ``state`` with harmonic pattern analysis and upload vectors using
+    ``HarmonicVectorStore``."""
 
 
     state = run_data_module(
@@ -39,7 +41,6 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
             "confidence": state.get("confidence", []),
         }
         state["HarmonicProcessor"] = result
-    return state
 
     if not config.get("upload"):
         return state
@@ -55,10 +56,12 @@ def run(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     url = os.getenv("QDRANT_URL", "http://localhost:6333")
     api_key = os.getenv("QDRANT_API_KEY")
     client = QdrantClient(url=url, api_key=api_key)
-    uploader = QdrantUploader(client, collection_name=config.get("collection", "harmonic"))
+    vector_store = HarmonicVectorStore(
+        client, collection_name=config.get("collection", "harmonic")
+    )
 
     async def _upsert() -> None:
-        await uploader.upsert(vectors, payloads, ids)
+        await vector_store.upsert(vectors, payloads, ids)
 
     asyncio.run(_upsert())
     return state

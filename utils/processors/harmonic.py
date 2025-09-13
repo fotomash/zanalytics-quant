@@ -1,15 +1,14 @@
 """Asynchronous Qdrant storage for harmonic pattern vectors.
 
-This module provides :class:`HarmonicStorageProcessor`, an awaitable helper for
-persisting harmonic pattern embeddings.  It focuses solely on Qdrant upserts
+This module provides :class:`HarmonicVectorStore`, an awaitable helper for
+persisting harmonic pattern embeddings. It focuses solely on Qdrant upserts
 and intentionally avoids the pattern *analysis* performed by
 ``core.harmonic_processor.HarmonicProcessor``.
 
-The processor accepts either :class:`qdrant_client.AsyncQdrantClient` or the
-traditional synchronous :class:`qdrant_client.QdrantClient`.  Synchronous
-clients are executed in a background thread via :func:`asyncio.to_thread` so
-that inserts never block the event loop.
-=======
+The store accepts either :class:`qdrant_client.AsyncQdrantClient` or the
+traditional synchronous :class:`qdrant_client.QdrantClient`. Synchronous clients
+are executed in a background thread via :func:`asyncio.to_thread` so that inserts
+never block the event loop.
 """
 
 from __future__ import annotations
@@ -21,12 +20,12 @@ from typing import Iterable, Sequence
 from qdrant_client import models
 
 
-class HarmonicStorageProcessor:
-    """Processor responsible for persisting harmonic pattern vectors."""
+class HarmonicVectorStore:
+    """Vector store responsible for persisting harmonic pattern vectors."""
 
 
     def __init__(self, client: object, collection_name: str = "harmonic") -> None:
-        """Initialize the processor with a Qdrant client.
+        """Initialize the vector store with a Qdrant client.
 
         Parameters
         ----------
@@ -69,4 +68,6 @@ class HarmonicStorageProcessor:
             )
 
 
-__all__ = ["HarmonicStorageProcessor"]
+HarmonicStorageProcessor = HarmonicVectorStore
+
+__all__ = ["HarmonicVectorStore", "HarmonicStorageProcessor"]

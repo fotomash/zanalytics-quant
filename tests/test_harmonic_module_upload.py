@@ -12,7 +12,7 @@ def test_harmonic_run_uploads_vectors(monkeypatch):
         ]
         return state
 
-    class DummyUploader:
+    class DummyVectorStore:
         def __init__(self, client, collection_name=""):
             pass
 
@@ -23,7 +23,7 @@ def test_harmonic_run_uploads_vectors(monkeypatch):
 
     monkeypatch.setattr(hp, "run_data_module", fake_run_data_module)
     monkeypatch.setattr(hp, "QdrantClient", lambda **kwargs: object())
-    monkeypatch.setattr(hp, "QdrantUploader", DummyUploader)
+    monkeypatch.setattr(hp, "HarmonicVectorStore", DummyVectorStore)
     monkeypatch.setattr(hp, "embed", lambda text: [0.1])
 
     state = {"dataframe": pd.DataFrame()}
