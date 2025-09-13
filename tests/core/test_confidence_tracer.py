@@ -11,8 +11,13 @@ spec.loader.exec_module(confidence_tracer)
 ConfidenceTracer = confidence_tracer.ConfidenceTracer
 
 
+FIXTURE_PATH = (
+    Path(__file__).resolve().parents[1] / "fixtures" / "confidence_trace_matrix.json"
+)
+
+
 def test_trace_computes_weighted_score():
-    tracer = ConfidenceTracer()
+    tracer = ConfidenceTracer(matrix_path=FIXTURE_PATH)
     result = {"raw_calculation": 0.5, "strategy": "ema_bullish"}
     score, debug = tracer.trace("test_agent", result)
     # (0.5 + 0.1) / 1.0 * (1 + 0.1 * 1 condition)
@@ -23,7 +28,7 @@ def test_trace_computes_weighted_score():
 
 
 def test_trace_handles_unknown_agent_and_strategy():
-    tracer = ConfidenceTracer()
+    tracer = ConfidenceTracer(matrix_path=FIXTURE_PATH)
     result = {"raw_calculation": 0.5, "strategy": "unknown"}
     score, debug = tracer.trace("unknown_agent", result)
     assert score == pytest.approx(0.5)

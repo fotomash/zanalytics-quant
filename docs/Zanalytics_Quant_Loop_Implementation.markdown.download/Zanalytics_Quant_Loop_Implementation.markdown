@@ -113,7 +113,7 @@ from sentence_transformers import SentenceTransformer
 
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
-def enrich_ticks(ticks: list[dict], manifest_path='session_manifest.yaml', matrix_path='confidence_trace_matrix.json') -> list[dict]:
+def enrich_ticks(ticks: list[dict], manifest_path='session_manifest.yaml', matrix_path='tests/fixtures/confidence_trace_matrix.json') -> list[dict]:
     try:
         with open(manifest_path) as f:
             manifest = yaml.safe_load(f)

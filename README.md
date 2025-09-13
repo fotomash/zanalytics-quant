@@ -475,7 +475,7 @@ The session manifest bundles reusable Whisperer prompts:
 
 ## Confidence Trace Matrix
 
-`confidence_trace_matrix.json` at the repository root configures staged confidence scoring. Each stage includes a numeric `weight` and a `bounds` object with `min` and `max` values:
+An example `confidence_trace_matrix.json` in `tests/fixtures` configures staged confidence scoring. Each stage includes a numeric `weight` and a `bounds` object with `min` and `max` values:
 
 - **raw_calculation** – base confidence derived from raw signals.
 - **simulation_adjustment** – modifies that score using simulated scenarios.
