@@ -50,6 +50,12 @@ advanced:
   predictive_scorer: true
 ```
 
+For harmonic pattern detection with vector database persistence, a dedicated
+configuration is provided at
+[`config/enrichment_harmonic.yaml`](../config/enrichment_harmonic.yaml).  It
+defines the harmonic tolerance and pivot window along with the target
+embedding model and collection name.
+
 ### Pydantic configuration model
 
 The groups are represented by the Pydantic
@@ -65,6 +71,9 @@ cfg.technical.groups["trend"].indicators["ema"] = True  # enable EMA on the fly
 
 # Translate grouped toggles into per-module configs
 module_cfg = cfg.to_module_configs()
+
+# Load harmonic-focused configuration
+harmonic_cfg = load_enrichment_config("config/enrichment_harmonic.yaml")
 ```
 
 ### Dynamic configuration API
