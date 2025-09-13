@@ -17,6 +17,10 @@ ways:
     :func:`batch_sink` with custom logic to push data into Redis or
     Postgres.
 
+``harmonic``
+    Deserialize harmonic payloads, compute basic P&L and expose
+    Prometheus metrics.
+
 Configuration is provided via CLI arguments or environment variables:
 
 - ``--topic`` / ``KAFKA_TOPIC`` – Kafka topic to consume.
@@ -24,7 +28,7 @@ Configuration is provided via CLI arguments or environment variables:
   from (defaults to earliest).
 - ``--batch-size`` / ``KAFKA_BATCH_SIZE`` – number of records to consume
   per poll.
-- ``--mode`` / ``KAFKA_CONSUMER_MODE`` – ``simple`` or ``batch``.
+- ``--mode`` / ``KAFKA_CONSUMER_MODE`` – ``simple``, ``batch`` or ``harmonic``.
 
 Example usage:
 
@@ -51,6 +55,15 @@ try:  # pragma: no cover - module may be absent in tests
 except Exception:  # pragma: no cover - fallback for environments without kafka
     Consumer = KafkaError = TopicPartition = None  # type: ignore
 
+from prometheus_client import Histogram, start_http_server
+
+# Prometheus metric recording confidence of detected harmonic patterns.
+pattern_conf_hist = Histogram(
+    "pattern_conf_hist",
+    "Histogram of harmonic pattern confidence",
+    buckets=[i / 20 for i in range(21)],  # 0.0 -> 1.0 step 0.05
+)
+
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments and merge with environment variables."""
@@ -75,9 +88,18 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--mode",
-        choices=["simple", "batch"],
+        choices=["simple", "batch", "harmonic"],
         default=os.getenv("KAFKA_CONSUMER_MODE", "simple"),
-        help="Processing mode: simple prints each message; batch forwards the entire batch",
+        help=(
+            "Processing mode: simple prints each message; batch forwards the entire "
+            "batch; harmonic computes backtest metrics and exports Prometheus data"
+        ),
+    )
+    parser.add_argument(
+        "--metrics-port",
+        type=int,
+        default=int(os.getenv("METRICS_PORT", "8000")),
+        help="Port to expose Prometheus metrics",
     )
     parser.add_argument(
         "--bootstrap-servers",
@@ -124,12 +146,40 @@ def deserialize_ticks(payload: bytes) -> list[dict]:
     return table.to_pylist()
 
 
-def process_messages(messages: Iterable) -> None:
-    """Process a batch of Kafka messages.
+def harmonic_sink(messages: Iterable) -> None:
+    """Process messages and compute harmonic backtest metrics."""
 
-    Replace the body of this function to forward data into Redis, Postgres,
-    or another sink.  Messages are expected to contain Arrow IPC serialized
-    ticks produced by ``backend.mt5.mt5_bridge.serialize_ticks``.
+    total_pnl = 0.0
+    for msg in messages:
+        if getattr(msg, "error", lambda: None)():
+            err = msg.error()
+            if KafkaError is None or err.code() != KafkaError._PARTITION_EOF:
+                print(f"Kafka error: {err}")
+            continue
+
+        ticks = deserialize_ticks(msg.value())
+        for tick in ticks:
+            pivot = tick.get("pivot")
+            if pivot is not None and pivot < 0:
+                # Skip malformed or low-pivot entries
+                continue
+
+            conf = tick.get("pattern_confidence") or tick.get("pattern_conf")
+            if conf is not None:
+                try:
+                    pattern_conf_hist.observe(float(conf))
+                except Exception:
+                    pass
+
+            pnl = tick.get("pnl")
+            if pnl is not None:
+                try:
+                    total_pnl += float(pnl)
+                except Exception:
+                    pass
+
+    print(f"Total P&L: {total_pnl:.2f}")
+
 
 def print_messages(messages: Iterable) -> None:
     """Print each message value to stdout."""
@@ -178,10 +228,18 @@ def main() -> None:
     if not args.topic:
         raise SystemExit("Kafka topic must be provided via --topic or KAFKA_TOPIC")
 
+    # Expose Prometheus metrics for observability
+    start_http_server(args.metrics_port)
+
     consumer = create_consumer(args.bootstrap_servers, args.group_id)
     try:
         assign_start_offset(consumer, args.topic, args.start_offset)
-        handler = batch_sink if args.mode == "batch" else print_messages
+        if args.mode == "harmonic":
+            handler = harmonic_sink
+        elif args.mode == "batch":
+            handler = batch_sink
+        else:
+            handler = print_messages
         consume(consumer, args.batch_size, handler)
     finally:
         consumer.close()
