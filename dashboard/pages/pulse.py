@@ -1,5 +1,4 @@
-import os
-import json
+import os, json
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
@@ -133,6 +132,7 @@ def render_harmonic_chart(
         prz_low = pattern.get("prz_low")
         prz_high = pattern.get("prz_high")
         if prz_low is not None and prz_high is not None:
+
             fig.add_shape(
                 type="rect",
                 x0=df.index[0],
