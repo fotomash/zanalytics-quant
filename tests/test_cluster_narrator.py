@@ -1,31 +1,30 @@
 import pytest
 import fakeredis
-from unittest.mock import MagicMock
 
-# Import the cluster_narrator function, skipping tests if not available.
-cluster_module = pytest.importorskip("cluster_narrator")
-cluster_narrator = cluster_module.cluster_narrator
+from whisper_engine import WhisperEngine
 
 
 class MockQdrantClient:
-    """Simple mock of a Qdrant client that returns predefined payloads."""
+    """Simple mock of a Qdrant client that returns predefined matches."""
 
-    def __init__(self, payloads=None):
-        self.payloads = payloads or {}
+    def __init__(self, matches=None):
+        self.matches = matches or []
 
-    def search(self, *args, **kwargs):
-        # For testing we assume the query vector contains the cluster key directly.
-        query_vector = kwargs.get("query_vector") or args[1] if len(args) > 1 else None
-        if query_vector in self.payloads:
-            return [MagicMock(payload=self.payloads[query_vector])]
-        return []
+    def search_similar_patterns(self, *args, **kwargs):
+        return self.matches
 
 
 def test_cluster_narrator_returns_dict():
     r = fakeredis.FakeRedis(decode_responses=True)
-    r.hset("cluster:top", mapping={"narrative": "Market is bullish", "recommendation": "Consider long positions"})
-    qdrant = MockQdrantClient({"top": {"narrative": "Market is bullish", "recommendation": "Consider long positions"}})
-    result = cluster_narrator("top", r, qdrant)
+    qdrant = MockQdrantClient()
+    engine = WhisperEngine({})
+    top_cluster = {
+        "cluster_id": "top",
+        "summary": "Market is bullish",
+        "pattern": "trend",
+        "recommendation": "Consider long positions",
+    }
+    result = engine.cluster_narrator(top_cluster, r, qdrant)
     assert isinstance(result, dict)
     assert set(result.keys()) >= {"narrative", "recommendation"}
 
@@ -33,22 +32,32 @@ def test_cluster_narrator_returns_dict():
 def test_cluster_narrator_unknown_cluster():
     r = fakeredis.FakeRedis(decode_responses=True)
     qdrant = MockQdrantClient()
-    result = cluster_narrator("unknown", r, qdrant)
-    assert not result["narrative"]
-    assert not result["recommendation"]
+    engine = WhisperEngine({})
+    top_cluster = {"cluster_id": "unknown", "summary": "", "pattern": ""}
+    result = engine.cluster_narrator(top_cluster, r, qdrant)
+    assert result["recommendation"] == ""
+    assert "No notable historical alerts" in result["narrative"]
 
 
 def test_cluster_narrator_empty_memory():
     r = fakeredis.FakeRedis(decode_responses=True)
     qdrant = MockQdrantClient()
-    result = cluster_narrator("top", r, qdrant)
-    assert not result["narrative"]
-    assert not result["recommendation"]
+    engine = WhisperEngine({})
+    top_cluster = {"cluster_id": "top", "summary": "", "pattern": ""}
+    result = engine.cluster_narrator(top_cluster, r, qdrant)
+    assert "No notable historical alerts" in result["narrative"]
+    assert result["recommendation"] == ""
 
 
 def test_cluster_narrator_recommendation_format():
     r = fakeredis.FakeRedis(decode_responses=True)
-    r.hset("cluster:top", mapping={"narrative": "Uptrend", "recommendation": "Buy the breakout"})
-    qdrant = MockQdrantClient({"top": {"narrative": "Uptrend", "recommendation": "Buy the breakout"}})
-    result = cluster_narrator("top", r, qdrant)
+    qdrant = MockQdrantClient()
+    engine = WhisperEngine({})
+    top_cluster = {
+        "cluster_id": "top",
+        "summary": "Uptrend",
+        "pattern": "pattern",
+        "recommendation": "Buy the breakout",
+    }
+    result = engine.cluster_narrator(top_cluster, r, qdrant)
     assert result["recommendation"] == result["recommendation"].strip()
