@@ -195,9 +195,9 @@ class WhisperEngine:
             similar_note = f" Found {len(matches)} similar historical patterns."
 
         narrative = f"{summary} {memory_insight}{similar_note}".strip()
-        recommendation = top_cluster.get("recommendation") or top_cluster.get(
-            "action", ""
-        )
+        recommendation = (
+            top_cluster.get("recommendation") or top_cluster.get("action", "")
+        ).strip()  # Normalize whitespace
 
         return {
             "cluster_id": cluster_id,
