@@ -27,6 +27,18 @@ streamlit run dashboard/Home.py
 - Share common UI components via the `components/` package.
 - Update configuration values under `config/` or `configs/`.
 
+### Clustering Prototype
+
+A standalone clustering view lives under `_mix/4_〽️ Comprehensive Market Analysis.py_`.
+Run it directly:
+
+```bash
+streamlit run dashboard/_mix/4_〽️\ Comprehensive\ Market\ Analysis.py_
+```
+
+The page groups volatility regimes and price levels.  See
+[docs/clustering_dashboard.md](../docs/clustering_dashboard.md) for more details.
+
 ## Maintenance Notes
 - Keep `requirements/dashboard.txt` in sync with `dashboard/requirements.txt`.
 - Watch for breaking Streamlit or API changes and update entry points accordingly.
