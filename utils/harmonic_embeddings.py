@@ -1,10 +1,9 @@
 """Embed harmonic pattern features and store them asynchronously in Qdrant.
 
-This module previously handled Qdrant upserts directly.  It now delegates the
-storage operation to :class:`utils.processors.harmonic.HarmonicProcessor` which
-provides an awaitable interface capable of working with both synchronous and
-asynchronous Qdrant clients.  The public API is kept as a thin async wrapper so
-existing call sites can simply ``await`` the new implementation.
+The actual upsert is delegated to
+:class:`utils.processors.harmonic.HarmonicStorageProcessor`, an awaitable
+utility dedicated solely to Qdrant persistence (pattern analysis is handled by
+``core.harmonic_processor``).
 """
 
 from __future__ import annotations
@@ -15,7 +14,7 @@ from typing import Any, Dict, Iterable, List
 
 from qdrant_client import QdrantClient
 
-from utils.processors.harmonic import HarmonicProcessor
+from utils.processors.harmonic import HarmonicStorageProcessor
 
 try:  # pragma: no cover - best effort fallback when deps missing
     from services.mcp2.vector.embeddings import embed
@@ -60,7 +59,7 @@ async def upsert_harmonic_patterns(
         api_key = os.getenv("QDRANT_API_KEY")
         client = QdrantClient(url=url, api_key=api_key)
 
-    processor = HarmonicProcessor(client, collection_name)
+    processor = HarmonicStorageProcessor(client, collection_name)
 
     vectors: List[List[float]] = []
     payloads: List[Dict[str, Any]] = []
