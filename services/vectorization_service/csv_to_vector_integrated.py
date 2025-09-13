@@ -26,8 +26,12 @@ def _load_field_patch() -> Dict[str, object]:
         with patch_path.open("r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
             patch = {
-                "normalization": data.get("normalization", default_patch["normalization"]),
-                "field_mappings": data.get("field_mappings", default_patch["field_mappings"]),
+                "normalization": data.get(
+                    "normalization", default_patch["normalization"]
+                ),
+                "field_mappings": data.get(
+                    "field_mappings", default_patch["field_mappings"]
+                ),
             }
             logger.info("loaded volume field patch", extra={"patch": patch})
             return patch
@@ -123,6 +127,13 @@ def vectorize_payload(payload: Dict) -> Tuple[List[float], Dict]:
             )
         if volume_candidates:
             metadata["volume"] = payload[volume_candidates[0]]
+
+        # Ensure downstream consumers always receive pattern, pnl and
+        # confidence fields.  Payloads that lack these entries default to
+        # ``None`` to maintain a consistent structure across vector types.
+        metadata.setdefault("pattern_name", payload.get("pattern_name"))
+        metadata.setdefault("pnl", payload.get("pnl"))
+        metadata.setdefault("confidence", payload.get("confidence"))
 
         return embedding, metadata
     except Exception as exc:  # pragma: no cover - defensive
