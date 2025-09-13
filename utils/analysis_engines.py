@@ -66,13 +66,6 @@ def build_unified_analysis(
         conflict_detection=ConflictDetectionResult(is_conflict=False),
     )
 
-    pipeline = ISPTSPipelineResult(
-        context_analyzer={},
-        liquidity_engine={},
-        structure_validator={},
-        fvg_locator={},
-    )
-
     symbol = tick.get("symbol", "UNKNOWN")
     timeframe = tick.get("timeframe", "1m")
     ts = tick.get("ts") or tick.get("timestamp")
@@ -102,13 +95,11 @@ def build_unified_analysis(
         except Exception:
             pass
 
-    harmonic_data = (
-        tick.get("harmonic")
-        or tick.get("data", {}).get("harmonic")
-        or {}
-    )
+    harmonic_data = tick.get("harmonic") or tick.get("data", {}).get("harmonic") or {}
     if not harmonic_data:
-        patterns = tick.get("harmonic_patterns") or tick.get("data", {}).get("harmonic_patterns")
+        patterns = tick.get("harmonic_patterns") or tick.get("data", {}).get(
+            "harmonic_patterns"
+        )
         if patterns:
             harmonic_data["harmonic_patterns"] = patterns
     harmonic = HarmonicResult(**harmonic_data) if harmonic_data else HarmonicResult()
@@ -127,6 +118,14 @@ def build_unified_analysis(
         except Exception:
             pass
 
+    pipeline = ISPTSPipelineResult(
+        context_analyzer={},
+        liquidity_engine={},
+        structure_validator={},
+        fvg_locator={},
+        harmonic_processor=harmonic,
+    )
+
     return UnifiedAnalysisPayloadV1(
         symbol=symbol,
         timeframe=timeframe,
@@ -136,7 +135,6 @@ def build_unified_analysis(
         smc=smc,
         wyckoff=wyckoff,
         microstructure=MicrostructureAnalysis(),
-        harmonic=harmonic,
         predictive_analysis=predictive,
         ispts_pipeline=pipeline,
         extras={"risk": risk},
