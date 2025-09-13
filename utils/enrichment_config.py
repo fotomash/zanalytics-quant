@@ -84,8 +84,11 @@ class TechnicalConfig(BaseModel):
 
 class StructureConfig(BaseModel):
     """Structure analysis toggles (SMC / Wyckoff)."""
-
     smc: bool = Field(True, description="Enable Smart Money Concepts analysis")
+    smc_features: Dict[str, bool] = Field(
+        default_factory=dict,
+        description="Per-feature toggles for SMC analysis",
+    )
     wyckoff: bool = Field(True, description="Enable Wyckoff phase analysis")
 
 
