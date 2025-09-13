@@ -103,6 +103,31 @@ class ElliottConfig(BaseModel):
     )
 
 
+class HarmonicConfig(BaseModel):
+    """Configuration for harmonic pattern detection."""
+
+    enabled: bool = True
+    collection: str | None = Field(
+        None, description="Target collection for harmonic pattern vectors"
+    )
+
+
+class VectorDBConfig(BaseModel):
+    """Settings for the backing vector database."""
+
+    collection: str | None = Field(
+        None, description="Name of the primary vector database collection"
+    )
+
+
+class EmbeddingConfig(BaseModel):
+    """Embedding model configuration."""
+
+    model: str | None = Field(
+        None, description="Name of the embedding model to use"
+    )
+
+
 class AdvancedConfig(BaseModel):
     """Advanced enrichment modules."""
 
@@ -114,6 +139,7 @@ class AdvancedConfig(BaseModel):
     fractal_bars: int = 2
     alligator: AlligatorConfig = Field(default_factory=AlligatorConfig)
     elliott: ElliottConfig = Field(default_factory=ElliottConfig)
+    harmonic: HarmonicConfig = Field(default_factory=HarmonicConfig)
 
 
 class EnrichmentConfig(BaseModel):
@@ -123,6 +149,8 @@ class EnrichmentConfig(BaseModel):
     technical: TechnicalConfig = TechnicalConfig()
     structure: StructureConfig = StructureConfig()
     advanced: AdvancedConfig = AdvancedConfig()
+    vector_db: VectorDBConfig = Field(default_factory=VectorDBConfig)
+    embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
 
     def to_module_configs(self) -> Dict[str, Dict[str, Any]]:
         """Translate grouped toggles into per-module configs for the pipeline."""
@@ -162,7 +190,21 @@ def load_enrichment_config(path: str | Path = "config/enrichment_default.yaml") 
             data = yaml.safe_load(fh) or {}
     else:  # pragma: no cover - file missing handled gracefully
         data = {}
-    return EnrichmentConfig.model_validate(data)
+
+    missing = []
+    if not data.get("vector_db", {}).get("collection"):
+        missing.append("vector_db.collection")
+    if not data.get("advanced", {}).get("harmonic"):
+        missing.append("advanced.harmonic")
+    if not data.get("embedding", {}).get("model"):
+        missing.append("embedding.model")
+    if missing:
+        raise ValueError(
+            "Missing required configuration options: " + ", ".join(missing)
+        )
+
+    cfg = EnrichmentConfig.model_validate(data)
+    return cfg
 
 
 __all__ = [
@@ -172,6 +214,9 @@ __all__ = [
     "StructureConfig",
     "AlligatorConfig",
     "ElliottConfig",
+    "HarmonicConfig",
+    "VectorDBConfig",
+    "EmbeddingConfig",
     "AdvancedConfig",
     "EnrichmentConfig",
     "load_enrichment_config",

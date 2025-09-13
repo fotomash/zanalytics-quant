@@ -2,7 +2,10 @@ import importlib
 import sys
 from types import ModuleType
 
-from utils.enrichment_config import EnrichmentConfig
+import yaml
+import pytest
+
+from utils.enrichment_config import EnrichmentConfig, load_enrichment_config
 
 
 class DummyPredictiveScorer:
@@ -47,4 +50,46 @@ def test_build_unified_analysis_skips_technical(monkeypatch):
     payload = ae.build_unified_analysis(tick, cfg)
     assert not called
     assert payload.technical_indicators.extras == {}
+
+
+def _write_cfg(tmp_path, data):
+    file = tmp_path / "cfg.yaml"
+    file.write_text(yaml.safe_dump(data))
+    return file
+
+
+def test_missing_vector_db_collection(tmp_path):
+    path = _write_cfg(
+        tmp_path,
+        {
+            "advanced": {"harmonic": {"enabled": True, "collection": "harmonic_patterns"}},
+            "embedding": {"model": "text-embedding-3-small"},
+        },
+    )
+    with pytest.raises(ValueError, match="vector_db.collection"):
+        load_enrichment_config(path)
+
+
+def test_missing_harmonic_options(tmp_path):
+    path = _write_cfg(
+        tmp_path,
+        {
+            "vector_db": {"collection": "foo"},
+            "embedding": {"model": "text-embedding-3-small"},
+        },
+    )
+    with pytest.raises(ValueError, match="advanced.harmonic"):
+        load_enrichment_config(path)
+
+
+def test_missing_embedding_model(tmp_path):
+    path = _write_cfg(
+        tmp_path,
+        {
+            "vector_db": {"collection": "foo"},
+            "advanced": {"harmonic": {"enabled": True, "collection": "harmonic_patterns"}},
+        },
+    )
+    with pytest.raises(ValueError, match="embedding.model"):
+        load_enrichment_config(path)
 

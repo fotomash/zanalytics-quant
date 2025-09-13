@@ -28,8 +28,17 @@ advanced:
   predictive_scorer: true
   fractal_detector: true
   fractal_bars: 2
+  harmonic:
+    enabled: true
+    collection: harmonic_patterns
   alligator:
     enabled: true
     jaw: 13
     teeth: 8
     lips: 5
+
+vector_db:
+  collection: enrichment_vectors
+
+embedding:
+  model: text-embedding-3-small
