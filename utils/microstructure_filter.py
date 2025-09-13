@@ -1,3 +1,4 @@
+
 import pandas as pd
 
 
@@ -10,6 +11,7 @@ def microstructure_filter(
     min_liquidity: float = 0.0,
 ) -> pd.DataFrame:
     """Filter out observations with poor market microstructure.
+
 
     Parameters
     ----------
