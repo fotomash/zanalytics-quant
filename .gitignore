@@ -61,3 +61,9 @@ services/.env
 
 # Node modules
 web/node_modules/
+
+# Ignore session and trade history artifacts
+*journal.json
+*trade_history.json
+!tests/fixtures/*journal.json
+!tests/fixtures/*trade_history.json
