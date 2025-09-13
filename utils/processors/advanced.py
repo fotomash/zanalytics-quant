@@ -12,57 +12,7 @@ from scipy.signal import find_peaks
 from utils.metrics import record_metrics
 
 
-# ---------------------------------------------------------------------------
-# Harmonic pattern detection helper
-# ---------------------------------------------------------------------------
 
-def detect_harmonic_patterns(
-    df: pd.DataFrame, pivots: Dict[str, List[int]] | None = None
-) -> List[Dict[str, Any]]:
-    """Detect harmonic patterns using precomputed pivots when available.
-
-    Parameters
-    ----------
-    df:
-        Price data containing ``high`` and ``low`` columns.
-    pivots:
-        Optional dictionary with ``peaks`` and ``troughs`` index lists.
-
-    Returns
-    -------
-    List[Dict[str, Any]]
-        List of detected patterns. Each entry contains ``pattern`` name,
-        ``points`` describing the pivot structure and ``completion_time`` /
-        ``completion_price`` values.  If the detector is unavailable or an
-        error occurs, an empty list is returned.
-    """
-
-    try:
-        from utils.ncos_enhanced_analyzer import HarmonicPatternDetector
-
-        detector = HarmonicPatternDetector()
-        if pivots:
-            highs = df["high"].astype(float).to_numpy()
-            lows = df["low"].astype(float).to_numpy()
-            pivot_points = []
-            for i in pivots.get("peaks", []):
-                if i < len(highs):
-                    pivot_points.append(
-                        {"index": int(i), "price": float(highs[i]), "type": "high"}
-                    )
-            for i in pivots.get("troughs", []):
-                if i < len(lows):
-                    pivot_points.append(
-                        {"index": int(i), "price": float(lows[i]), "type": "low"}
-                    )
-            pivot_points.sort(key=lambda x: x["index"])
-            patterns: List[Dict[str, Any]] = []
-            for name, ratios in detector.patterns.items():
-                patterns.extend(detector._check_pattern(pivot_points, ratios, name))
-            return patterns
-        return detector.detect_patterns(df)
-    except Exception:  # pragma: no cover - graceful fallback
-        return []
 
 
 
@@ -88,7 +38,7 @@ class AdvancedProcessor:
         logger: logging.Logger | None = None,
         ml_ensemble: bool = False,
         llm_max_tokens: int = 256,
-        
+        fib_levels: List[float] | None = None,
     ) -> None:
         self.fractal_bars = fractal_bars
         self.alligator_cfg = alligator or {"jaw": 13, "teeth": 8, "lips": 5}
@@ -97,6 +47,7 @@ class AdvancedProcessor:
         self.logger = logger or logging.getLogger(__name__)
         self.ml_ensemble = ml_ensemble
         self.llm_max_tokens = llm_max_tokens
+        self.fib_levels = fib_levels or [0.382, 0.618]
         
 
     # ------------------------------------------------------------------
@@ -447,7 +398,7 @@ class AdvancedProcessor:
 
         score = 0.5
 
-        fib_levels = [0.382, 0.618]
+        fib_levels = self.fib_levels
         if len(waves) >= 4 and waves[0] and waves[2]:
             ratios = [waves[1] / waves[0], waves[3] / waves[2]]
 
@@ -533,14 +484,14 @@ class AdvancedProcessor:
             if wave_only:
                 gator = self.calculate_alligator(df)
                 pivots = self.detect_pivots(df)
-                _ = detect_harmonic_patterns(df, pivots)
+                # Removed redundant call to detect_harmonic_patterns(df, pivots)
                 elliott = self.elliott_wave(df, pivots, fractals, gator)
                 return {"elliott_wave": elliott}
 
             gator = self.calculate_alligator(df)
             vol = self.volatility(df)
             pivots = self.detect_pivots(df)
-            patterns = detect_harmonic_patterns(df, pivots)
+            patterns = self.detect_harmonic_patterns(df)
             elliott = self.elliott_wave(df, pivots, fractals, gator)
             forecast = ""
             if elliott.get("label"):

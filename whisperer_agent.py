@@ -3,6 +3,11 @@
 This FastAPI application forwards incoming trading state objects to a remote
 Whisperer MCP backend.  The backend URL is configured via the ``MCP_HOST``
 environment variable, replacing the deprecated ``WHISPERER_BACKEND`` setting.
+
+In addition to the ``/mcp`` passthrough, the service exposes ``/cluster_narrate``
+which initialises Redis and Qdrant clients then delegates to
+``WhisperEngine.cluster_narrator`` to produce a narrative and recommendation for
+the supplied cluster identifier.
 """
 
 from __future__ import annotations
@@ -13,8 +18,9 @@ from typing import Any, Optional
 
 import httpx
 from fastapi import FastAPI
+from pydantic import BaseModel
 
-from whisper_engine import State
+from whisper_engine import State, WhisperEngine
 
 # Default MCP endpoint if the environment variable is unset.
 MCP_HOST = os.getenv("MCP_HOST", "https://mcp2.analytics.org/api/v1/whisperer/exec")
