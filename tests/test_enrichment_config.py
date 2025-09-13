@@ -93,3 +93,11 @@ def test_missing_embedding_model(tmp_path):
     with pytest.raises(ValueError, match="embedding.model"):
         load_enrichment_config(path)
 
+
+def test_load_enrichment_config_missing_file(tmp_path):
+    non_existent_path = tmp_path / "non_existent_config.yaml"
+    cfg = load_enrichment_config(non_existent_path)
+    assert isinstance(cfg, EnrichmentConfig)
+    # Assert some default values to ensure it's a default config
+    assert cfg.core.structure_validator is True
+    assert cfg.advanced.elliott.enabled is True

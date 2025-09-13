@@ -15,6 +15,10 @@ from . import fvg_locator as fvg
 from . import liquidity_engine as liquidity
 from . import predictive_scorer
 from . import structure_validator
+from . import smc
+from . import poi
+from . import divergence
+from . import rsi_fusion
 
 # Register shorthand aliases so callers can refer to modules by logical name.
 sys.modules[__name__ + ".context"] = context
@@ -27,4 +31,8 @@ __all__ = [
     "liquidity",
     "predictive_scorer",
     "structure_validator",
+    "smc",
+    "poi",
+    "divergence",
+    "rsi_fusion",
 ]

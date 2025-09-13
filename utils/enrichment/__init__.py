@@ -41,13 +41,13 @@ def aggregate_ticks_to_bars(ticks: pd.DataFrame, timeframe: str = "M1") -> pd.Da
     pd.DataFrame
         Resampled bar data with ``open``, ``high``, ``low`` and ``close``
         columns. ``volume`` will be summed if present in the input ``ticks``.
+
     """
     if ticks is None or ticks.empty:
         return pd.DataFrame()
 
     df = ticks.copy()
 
-    # Ensure datetime index
     if "timestamp" in df.columns:
         df["timestamp"] = pd.to_datetime(df["timestamp"])
         df.set_index("timestamp", inplace=True)
@@ -74,6 +74,14 @@ def enrich_ticks(df: pd.DataFrame) -> pd.DataFrame:
     present, it derives ``mid_price`` and ``spread`` metrics. Simple technical
     indicators like rolling averages and returns are also calculated on the
     mid price.
+    When ``bid`` and ``ask`` columns are present, mid price and spread
+    statistics are derived.  Simple rolling averages and returns are computed
+    on the mid price to give downstream modules immediate contextual
+    information.
+    The function expects ``bid`` and ``ask`` columns where available. When
+    present, it derives ``mid_price`` and ``spread`` metrics. Simple
+    technical indicators like rolling averages and returns are also
+    calculated on the mid price.
     """
     if df is None or df.empty:
         return df

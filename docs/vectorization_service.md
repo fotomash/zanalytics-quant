@@ -70,3 +70,28 @@ Configuration for Qdrant is provided via environment variables:
 
 The vector store receives the payload via an HTTP `POST` to `${QDRANT_URL}/upsert` with the JSON body above. Qdrant returns the
 ID associated with each point; store or log this identifier for later retrieval.
+
+## Vectorized Configs
+
+Feature extraction for embeddings is driven by a YAML file.  The default
+`utils/tick_vectorizer_config.yaml` enables microstructure and regime modules:
+
+```yaml
+tick_vectorizer:
+  embedding_dim: 1536
+  feature_extractors:
+    microstructure:
+      - spread_dynamics
+      - volume_profile
+  vector_ops:
+    normalization: l2
+    similarity_metric: cosine
+```
+
+Run the vectorizer with a custom config:
+
+```bash
+python -m utils.tick_vectorizer --config utils/tick_vectorizer_config.yaml
+```
+
+Edit the YAML to enable additional extractors or adjust vector operations.

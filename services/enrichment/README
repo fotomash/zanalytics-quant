@@ -1,18 +1,32 @@
 # Enrichment Service
 
 This service enriches incoming market data before it is stored or published.
+Processors are modular and enabled via YAML so you can compose custom pipelines.
 
 ## Running
 
-Run the worker module to consume ticks from Redis and persist enriched
-results:
+Load the default configuration and consume ticks from Redis:
+
+```bash
+python -m services.enrichment.main --config config/enrichment_default.yaml
+```
+
+The legacy worker entrypoint remains for backward compatibility:
 
 ```bash
 python -m worker
 ```
 
-For programmatic use of the enrichment pipeline:
+### Customizing modules
 
-```bash
-python -m main
+Toggle processors directly in the YAML.  Example:
+
+```yaml
+advanced:
+  liquidity_engine: true
+  context_analyzer: false
 ```
+
+Adjust the flags and restart the service to apply changes.  Configuration
+models and API hooks are documented in
+[docs/enrichment_engine.md](../../docs/enrichment_engine.md).

@@ -6,6 +6,7 @@ The `dashboard/` directory hosts the primary Streamlit application for Zanalytic
 - `Home.py` – main launcher that wires the pages.
 - `pulse_dashboard.py` and `pulse_kernel_dashboard.py` – focused dashboards for pulse analytics.
 - `wiki_dashboard.py` – streamlit wrapper around internal wiki data.
+- `cluster_viz.py` – explore enriched vectors with UMAP/t‑SNE and Whisperer queries.
 - `pages/system_diagnostics.py` – aggregates health checks for Redis, Kafka, MT5 and the Django API.
 - `stream.py` – minimal WebSocket stream viewer for MCP2.
 
@@ -20,12 +21,26 @@ streamlit run dashboard/Home.py
    ```bash
    pip install -r requirements/dashboard.txt  # or dashboard/requirements.txt
    ```
+   This installs the necessary Python packages, including `scikit-learn` and
+   `umap-learn`, which power machine-learning features in the dashboard.
 2. **Environment** – ensure Redis and the Django API are reachable; most pages expect live data. Set `HEALTH_AGGREGATOR_URL` to the base URL of your health aggregator service.
 
 ## Customization
 - Add or modify Streamlit pages inside `pages/`.
 - Share common UI components via the `components/` package.
 - Update configuration values under `config/` or `configs/`.
+
+### Clustering Prototype
+
+A standalone clustering view lives under `_mix/4_〽️ Comprehensive Market Analysis.py_`.
+Run it directly:
+
+```bash
+streamlit run dashboard/_mix/4_〽️\ Comprehensive\ Market\ Analysis.py_
+```
+
+The page groups volatility regimes and price levels.  See
+[docs/clustering_dashboard.md](../docs/clustering_dashboard.md) for more details.
 
 ## Maintenance Notes
 - Keep `requirements/dashboard.txt` in sync with `dashboard/requirements.txt`.
