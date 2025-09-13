@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import asdict
+from typing import Any, Optional
 
 import httpx
 from fastapi import FastAPI
@@ -16,9 +17,11 @@ from fastapi import FastAPI
 from whisper_engine import State
 
 # Default MCP endpoint if the environment variable is unset.
-MCP_HOST = os.getenv(
-    "MCP_HOST", "https://mcp2.analytics.org/api/v1/whisperer/exec"
-)
+MCP_HOST = os.getenv("MCP_HOST", "https://mcp2.analytics.org/api/v1/whisperer/exec")
+
+# Optional endpoints for cluster queries.
+CLUSTER_API = os.getenv("CLUSTER_API")
+VECTOR_SEARCH_URL = os.getenv("VECTOR_SEARCH_URL")
 
 app = FastAPI(title="Whisperer MCP")
 
@@ -31,3 +34,60 @@ async def mcp(state: State):
         response.raise_for_status()
         return response.json()
 
+
+async def _fetch_cluster_from_dashboard(date: str) -> Optional[Any]:
+    """Fetch RSI divergence cluster data from the dashboard service."""
+    if not CLUSTER_API:
+        return None
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{CLUSTER_API.rstrip('/')}/rsi/divergence", params={"date": date}
+            )
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, dict):
+                if "top_cluster" in data:
+                    return data["top_cluster"]
+                clusters = data.get("clusters")
+                if isinstance(clusters, list) and clusters:
+                    return clusters[0]
+        return None
+    except Exception:
+        return None
+
+
+async def _fetch_cluster_from_vector_store(date: str) -> Optional[Any]:
+    """Query vector store for RSI divergence cluster information."""
+    if not VECTOR_SEARCH_URL:
+        return None
+    payload = {"query": f"Top RSI divergence cluster on {date}", "k": 1}
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(VECTOR_SEARCH_URL, json=payload)
+        if resp.status_code == 200:
+            data = resp.json()
+            matches = data.get("matches")
+            if isinstance(matches, list) and matches:
+                top = matches[0]
+                if isinstance(top, dict):
+                    return top.get("payload", top)
+                return top
+        return None
+    except Exception:
+        return None
+
+
+@app.get("/rsi-divergence-cluster")
+async def rsi_divergence_cluster(date: str):
+    """Return the top RSI divergence cluster for ``date``.
+
+    The function first attempts to retrieve clustering data from the dashboard
+    service. If unavailable, it falls back to querying an external vector
+    store. Both data sources are optional; if neither is configured or returns
+    a result, ``cluster`` will be ``None``.
+    """
+    cluster = await _fetch_cluster_from_dashboard(date)
+    if cluster is None:
+        cluster = await _fetch_cluster_from_vector_store(date)
+    return {"date": date, "cluster": cluster}
